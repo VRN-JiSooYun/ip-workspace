@@ -17,6 +17,9 @@ import {
   Menu as MenuIcon,
   ChevronLeft,
   ChevronRight,
+  FileText,
+  BookOpen,
+  Users as UsersIcon
 } from 'lucide-react';
 
 const { Header, Sider, Content } = Layout;
@@ -61,7 +64,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
           </div>
           {!collapsed && (
             <div>
-              <div style={{ fontWeight: 800, fontSize: '18px', color: '#191c1e', letterSpacing: '-0.5px' }}>Myworkspace</div>
+              <div style={{ fontWeight: 800, fontSize: '18px', color: '#191c1e', letterSpacing: '-0.5px' }}>MyWorkspace</div>
             </div>
           )}
 
@@ -113,11 +116,26 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
               },
               {
                 key: 'documents',
-                icon: <FlaskConical size={20} />, // Microscope placeholder
+                icon: <FileText size={20} />,
                 label: <span style={{ fontWeight: 600 }}>Documents</span>,
                 children: [
-                  { key: 'patents', label: 'Patents' },
-                  { key: 'papers', label: 'Papers' },
+                  {
+                    key: 'patents',
+                    label: 'Patents',
+                    children: [
+                      { key: 'patent-write', label: 'My 특허 쓰기' },
+                      { key: 'patent-analysis', label: 'My 특허 분석' },
+                      { key: 'patent-manage', label: 'My 특허 관리' },
+                    ]
+                  },
+                  {
+                    key: 'papers',
+                    label: 'Papers',
+                    children: [
+                      { key: 'paper-manage', label: 'My 논문 관리' },
+                    ]
+                  },
+                  { key: 'conferences', label: 'Conferences' },
                 ],
               },
               {

@@ -26,6 +26,8 @@ const MyBoard: React.FC = () => {
   const [showFilters, setShowFilters] = useState(false);
   const [viewMode, setViewMode] = useState<'table' | 'draw' | 'tree'>('table');
   const [assignedGroupIds, setAssignedGroupIds] = useState<string[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [selectedDataSources, setSelectedDataSources] = useState<string[]>(['my designs']);
 
   // Sync selectedGroupIds to local state when modal opens
   React.useEffect(() => {
@@ -36,11 +38,40 @@ const MyBoard: React.FC = () => {
 
   // COLUMN STATES (Order & Visibility)
   const [columnOrder, setColumnOrder] = useState<string[]>([
-    'Num', 'Grp.', 'Compound', 'Structure', 'Name', 'Source', 'Mol.Props1', 'Mol.Props2', '계산'
+    'Num', 'Grp.', 'Compound', 'Structure', 'Name', 'Source', 'Memo', 'Mol.Props1', 'Mol.Props2', '계산'
   ]);
   const [activeColumns, setActiveColumns] = useState<string[]>([
-    'Num', 'Grp.', 'Compound', 'Structure', 'Name', 'Source', 'Mol.Props1', 'Mol.Props2', '계산'
+    'Num', 'Grp.', 'Compound', 'Structure', 'Name', 'Source', 'Memo', 'Mol.Props1', 'Mol.Props2', '계산'
   ]);
+
+  // Preset State: stores order and active columns for each preset index (1-5)
+  const defaultOrder = ['Num', 'Grp.', 'Compound', 'Structure', 'Name', 'Source', 'Memo', 'Mol.Props1', 'Mol.Props2', '계산'];
+  const defaultActive = ['Num', 'Grp.', 'Compound', 'Structure', 'Name', 'Source', 'Memo', 'Mol.Props1', 'Mol.Props2', '계산'];
+  const [activePreset, setActivePreset] = useState<number>(1);
+  const [presets, setPresets] = useState<Record<number, any>>({
+    1: { order: [...defaultOrder], active: [...defaultActive] },
+    2: { order: [...defaultOrder], active: [...defaultActive] },
+    3: { order: [...defaultOrder], active: [...defaultActive] },
+    4: { order: [...defaultOrder], active: [...defaultActive] },
+    5: { order: [...defaultOrder], active: [...defaultActive] }
+  });
+
+  const handleSavePreset = () => {
+    setPresets({
+      ...presets,
+      [activePreset]: { order: [...columnOrder], active: [...activeColumns] }
+    });
+    setIsSettingsModalOpen(false);
+  };
+
+  const applyPreset = (n: number) => {
+    setActivePreset(n);
+    const preset = presets[n];
+    if (preset) {
+      setColumnOrder([...preset.order]);
+      setActiveColumns([...preset.active]);
+    }
+  };
 
   const toggleColumn = (key: string) => {
     setActiveColumns(prev =>
@@ -96,7 +127,11 @@ const MyBoard: React.FC = () => {
       render: (record: any) => (
         <Checkbox
           checked={selectedGroupIds.includes(record.id)}
-          onChange={() => toggleGroupSelection(record.id)}
+          onChange={() => {
+            setIsLoading(true);
+            toggleGroupSelection(record.id);
+            setTimeout(() => setIsLoading(false), 500); // Simulate loading
+          }}
         />
       )
     },
@@ -132,6 +167,7 @@ const MyBoard: React.FC = () => {
     },
     'Name': { title: 'Name', dataIndex: 'name', key: 'name', ellipsis: true },
     'Source': { title: 'Source', dataIndex: 'designSource', key: 'designSource', width: 100 },
+    'Memo': { title: 'Memo', dataIndex: 'memo', key: 'memo', ellipsis: true, width: 200 },
     'Mol.Props1': {
       title: 'Mol.Props1',
       dataIndex: 'properties1',
@@ -238,8 +274,8 @@ const MyBoard: React.FC = () => {
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <Text strong>기간:</Text>
                     <Segmented options={['3개월', '6개월', '12개월', '전체']} value={period} onChange={(v) => setPeriod(v as string)} />
-                    <RangePicker 
-                      style={{ borderRadius: 8 }} 
+                    <RangePicker
+                      style={{ borderRadius: 8 }}
                       disabled={period !== '전체'}
                     />
                   </div>
@@ -253,22 +289,178 @@ const MyBoard: React.FC = () => {
       <Row gutter={[24, 24]}>
         <Col span={10}>
           <div className="c-card" style={{ background: '#fff', borderRadius: 12, overflow: 'hidden' }}>
-            <div style={{ padding: '16px 24px', borderBottom: '1px solid #f0f0f0' }}>
+            <div style={{ padding: '16px 24px', borderBottom: '1px solid #f0f0f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <Text strong style={{ color: '#F87C63' }}>그룹 리스트</Text>
+              <div style={{ background: '#f8f9fa', padding: '2px 8px', borderRadius: 8, display: 'flex', gap: 12 }}>
+                <Checkbox
+                  checked={selectedDataSources.includes('my designs')}
+                  onChange={(e) => {
+                    const next = e.target.checked
+                      ? [...selectedDataSources, 'my designs']
+                      : selectedDataSources.filter(s => s !== 'my designs');
+                    if (next.length > 0) setSelectedDataSources(next);
+                  }}
+                >
+                  <Text style={{ fontSize: 11 }}>My Designs</Text>
+                </Checkbox>
+                <Checkbox
+                  checked={selectedDataSources.includes('my compounds')}
+                  onChange={(e) => {
+                    const next = e.target.checked
+                      ? [...selectedDataSources, 'my compounds']
+                      : selectedDataSources.filter(s => s !== 'my compounds');
+                    if (next.length > 0) setSelectedDataSources(next);
+                  }}
+                >
+                  <Text style={{ fontSize: 11 }}>My Compounds</Text>
+                </Checkbox>
+              </div>
             </div>
-            <Table dataSource={mockGroups} columns={groupColumns} pagination={false} size="small" rowKey="id" />
+            <Table
+              dataSource={mockGroups.filter(g => selectedDataSources.includes(g.type))}
+              columns={groupColumns}
+              pagination={false}
+              size="small"
+              rowKey="id"
+            />
           </div>
         </Col>
 
         <Col span={14}>
           <div className="c-card" style={{ background: '#fff', borderRadius: 12, overflow: 'hidden' }}>
             <div style={{ padding: '16px 24px', borderBottom: '1px solid #f0f0f0', display: 'flex', justifyContent: 'space-between' }}>
-              <Text strong style={{ color: '#F87C63' }}>데이터 목록</Text>
+              <Text strong style={{ color: '#F87C63' }}>그룹 상세 목록</Text>
               <Space>
-                <Button size="small" icon={<Settings size={14} />} onClick={() => setIsSettingsModalOpen(true)}>Settings</Button>
+                {viewMode === 'table' && (
+                  <>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <div style={{ display: 'flex', gap: 4 }}>
+                        {[1, 2, 3, 4, 5].map(n => (
+                          <div 
+                            key={n} 
+                            onClick={() => applyPreset(n)}
+                            style={{ 
+                              width: 24, height: 24, 
+                              background: activePreset === n ? '#F87C63' : '#eee', 
+                              borderRadius: 4, 
+                              fontSize: 11, 
+                              display: 'flex', 
+                              alignItems: 'center', 
+                              justifyContent: 'center', 
+                              color: activePreset === n ? '#fff' : '#868e96',
+                              cursor: 'pointer',
+                              fontWeight: activePreset === n ? 'bold' : 'normal',
+                              transition: 'all 0.2s'
+                            }}
+                          >
+                            {n}
+                          </div>
+                        ))}
+                      </div>
+                      <Settings 
+                        size={18} 
+                        color="#adb5bd" 
+                        style={{ cursor: 'pointer' }} 
+                        onClick={() => setIsSettingsModalOpen(true)}
+                      />
+                    </div>
+                    <Divider type="vertical" />
+                  </>
+                )}
+                <div style={{ background: '#f8f9fa', padding: '2px', borderRadius: 6, display: 'flex' }}>
+                  <Button
+                    type={viewMode === 'table' ? 'text' : 'text'}
+                    size="small"
+                    icon={<ListIcon size={14} />}
+                    style={{
+                      background: viewMode === 'table' ? '#fff' : 'transparent',
+                      boxShadow: viewMode === 'table' ? '0 2px 4px rgba(0,0,0,0.05)' : 'none',
+                      borderRadius: 4,
+                      fontSize: 11
+                    }}
+                    onClick={() => setViewMode('table')}
+                  >
+                    Table
+                  </Button>
+                  <Button
+                    type={viewMode === 'draw' ? 'text' : 'text'}
+                    size="small"
+                    icon={<ImageIcon size={14} />}
+                    style={{
+                      background: viewMode === 'draw' ? '#fff' : 'transparent',
+                      boxShadow: viewMode === 'draw' ? '0 2px 4px rgba(0,0,0,0.05)' : 'none',
+                      borderRadius: 4,
+                      fontSize: 11
+                    }}
+                    onClick={() => setViewMode('draw')}
+                  >
+                    Canvas
+                  </Button>
+                  <Button
+                    type={viewMode === 'tree' ? 'text' : 'text'}
+                    size="small"
+                    icon={<GitBranch size={14} />}
+                    style={{
+                      background: viewMode === 'tree' ? '#fff' : 'transparent',
+                      boxShadow: viewMode === 'tree' ? '0 2px 4px rgba(0,0,0,0.05)' : 'none',
+                      borderRadius: 4,
+                      fontSize: 11
+                    }}
+                    onClick={() => setViewMode('tree')}
+                  >
+                    Tree
+                  </Button>
+                </div>
               </Space>
             </div>
-            <Table dataSource={filteredCompounds} columns={dynamicCompoundColumns} size="small" rowKey="id" pagination={{ pageSize: 8 }} />
+            {viewMode === 'table' ? (
+              <Table
+                dataSource={selectedGroupIds.length > 0 ? filteredCompounds : []}
+                columns={dynamicCompoundColumns}
+                size="small"
+                rowKey="id"
+                pagination={{ pageSize: 8 }}
+                loading={isLoading}
+                locale={{ emptyText: selectedGroupIds.length === 0 ? '왼쪽 그룹 리스트에서 그룹을 선택해 주세요.' : '검색 결과가 없습니다.' }}
+              />
+            ) : viewMode === 'draw' ? (
+              <div style={{ padding: 20, minHeight: 400 }}>
+                {selectedGroupIds.length === 0 ? (
+                  <div style={{ height: 360, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#adb5bd' }}>
+                    왼쪽 그룹 리스트에서 그룹을 선택해 주세요.
+                  </div>
+                ) : filteredCompounds.length === 0 ? (
+                  <div style={{ height: 360, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#adb5bd' }}>
+                    검색 결과가 없습니다.
+                  </div>
+                ) : (
+                  <Row gutter={[16, 16]}>
+                    {filteredCompounds.map(c => (
+                      <Col span={6} key={c.id}>
+                        <div style={{
+                          border: '1px solid #f0f0f0',
+                          borderRadius: 8,
+                          overflow: 'hidden',
+                          transition: 'all 0.3s ease',
+                          cursor: 'pointer'
+                        }}
+                          className="canvas-card"
+                        >
+                          <div style={{ padding: '8px 12px', background: '#fafafa', borderBottom: '1px solid #f0f0f0' }}>
+                            <Text strong style={{ color: '#F87C63', fontSize: 12 }}>{c.compoundId}</Text>
+                          </div>
+                          <div style={{ height: 120, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#fff' }}>
+                            <FlaskConical size={32} color="#dee2e6" />
+                          </div>
+                        </div>
+                      </Col>
+                    ))}
+                  </Row>
+                )}
+              </div>
+            ) : (
+              <div style={{ padding: 40, textAlign: 'center', color: '#adb5bd' }}>Tree View 준비 중...</div>
+            )}
           </div>
         </Col>
       </Row>
@@ -405,9 +597,35 @@ const MyBoard: React.FC = () => {
         title="테이블 컬럼 설정 (드래그하여 순서 변경)"
         open={isSettingsModalOpen}
         onCancel={() => setIsSettingsModalOpen(false)}
-        footer={[<Button key="ok" type="primary" onClick={() => setIsSettingsModalOpen(false)}>완료</Button>]}
+        footer={[
+          <Button key="save" type="primary" onClick={handleSavePreset} style={{ background: '#F87C63', borderColor: '#F87C63', marginRight: 8 }}>
+            {activePreset}번 프리셋에 저장
+          </Button>,
+          <Button key="ok" type="default" onClick={() => setIsSettingsModalOpen(false)}>완료</Button>
+        ]}
       >
         <div style={{ padding: '10px 0' }}>
+          <div style={{ marginBottom: 24 }}>
+            <Text strong style={{ display: 'block', marginBottom: 12 }}>설정 프리셋 선택</Text>
+            <div style={{ display: 'flex', gap: 12 }}>
+              {[1, 2, 3, 4, 5].map(n => (
+                <Button 
+                  key={n}
+                  type={activePreset === n ? 'primary' : 'default'}
+                  onClick={() => applyPreset(n)}
+                  style={{ 
+                    width: 44, height: 44, borderRadius: 8,
+                    background: activePreset === n ? '#F87C63' : '#fff',
+                    borderColor: activePreset === n ? '#F87C63' : '#d9d9d9',
+                    color: activePreset === n ? '#fff' : 'inherit'
+                  }}
+                >
+                  {n}
+                </Button>
+              ))}
+            </div>
+          </div>
+          <Text strong style={{ display: 'block', marginBottom: 16 }}>Column Order & Visibility</Text>
           {columnOrder.map((item, index) => (
             <div
               key={item}
@@ -450,11 +668,11 @@ const MyBoard: React.FC = () => {
         </div>
       </Modal>
 
-      {/* Ketcher Modal Placeholder */}
-      <Modal title="구조 검색 (Ketcher)" open={isStructureModalOpen} onCancel={() => setIsStructureModalOpen(false)} footer={null} width={800}>
+      {/* Chemdraw Modal Placeholder */}
+      <Modal title="구조 검색 (Chemdraw)" open={isStructureModalOpen} onCancel={() => setIsStructureModalOpen(false)} footer={null} width={800}>
         <div style={{ height: 400, background: '#f5f5f5', borderRadius: 8, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', border: '2px dashed #ddd' }}>
           <FlaskConical size={48} color="#ccc" />
-          <Text type="secondary" style={{ marginTop: 16 }}>Ketcher Editor 공간 확보 (모의 이미지 사용 예정)</Text>
+          <Text type="secondary" style={{ marginTop: 16 }}>Chemdraw Editor 공간 확보 (모의 이미지 사용 예정)</Text>
         </div>
       </Modal>
     </div>

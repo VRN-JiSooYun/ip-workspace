@@ -17,6 +17,56 @@ const SarTable: React.FC = () => {
   const [selectedRowKey, setSelectedRowKey] = useState<string | null>(mockCompounds[0]?.id || null);
   const [showFilters, setShowFilters] = useState(true);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
+  const [activePreset, setActivePreset] = useState<number>(1);
+
+  // Default states for columns
+  const defaultOrder = ['Compound', 'Enzyme', 'Cell', 'MS', 'PPB', 'CYP', 'hERG', 'PK'];
+  const defaultActive = ['Compound', 'Enzyme', 'Cell', 'MS', 'PPB', 'CYP', 'hERG', 'PK'];
+  const defaultSubConfig = {
+    'Enzyme': [
+      { key: 'wt', title: 'WT', visible: true },
+      { key: 'd1228n', title: 'D1228N', visible: true },
+      { key: 'f1250k', title: 'F1250K', visible: true },
+      { key: 'wtf1250k', title: 'WT/F1250K', visible: true }
+    ],
+    'Cell': [
+      { key: 'naive', title: 'Ba/F3 Naive', visible: true },
+      { key: 'fgfr3', title: 'Ba/F3 FGFR3', visible: true },
+      { key: 'v555m', title: 'FGFR3 V555M', visible: true },
+      { key: 'rt112', title: 'RT-112', visible: true },
+      { key: 'mkn45', title: 'MKN45', visible: true }
+    ],
+    'MS': [
+      { key: 'ms_h', title: 'H', visible: true },
+      { key: 'ms_m', title: 'M', visible: true }
+    ],
+    'PPB': [
+      { key: 'ppb_h', title: 'H', visible: true },
+      { key: 'ppb_m', title: 'M', visible: true }
+    ],
+    'CYP': [
+      { key: '1a2', title: '1A2', visible: true },
+      { key: '2c9', title: '2C9', visible: true },
+      { key: '2c19', title: '2C19', visible: true },
+      { key: '2d6', title: '2D6', visible: true },
+      { key: '3a4', title: '3A4', visible: true }
+    ],
+    'PK': [
+      { key: 'dose', title: 'Dose', visible: true },
+      { key: 'plasma', title: 'Plasma (1h, 4h)', visible: true },
+      { key: 'lung', title: 'Lung (1h, 4h)', visible: true },
+      { key: 'brain', title: 'Brain (1h, 4h)', visible: true }
+    ]
+  };
+
+  // Preset State: stores order, active columns, and sub-config for each preset index (1-5)
+  const [presets, setPresets] = useState<Record<number, any>>({
+    1: { order: [...defaultOrder], active: [...defaultActive], sub: { ...defaultSubConfig } },
+    2: { order: [...defaultOrder], active: [...defaultActive], sub: { ...defaultSubConfig } },
+    3: { order: [...defaultOrder], active: [...defaultActive], sub: { ...defaultSubConfig } },
+    4: { order: [...defaultOrder], active: [...defaultActive], sub: { ...defaultSubConfig } },
+    5: { order: [...defaultOrder], active: [...defaultActive], sub: { ...defaultSubConfig } },
+  });
 
   // Filter States
   const projectList = ['FGFR', 'C797S DM', 'cMET', 'VRK1', 'HER2', 'WRN', 'WEE1'];
@@ -26,6 +76,7 @@ const SarTable: React.FC = () => {
   const [selectedProjects, setSelectedProjects] = useState<string[]>(['ALL', ...projectList]);
   const [selectedShares, setSelectedShares] = useState<string[]>(['ALL', ...shareList]);
   const [selectedSources, setSelectedSources] = useState<string[]>(['ALL', ...sourceList]);
+  const [period, setPeriod] = useState<string>('전체');
   const [keyword, setKeyword] = useState<string>('');
 
   // COLUMN STATES (Order & Visibility)
@@ -128,15 +179,37 @@ const SarTable: React.FC = () => {
     setDraggedItemIndex(null);
   };
 
+  const handleSavePreset = () => {
+    setPresets(prev => ({
+      ...prev,
+      [activePreset]: {
+        order: [...columnOrder],
+        active: [...activeColumns],
+        sub: JSON.parse(JSON.stringify(subColumnConfig))
+      }
+    }));
+    setIsSettingsModalOpen(false);
+  };
+
+  const applyPreset = (n: number) => {
+    const preset = presets[n];
+    if (preset) {
+      setActivePreset(n);
+      setColumnOrder([...preset.order]);
+      setActiveColumns([...preset.active]);
+      setSubColumnConfig(JSON.parse(JSON.stringify(preset.sub)));
+    }
+  };
+
   const handleCheckboxChange = (vals: string[], setFn: (v: string[]) => void, originalOptions: string[]) => {
-    const identifies = vals.includes('ALL');
+    const currentlyHasAll = vals.includes('ALL');
     const previouslyHadAll = (setFn === setSelectedProjects ? selectedProjects : 
                              setFn === setSelectedShares ? selectedShares : 
                              selectedSources).includes('ALL');
 
-    if (identities && !previouslyHadAll) {
+    if (currentlyHasAll && !previouslyHadAll) {
       setFn(['ALL', ...originalOptions]);
-    } else if (!identities && previouslyHadAll) {
+    } else if (!currentlyHasAll && previouslyHadAll) {
       setFn([]);
     } else {
       const filtered = vals.filter(v => v !== 'ALL');
@@ -362,8 +435,15 @@ const SarTable: React.FC = () => {
                 <Space size="large">
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <Text strong>기간:</Text>
-                    <Segmented options={['3개월', '6개월', '12개월', '전체']} defaultValue="전체" />
-                    <DatePicker.RangePicker style={{ borderRadius: 8 }} />
+                    <Segmented 
+                      options={['3개월', '6개월', '12개월', '전체']} 
+                      value={period} 
+                      onChange={(v) => setPeriod(v as string)} 
+                    />
+                    <DatePicker.RangePicker 
+                      style={{ borderRadius: 8 }} 
+                      disabled={period !== '전체'}
+                    />
                   </div>
                 </Space>
               </Col>
@@ -445,17 +525,37 @@ const SarTable: React.FC = () => {
             >
               C
             </div>
+          </Space>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{ display: 'flex', gap: 4 }}>
+              {[1, 2, 3, 4, 5].map(n => (
+                <div 
+                  key={n} 
+                  onClick={() => applyPreset(n)}
+                  style={{ 
+                    width: 24, height: 24, 
+                    background: activePreset === n ? '#F87C63' : '#eee', 
+                    borderRadius: 4, 
+                    fontSize: 11, 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    justifyContent: 'center', 
+                    color: activePreset === n ? '#fff' : '#868e96',
+                    cursor: 'pointer',
+                    fontWeight: activePreset === n ? 'bold' : 'normal',
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  {n}
+                </div>
+              ))}
+            </div>
             <Settings 
               size={18} 
               color="#adb5bd" 
-              style={{ cursor: 'pointer', marginLeft: 8 }} 
+              style={{ cursor: 'pointer' }} 
               onClick={() => setIsSettingsModalOpen(true)}
             />
-          </Space>
-          <div style={{ display: 'flex', gap: 4 }}>
-            {[1, 2, 3, 4, 5].map(n => (
-              <div key={n} style={{ width: 24, height: 24, background: '#eee', borderRadius: 4, fontSize: 11, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#868e96' }}>{n}</div>
-            ))}
           </div>
         </div>
         <Table 
@@ -478,14 +578,38 @@ const SarTable: React.FC = () => {
         title="Table Settings" 
         open={isSettingsModalOpen} 
         onCancel={() => setIsSettingsModalOpen(false)}
-        footer={[<Button key="save" type="primary" onClick={() => setIsSettingsModalOpen(false)} style={{ background: '#F87C63', borderColor: '#F87C63' }}>저장</Button>]}
+        footer={[
+          <Button key="save" type="primary" onClick={handleSavePreset} style={{ background: '#F87C63', borderColor: '#F87C63' }}>
+            {activePreset}번 프리셋에 저장
+          </Button>
+        ]}
         width={700}
       >
         <div style={{ padding: '20px' }}>
-          <div style={{ paddingBottom: 16 }}>
+          <div style={{ marginBottom: 24 }}>
+            <Text strong style={{ display: 'block', marginBottom: 12 }}>설정 프리셋 선택</Text>
+            <div style={{ display: 'flex', gap: 12 }}>
+              {[1, 2, 3, 4, 5].map(n => (
+                <Button 
+                  key={n}
+                  type={activePreset === n ? 'primary' : 'default'}
+                  onClick={() => applyPreset(n)}
+                  style={{ 
+                    width: 44, height: 44, borderRadius: 8,
+                    background: activePreset === n ? '#F87C63' : '#fff',
+                    borderColor: activePreset === n ? '#F87C63' : '#d9d9d9'
+                  }}
+                >
+                  {n}
+                </Button>
+              ))}
+            </div>
+          </div>
+
+          <div style={{ paddingBottom: 16, borderTop: '1px solid #f0f0f0', paddingTop: 20 }}>
             <Text type="secondary" style={{ fontSize: 12 }}>
               <Info size={12} style={{ marginRight: 4 }} />
-              드래그하여 순서를 변경하고, 체크박스로 컬럼의 가시성을 조절하세요.
+              현재 설정된 컬럼 가시성 및 순서를 선택된 번호({activePreset}번)에 저장할 수 있습니다.
             </Text>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12, background: '#f8f9fa', padding: 20, borderRadius: 12 }}>
