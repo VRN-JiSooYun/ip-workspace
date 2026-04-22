@@ -1,18 +1,21 @@
 import React, { useState, useMemo } from 'react';
 import { 
   Typography, Row, Col, Card, Table, Button, Input, Checkbox, 
-  Space, DatePicker, Segmented, Modal, Divider, Tag
+  Space, DatePicker, Segmented, Modal, Divider, Tag, theme
 } from 'antd';
 import { 
   Search, FlaskConical, ChevronDown, ChevronUp, Beaker, 
   Settings, Download, Share2, Info, GripVertical, CheckCircle2, XCircle
 } from 'lucide-react';
+import { useTheme } from '../contexts/ThemeContext';
 import { mockCompounds } from '../mocks/compounds';
 import dayjs from 'dayjs';
 
 const { Title, Text } = Typography;
 
 const SarTable: React.FC = () => {
+  const { token } = theme.useToken();
+  const { isDarkMode } = useTheme();
   const [isColorActive, setIsColorActive] = useState(false);
   const [selectedRowKey, setSelectedRowKey] = useState<string | null>(mockCompounds[0]?.id || null);
   const [showFilters, setShowFilters] = useState(true);
@@ -229,11 +232,11 @@ const SarTable: React.FC = () => {
     let textColor = 'inherit';
 
     if (isColorActive) {
-      if (val < 0.1) { bgColor = '#10b981'; textColor = '#fff'; }
-      else if (val < 0.5) { bgColor = '#d1fae5'; textColor = '#065f46'; }
-      else if (val < 1.0) { bgColor = '#fef3c7'; textColor = '#92400e'; }
-      else if (val < 10) { bgColor = '#fffbeb'; textColor = '#92400e'; }
-      else if (val >= 10) { bgColor = '#fee2e2'; textColor = '#991b1b'; }
+      if (val < 0.1) { bgColor = isDarkMode ? '#065f46' : '#10b981'; textColor = isDarkMode ? '#6ee7b7' : token.colorBgContainer; }
+      else if (val < 0.5) { bgColor = isDarkMode ? '#064e3b' : '#d1fae5'; textColor = isDarkMode ? '#a7f3d0' : '#065f46'; }
+      else if (val < 1.0) { bgColor = isDarkMode ? '#78350f' : '#fef3c7'; textColor = isDarkMode ? '#fde68a' : '#92400e'; }
+      else if (val < 10) { bgColor = isDarkMode ? '#713f12' : '#fffbeb'; textColor = isDarkMode ? '#fcd34d' : '#92400e'; }
+      else if (val >= 10) { bgColor = isDarkMode ? '#7f1d1d' : '#fee2e2'; textColor = isDarkMode ? '#fca5a5' : '#991b1b'; }
     }
 
     return (
@@ -259,7 +262,7 @@ const SarTable: React.FC = () => {
       key: 'compoundId', 
       fixed: 'left' as const, 
       width: 120,
-      render: (text: string) => <Text strong style={{ color: '#F87C63' }}>{text}</Text>
+      render: (text: string) => <Text strong style={{ color: token.colorPrimary }}>{text}</Text>
     },
     'Enzyme': {
       title: 'Enzyme IC50 (µM)',
@@ -380,7 +383,7 @@ const SarTable: React.FC = () => {
           <Col flex="auto">
             <Space size="middle">
               <Input 
-                prefix={<Search size={18} color="#adb5bd" />} 
+                prefix={<Search size={18} color={token.colorTextTertiary} />} 
                 placeholder="검색어 입력 (이름, SMILES 등)" 
                 style={{ width: 350, height: 44, borderRadius: 12 }} 
                 value={keyword}
@@ -405,7 +408,7 @@ const SarTable: React.FC = () => {
           </Col>
         </Row>
         {showFilters && (
-          <div style={{ marginTop: 24, padding: 20, background: '#f8f9fa', borderRadius: 12 }}>
+          <div style={{ marginTop: 24, padding: 20, background: token.colorBgLayout, borderRadius: 12 }}>
             <Row gutter={[32, 24]}>
               <Col span={10}>
                 <Text strong>Projects</Text><br/>
@@ -455,10 +458,10 @@ const SarTable: React.FC = () => {
       {/* Compound Cards Slider (Prototype Style) */}
       <div style={{ 
         padding: '24px 16px', 
-        background: '#fff', 
+        background: token.colorBgContainer, 
         borderRadius: 12, 
         marginBottom: 20, 
-        border: '1px solid #f0f0f0',
+        border: `1px solid ${token.colorBorderSecondary}`,
         overflowX: 'auto',
         whiteSpace: 'nowrap'
       }}>
@@ -473,22 +476,22 @@ const SarTable: React.FC = () => {
                 textAlign: 'center',
                 cursor: 'pointer',
                 borderRadius: 12,
-                border: selectedRowKey === item.id ? '2px solid #1890ff' : '1px solid #eee',
-                background: selectedRowKey === item.id ? '#e6f7ff' : '#fff',
+                border: selectedRowKey === item.id ? `2px solid ${token.colorBorderSecondary}` : `1px solid ${token.colorBorderSecondary}`,
+                background: selectedRowKey === item.id ? (isDarkMode ? '#111d2c' : '#e6f7ff') : token.colorBgContainer,
                 transition: 'all 0.2s'
               }}
             >
               <div style={{ 
                 height: 120, 
-                background: '#fff', 
+                background: token.colorBgContainer, 
                 borderRadius: 8, 
                 display: 'flex', 
                 alignItems: 'center', 
                 justifyContent: 'center',
                 marginBottom: 12,
-                border: '1px solid #f0f0f0'
+                border: `1px solid ${token.colorBorderSecondary}`
               }}>
-                <FlaskConical size={48} color={selectedRowKey === item.id ? '#1890ff' : '#ccc'} strokeWidth={1} />
+                <FlaskConical size={48} color={selectedRowKey === item.id ? token.colorPrimary : token.colorTextTertiary} strokeWidth={1} />
               </div>
               <Text strong style={{ fontSize: 13 }}>{item.name}</Text>
             </div>
@@ -497,29 +500,29 @@ const SarTable: React.FC = () => {
       </div>
 
       {/* Main SAR Table (Multi-level Header) */}
-      <div style={{ background: '#fff', borderRadius: 12, overflow: 'hidden', border: '1px solid #f0f0f0', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
+      <div style={{ background: token.colorBgContainer, borderRadius: 12, overflow: 'hidden', border: `1px solid ${token.colorBorderSecondary}`, boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
         <div style={{ 
           padding: '12px 24px', 
-          background: '#fafafa', 
+          background: token.colorBgLayout, 
           display: 'flex', 
           justifyContent: 'space-between', 
           alignItems: 'center',
-          borderBottom: '1px solid #f0f0f0'
+          borderBottom: `1px solid ${token.colorBorderSecondary}`
         }}>
           <Space>
             <div 
               style={{ 
                 width: 28, height: 28, 
-                background: isColorActive ? '#F87C63' : '#fff', 
+                background: isColorActive ? token.colorPrimary : token.colorBgContainer, 
                 borderRadius: 4, 
                 display: 'flex', 
                 alignItems: 'center', 
                 justifyContent: 'center',
                 cursor: 'pointer',
-                border: isColorActive ? '1px solid #F87C63' : '1px solid #d9d9d9',
+                border: isColorActive ? `1px solid ${token.colorBorderSecondary}` : `1px solid ${token.colorBorderSecondary}`,
                 fontSize: 12,
                 fontWeight: 'bold',
-                color: isColorActive ? '#fff' : '#495057'
+                color: isColorActive ? token.colorBgContainer : token.colorText
               }}
               onClick={() => setIsColorActive(!isColorActive)}
             >
@@ -534,13 +537,13 @@ const SarTable: React.FC = () => {
                   onClick={() => applyPreset(n)}
                   style={{ 
                     width: 24, height: 24, 
-                    background: activePreset === n ? '#F87C63' : '#eee', 
+                    background: activePreset === n ? token.colorPrimary : token.colorBorderSecondary, 
                     borderRadius: 4, 
                     fontSize: 11, 
                     display: 'flex', 
                     alignItems: 'center', 
                     justifyContent: 'center', 
-                    color: activePreset === n ? '#fff' : '#868e96',
+                    color: activePreset === n ? token.colorBgContainer : token.colorTextSecondary,
                     cursor: 'pointer',
                     fontWeight: activePreset === n ? 'bold' : 'normal',
                     transition: 'all 0.2s'
@@ -552,7 +555,7 @@ const SarTable: React.FC = () => {
             </div>
             <Settings 
               size={18} 
-              color="#adb5bd" 
+              color={token.colorTextTertiary} 
               style={{ cursor: 'pointer' }} 
               onClick={() => setIsSettingsModalOpen(true)}
             />
@@ -579,7 +582,7 @@ const SarTable: React.FC = () => {
         open={isSettingsModalOpen} 
         onCancel={() => setIsSettingsModalOpen(false)}
         footer={[
-          <Button key="save" type="primary" onClick={handleSavePreset} style={{ background: '#F87C63', borderColor: '#F87C63' }}>
+          <Button key="save" type="primary" onClick={handleSavePreset} style={{ background: token.colorPrimary, borderColor: token.colorPrimary }}>
             {activePreset}번 프리셋에 저장
           </Button>
         ]}
@@ -596,8 +599,8 @@ const SarTable: React.FC = () => {
                   onClick={() => applyPreset(n)}
                   style={{ 
                     width: 44, height: 44, borderRadius: 8,
-                    background: activePreset === n ? '#F87C63' : '#fff',
-                    borderColor: activePreset === n ? '#F87C63' : '#d9d9d9'
+                    background: activePreset === n ? token.colorPrimary : token.colorBgContainer,
+                    borderColor: activePreset === n ? token.colorPrimary : token.colorBorder
                   }}
                 >
                   {n}
@@ -606,13 +609,13 @@ const SarTable: React.FC = () => {
             </div>
           </div>
 
-          <div style={{ paddingBottom: 16, borderTop: '1px solid #f0f0f0', paddingTop: 20 }}>
+          <div style={{ paddingBottom: 16, borderTop: `1px solid ${token.colorBorderSecondary}`, paddingTop: 20 }}>
             <Text type="secondary" style={{ fontSize: 12 }}>
               <Info size={12} style={{ marginRight: 4 }} />
               현재 설정된 컬럼 가시성 및 순서를 선택된 번호({activePreset}번)에 저장할 수 있습니다.
             </Text>
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, background: '#f8f9fa', padding: 20, borderRadius: 12 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, background: token.colorBgLayout, padding: 20, borderRadius: 12 }}>
             {columnOrder.map((item, index) => (
               <div key={item} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                 <div 
@@ -622,10 +625,10 @@ const SarTable: React.FC = () => {
                   onDragEnd={onDragEnd}
                   style={{ 
                     padding: '12px 16px', 
-                    background: draggedItemIndex === index ? '#fff7f6' : '#fff', 
-                    color: '#495057', 
+                    background: draggedItemIndex === index ? token.colorPrimaryBg : token.colorBgContainer, 
+                    color: token.colorText, 
                     borderRadius: 8, 
-                    border: draggedItemIndex === index ? '1px dashed #F87C63' : '1px solid #e9ecef',
+                    border: draggedItemIndex === index ? `1px dashed ${token.colorBorderSecondary}` : `1px solid ${token.colorBorderSecondary}`,
                     display: 'flex', 
                     alignItems: 'center', 
                     justifyContent: 'space-between',
@@ -644,10 +647,10 @@ const SarTable: React.FC = () => {
                         visibility: subColumnConfig[item] ? 'visible' : 'hidden'
                       }}
                     >
-                      {expandedColumns.includes(item) ? <ChevronUp size={16} color="#adb5bd" /> : <ChevronDown size={16} color="#adb5bd" />}
+                      {expandedColumns.includes(item) ? <ChevronUp size={16} color={token.colorTextTertiary} /> : <ChevronDown size={16} color={token.colorTextTertiary} />}
                     </div>
-                    <GripVertical size={16} color="#adb5bd" />
-                    <Text strong={activeColumns.includes(item)} style={{ color: activeColumns.includes(item) ? '#F87C63' : '#adb5bd' }}>
+                    <GripVertical size={16} color={token.colorTextTertiary} />
+                    <Text strong={activeColumns.includes(item)} style={{ color: activeColumns.includes(item) ? token.colorPrimary : token.colorTextTertiary }}>
                       {item}
                     </Text>
                   </Space>
@@ -684,9 +687,9 @@ const SarTable: React.FC = () => {
                         }}
                         style={{ 
                           padding: '6px 12px',
-                          background: '#fff',
+                          background: token.colorBgContainer,
                           borderRadius: 6,
-                          border: '1px solid #f1f3f5',
+                          border: `1px solid ${token.colorBorderSecondary}`,
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'space-between',
@@ -694,8 +697,8 @@ const SarTable: React.FC = () => {
                         }}
                       >
                         <Space>
-                          <GripVertical size={12} color="#dee2e6" />
-                          <Text style={{ fontSize: 12, color: sub.visible ? '#495057' : '#adb5bd' }}>{sub.title}</Text>
+                          <GripVertical size={12} color={token.colorBorder} />
+                          <Text style={{ fontSize: 12, color: sub.visible ? token.colorText : token.colorTextTertiary }}>{sub.title}</Text>
                         </Space>
                         <Checkbox 
                           size="small"
@@ -714,33 +717,33 @@ const SarTable: React.FC = () => {
 
       <style>{`
         .sar-row-selected {
-          background-color: #fff7f6 !important;
+          background-color: ${isDarkMode ? '#2a1f1d' : '#fff7f6'} !important;
         }
         .sar-row-selected td {
-          background-color: #fff7f6 !important;
-          border-bottom: 1px solid #F87C6322 !important;
+          background-color: ${isDarkMode ? '#2a1f1d' : '#fff7f6'} !important;
+          border-bottom: 1px solid ${isDarkMode ? '#F87C6333' : '#F87C6322'} !important;
         }
         .ant-table-thead > tr > th {
-          background: #fafafa !important;
-          color: #495057 !important;
+          background: ${isDarkMode ? '#1f1f1f' : '#fafafa'} !important;
+          color: ${isDarkMode ? 'rgba(255,255,255,0.85)' : '#495057'} !important;
           text-align: center !important;
-          border-color: #f0f0f0 !important;
+          border-color: ${isDarkMode ? '#303030' : '#f0f0f0'} !important;
           font-size: 12px;
           font-weight: 600;
           padding: 12px 4px !important;
         }
         .ant-table-thead > tr:first-child > th {
           color: #F87C63 !important;
-          border-bottom: 1px solid #f0f0f0 !important;
+          border-bottom: 1px solid ${isDarkMode ? '#303030' : '#f0f0f0'} !important;
         }
         .ant-table-tbody > tr > td {
           padding: 10px 4px !important;
           text-align: center !important;
           font-size: 12px;
-          border-color: #f0f0f0 !important;
+          border-color: ${isDarkMode ? '#303030' : '#f0f0f0'} !important;
         }
         .ant-table-bordered .ant-table-container {
-          border-color: #f0f0f0 !important;
+          border-color: ${isDarkMode ? '#303030' : '#f0f0f0'} !important;
         }
       `}</style>
     </div>

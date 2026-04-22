@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import {
   Row, Col, Card, Table, Button, Input, Checkbox,
-  Space, Typography, Modal, Form, Tag, List, Select, DatePicker, Avatar, Divider, Upload, Segmented
+  Space, Typography, Modal, Form, Tag, List, Select, DatePicker, Avatar, Divider, Upload, Segmented, theme
 } from 'antd';
 import {
   Search, Plus, Filter, Settings, List as ListIcon,
@@ -18,6 +18,7 @@ const { Option } = Select;
 const { RangePicker } = DatePicker;
 
 const MyBoard: React.FC = () => {
+  const { token } = theme.useToken();
   const { selectedGroupIds, toggleGroupSelection } = useBoardStore();
   const [isGroupModalOpen, setIsGroupModalOpen] = useState(false);
   const [isDesignModalOpen, setIsDesignModalOpen] = useState(false);
@@ -153,15 +154,15 @@ const MyBoard: React.FC = () => {
   const allColumnsMap: Record<string, any> = {
     'Num': { title: 'Num', key: 'num', render: (_: any, __: any, index: number) => index + 1, width: 50 },
     'Grp.': { title: 'Grp.', dataIndex: 'groupId', key: 'groupId', width: 60 },
-    'Compound': { title: 'Compound', dataIndex: 'compoundId', key: 'compoundId', width: 100, render: (id: string) => <Text strong color="#F87C63">{id}</Text> },
+    'Compound': { title: 'Compound', dataIndex: 'compoundId', key: 'compoundId', width: 100, render: (id: string) => <Text strong color={token.colorPrimary}>{id}</Text> },
     'Structure': {
       title: 'Structure',
       dataIndex: 'smiles',
       key: 'structure',
       width: 120,
       render: () => (
-        <div style={{ width: 100, height: 60, background: '#f9f9f9', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 4, border: '1px solid #eee' }}>
-          <FlaskConical size={20} color="#ccc" />
+        <div style={{ width: 100, height: 60, background: token.colorBgLayout, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 4, border: `1px solid ${token.colorBorderSecondary}` }}>
+          <FlaskConical size={20} color={token.colorTextTertiary} />
         </div>
       )
     },
@@ -231,7 +232,7 @@ const MyBoard: React.FC = () => {
           <Col flex="auto">
             <Space size="middle">
               <Input
-                prefix={<Search size={18} color="#adb5bd" />}
+                prefix={<Search size={18} color={token.colorTextTertiary} />}
                 placeholder="검색어 입력 (이름, SMILES 등)"
                 style={{ width: 350, height: 44, borderRadius: 12 }}
                 value={keyword}
@@ -249,13 +250,13 @@ const MyBoard: React.FC = () => {
           </Col>
           <Col>
             <Space>
-              <Button type="primary" icon={<Plus size={18} />} onClick={() => setIsGroupModalOpen(true)} style={{ height: 44, borderRadius: 12, background: '#F87C63', borderColor: '#F87C63' }}>상위 그룹 생성</Button>
+              <Button type="primary" icon={<Plus size={18} />} onClick={() => setIsGroupModalOpen(true)} style={{ height: 44, borderRadius: 12, background: token.colorPrimary, borderColor: token.colorPrimary }}>상위 그룹 생성</Button>
               <Button icon={<Plus size={18} />} onClick={() => setIsDesignModalOpen(true)} style={{ height: 44, borderRadius: 12 }}>Create Design</Button>
             </Space>
           </Col>
         </Row>
         {showFilters && (
-          <div style={{ marginTop: 24, padding: 20, background: '#f8f9fa', borderRadius: 12 }}>
+          <div style={{ marginTop: 24, padding: 20, background: token.colorBgLayout, borderRadius: 12 }}>
             <Row gutter={[32, 24]}>
               <Col span={10}>
                 <Text strong>Projects</Text><br />
@@ -288,10 +289,10 @@ const MyBoard: React.FC = () => {
 
       <Row gutter={[24, 24]}>
         <Col span={10}>
-          <div className="c-card" style={{ background: '#fff', borderRadius: 12, overflow: 'hidden' }}>
-            <div style={{ padding: '16px 24px', borderBottom: '1px solid #f0f0f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Text strong style={{ color: '#F87C63' }}>그룹 리스트</Text>
-              <div style={{ background: '#f8f9fa', padding: '2px 8px', borderRadius: 8, display: 'flex', gap: 12 }}>
+          <div className="c-card" style={{ background: token.colorBgContainer, borderRadius: 12, overflow: 'hidden' }}>
+            <div style={{ padding: '16px 24px', borderBottom: `1px solid ${token.colorBorderSecondary}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Text strong style={{ color: token.colorPrimary }}>그룹 리스트</Text>
+              <div style={{ background: token.colorBgLayout, padding: '2px 8px', borderRadius: 8, display: 'flex', gap: 12 }}>
                 <Checkbox
                   checked={selectedDataSources.includes('my designs')}
                   onChange={(e) => {
@@ -327,9 +328,9 @@ const MyBoard: React.FC = () => {
         </Col>
 
         <Col span={14}>
-          <div className="c-card" style={{ background: '#fff', borderRadius: 12, overflow: 'hidden' }}>
-            <div style={{ padding: '16px 24px', borderBottom: '1px solid #f0f0f0', display: 'flex', justifyContent: 'space-between' }}>
-              <Text strong style={{ color: '#F87C63' }}>그룹 상세 목록</Text>
+          <div className="c-card" style={{ background: token.colorBgContainer, borderRadius: 12, overflow: 'hidden' }}>
+            <div style={{ padding: '16px 24px', borderBottom: `1px solid ${token.colorBorderSecondary}`, display: 'flex', justifyContent: 'space-between' }}>
+              <Text strong style={{ color: token.colorPrimary }}>그룹 상세 목록</Text>
               <Space>
                 {viewMode === 'table' && (
                   <>
@@ -341,13 +342,13 @@ const MyBoard: React.FC = () => {
                             onClick={() => applyPreset(n)}
                             style={{ 
                               width: 24, height: 24, 
-                              background: activePreset === n ? '#F87C63' : '#eee', 
+                              background: activePreset === n ? token.colorPrimary : token.colorBorderSecondary, 
                               borderRadius: 4, 
                               fontSize: 11, 
                               display: 'flex', 
                               alignItems: 'center', 
                               justifyContent: 'center', 
-                              color: activePreset === n ? '#fff' : '#868e96',
+                              color: activePreset === n ? token.colorBgContainer : token.colorTextSecondary,
                               cursor: 'pointer',
                               fontWeight: activePreset === n ? 'bold' : 'normal',
                               transition: 'all 0.2s'
@@ -359,7 +360,7 @@ const MyBoard: React.FC = () => {
                       </div>
                       <Settings 
                         size={18} 
-                        color="#adb5bd" 
+                        color={token.colorTextTertiary} 
                         style={{ cursor: 'pointer' }} 
                         onClick={() => setIsSettingsModalOpen(true)}
                       />
@@ -367,13 +368,13 @@ const MyBoard: React.FC = () => {
                     <Divider type="vertical" />
                   </>
                 )}
-                <div style={{ background: '#f8f9fa', padding: '2px', borderRadius: 6, display: 'flex' }}>
+                <div style={{ background: token.colorBgLayout, padding: '2px', borderRadius: 6, display: 'flex' }}>
                   <Button
                     type={viewMode === 'table' ? 'text' : 'text'}
                     size="small"
                     icon={<ListIcon size={14} />}
                     style={{
-                      background: viewMode === 'table' ? '#fff' : 'transparent',
+                      background: viewMode === 'table' ? token.colorBgContainer : 'transparent',
                       boxShadow: viewMode === 'table' ? '0 2px 4px rgba(0,0,0,0.05)' : 'none',
                       borderRadius: 4,
                       fontSize: 11
@@ -387,7 +388,7 @@ const MyBoard: React.FC = () => {
                     size="small"
                     icon={<ImageIcon size={14} />}
                     style={{
-                      background: viewMode === 'draw' ? '#fff' : 'transparent',
+                      background: viewMode === 'draw' ? token.colorBgContainer : 'transparent',
                       boxShadow: viewMode === 'draw' ? '0 2px 4px rgba(0,0,0,0.05)' : 'none',
                       borderRadius: 4,
                       fontSize: 11
@@ -401,7 +402,7 @@ const MyBoard: React.FC = () => {
                     size="small"
                     icon={<GitBranch size={14} />}
                     style={{
-                      background: viewMode === 'tree' ? '#fff' : 'transparent',
+                      background: viewMode === 'tree' ? token.colorBgContainer : 'transparent',
                       boxShadow: viewMode === 'tree' ? '0 2px 4px rgba(0,0,0,0.05)' : 'none',
                       borderRadius: 4,
                       fontSize: 11
@@ -426,11 +427,11 @@ const MyBoard: React.FC = () => {
             ) : viewMode === 'draw' ? (
               <div style={{ padding: 20, minHeight: 400 }}>
                 {selectedGroupIds.length === 0 ? (
-                  <div style={{ height: 360, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#adb5bd' }}>
+                  <div style={{ height: 360, display: 'flex', alignItems: 'center', justifyContent: 'center', color: token.colorTextTertiary }}>
                     왼쪽 그룹 리스트에서 그룹을 선택해 주세요.
                   </div>
                 ) : filteredCompounds.length === 0 ? (
-                  <div style={{ height: 360, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#adb5bd' }}>
+                  <div style={{ height: 360, display: 'flex', alignItems: 'center', justifyContent: 'center', color: token.colorTextTertiary }}>
                     검색 결과가 없습니다.
                   </div>
                 ) : (
@@ -438,7 +439,7 @@ const MyBoard: React.FC = () => {
                     {filteredCompounds.map(c => (
                       <Col span={6} key={c.id}>
                         <div style={{
-                          border: '1px solid #f0f0f0',
+                          border: `1px solid ${token.colorBorderSecondary}`,
                           borderRadius: 8,
                           overflow: 'hidden',
                           transition: 'all 0.3s ease',
@@ -446,11 +447,11 @@ const MyBoard: React.FC = () => {
                         }}
                           className="canvas-card"
                         >
-                          <div style={{ padding: '8px 12px', background: '#fafafa', borderBottom: '1px solid #f0f0f0' }}>
-                            <Text strong style={{ color: '#F87C63', fontSize: 12 }}>{c.compoundId}</Text>
+                          <div style={{ padding: '8px 12px', background: token.colorBgLayout, borderBottom: `1px solid ${token.colorBorderSecondary}` }}>
+                            <Text strong style={{ color: token.colorPrimary, fontSize: 12 }}>{c.compoundId}</Text>
                           </div>
-                          <div style={{ height: 120, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#fff' }}>
-                            <FlaskConical size={32} color="#dee2e6" />
+                          <div style={{ height: 120, display: 'flex', alignItems: 'center', justifyContent: 'center', background: token.colorBgContainer }}>
+                            <FlaskConical size={32} color={token.colorBorder} />
                           </div>
                         </div>
                       </Col>
@@ -459,7 +460,7 @@ const MyBoard: React.FC = () => {
                 )}
               </div>
             ) : (
-              <div style={{ padding: 40, textAlign: 'center', color: '#adb5bd' }}>Tree View 준비 중...</div>
+              <div style={{ padding: 40, textAlign: 'center', color: token.colorTextTertiary }}>Tree View 준비 중...</div>
             )}
           </div>
         </Col>
@@ -537,7 +538,7 @@ const MyBoard: React.FC = () => {
                   height: 250,
                   background: '#fcfcfc',
                   borderRadius: 8,
-                  border: '1px solid #d9d9d9',
+                  border: `1px solid ${token.colorBorderSecondary}`,
                   display: 'flex',
                   flexDirection: 'column',
                   alignItems: 'center',
@@ -548,9 +549,9 @@ const MyBoard: React.FC = () => {
                   <div style={{ position: 'absolute', top: 8, right: 8 }}>
                     <Button size="small" icon={<Palette size={14} />}>Editor 열기</Button>
                   </div>
-                  <FlaskConical size={64} color="#F87C63" style={{ opacity: 0.2 }} />
+                  <FlaskConical size={64} color={token.colorPrimary} style={{ opacity: 0.2 }} />
                   <Text type="secondary" style={{ marginTop: 12 }}>ChemDraw Editor 연동 예정</Text>
-                  <Text size="small" style={{ color: '#adb5bd', fontSize: '11px' }}>SMILES 입력 시 구조가 자동 생성됩니다.</Text>
+                  <Text size="small" style={{ color: token.colorTextTertiary, fontSize: '11px' }}>SMILES 입력 시 구조가 자동 생성됩니다.</Text>
                 </div>
               </Form.Item>
             </Col>
@@ -559,7 +560,7 @@ const MyBoard: React.FC = () => {
           <Divider style={{ margin: '24px 0 16px 0' }} />
 
           <Form.Item label={<Text strong><Activity size={14} style={{ marginRight: 6 }} />Calculations (다중 선택)</Text>}>
-            <Checkbox.Group style={{ width: '100%', background: '#f8f9fa', padding: '16px', borderRadius: 8 }}>
+            <Checkbox.Group style={{ width: '100%', background: token.colorBgLayout, padding: '16px', borderRadius: 8 }}>
               <Row gutter={[16, 12]}>
                 {[
                   '3D TPSA QM', 'Solubility QM', 'Solubility DL', 'E-Sol QM',
@@ -582,7 +583,7 @@ const MyBoard: React.FC = () => {
 
           <Form.Item label="Attachment (첨부파일)">
             <Upload.Dragger multiple showUploadList={true} beforeUpload={() => false}>
-              <p className="ant-upload-drag-icon" style={{ color: '#F87C63' }}>
+              <p className="ant-upload-drag-icon" style={{ color: token.colorPrimary }}>
                 <UploadIcon size={32} />
               </p>
               <p className="ant-upload-text">파일을 클릭하거나 이 영역으로 드래그하여 업로드하세요</p>
@@ -598,7 +599,7 @@ const MyBoard: React.FC = () => {
         open={isSettingsModalOpen}
         onCancel={() => setIsSettingsModalOpen(false)}
         footer={[
-          <Button key="save" type="primary" onClick={handleSavePreset} style={{ background: '#F87C63', borderColor: '#F87C63', marginRight: 8 }}>
+          <Button key="save" type="primary" onClick={handleSavePreset} style={{ background: token.colorPrimary, borderColor: token.colorPrimary, marginRight: 8 }}>
             {activePreset}번 프리셋에 저장
           </Button>,
           <Button key="ok" type="default" onClick={() => setIsSettingsModalOpen(false)}>완료</Button>
@@ -615,9 +616,9 @@ const MyBoard: React.FC = () => {
                   onClick={() => applyPreset(n)}
                   style={{ 
                     width: 44, height: 44, borderRadius: 8,
-                    background: activePreset === n ? '#F87C63' : '#fff',
-                    borderColor: activePreset === n ? '#F87C63' : '#d9d9d9',
-                    color: activePreset === n ? '#fff' : 'inherit'
+                    background: activePreset === n ? token.colorPrimary : token.colorBgContainer,
+                    borderColor: activePreset === n ? token.colorPrimary : token.colorBorder,
+                    color: activePreset === n ? token.colorBgContainer : 'inherit'
                   }}
                 >
                   {n}
@@ -636,8 +637,8 @@ const MyBoard: React.FC = () => {
               style={{
                 padding: '12px 16px',
                 marginBottom: 8,
-                background: draggedItemIndex === index ? '#fff7f6' : '#fff',
-                border: draggedItemIndex === index ? '1px dashed #F87C63' : '1px solid #f0f0f0',
+                background: draggedItemIndex === index ? token.colorPrimaryBg : token.colorBgContainer,
+                border: draggedItemIndex === index ? `1px dashed ${token.colorBorderSecondary}` : `1px solid ${token.colorBorderSecondary}`,
                 borderRadius: 8,
                 display: 'flex',
                 alignItems: 'center',
@@ -649,7 +650,7 @@ const MyBoard: React.FC = () => {
               }}
             >
               <Space>
-                <GripVertical size={16} color="#adb5bd" />
+                <GripVertical size={16} color={token.colorTextTertiary} />
                 <Text strong={draggedItemIndex === index}>{item}</Text>
               </Space>
               <Checkbox
@@ -660,7 +661,7 @@ const MyBoard: React.FC = () => {
             </div>
           ))}
         </div>
-        <div style={{ marginTop: 16, padding: '12px', background: '#f8f9fa', borderRadius: 8 }}>
+        <div style={{ marginTop: 16, padding: '12px', background: token.colorBgLayout, borderRadius: 8 }}>
           <Text type="secondary" size="small">
             <Info size={12} style={{ marginRight: 4 }} />
             목록을 마우스로 끌어서 테이블 컬럼의 표시 순서를 변경할 수 있습니다.
@@ -670,8 +671,8 @@ const MyBoard: React.FC = () => {
 
       {/* Chemdraw Modal Placeholder */}
       <Modal title="구조 검색 (Chemdraw)" open={isStructureModalOpen} onCancel={() => setIsStructureModalOpen(false)} footer={null} width={800}>
-        <div style={{ height: 400, background: '#f5f5f5', borderRadius: 8, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', border: '2px dashed #ddd' }}>
-          <FlaskConical size={48} color="#ccc" />
+        <div style={{ height: 400, background: token.colorBgLayout, borderRadius: 8, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', border: `2px dashed ${token.colorBorderSecondary}` }}>
+          <FlaskConical size={48} color={token.colorTextTertiary} />
           <Text type="secondary" style={{ marginTop: 16 }}>Chemdraw Editor 공간 확보 (모의 이미지 사용 예정)</Text>
         </div>
       </Modal>

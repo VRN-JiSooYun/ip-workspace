@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import { ConfigProvider, theme } from 'antd';
+import { useTheme } from './contexts/ThemeContext';
 import MainLayout from './components/layout/MainLayout';
 import Dashboard from './pages/Dashboard';
 import MyBoard from './pages/MyBoard';
@@ -7,6 +9,7 @@ import SynthesisBoard from './pages/SynthesisBoard';
 
 const App: React.FC = () => {
   const [currentPage, setCurrentPage] = useState('dashboard');
+  const { isDarkMode } = useTheme();
 
   useEffect(() => {
     (window as any).onNavigate = (key: string) => {
@@ -30,9 +33,42 @@ const App: React.FC = () => {
   };
 
   return (
-    <MainLayout>
-      {renderPage()}
-    </MainLayout>
+    <ConfigProvider
+      theme={{
+        algorithm: isDarkMode ? theme.darkAlgorithm : theme.defaultAlgorithm,
+        token: {
+          colorPrimary: '#F87C63',
+          borderRadius: 8,
+          fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+          colorBgBody: isDarkMode ? '#141414' : '#f7f9fb',
+        },
+        components: {
+          Card: {
+            borderRadiusLG: 2,
+            boxShadow: isDarkMode ? 'none' : '0 1px 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.24)',
+          },
+          Layout: {
+            bodyBg: isDarkMode ? '#141414' : '#f8f9fa',
+            headerBg: isDarkMode ? '#1f1f1f' : '#fff',
+            siderBg: isDarkMode ? '#1f1f1f' : '#fff',
+          },
+          Menu: {
+            itemBg: 'transparent',
+            itemSelectedBg: isDarkMode ? '#2b2b2b' : '#ffffff',
+            itemSelectedColor: '#F87C63',
+            itemHoverBg: isDarkMode ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)',
+          },
+          Button: {
+            borderRadius: 12,
+            controlHeight: 40,
+          }
+        },
+      }}
+    >
+      <MainLayout>
+        {renderPage()}
+      </MainLayout>
+    </ConfigProvider>
   );
 };
 

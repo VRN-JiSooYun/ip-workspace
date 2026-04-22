@@ -1,12 +1,13 @@
 import React, { useState, useMemo } from 'react';
 import {
   Row, Col, Card, Table, Button, Input, Checkbox,
-  Space, Typography, Modal, Form, Tag, Select, DatePicker, Avatar, Divider, Segmented, Popover
+  Space, Typography, Modal, Form, Tag, Select, DatePicker, Avatar, Divider, Segmented, Popover, theme
 } from 'antd';
 import {
   Search, Plus, Filter, Settings, FlaskConical, Info, ChevronDown, ChevronUp, Beaker, Image as ImageIcon, GitBranch,
   UserPlus, CheckCircle2, Clock, AlertCircle, GripVertical, Users, Activity, List as ListIcon
 } from 'lucide-react';
+import { useTheme } from '../contexts/ThemeContext';
 import dayjs from 'dayjs';
 
 const { Title, Text } = Typography;
@@ -24,21 +25,23 @@ interface SynthesisDetail {
   completeDate: string | null;
 }
 
-const ManagerComparisonPopup = ({ record, currentMgrName }: { record: any, currentMgrName?: string }) => (
+const ManagerComparisonPopup = ({ record, currentMgrName }: { record: any, currentMgrName?: string }) => {
+  const { token } = theme.useToken();
+  return (
   <div style={{ minWidth: 300 }}>
-    <div style={{ marginBottom: 12, borderBottom: '1px solid #f0f0f0', paddingBottom: 8 }}>
+    <div style={{ marginBottom: 12, borderBottom: `1px solid ${token.colorBorderSecondary}`, paddingBottom: 8 }}>
       <div style={{ marginBottom: 4 }}>
-        <Text strong style={{ fontSize: 14, color: '#F87C63' }}>{record.title}</Text>
+        <Text strong style={{ fontSize: 14, color: token.colorPrimary }}>{record.title}</Text>
       </div>
-      <Text style={{ fontSize: 12, color: '#8c8c8c' }}>담당자별 합성 현황 비교</Text>
+      <Text style={{ fontSize: 12, color: token.colorTextSecondary }}>담당자별 합성 현황 비교</Text>
     </div>
     <table style={{ width: '100%', borderCollapse: 'collapse' }}>
       <thead>
-        <tr style={{ borderBottom: '1px solid #f0f0f0' }}>
-          <th style={{ textAlign: 'left', padding: '4px 0', fontSize: 11, color: '#8c8c8c' }}>담당자</th>
-          <th style={{ textAlign: 'center', padding: '4px 0', fontSize: 11, color: '#8c8c8c' }}>합성중</th>
-          <th style={{ textAlign: 'center', padding: '4px 0', fontSize: 11, color: '#8c8c8c' }}>완료</th>
-          <th style={{ textAlign: 'center', padding: '4px 0', fontSize: 11, color: '#8c8c8c' }}>합계</th>
+        <tr style={{ borderBottom: `1px solid ${token.colorBorderSecondary}` }}>
+          <th style={{ textAlign: 'left', padding: '4px 0', fontSize: 11, color: token.colorTextSecondary }}>담당자</th>
+          <th style={{ textAlign: 'center', padding: '4px 0', fontSize: 11, color: token.colorTextSecondary }}>합성중</th>
+          <th style={{ textAlign: 'center', padding: '4px 0', fontSize: 11, color: token.colorTextSecondary }}>완료</th>
+          <th style={{ textAlign: 'center', padding: '4px 0', fontSize: 11, color: token.colorTextSecondary }}>합계</th>
         </tr>
       </thead>
       <tbody>
@@ -48,7 +51,7 @@ const ManagerComparisonPopup = ({ record, currentMgrName }: { record: any, curre
             { name: managerName, count: 0, ing: 0, done: 0 };
 
           return (
-            <tr key={idx} style={{ background: m.name === currentMgrName ? '#fff7f6' : 'transparent' }}>
+            <tr key={idx} style={{ background: m.name === currentMgrName ? token.colorPrimaryBg : 'transparent' }}>
               <td style={{ padding: '6px 0', fontSize: 12 }}>
                 <Text strong={m.name === currentMgrName}>{m.name}</Text>
               </td>
@@ -61,9 +64,12 @@ const ManagerComparisonPopup = ({ record, currentMgrName }: { record: any, curre
       </tbody>
     </table>
   </div>
-);
+  );
+};
 
 const SynthesisBoard: React.FC = () => {
+  const { token } = theme.useToken();
+  const { isDarkMode } = useTheme();
   const [selectedDataSources, setSelectedDataSources] = useState<string[]>(['Designs']);
   const [showFilters, setShowFilters] = useState(false);
   const [keyword, setKeyword] = useState('');
@@ -244,7 +250,7 @@ const SynthesisBoard: React.FC = () => {
         return (
           <Popover content={<ManagerComparisonPopup record={record} currentMgrName={mgr.name} />} title={null} trigger="hover" placement="top">
             <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'help' }}>
-              <Text style={{ fontSize: 12, fontWeight: 500, color: mgr.count > 0 ? '#495057' : '#adb5bd' }}>
+              <Text style={{ fontSize: 12, fontWeight: 500, color: mgr.count > 0 ? token.colorText : token.colorTextTertiary }}>
                 {mgr.count}
               </Text>
             </div>
@@ -256,7 +262,7 @@ const SynthesisBoard: React.FC = () => {
 
   const detailColumns = [
     { title: 'Num', key: 'num', width: 50, align: 'center' as const, render: (_: any, __: any, index: number) => index + 1 },
-    { title: 'Grp.', dataIndex: 'groupNum', key: 'grp', width: 60, align: 'center' as const, render: (num: number) => <Text strong style={{ color: '#F87C63' }}>{num}</Text> },
+    { title: 'Grp.', dataIndex: 'groupNum', key: 'grp', width: 60, align: 'center' as const, render: (num: number) => <Text strong style={{ color: token.colorPrimary }}>{num}</Text> },
     { title: 'Compound', dataIndex: 'compoundId', key: 'compound', width: 100 },
     {
       title: 'Structure',
@@ -265,8 +271,8 @@ const SynthesisBoard: React.FC = () => {
       width: 100,
       align: 'center' as const,
       render: () => (
-        <div style={{ width: 80, height: 50, background: '#f8f9fa', borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid #eee' }}>
-          <FlaskConical size={18} color="#dee2e6" />
+        <div style={{ width: 80, height: 50, background: token.colorBgLayout, borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', border: `1px solid ${token.colorBorderSecondary}` }}>
+          <FlaskConical size={18} color={token.colorBorder} />
         </div>
       )
     },
@@ -285,16 +291,16 @@ const SynthesisBoard: React.FC = () => {
               alignItems: 'center',
               gap: 6,
               padding: '4px 10px',
-              background: '#fff',
-              border: '1px solid #d9d9d9',
+              background: token.colorBgContainer,
+              border: `1px solid ${token.colorBorderSecondary}`,
               borderRadius: 6,
               transition: 'all 0.2s',
             }}
             className="assignee-button"
             onClick={() => { setSelectedItem(record); setIsAssignModalOpen(true); }}
           >
-            <UserPlus size={14} color="#F87C63" />
-            <Text style={{ fontSize: 12, fontWeight: 500, color: '#495057' }}>{assignee}</Text>
+            <UserPlus size={14} color={token.colorPrimary} />
+            <Text style={{ fontSize: 12, fontWeight: 500, color: token.colorText }}>{assignee}</Text>
           </div>
         ) : (
           <Button
@@ -320,7 +326,7 @@ const SynthesisBoard: React.FC = () => {
           <Col flex="auto">
             <Space size="middle">
               <Input
-                prefix={<Search size={18} color="#adb5bd" />}
+                prefix={<Search size={18} color={token.colorTextTertiary} />}
                 placeholder="그룹 또는 화합물 ID 검색"
                 style={{ width: 350, height: 44, borderRadius: 12 }}
                 value={keyword}
@@ -337,13 +343,13 @@ const SynthesisBoard: React.FC = () => {
           </Col>
           <Col>
             <Space>
-              <Button type="primary" icon={<Plus size={18} />} style={{ height: 44, borderRadius: 12, background: '#F87C63', borderColor: '#F87C63' }}>New Group</Button>
+              <Button type="primary" icon={<Plus size={18} />} style={{ height: 44, borderRadius: 12, background: token.colorPrimary, borderColor: token.colorPrimary }}>New Group</Button>
               <Button icon={<Settings size={18} />} style={{ height: 44, borderRadius: 12 }}>설정</Button>
             </Space>
           </Col>
         </Row>
         {showFilters && (
-          <div style={{ marginTop: 24, padding: 20, background: '#f8f9fa', borderRadius: 12 }}>
+          <div style={{ marginTop: 24, padding: 20, background: token.colorBgLayout, borderRadius: 12 }}>
             <Row gutter={[32, 24]}>
               <Col span={10}>
                 <Text strong>Projects</Text><br />
@@ -381,10 +387,10 @@ const SynthesisBoard: React.FC = () => {
       <Row gutter={[20, 20]}>
         {/* Left: Group List (Single Select) - Increased width for many columns */}
         <Col span={14}>
-          <div className="c-card" style={{ background: '#fff', borderRadius: 12, overflow: 'hidden' }}>
-            <div style={{ padding: '16px 24px', borderBottom: '1px solid #f0f0f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Text strong style={{ color: '#F87C63' }}>합성 그룹 리스트</Text>
-              <div style={{ background: '#f8f9fa', padding: '2px 8px', borderRadius: 8, display: 'flex', gap: 12 }}>
+          <div className="c-card" style={{ background: token.colorBgContainer, borderRadius: 12, overflow: 'hidden' }}>
+            <div style={{ padding: '16px 24px', borderBottom: `1px solid ${token.colorBorderSecondary}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Text strong style={{ color: token.colorPrimary }}>합성 그룹 리스트</Text>
+              <div style={{ background: token.colorBgLayout, padding: '2px 8px', borderRadius: 8, display: 'flex', gap: 12 }}>
                 <Checkbox
                   checked={selectedDataSources.includes('Designs')}
                   onChange={(e) => {
@@ -427,16 +433,16 @@ const SynthesisBoard: React.FC = () => {
 
         {/* Right: Synthesis Details */}
         <Col span={10}>
-          <div className="c-card" style={{ background: '#fff', borderRadius: 12, overflow: 'hidden' }}>
-            <div style={{ padding: '16px 24px', borderBottom: '1px solid #f0f0f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Text strong style={{ color: '#F87C63' }}>합성 상세 목록</Text>
-              <div style={{ background: '#f8f9fa', padding: '2px', borderRadius: 6, display: 'flex' }}>
+          <div className="c-card" style={{ background: token.colorBgContainer, borderRadius: 12, overflow: 'hidden' }}>
+            <div style={{ padding: '16px 24px', borderBottom: `1px solid ${token.colorBorderSecondary}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Text strong style={{ color: token.colorPrimary }}>합성 상세 목록</Text>
+              <div style={{ background: token.colorBgLayout, padding: '2px', borderRadius: 6, display: 'flex' }}>
                 <Button 
                   type="text" 
                   size="small" 
                   icon={<ListIcon size={14} />} 
                   style={{ 
-                    background: viewMode === 'table' ? '#fff' : 'transparent',
+                    background: viewMode === 'table' ? token.colorBgContainer : 'transparent',
                     boxShadow: viewMode === 'table' ? '0 2px 4px rgba(0,0,0,0.05)' : 'none',
                     borderRadius: 4,
                     fontSize: 11
@@ -450,7 +456,7 @@ const SynthesisBoard: React.FC = () => {
                   size="small" 
                   icon={<ImageIcon size={14} />} 
                   style={{ 
-                    background: viewMode === 'draw' ? '#fff' : 'transparent',
+                    background: viewMode === 'draw' ? token.colorBgContainer : 'transparent',
                     boxShadow: viewMode === 'draw' ? '0 2px 4px rgba(0,0,0,0.05)' : 'none',
                     borderRadius: 4,
                     fontSize: 11
@@ -464,7 +470,7 @@ const SynthesisBoard: React.FC = () => {
                   size="small" 
                   icon={<GitBranch size={14} />} 
                   style={{ 
-                    background: viewMode === 'tree' ? '#fff' : 'transparent',
+                    background: viewMode === 'tree' ? token.colorBgContainer : 'transparent',
                     boxShadow: viewMode === 'tree' ? '0 2px 4px rgba(0,0,0,0.05)' : 'none',
                     borderRadius: 4,
                     fontSize: 11
@@ -490,7 +496,7 @@ const SynthesisBoard: React.FC = () => {
                   {filteredDetails.map(d => (
                     <Col span={12} key={d.id}>
                       <div style={{ 
-                        border: '1px solid #f0f0f0', 
+                        border: `1px solid ${token.colorBorderSecondary}`, 
                         borderRadius: 8, 
                         overflow: 'hidden',
                         transition: 'all 0.3s ease',
@@ -499,12 +505,12 @@ const SynthesisBoard: React.FC = () => {
                       className="canvas-card"
                       onClick={() => { setSelectedItem(d); setIsAssignModalOpen(true); }}
                       >
-                        <div style={{ padding: '6px 10px', background: '#fafafa', borderBottom: '1px solid #f0f0f0', display: 'flex', justifyContent: 'space-between' }}>
-                          <Text strong style={{ color: '#F87C63', fontSize: 11 }}>{d.compoundId}</Text>
+                        <div style={{ padding: '6px 10px', background: token.colorBgLayout, borderBottom: `1px solid ${token.colorBorderSecondary}`, display: 'flex', justifyContent: 'space-between' }}>
+                          <Text strong style={{ color: token.colorPrimary, fontSize: 11 }}>{d.compoundId}</Text>
                           {d.assignee && <Tag color="orange" style={{ fontSize: 10, margin: 0, padding: '0 4px' }}>{d.assignee}</Tag>}
                         </div>
-                        <div style={{ height: 80, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#fff' }}>
-                          <FlaskConical size={24} color="#dee2e6" />
+                        <div style={{ height: 80, display: 'flex', alignItems: 'center', justifyContent: 'center', background: token.colorBgContainer }}>
+                          <FlaskConical size={24} color={token.colorBorder} />
                         </div>
                       </div>
                     </Col>
@@ -512,7 +518,7 @@ const SynthesisBoard: React.FC = () => {
                 </Row>
               </div>
             ) : (
-              <div style={{ padding: 40, textAlign: 'center', color: '#adb5bd' }}>Tree View 준비 중...</div>
+              <div style={{ padding: 40, textAlign: 'center', color: token.colorTextTertiary }}>Tree View 준비 중...</div>
             )}
           </div>
         </Col>
@@ -537,16 +543,16 @@ const SynthesisBoard: React.FC = () => {
               담당자 취소
             </Button>
           ),
-          <Button key="ok" type="primary" onClick={() => setIsAssignModalOpen(false)} style={{ background: '#F87C63', borderColor: '#F87C63' }}>
+          <Button key="ok" type="primary" onClick={() => setIsAssignModalOpen(false)} style={{ background: token.colorPrimary, borderColor: token.colorPrimary }}>
             {selectedItem?.assignee ? '담당자 수정' : '배정 완료'}
           </Button>
         ]}
         width={450}
       >
         <div style={{ padding: '10px 0' }}>
-          <div style={{ marginBottom: 20, padding: 16, background: '#fdf2f0', borderRadius: 8, display: 'flex', alignItems: 'center', gap: 12 }}>
-            <div style={{ width: 60, height: 40, background: '#fff', borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid #fee2e2' }}>
-              <FlaskConical size={20} color="#F87C63" />
+          <div style={{ marginBottom: 20, padding: 16, background: isDarkMode ? '#2a1f1d' : '#fdf2f0', borderRadius: 8, display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{ width: 60, height: 40, background: token.colorBgContainer, borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', border: `1px solid ${token.colorBorderSecondary}` }}>
+              <FlaskConical size={20} color={token.colorPrimary} />
             </div>
             <div>
               <Text type="secondary" style={{ fontSize: 12 }}>Selected Compound</Text><br />
@@ -569,14 +575,14 @@ const SynthesisBoard: React.FC = () => {
 
       <style>{`
         .row-selected {
-          background-color: #fff7f6 !important;
+          background-color: ${isDarkMode ? '#2a1f1d' : '#fff7f6'} !important;
         }
         .row-selected td {
-          background-color: #fff7f6 !important;
+          background-color: ${isDarkMode ? '#2a1f1d' : '#fff7f6'} !important;
         }
         .ant-table-thead > tr > th {
-          background: #fafafa !important;
-          color: #495057 !important;
+          background: ${isDarkMode ? '#1f1f1f' : '#fafafa'} !important;
+          color: ${isDarkMode ? 'rgba(255,255,255,0.85)' : '#495057'} !important;
           font-size: 12px;
           font-weight: 600;
         }
@@ -584,7 +590,7 @@ const SynthesisBoard: React.FC = () => {
           font-size: 12px;
         }
         .c-card {
-          border: 1px solid #f0f0f0 !important;
+          border: 1px solid ${isDarkMode ? '#303030' : '#f0f0f0'} !important;
         }
         .canvas-card:hover {
           border-color: #F87C63 !important;

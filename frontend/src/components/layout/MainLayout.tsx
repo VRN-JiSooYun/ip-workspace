@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Layout, Menu, Button, theme, Input, Avatar, Badge, Space } from 'antd';
+import { useTheme } from '../../contexts/ThemeContext';
 import {
   LayoutDashboard,
   FlaskConical,
@@ -8,6 +9,7 @@ import {
   Search,
   Bell,
   Moon,
+  Sun,
   LogOut,
   Plus,
   Palette,
@@ -30,9 +32,8 @@ interface MainLayoutProps {
 
 const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
   const [collapsed, setCollapsed] = useState(false);
-  const {
-    token: { colorBgContainer },
-  } = theme.useToken();
+  const { token } = theme.useToken();
+  const { isDarkMode, toggleTheme } = useTheme();
 
   return (
     <Layout style={{ minHeight: '100vh' }}>
@@ -40,12 +41,12 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
         trigger={null}
         collapsible
         collapsed={collapsed}
-        theme="light"
+        theme={isDarkMode ? 'dark' : 'light'}
         width={280}
         style={{
-          background: '#f2f4f6',
+          background: isDarkMode ? '#1a1a1a' : '#f2f4f6',
           padding: collapsed ? '24px 8px' : '32px 16px',
-          borderRight: 'none'
+          borderRight: isDarkMode ? '1px solid #303030' : 'none'
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '0 16px', marginBottom: 40, position: 'relative' }}>
@@ -64,7 +65,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
           </div>
           {!collapsed && (
             <div>
-              <div style={{ fontWeight: 800, fontSize: '18px', color: '#191c1e', letterSpacing: '-0.5px' }}>MyWorkspace</div>
+              <div style={{ fontWeight: 800, fontSize: '18px', color: isDarkMode ? '#e8e8e8' : '#191c1e', letterSpacing: '-0.5px' }}>MyWorkspace</div>
             </div>
           )}
 
@@ -84,7 +85,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
               justifyContent: 'center',
               background: '#F87C63',
               borderRadius: '50%',
-              border: '2px solid #fff',
+              border: isDarkMode ? '2px solid #1a1a1a' : '2px solid #fff',
               boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
               zIndex: 100,
               padding: 0
@@ -159,7 +160,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
       <Layout>
         <Header style={{
           padding: '0 48px',
-          background: '#f7f9fb',
+          background: token.colorBgLayout,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
@@ -169,15 +170,16 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
           <div style={{ display: 'flex', alignItems: 'center', flex: 1 }}>
             <div style={{ position: 'relative' }}>
               <Input
-                prefix={<Search size={18} color="#94a3b8" />}
+                prefix={<Search size={18} color={token.colorTextPlaceholder} />}
                 placeholder="Search workspace..."
                 style={{
                   width: 256,
                   border: 'none',
-                  background: '#f2f4f6',
+                  background: isDarkMode ? '#2b2b2b' : '#f2f4f6',
                   borderRadius: '12px',
                   height: 40,
-                  fontSize: '14px'
+                  fontSize: '14px',
+                  color: token.colorText
                 }}
               />
             </div>
@@ -185,9 +187,11 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
             <Space size={16}>
-              <Button type="text" icon={<Bell size={20} color="#64748b" />} />
-              <Button type="text" icon={<Moon size={20} color="#64748b" />} />
-              <Button type="text" icon={<Palette size={20} color="#64748b" />} />
+              <Button type="text" icon={<Bell size={20} color={token.colorTextSecondary} />} />
+              <Button type="text" onClick={toggleTheme} icon={
+                isDarkMode ? <Sun size={20} color={token.colorTextSecondary} /> : <Moon size={20} color={token.colorTextSecondary} />
+              } />
+              <Button type="text" icon={<Palette size={20} color={token.colorTextSecondary} />} />
             </Space>
             <Avatar
               size={40}
@@ -200,17 +204,17 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
           padding: '0 48px 48px 48px',
           overflow: 'auto',
           minHeight: 'calc(100vh - 80px)',
-          backgroundColor: '#f7f9fb'
+          backgroundColor: token.colorBgLayout
         }}>
           {children}
         </Content>
       </Layout>
       <style>{`
         .ant-menu-item-selected { 
-          background-color: #ffffff !important; 
+          background-color: ${isDarkMode ? '#2b2b2b' : '#ffffff'} !important; 
           color: #F87C63 !important; 
           border-radius: 12px !important;
-          box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1) !important;
+          box-shadow: ${isDarkMode ? 'none' : '0 4px 6px -1px rgb(0 0 0 / 0.1)'} !important;
         }
         .ant-menu-item { 
           border-radius: 12px !important; 
