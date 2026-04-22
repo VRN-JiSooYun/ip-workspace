@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html class="light" lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta content="width=device-width, initial-scale=1.0" name="viewport">
+    <title>Synthesis Lab | My Workspace</title>
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Manrope:wght@200;400;600;800&amp;family=Inter:wght@300;400;500;600&amp;display=swap"
+        rel="stylesheet">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap"
+        rel="stylesheet">
+    <script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "background": "#f7f9fb",
+                        "surface": "#f7f9fb",
+                        "inverse-surface": "#2d3133",
+                        "secondary-fixed-dim": "#b9c7df",
+                        "secondary": "#515f74",
+                        "primary-fixed-dim": "#ffb4a5",
+                        "surface-container-lowest": "#ffffff",
+                        "primary": "#F87C63",
+                        "primary-container": "#F87C63",
+                        "surface-dim": "#d8dadc",
+                        "error-container": "#ffdad6",
+                        "secondary-fixed": "#d5e3fc",
+                        "outline": "#8a716c",
+                        "on-error": "#ffffff",
+                        "on-secondary-container": "#57657a",
+                        "surface-container-low": "#f2f4f6",
+                        "secondary-container": "#d5e3fc",
+                        "on-primary": "#ffffff",
+                        "on-primary-container": "#ffffff",
+                        "on-error-container": "#93000a",
+                        "surface-bright": "#f7f9fb",
+                        "tertiary-container": "#00b59b",
+                        "surface-variant": "#e0e3e5",
+                        "on-secondary": "#ffffff",
+                        "surface-tint": "#F87C63",
+                        "on-tertiary-fixed": "#00201a",
+                        "surface-container-high": "#e6e8ea",
+                        "primary-fixed": "#ffdad3",
+                        "on-primary-fixed-variant": "#832614",
+                        "on-secondary-fixed": "#0d1c2e",
+                        "surface-container": "#eceef0",
+                        "outline-variant": "#dec0ba",
+                        "tertiary": "#006b5b",
+                        "tertiary-fixed": "#6ff9dc",
+                        "on-surface": "#191c1e",
+                        "surface-container-highest": "#e0e3e5",
+                        "on-tertiary-fixed-variant": "#005144",
+                        "inverse-on-surface": "#eff1f3",
+                        "on-primary-fixed": "#3e0400",
+                        "tertiary-fixed-dim": "#4edcc0",
+                        "on-tertiary": "#ffffff",
+                        "error": "#ba1a1a",
+                        "on-surface-variant": "#57423e",
+                        "on-tertiary-container": "#003f35",
+                        "on-background": "#191c1e",
+                        "on-secondary-fixed-variant": "#3a485b",
+                        "inverse-primary": "#ffb4a5"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "4px",
+                        "lg": "4px",
+                        "xl": "8px",
+                        "2xl": "12px",
+                        "3xl": "24px",
+                        "full": "9999px"
+                    },
+                    "fontFamily": {
+                        "headline": ["Manrope"],
+                        "body": ["Inter"],
+                        "label": ["Inter"]
+                    }
+                },
+            },
+        }
+    </script>
+    <style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+    </style>
+</head>
+
+<body class="bg-surface font-body text-on-surface flex min-h-screen">
+    <!-- SideNavBar Component -->
+    <aside class="fixed left-0 top-0 h-screen w-72 bg-[#f2f4f6] flex flex-col p-8 gap-y-6 z-40">
+        <div class="flex items-center gap-3 mb-4">
+            <div class="w-10 h-10 bg-primary rounded-xl flex items-center justify-center text-on-primary">
+                <span class="material-symbols-outlined" style="">science</span>
+            </div>
+            <div>
+                <h1 class="font-headline font-extrabold uppercase text-[#191c1e] text-lg leading-tight" style="">
+                    Myworkspace</h1>
+                <p class="font-label text-[10px] tracking-widest text-slate-500 uppercase" style="">voronoi</p>
+            </div>
+        </div>
+        <nav class="flex flex-col gap-1 mt-4"><!-- Compounds Section -->
+            <div class="flex flex-col gap-1">
+                <a class="flex items-center gap-4 px-4 py-3 text-primary font-bold bg-[#ffffff] rounded-lg shadow-sm transition-all whitespace-normal"
+                    href="#" style="">
+                    <span class="material-symbols-outlined whitespace-normal" style="">science</span>
+                    <span class="font-['Inter'] text-sm tracking-wide whitespace-normal" style="">Compounds</span>
+                </a>
+                <div class="flex flex-col gap-1 ml-10 mb-2">
+                    <a class="text-slate-500 hover:text-primary text-xs py-1 transition-all whitespace-normal" href="#"
+                        style="">My board</a>
+                    <a class="text-slate-500 hover:text-primary text-xs py-1 transition-all whitespace-normal" href="#"
+                        style="">My tree</a>
+                </div>
+            </div>
+            <!-- Documents Section -->
+            <div class="flex flex-col gap-1">
+                <a class="flex items-center gap-4 px-4 py-3 text-slate-600 hover:text-[#191c1e] hover:bg-slate-200 rounded-lg transition-all whitespace-normal"
+                    href="#" style="">
+                    <span class="material-symbols-outlined whitespace-normal" style="">article</span>
+                    <span class="font-['Inter'] text-sm tracking-wide whitespace-normal" style="">Documents</span>
+                </a>
+                <div class="flex flex-col gap-1 ml-10 mb-2">
+                    <div class="flex flex-col gap-1">
+                        <span class="text-slate-700 text-[13px] font-semibold py-1 whitespace-normal"
+                            style="">Patents</span>
+                        <div class="flex flex-col gap-1 ml-4 border-l border-slate-200 pl-3">
+                            <a class="text-slate-500 hover:text-primary text-xs py-1 transition-all whitespace-normal"
+                                href="#" style="">My 특허 쓰기</a>
+                            <a class="text-slate-500 hover:text-primary text-xs py-1 transition-all whitespace-normal"
+                                href="#" style="">My 특허 분석</a>
+                            <a class="text-slate-500 hover:text-primary text-xs py-1 transition-all whitespace-normal"
+                                href="#" style="">My 특허 관리</a>
+                        </div>
+                    </div>
+                    <div class="flex flex-col gap-1 mt-1">
+                        <span class="text-slate-700 text-[13px] font-semibold py-1 whitespace-normal"
+                            style="">Papers</span>
+                        <div class="flex flex-col gap-1 ml-4 border-l border-slate-200 pl-3">
+                            <a class="text-slate-500 hover:text-primary text-xs py-1 transition-all whitespace-normal"
+                                href="#" style="">My 논문 관리</a>
+                        </div>
+                    </div>
+                    <a class="text-slate-700 text-[13px] font-semibold py-1 hover:text-primary transition-all whitespace-normal"
+                        href="#" style="">Conferences</a>
+                </div>
+            </div>
+            <!-- PDBs Section -->
+            <a class="flex items-center gap-4 px-4 py-3 text-slate-600 hover:text-[#191c1e] hover:bg-slate-200 rounded-lg transition-all whitespace-normal"
+                href="#" style="">
+                <span class="material-symbols-outlined whitespace-normal" style="">polyline</span>
+                <span class="font-['Inter'] text-sm tracking-wide whitespace-normal" style="">PDBs</span>
+            </a>
+            <!-- Search Section -->
+            <a class="flex items-center gap-4 px-4 py-3 text-slate-600 hover:text-[#191c1e] hover:bg-slate-200 rounded-lg transition-all whitespace-normal"
+                href="#" style="">
+                <span class="material-symbols-outlined whitespace-normal" style="">manage_search</span>
+                <span class="font-['Inter'] text-sm tracking-wide whitespace-normal" style="">통합검색</span>
+            </a>
+        </nav>
+        <div class="mt-auto flex flex-col gap-1 pt-6 border-t border-slate-200"><a
+                class="flex items-center gap-4 px-4 py-3 text-slate-600 hover:text-[#191c1e] hover:bg-slate-200 rounded-lg transition-all"
+                href="#" style="">
+                <span class="material-symbols-outlined" style="">help</span>
+                <span class="font-['Inter'] text-sm tracking-wide" style="">Support</span>
+            </a>
+            <a class="flex items-center gap-4 px-4 py-3 text-slate-600 hover:text-[#191c1e] hover:bg-slate-200 rounded-lg transition-all"
+                href="#" style="">
+                <span class="material-symbols-outlined" style="">history</span>
+                <span class="font-['Inter'] text-sm tracking-wide" style="">Archive</span>
+            </a>
+        </div>
+    </aside>
+    <!-- Main Workspace -->
+    <main class="ml-72 flex-1 min-h-screen">
+        <!-- TopNavBar -->
+        <header class="sticky top-0 z-30 bg-[#f7f9fb] flex justify-between items-center w-full px-12 py-6">
+            <div class="flex items-center gap-8">
+                <span class="text-xl font-black tracking-tighter text-primary font-headline" style="">My
+                    workspace</span>
+                <div class="relative group">
+                    <span class="absolute left-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-slate-400"
+                        style="">search</span>
+                    <input
+                        class="pl-10 pr-4 py-2 bg-surface-container-low border-none rounded-xl w-64 font-body text-sm focus:ring-2 focus:ring-primary transition-all"
+                        placeholder="Search workspace..." type="text">
+                </div>
+            </div>
+            <div class="flex items-center gap-6">
+                <div class="flex items-center gap-4">
+                    <button class="text-slate-500 hover:text-primary transition-all" style=""><span
+                            class="material-symbols-outlined" style="">notifications</span></button>
+                    <button class="text-slate-500 hover:text-primary transition-all" style=""><span
+                            class="material-symbols-outlined" style="">settings</span></button>
+                    <button class="text-slate-500 hover:text-primary transition-all" style=""><span
+                            class="material-symbols-outlined" style="">apps</span></button>
+                </div>
+                <div
+                    class="h-10 w-10 rounded-full bg-surface-container-high overflow-hidden border-2 border-white shadow-sm">
+                    <img alt="User Scientist Profile" class="w-full h-full object-cover"
+                        src="https://lh3.googleusercontent.com/aida-public/AB6AXuBxWmRUEECaG6CTx1WD3R6_8tUqDHhik8dPVS9z33QnH2x1bZtxqt1emWmHOe6YQhE0Tdxp0BfK-IHXkmDk80y_bQdUI5-L55LwZgvDpwTRZwliugh2EnhkA3G3LJFkpA-ssVst9nIo4rq7NQuh5-pKHFOCJmkWJm5RAotHti-bhlBgsoCQ9s5wdtPOBTxJYx5Btz5wsJUbTNvKM-9kUYAPXUWMygQZKaQ10jfVrjbmx_ehGPDkYzwz1WxONu-0c0eXnBoEppPlsOgB"
+                        style="">
+                </div>
+            </div>
+        </header>
+        <!-- Canvas Content -->
+        <div class="px-12 pb-12">
+            <div class="mb-10 flex items-end justify-between">
+                <div class="flex items-center gap-4">
+                    <h2 class="text-xl font-bold font-headline text-slate-800" style="">2025.04.14. ~ 2025.04.21.</h2>
+                    <button class="bg-primary text-white px-4 py-2 rounded-xl text-sm font-bold shadow-sm"
+                        style="">What's New</button>
+                </div>
+            </div>
+            <!-- Dashboard Grid -->
+            <div class="grid grid-cols-12 gap-6">
+                <!-- Compounds Section -->
+                <section
+                    class="col-span-12 lg:col-span-3 bg-surface-container-lowest rounded-3xl p-8 shadow-sm border border-slate-100 flex flex-col">
+                    <div class="flex items-center gap-3 mb-6 pb-2 border-b border-slate-100">
+                        <span class="material-symbols-outlined text-primary" style="">science</span>
+                        <h3 class="font-headline font-bold text-lg flex-1 text-left" style="">Compounds</h3>
+                    </div>
+                    <div class="space-y-6 flex-1">
+                        <div>
+                            <h4 class="text-sm font-bold text-slate-800 mb-2" style="">Synthesis</h4>
+                            <ul class="text-xs text-slate-600 space-y-1 ml-2">
+                                <li class="" style="">• 박창인 chip_250418_comp8</li>
+                                <li class="" style="">• 우씨 chip_250330_comp2</li>
+                            </ul>
+                        </div>
+                        <div>
+                            <h4 class="text-sm font-bold text-slate-800 mb-2" style="">Thermoshift assay</h4>
+                            <ul class="text-xs text-slate-600 space-y-1 ml-2">
+                                <li class="" style="">• FGFR3 6LUB, 8WG1, 8DAU</li>
+                                <li class="" style="">• cMET 7M17, 7U8C</li>
+                                <li class="" style="">• VRK1 5KC4, 5KC5, 5KC6</li>
+                            </ul>
+                        </div>
+                        <div>
+                            <h4 class="text-sm font-bold text-slate-800 mb-2" style="">Kinase profiling</h4>
+                            <ul class="text-xs text-slate-600 space-y-1 ml-2">
+                                <li class="" style="">• FGFR VRN235868</li>
+                                <li class="" style="">• cMET VRN224935</li>
+                            </ul>
+                        </div>
+                        <div>
+                            <h4 class="text-sm font-bold text-slate-800 mb-1" style="">In-vitro</h4>
+                            <ul class="text-xs text-slate-600 space-y-1 ml-2">
+                                <li class="" style="">• FGFR VRN235868</li>
+                                <li class="" style="">• cMET VRN224935</li>
+                            </ul>
+                        </div>
+                        <div>
+                            <h4 class="text-sm font-bold text-slate-800 mb-1 italic" style="">In-vivo</h4>
+                            <ul class="text-xs text-slate-600 space-y-1 ml-2">
+                                <li class="" style="">• FGFR VRN235868</li>
+                                <li class="" style="">• cMET VRN224935</li>
+                            </ul>
+                        </div>
+                    </div>
+                </section>
+                <!-- Documents Section -->
+                <section
+                    class="col-span-12 lg:col-span-3 bg-surface-container-lowest rounded-3xl p-8 shadow-sm border border-slate-100 flex flex-col">
+                    <div class="flex items-center gap-3 mb-6 pb-2 border-b border-slate-100">
+                        <span class="material-symbols-outlined text-primary" style="">article</span>
+                        <h3 class="font-headline font-bold text-lg flex-1 text-left" style="">Documents</h3>
+                    </div>
+                    <div class="space-y-8 flex-1">
+                        <div>
+                            <h4 class="text-sm font-bold text-slate-800 mb-3" style="">Patent</h4>
+                            <ul class="text-xs text-slate-600 space-y-2 ml-2">
+                                <li class="" style="">• FGFR 특허 WO203918503</li>
+                                <li class="" style="">• cMET 특허 WO203134456</li>
+                            </ul>
+                        </div>
+                        <div>
+                            <h4 class="text-sm font-bold text-slate-800 mb-3" style="">Paper</h4>
+                            <ul class="text-xs text-slate-600 space-y-2 ml-2">
+                                <li class="" style="">• FGFR 뭔 논문</li>
+                                <li class="" style="">• cMET 뭔 논문</li>
+                            </ul>
+                        </div>
+                        <div>
+                            <h4 class="text-sm font-bold text-slate-800 mb-3" style="">Conference</h4>
+                            <ul class="text-xs text-slate-600 space-y-2 ml-2">
+                                <li class="" style="">• FGFR 뭔 포스터</li>
+                                <li class="" style="">• cMET 뭔 포스터</li>
+                            </ul>
+                        </div>
+                    </div>
+                </section>
+                <!-- PDBs Section -->
+                <section
+                    class="col-span-12 lg:col-span-3 bg-surface-container-lowest rounded-3xl p-8 shadow-sm border border-slate-100 flex flex-col">
+                    <div class="flex items-center gap-3 mb-6 pb-2 border-b border-slate-100">
+                        <span class="material-symbols-outlined text-primary" style="">polyline</span>
+                        <h3 class="font-headline font-bold text-lg flex-1 text-left" style="">PDBs</h3>
+                    </div>
+                    <div class="space-y-8 flex-1">
+                        <div>
+                            <h4 class="text-sm font-bold text-slate-800 mb-3" style="">in-house</h4>
+                            <ul class="text-xs text-slate-600 space-y-2 ml-2">
+                                <li class="" style="">• FGFR VNA213583</li>
+                                <li class="" style="">• cMET VNA213861</li>
+                            </ul>
+                        </div>
+                        <div>
+                            <h4 class="text-sm font-bold text-slate-800 mb-3" style="">RCSB</h4>
+                            <ul class="text-xs text-slate-600 space-y-2 ml-2">
+                                <li class="" style="">• FGFR3 6LUB, 8WG1, 8DAU</li>
+                                <li class="" style="">• cMET 7M17, 7U8C</li>
+                                <li class="" style="">• VRK1 5KC4, 5KC5, 5KC6</li>
+                            </ul>
+                        </div>
+                        <div>
+                            <h4 class="text-sm font-bold text-slate-800 mb-3" style="">Docking pose</h4>
+                            <ul class="text-xs text-slate-600 space-y-2 ml-2">
+                                <li class="" style="">• FGFR VRN235868</li>
+                                <li class="" style="">• cMET VRN224935</li>
+                            </ul>
+                        </div>
+                    </div>
+                </section>
+                <!-- Calculations Section -->
+                <section
+                    class="col-span-12 lg:col-span-3 bg-surface-container-lowest rounded-3xl p-8 shadow-sm border border-slate-100 flex flex-col">
+                    <div class="flex items-center justify-between gap-3 mb-6 pb-2 border-b border-slate-100">
+                        <span class="material-symbols-outlined text-primary" style="">calculate</span>
+                        <h3 class="font-headline font-bold text-lg flex-1 text-left" style="">Calculations</h3>
+                    </div>
+                    <div class="space-y-3 font-mono text-[11px] text-left">
+                        <div class="flex gap-4 justify-start items-start">
+                            <span class="text-slate-400" style="">25.04.07.</span>
+                            <span class="text-slate-700 flex-1 break-words whitespace-normal" style="">3D PSA 28개
+                                끝</span>
+                        </div>
+                        <div class="flex gap-4 justify-start items-start">
+                            <span class="text-slate-400" style="">25.04.12.</span>
+                            <span class="text-slate-700 flex-1 break-words whitespace-normal" style="">3D PSA 12개
+                                끝</span>
+                        </div>
+                        <div class="flex gap-4 justify-start items-start">
+                            <span class="text-slate-400" style="">25.04.19.</span>
+                            <span class="text-slate-700 flex-1 break-words whitespace-normal" style="">Permeability MD
+                                5개 끝</span>
+                        </div>
+                        <div class="flex gap-4 justify-start items-start">
+                            <span class="text-slate-400" style="">25.04.20.</span>
+                            <span class="text-slate-700 flex-1 break-words whitespace-normal" style="">Permeability MD
+                                14개 끝</span>
+                        </div>
+                        <div class="flex gap-4 justify-start items-start">
+                            <span class="text-slate-400" style="">25.04.26.</span>
+                            <span class="text-slate-700 flex-1 break-words whitespace-normal"></span>
+                        </div>
+                        <div class="flex gap-4 justify-start items-start">
+                            <span class="text-slate-400" style="">25.04.30.</span>
+                            <span class="text-slate-700 flex-1 break-words whitespace-normal"></span>
+                        </div>
+                        <div class="flex gap-4 justify-start items-start">
+                            <span class="text-slate-400" style="">25.05.04.</span>
+                            <span class="text-slate-700 flex-1 break-words whitespace-normal"></span>
+                        </div>
+                    </div>
+                </section>
+                <!-- Bottom Row -->
+                <div class="col-span-12 grid grid-cols-12 gap-6 mt-4">
+                    <!-- ELN - No Data State -->
+                    <section
+                        class="col-span-12 lg:col-span-4 bg-surface-container-lowest rounded-3xl p-6 shadow-sm border border-slate-100 flex flex-col min-h-[140px]">
+                        <div class="flex items-center gap-2 mb-4">
+                            <span class="material-symbols-outlined text-primary" style="">menu_book</span>
+                        </div>
+                        <div
+                            class="flex-1 flex items-center justify-center border-2 border-dashed border-slate-200 rounded-2xl mb-4 bg-slate-50/50">
+                            <span class="text-slate-400 text-sm font-medium" style="">데이터가 없습니다</span>
+                        </div>
+                        <div class="text-right">
+                            <h4 class="font-headline font-bold text-xl text-slate-800" style="">ELN</h4>
+                        </div>
+                    </section>
+                    <!-- Server Monitoring -->
+                    <section
+                        class="col-span-12 lg:col-span-4 bg-surface-container-lowest rounded-3xl p-6 shadow-sm border border-slate-100 flex flex-col min-h-[140px]">
+                        <div class="flex items-center gap-2 mb-4">
+                            <span class="material-symbols-outlined text-primary" style="">dns</span>
+                            <h4 class="font-headline font-bold text-lg flex-1 text-right" style="">서버 모니터링</h4>
+                        </div>
+                        <div class="grid grid-cols-4 gap-1 text-[8px] font-bold">
+                            <div class="flex items-center gap-1" style="">B200 <span
+                                    class="bg-yellow-100 text-yellow-700 px-1 rounded" style="">의심</span></div>
+                            <div class="flex items-center gap-1" style="">A100 <span
+                                    class="bg-green-100 text-green-700 px-1 rounded" style="">정상</span></div>
+                            <div class="flex items-center gap-1" style="">MD-master <span
+                                    class="bg-green-100 text-green-700 px-1 rounded" style="">정상</span></div>
+                            <div class="flex items-center gap-1" style="">4090x3 01 <span
+                                    class="bg-green-100 text-green-700 px-1 rounded" style="">정상</span></div>
+                            <div class="flex items-center gap-1" style="">4090x3 02 <span
+                                    class="bg-green-100 text-green-700 px-1 rounded" style="">정상</span></div>
+                            <div class="flex items-center gap-1" style="">4090x3 03 <span
+                                    class="bg-green-100 text-green-700 px-1 rounded" style="">정상</span></div>
+                            <div class="flex items-center gap-1" style="">4090x3 04 <span
+                                    class="bg-green-100 text-green-700 px-1 rounded" style="">정상</span></div>
+                            <div class="flex items-center gap-1" style="">4090x3 05 <span
+                                    class="bg-green-100 text-green-700 px-1 rounded" style="">정상</span></div>
+                            <div class="flex items-center gap-1" style="">4090x3 06 <span
+                                    class="bg-green-100 text-green-700 px-1 rounded" style="">정상</span></div>
+                            <div class="flex items-center gap-1" style="">4090x3 07 <span
+                                    class="bg-green-100 text-green-700 px-1 rounded" style="">정상</span></div>
+                            <div class="flex items-center gap-1" style="">4090x3 08 <span
+                                    class="bg-green-100 text-green-700 px-1 rounded" style="">정상</span></div>
+                            <div class="flex items-center gap-1" style="">AI-master <span
+                                    class="bg-green-100 text-green-700 px-1 rounded" style="">정상</span></div>
+                            <div class="flex items-center gap-1" style="">4090x6 01 <span
+                                    class="bg-green-100 text-green-700 px-1 rounded" style="">정상</span></div>
+                            <div class="flex items-center gap-1" style="">4090x6 02 <span
+                                    class="bg-green-100 text-green-700 px-1 rounded" style="">정상</span></div>
+                            <div class="flex items-center gap-1" style="">4090x6 03 <span
+                                    class="bg-yellow-100 text-yellow-700 px-1 rounded" style="">의심</span></div>
+                            <div class="flex items-center gap-1" style="">4090x6 04 <span
+                                    class="bg-green-100 text-green-700 px-1 rounded" style="">정상</span></div>
+                            <div class="flex items-center gap-1" style="">4090x6 05 <span
+                                    class="bg-green-100 text-green-700 px-1 rounded" style="">정상</span></div>
+                            <div class="flex items-center gap-1" style="">4090x6 06 <span
+                                    class="bg-green-100 text-green-700 px-1 rounded" style="">정상</span></div>
+                            <div class="flex items-center gap-1" style="">4090x6 07 <span
+                                    class="bg-green-100 text-green-700 px-1 rounded" style="">정상</span></div>
+                            <div class="flex items-center gap-1" style="">4090x6 08 <span
+                                    class="bg-red-100 text-red-700 px-1 rounded" style="">고장</span></div>
+                        </div>
+                    </section>
+                    <!-- Lab News -->
+                    <section
+                        class="col-span-12 lg:col-span-4 bg-surface-container-lowest rounded-3xl p-6 shadow-sm border border-slate-100 flex flex-col min-h-[140px]">
+                        <div class="flex items-center gap-2 mb-4">
+                            <span class="material-symbols-outlined text-primary" style="">campaign</span>
+                            <h4 class="font-headline font-bold text-lg flex-1 text-right" style="">우리 연구소 소식</h4>
+                        </div>
+                        <div class="mt-auto text-right">
+                            <p class="text-xs font-medium text-slate-800" style="">김도현 장가 가다 <span
+                                    class="text-primary cursor-pointer hover:underline" style="">[웹 화보 바로가기]</span></p>
+                        </div>
+                    </section>
+                </div>
+            </div>
+        </div>
+    </main>
+    <button
+        class="fixed bottom-8 right-8 w-14 h-14 bg-primary rounded-full shadow-lg flex items-center justify-center text-white transition-transform hover:scale-110 active:scale-90 z-50"
+        style="">
+        <span class="material-symbols-outlined" style="font-variation-settings: &quot;FILL&quot; 1;">add</span>
+    </button>
+</body>
+
+</html>

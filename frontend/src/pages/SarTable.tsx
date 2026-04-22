@@ -1,0 +1,626 @@
+import React, { useState, useMemo } from 'react';
+import { 
+  Typography, Row, Col, Card, Table, Button, Input, Checkbox, 
+  Space, DatePicker, Segmented, Modal, Divider, Tag
+} from 'antd';
+import { 
+  Search, FlaskConical, ChevronDown, ChevronUp, Beaker, 
+  Settings, Download, Share2, Info, GripVertical, CheckCircle2, XCircle
+} from 'lucide-react';
+import { mockCompounds } from '../mocks/compounds';
+import dayjs from 'dayjs';
+
+const { Title, Text } = Typography;
+
+const SarTable: React.FC = () => {
+  const [isColorActive, setIsColorActive] = useState(false);
+  const [selectedRowKey, setSelectedRowKey] = useState<string | null>(mockCompounds[0]?.id || null);
+  const [showFilters, setShowFilters] = useState(true);
+  const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
+
+  // Filter States
+  const projectList = ['FGFR', 'C797S DM', 'cMET', 'VRK1', 'HER2', 'WRN', 'WEE1'];
+  const shareList = ['내 물질', '공유함', '공유받음'];
+  const sourceList = ['내 머리', '동료 머리', 'Patent', 'Paper', 'FBDD', 'ELN'];
+  
+  const [selectedProjects, setSelectedProjects] = useState<string[]>(['ALL', ...projectList]);
+  const [selectedShares, setSelectedShares] = useState<string[]>(['ALL', ...shareList]);
+  const [selectedSources, setSelectedSources] = useState<string[]>(['ALL', ...sourceList]);
+  const [keyword, setKeyword] = useState<string>('');
+
+  // COLUMN STATES (Order & Visibility)
+  const [columnOrder, setColumnOrder] = useState<string[]>([
+    'Compound', 'Enzyme', 'Cell', 'MS', 'PPB', 'CYP', 'hERG', 'PK'
+  ]);
+  const [activeColumns, setActiveColumns] = useState<string[]>([
+    'Compound', 'Enzyme', 'Cell', 'MS', 'PPB', 'CYP', 'hERG', 'PK'
+  ]);
+  const [draggedItemIndex, setDraggedItemIndex] = useState<number | null>(null);
+  const [expandedColumns, setExpandedColumns] = useState<string[]>([]);
+
+  const toggleExpand = (key: string) => {
+    setExpandedColumns(prev => 
+      prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]
+    );
+  };
+
+  // Sub-column config: { parentKey: [ { key: 'wt', visible: true, ... } ] }
+  const [subColumnConfig, setSubColumnConfig] = useState<Record<string, { key: string, title: string, visible: boolean }[]>>({
+    'Enzyme': [
+      { key: 'wt', title: 'WT', visible: true },
+      { key: 'd1228n', title: 'D1228N', visible: true },
+      { key: 'f1250k', title: 'F1250K', visible: true },
+      { key: 'wtf1250k', title: 'WT/F1250K', visible: true }
+    ],
+    'Cell': [
+      { key: 'naive', title: 'Ba/F3 Naive', visible: true },
+      { key: 'fgfr3', title: 'Ba/F3 FGFR3', visible: true },
+      { key: 'v555m', title: 'FGFR3 V555M', visible: true },
+      { key: 'rt112', title: 'RT-112', visible: true },
+      { key: 'mkn45', title: 'MKN45', visible: true }
+    ],
+    'MS': [
+      { key: 'ms_h', title: 'H', visible: true },
+      { key: 'ms_m', title: 'M', visible: true }
+    ],
+    'PPB': [
+      { key: 'ppb_h', title: 'H', visible: true },
+      { key: 'ppb_m', title: 'M', visible: true }
+    ],
+    'CYP': [
+      { key: '1a2', title: '1A2', visible: true },
+      { key: '2c9', title: '2C9', visible: true },
+      { key: '2c19', title: '2C19', visible: true },
+      { key: '2d6', title: '2D6', visible: true },
+      { key: '3a4', title: '3A4', visible: true }
+    ],
+    'PK': [
+      { key: 'dose', title: 'Dose', visible: true },
+      { key: 'plasma', title: 'Plasma (1h, 4h)', visible: true },
+      { key: 'lung', title: 'Lung (1h, 4h)', visible: true },
+      { key: 'brain', title: 'Brain (1h, 4h)', visible: true }
+    ]
+  });
+
+  const toggleColumn = (key: string) => {
+    setActiveColumns(prev => 
+      prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]
+    );
+  };
+
+  const toggleSubColumn = (parentKey: string, subKey: string) => {
+    setSubColumnConfig(prev => ({
+      ...prev,
+      [parentKey]: prev[parentKey].map(col => 
+        col.key === subKey ? { ...col, visible: !col.visible } : col
+      )
+    }));
+  };
+
+  const reorderSubColumns = (parentKey: string, fromIdx: number, toIdx: number) => {
+    setSubColumnConfig(prev => {
+      const newList = [...prev[parentKey]];
+      const [movedItem] = newList.splice(fromIdx, 1);
+      newList.splice(toIdx, 0, movedItem);
+      return { ...prev, [parentKey]: newList };
+    });
+  };
+
+  // DND Handlers
+  const onDragStart = (index: number) => {
+    setDraggedItemIndex(index);
+  };
+
+  const onDragOver = (e: React.DragEvent, index: number) => {
+    e.preventDefault();
+    if (draggedItemIndex === null || draggedItemIndex === index) return;
+
+    const newOrder = [...columnOrder];
+    const draggedItem = newOrder[draggedItemIndex];
+    newOrder.splice(draggedItemIndex, 1);
+    newOrder.splice(index, 0, draggedItem);
+    
+    setColumnOrder(newOrder);
+    setDraggedItemIndex(index);
+  };
+
+  const onDragEnd = () => {
+    setDraggedItemIndex(null);
+  };
+
+  const handleCheckboxChange = (vals: string[], setFn: (v: string[]) => void, originalOptions: string[]) => {
+    const identifies = vals.includes('ALL');
+    const previouslyHadAll = (setFn === setSelectedProjects ? selectedProjects : 
+                             setFn === setSelectedShares ? selectedShares : 
+                             selectedSources).includes('ALL');
+
+    if (identities && !previouslyHadAll) {
+      setFn(['ALL', ...originalOptions]);
+    } else if (!identities && previouslyHadAll) {
+      setFn([]);
+    } else {
+      const filtered = vals.filter(v => v !== 'ALL');
+      if (filtered.length === originalOptions.length) {
+        setFn(['ALL', ...originalOptions]);
+      } else {
+        setFn(filtered);
+      }
+    }
+  };
+
+  // Heatmap rendering logic (relative scaling)
+  const renderValue = (val: number | undefined, group: string) => {
+    if (val === undefined) return '-';
+    
+    let bgColor = 'transparent';
+    let textColor = 'inherit';
+
+    if (isColorActive) {
+      if (val < 0.1) { bgColor = '#10b981'; textColor = '#fff'; }
+      else if (val < 0.5) { bgColor = '#d1fae5'; textColor = '#065f46'; }
+      else if (val < 1.0) { bgColor = '#fef3c7'; textColor = '#92400e'; }
+      else if (val < 10) { bgColor = '#fffbeb'; textColor = '#92400e'; }
+      else if (val >= 10) { bgColor = '#fee2e2'; textColor = '#991b1b'; }
+    }
+
+    return (
+      <div style={{ 
+        backgroundColor: bgColor, 
+        color: textColor,
+        padding: '10px 4px', 
+        height: '100%',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        fontWeight: isColorActive && val < 0.5 ? 600 : 400
+      }}>
+        {val}
+      </div>
+    );
+  };
+
+  const allColumnsMap: Record<string, any> = {
+    'Compound': { 
+      title: 'Compound', 
+      dataIndex: 'compoundId', 
+      key: 'compoundId', 
+      fixed: 'left' as const, 
+      width: 120,
+      render: (text: string) => <Text strong style={{ color: '#F87C63' }}>{text}</Text>
+    },
+    'Enzyme': {
+      title: 'Enzyme IC50 (µM)',
+      children: [
+        { title: 'WT', dataIndex: ['sar', 'enzyme', 'wt'], key: 'wt', width: 70, render: (v: any) => renderValue(v, 'e') },
+        { title: 'D1228N', dataIndex: ['sar', 'enzyme', 'd1228n'], key: 'd1228n', width: 80, render: (v: any) => renderValue(v, 'e') },
+        { title: 'F1250K', dataIndex: ['sar', 'enzyme', 'f1250k'], key: 'f1250k', width: 80, render: (v: any) => renderValue(v, 'e') },
+        { title: 'WT/F1250K', dataIndex: ['sar', 'enzyme', 'wt_f1250k'], key: 'wtf1250k', width: 100, render: (v: any) => renderValue(v, 'e') },
+      ]
+    },
+    'Cell': {
+      title: 'Cell GI50 (µM)',
+      children: [
+        { title: 'Ba/F3 Naive', dataIndex: ['sar', 'cell', 'naive'], key: 'naive', width: 90, render: (v: any) => renderValue(v, 'c') },
+        { title: 'Ba/F3 FGFR3', dataIndex: ['sar', 'cell', 'fgfr3'], key: 'fgfr3', width: 90, render: (v: any) => renderValue(v, 'c') },
+        { title: 'FGFR3 V555M', dataIndex: ['sar', 'cell', 'fgfr3_v555m'], key: 'v555m', width: 100, render: (v: any) => renderValue(v, 'c') },
+        { title: 'RT-112', dataIndex: ['sar', 'cell', 'rt112'], key: 'rt112', width: 80, render: (v: any) => renderValue(v, 'c') },
+        { title: 'MKN45', dataIndex: ['sar', 'cell', 'mkn45'], key: 'mkn45', width: 80, render: (v: any) => renderValue(v, 'c') },
+      ]
+    },
+    'MS': {
+      title: 'MS (rem.%)',
+      children: [
+        { title: 'H', dataIndex: ['sar', 'ms', 'h'], key: 'ms_h', width: 60, render: (v: any) => renderValue(v, 'm') },
+        { title: 'Target', dataIndex: 'target', key: 'target', width: 80, render: (text: string) => <Tag color="blue" style={{ fontSize: 11 }}>{text}</Tag> },
+        { title: 'M', dataIndex: ['sar', 'ms', 'm'], key: 'ms_m', width: 60, render: (v: any) => renderValue(v, 'm') },
+      ]
+    },
+    'PPB': {
+      title: 'PPB (bound %)',
+      children: [
+        { title: 'H', dataIndex: ['sar', 'ppb', 'h'], key: 'ppb_h', width: 60, render: (v: any) => renderValue(v, 'p') },
+        { title: 'M', dataIndex: ['sar', 'ppb', 'm'], key: 'ppb_m', width: 60, render: (v: any) => renderValue(v, 'p') },
+      ]
+    },
+    'CYP': {
+      title: 'CYP inhibition (10µM, % of control)',
+      children: [
+        { title: '1A2', dataIndex: ['sar', 'cyp', '1a2'], key: '1a2', width: 60 },
+        { title: '2C9', dataIndex: ['sar', 'cyp', '2c9'], key: '2c9', width: 60 },
+        { title: '2C19', dataIndex: ['sar', 'cyp', '2c19'], key: '2c19', width: 60 },
+        { title: '2D6', dataIndex: ['sar', 'cyp', '2d6'], key: '2d6', width: 60 },
+        { title: '3A4', dataIndex: ['sar', 'cyp', '3a4'], key: '3a4', width: 60 },
+      ]
+    },
+    'hERG': { title: 'hERG (IC50, µM)', dataIndex: ['sar', 'herg'], key: 'herg', width: 80 },
+    'PK': {
+      title: 'PK (ng/mL)',
+      children: [
+        { title: 'Dose', dataIndex: ['sar', 'pk', 'dose'], key: 'dose', width: 60 },
+        {
+          title: 'Plasma',
+          key: 'plasma',
+          children: [
+            { title: '1h', dataIndex: ['sar', 'pk', 'plasma_1h'], key: 'p1h', width: 70 },
+            { title: '4h', dataIndex: ['sar', 'pk', 'plasma_4h'], key: 'p4h', width: 70 },
+          ]
+        },
+        {
+          title: 'Lung',
+          key: 'lung',
+          children: [
+            { title: '1h', dataIndex: ['sar', 'pk', 'lung_1h'], key: 'l1h', width: 70 },
+            { title: '4h', dataIndex: ['sar', 'pk', 'lung_4h'], key: 'l4h', width: 70 },
+          ]
+        },
+        {
+          title: 'Brain',
+          key: 'brain',
+          children: [
+            { title: '1h', dataIndex: ['sar', 'pk', 'brain_1h'], key: 'b1h', width: 70 },
+            { title: '4h', dataIndex: ['sar', 'pk', 'brain_4h'], key: 'b4h', width: 70 },
+          ]
+        }
+      ]
+    }
+  };
+
+  const dynamicColumns = useMemo(() => {
+    return columnOrder
+      .filter(key => activeColumns.includes(key))
+      .map(key => {
+        const col = { ...allColumnsMap[key] };
+        // If it has children, filter and reorder them based on subColumnConfig
+        if (col.children && subColumnConfig[key]) {
+          const config = subColumnConfig[key];
+          const visibleSubKeys = config.filter(c => c.visible).map(c => c.key);
+          
+          // Rebuild children based on config order
+          const orderedChildren: any[] = [];
+          config.forEach(cfg => {
+            if (cfg.visible) {
+              // Find the original child definition
+              const findChild = (children: any[]): any => {
+                for (const child of children) {
+                  if (child.key === cfg.key) return child;
+                  if (child.children) {
+                    const found = findChild(child.children);
+                    if (found) return found;
+                  }
+                }
+              };
+              const childDef = findChild(col.children);
+              if (childDef) orderedChildren.push(childDef);
+            }
+          });
+          col.children = orderedChildren;
+        }
+        return col;
+      });
+  }, [columnOrder, activeColumns, subColumnConfig, isColorActive]);
+
+  return (
+    <div className="gx-main-content">
+      {/* Search & Filter Header (MyBoard Layout) */}
+      <Card variant="borderless" className="c-card" style={{ marginBottom: 20, borderRadius: 12 }}>
+        <Row gutter={[16, 16]} align="middle">
+          <Col flex="auto">
+            <Space size="middle">
+              <Input 
+                prefix={<Search size={18} color="#adb5bd" />} 
+                placeholder="검색어 입력 (이름, SMILES 등)" 
+                style={{ width: 350, height: 44, borderRadius: 12 }} 
+                value={keyword}
+                onChange={(e) => setKeyword(e.target.value)}
+              />
+              <Button 
+                icon={showFilters ? <ChevronUp size={18} /> : <ChevronDown size={18} />} 
+                onClick={() => setShowFilters(!showFilters)}
+                style={{ height: 44, borderRadius: 12 }}
+              >
+                상세 필터 {showFilters ? '닫기' : '열기'}
+              </Button>
+              <Button icon={<Beaker size={18} />} style={{ height: 44, borderRadius: 12 }}>구조 검색</Button>
+              <Button icon={<Download size={18} />} style={{ height: 44, borderRadius: 12 }}>Export</Button>
+            </Space>
+          </Col>
+          <Col>
+            <Space>
+              <Button type="primary" style={{ height: 44, borderRadius: 12, background: '#003a8c', borderColor: '#003a8c' }}>추가하기</Button>
+              <Button style={{ height: 44, borderRadius: 12 }}>돌아가기</Button>
+            </Space>
+          </Col>
+        </Row>
+        {showFilters && (
+          <div style={{ marginTop: 24, padding: 20, background: '#f8f9fa', borderRadius: 12 }}>
+            <Row gutter={[32, 24]}>
+              <Col span={10}>
+                <Text strong>Projects</Text><br/>
+                <Checkbox.Group 
+                  options={['ALL', ...projectList]} 
+                  value={selectedProjects} 
+                  onChange={(v) => handleCheckboxChange(v as string[], setSelectedProjects, projectList)} 
+                />
+              </Col>
+              <Col span={6}>
+                <Text strong>Share</Text><br/>
+                <Checkbox.Group 
+                  options={['ALL', ...shareList]} 
+                  value={selectedShares} 
+                  onChange={(v) => handleCheckboxChange(v as string[], setSelectedShares, shareList)} 
+                />
+              </Col>
+              <Col span={8}>
+                <Text strong>Design Source</Text><br/>
+                <Checkbox.Group 
+                  options={['ALL', ...sourceList]} 
+                  value={selectedSources} 
+                  onChange={(v) => handleCheckboxChange(v as string[], setSelectedSources, sourceList)} 
+                />
+              </Col>
+              <Col span={24}>
+                <Space size="large">
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <Text strong>기간:</Text>
+                    <Segmented options={['3개월', '6개월', '12개월', '전체']} defaultValue="전체" />
+                    <DatePicker.RangePicker style={{ borderRadius: 8 }} />
+                  </div>
+                </Space>
+              </Col>
+            </Row>
+          </div>
+        )}
+      </Card>
+
+      {/* Compound Cards Slider (Prototype Style) */}
+      <div style={{ 
+        padding: '24px 16px', 
+        background: '#fff', 
+        borderRadius: 12, 
+        marginBottom: 20, 
+        border: '1px solid #f0f0f0',
+        overflowX: 'auto',
+        whiteSpace: 'nowrap'
+      }}>
+        <div style={{ display: 'inline-flex', gap: 24 }}>
+          {mockCompounds.map((item) => (
+            <div 
+              key={item.id}
+              onClick={() => setSelectedRowKey(item.id)}
+              style={{ 
+                width: 200, 
+                padding: '16px',
+                textAlign: 'center',
+                cursor: 'pointer',
+                borderRadius: 12,
+                border: selectedRowKey === item.id ? '2px solid #1890ff' : '1px solid #eee',
+                background: selectedRowKey === item.id ? '#e6f7ff' : '#fff',
+                transition: 'all 0.2s'
+              }}
+            >
+              <div style={{ 
+                height: 120, 
+                background: '#fff', 
+                borderRadius: 8, 
+                display: 'flex', 
+                alignItems: 'center', 
+                justifyContent: 'center',
+                marginBottom: 12,
+                border: '1px solid #f0f0f0'
+              }}>
+                <FlaskConical size={48} color={selectedRowKey === item.id ? '#1890ff' : '#ccc'} strokeWidth={1} />
+              </div>
+              <Text strong style={{ fontSize: 13 }}>{item.name}</Text>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Main SAR Table (Multi-level Header) */}
+      <div style={{ background: '#fff', borderRadius: 12, overflow: 'hidden', border: '1px solid #f0f0f0', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
+        <div style={{ 
+          padding: '12px 24px', 
+          background: '#fafafa', 
+          display: 'flex', 
+          justifyContent: 'space-between', 
+          alignItems: 'center',
+          borderBottom: '1px solid #f0f0f0'
+        }}>
+          <Space>
+            <div 
+              style={{ 
+                width: 28, height: 28, 
+                background: isColorActive ? '#F87C63' : '#fff', 
+                borderRadius: 4, 
+                display: 'flex', 
+                alignItems: 'center', 
+                justifyContent: 'center',
+                cursor: 'pointer',
+                border: isColorActive ? '1px solid #F87C63' : '1px solid #d9d9d9',
+                fontSize: 12,
+                fontWeight: 'bold',
+                color: isColorActive ? '#fff' : '#495057'
+              }}
+              onClick={() => setIsColorActive(!isColorActive)}
+            >
+              C
+            </div>
+            <Settings 
+              size={18} 
+              color="#adb5bd" 
+              style={{ cursor: 'pointer', marginLeft: 8 }} 
+              onClick={() => setIsSettingsModalOpen(true)}
+            />
+          </Space>
+          <div style={{ display: 'flex', gap: 4 }}>
+            {[1, 2, 3, 4, 5].map(n => (
+              <div key={n} style={{ width: 24, height: 24, background: '#eee', borderRadius: 4, fontSize: 11, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#868e96' }}>{n}</div>
+            ))}
+          </div>
+        </div>
+        <Table 
+          dataSource={mockCompounds} 
+          columns={dynamicColumns} 
+          rowKey="id"
+          size="small"
+          bordered
+          pagination={false}
+          scroll={{ x: 1800, y: 500 }}
+          onRow={(record) => ({
+            onClick: () => setSelectedRowKey(record.id),
+          })}
+          rowClassName={(record) => record.id === selectedRowKey ? 'sar-row-selected' : ''}
+        />
+      </div>
+
+      {/* Table Settings Modal */}
+      <Modal 
+        title="Table Settings" 
+        open={isSettingsModalOpen} 
+        onCancel={() => setIsSettingsModalOpen(false)}
+        footer={[<Button key="save" type="primary" onClick={() => setIsSettingsModalOpen(false)} style={{ background: '#F87C63', borderColor: '#F87C63' }}>저장</Button>]}
+        width={700}
+      >
+        <div style={{ padding: '20px' }}>
+          <div style={{ paddingBottom: 16 }}>
+            <Text type="secondary" style={{ fontSize: 12 }}>
+              <Info size={12} style={{ marginRight: 4 }} />
+              드래그하여 순서를 변경하고, 체크박스로 컬럼의 가시성을 조절하세요.
+            </Text>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, background: '#f8f9fa', padding: 20, borderRadius: 12 }}>
+            {columnOrder.map((item, index) => (
+              <div key={item} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <div 
+                  draggable
+                  onDragStart={() => onDragStart(index)}
+                  onDragOver={(e) => onDragOver(e, index)}
+                  onDragEnd={onDragEnd}
+                  style={{ 
+                    padding: '12px 16px', 
+                    background: draggedItemIndex === index ? '#fff7f6' : '#fff', 
+                    color: '#495057', 
+                    borderRadius: 8, 
+                    border: draggedItemIndex === index ? '1px dashed #F87C63' : '1px solid #e9ecef',
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    justifyContent: 'space-between',
+                    cursor: 'grab',
+                    opacity: draggedItemIndex === index ? 0.6 : 1,
+                    boxShadow: '0 2px 4px rgba(0,0,0,0.02)'
+                  }}
+                >
+                  <Space size="middle">
+                    <div 
+                      onClick={(e) => { e.stopPropagation(); toggleExpand(item); }}
+                      style={{ 
+                        cursor: 'pointer', 
+                        display: 'flex', 
+                        alignItems: 'center',
+                        visibility: subColumnConfig[item] ? 'visible' : 'hidden'
+                      }}
+                    >
+                      {expandedColumns.includes(item) ? <ChevronUp size={16} color="#adb5bd" /> : <ChevronDown size={16} color="#adb5bd" />}
+                    </div>
+                    <GripVertical size={16} color="#adb5bd" />
+                    <Text strong={activeColumns.includes(item)} style={{ color: activeColumns.includes(item) ? '#F87C63' : '#adb5bd' }}>
+                      {item}
+                    </Text>
+                  </Space>
+                  <Checkbox 
+                    checked={activeColumns.includes(item)} 
+                    onChange={() => toggleColumn(item)}
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                </div>
+
+                {/* Sub-columns (2depth) with Accordion Logic */}
+                {activeColumns.includes(item) && subColumnConfig[item] && expandedColumns.includes(item) && (
+                  <div style={{ paddingLeft: 48, display: 'flex', flexDirection: 'column', gap: 6, marginTop: 4, marginBottom: 8 }}>
+                    {subColumnConfig[item].map((sub, subIdx) => (
+                      <div 
+                        key={sub.key}
+                        draggable
+                        onDragStart={(e) => {
+                          e.stopPropagation();
+                          e.dataTransfer.setData('parentKey', item);
+                          e.dataTransfer.setData('fromIdx', subIdx.toString());
+                        }}
+                        onDragOver={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                        }}
+                        onDrop={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          const parentKey = e.dataTransfer.getData('parentKey');
+                          if (parentKey !== item) return;
+                          const fromIdx = parseInt(e.dataTransfer.getData('fromIdx'));
+                          reorderSubColumns(item, fromIdx, subIdx);
+                        }}
+                        style={{ 
+                          padding: '6px 12px',
+                          background: '#fff',
+                          borderRadius: 6,
+                          border: '1px solid #f1f3f5',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          fontSize: 12
+                        }}
+                      >
+                        <Space>
+                          <GripVertical size={12} color="#dee2e6" />
+                          <Text style={{ fontSize: 12, color: sub.visible ? '#495057' : '#adb5bd' }}>{sub.title}</Text>
+                        </Space>
+                        <Checkbox 
+                          size="small"
+                          checked={sub.visible} 
+                          onChange={() => toggleSubColumn(item, sub.key)}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      </Modal>
+
+      <style>{`
+        .sar-row-selected {
+          background-color: #fff7f6 !important;
+        }
+        .sar-row-selected td {
+          background-color: #fff7f6 !important;
+          border-bottom: 1px solid #F87C6322 !important;
+        }
+        .ant-table-thead > tr > th {
+          background: #fafafa !important;
+          color: #495057 !important;
+          text-align: center !important;
+          border-color: #f0f0f0 !important;
+          font-size: 12px;
+          font-weight: 600;
+          padding: 12px 4px !important;
+        }
+        .ant-table-thead > tr:first-child > th {
+          color: #F87C63 !important;
+          border-bottom: 1px solid #f0f0f0 !important;
+        }
+        .ant-table-tbody > tr > td {
+          padding: 10px 4px !important;
+          text-align: center !important;
+          font-size: 12px;
+          border-color: #f0f0f0 !important;
+        }
+        .ant-table-bordered .ant-table-container {
+          border-color: #f0f0f0 !important;
+        }
+      `}</style>
+    </div>
+  );
+};
+
+export default SarTable;
