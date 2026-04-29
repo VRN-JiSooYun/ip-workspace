@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { 
   Typography, Row, Col, Card, Table, Button, Input, Checkbox, 
   Space, DatePicker, Segmented, Modal, Divider, Tag, theme
@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
 import { mockCompounds } from '../mocks/compounds';
+import { useBoardStore } from '../store/useBoardStore';
 import dayjs from 'dayjs';
 
 const { Title, Text } = Typography;
@@ -16,11 +17,30 @@ const { Title, Text } = Typography;
 const SarTable: React.FC = () => {
   const { token } = theme.useToken();
   const { isDarkMode } = useTheme();
+  const { selectedSarCompoundIds } = useBoardStore();
+
+  const sarCompounds = useMemo(() => {
+    if (selectedSarCompoundIds.length === 0) return mockCompounds;
+    return mockCompounds.filter((compound) => selectedSarCompoundIds.includes(compound.id));
+  }, [selectedSarCompoundIds]);
+
   const [isColorActive, setIsColorActive] = useState(false);
-  const [selectedRowKey, setSelectedRowKey] = useState<string | null>(mockCompounds[0]?.id || null);
+  const [selectedRowKey, setSelectedRowKey] = useState<string | null>(null);
   const [showFilters, setShowFilters] = useState(true);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [activePreset, setActivePreset] = useState<number>(1);
+
+  useEffect(() => {
+    if (sarCompounds.length === 0) {
+      setSelectedRowKey(null);
+      return;
+    }
+
+    const hasSelectedRow = sarCompounds.some((compound) => compound.id === selectedRowKey);
+    if (!hasSelectedRow) {
+      setSelectedRowKey(sarCompounds[0].id);
+    }
+  }, [sarCompounds, selectedRowKey]);
 
   // Default states for columns
   const defaultOrder = ['Compound', 'Enzyme', 'Cell', 'MS', 'PPB', 'CYP', 'hERG', 'PK'];
@@ -466,7 +486,7 @@ const SarTable: React.FC = () => {
         whiteSpace: 'nowrap'
       }}>
         <div style={{ display: 'inline-flex', gap: 24 }}>
-          {mockCompounds.map((item) => (
+          {sarCompounds.map((item) => (
             <div 
               key={item.id}
               onClick={() => setSelectedRowKey(item.id)}
@@ -562,7 +582,7 @@ const SarTable: React.FC = () => {
           </div>
         </div>
         <Table 
-          dataSource={mockCompounds} 
+          dataSource={sarCompounds} 
           columns={dynamicColumns} 
           rowKey="id"
           size="small"

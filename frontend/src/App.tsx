@@ -6,6 +6,7 @@ import Dashboard from './pages/Dashboard';
 import MyBoard from './pages/MyBoard';
 import SarTable from './pages/SarTable';
 import SynthesisBoard from './pages/SynthesisBoard';
+import EmptyPage from './pages/EmptyPage';
 
 const App: React.FC = () => {
   const [currentPage, setCurrentPage] = useState('dashboard');
@@ -23,10 +24,28 @@ const App: React.FC = () => {
         return <Dashboard />;
       case 'myboard':
         return <MyBoard />;
+      case 'my-tree':
+        return <EmptyPage title="My tree" />;
       case 'sar-table':
         return <SarTable />;
       case 'synthesis-board':
         return <SynthesisBoard />;
+      case 'patents':
+      case 'patent-write':
+        return <EmptyPage title="My 특허 쓰기" />;
+      case 'patent-analysis':
+        return <EmptyPage title="My 특허 분석" />;
+      case 'patent-manage':
+        return <EmptyPage title="My 특허 관리" />;
+      case 'papers':
+      case 'paper-manage':
+        return <EmptyPage title="My 논문 관리" />;
+      case 'conferences':
+        return <EmptyPage title="Conferences" />;
+      case 'pdbs':
+        return <EmptyPage title="PDBs" />;
+      case 'universal-search':
+        return <EmptyPage title="통합검색" />;
       default:
         return <Dashboard />;
     }

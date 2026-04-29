@@ -19,7 +19,7 @@ const { RangePicker } = DatePicker;
 
 const MyBoard: React.FC = () => {
   const { token } = theme.useToken();
-  const { selectedGroupIds, toggleGroupSelection } = useBoardStore();
+  const { selectedGroupIds, toggleGroupSelection, setSelectedSarCompoundIds } = useBoardStore();
   const [isGroupModalOpen, setIsGroupModalOpen] = useState(false);
   const [isDesignModalOpen, setIsDesignModalOpen] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
@@ -29,6 +29,20 @@ const MyBoard: React.FC = () => {
   const [assignedGroupIds, setAssignedGroupIds] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [selectedDataSources, setSelectedDataSources] = useState<string[]>(['my designs']);
+
+  const getViewToggleButtonStyle = (mode: 'table' | 'draw' | 'tree'): React.CSSProperties => {
+    const isActive = viewMode === mode;
+
+    return {
+      background: isActive ? token.colorPrimaryBg : 'transparent',
+      border: `1px solid ${isActive ? token.colorPrimary : 'transparent'}`,
+      color: isActive ? token.colorPrimary : token.colorTextSecondary,
+      borderRadius: 6,
+      fontSize: 11,
+      fontWeight: isActive ? 600 : 500,
+      boxShadow: isActive ? '0 0 0 1px rgba(248, 124, 99, 0.15)' : 'none'
+    };
+  };
 
   // Sync selectedGroupIds to local state when modal opens
   React.useEffect(() => {
@@ -119,6 +133,8 @@ const MyBoard: React.FC = () => {
     if (keyword && !c.name.includes(keyword) && !c.smiles.includes(keyword)) return false;
     return true;
   });
+
+  const sarTargetCount = selectedGroupIds.length > 0 ? filteredCompounds.length : 0;
 
   const groupColumns = [
     {
@@ -251,7 +267,6 @@ const MyBoard: React.FC = () => {
           <Col>
             <Space>
               <Button type="primary" icon={<Plus size={18} />} onClick={() => setIsGroupModalOpen(true)} style={{ height: 44, borderRadius: 12, background: token.colorPrimary, borderColor: token.colorPrimary }}>상위 그룹 생성</Button>
-              <Button icon={<Plus size={18} />} onClick={() => setIsDesignModalOpen(true)} style={{ height: 44, borderRadius: 12 }}>Create Design</Button>
             </Space>
           </Col>
         </Row>
@@ -292,7 +307,17 @@ const MyBoard: React.FC = () => {
           <div className="c-card" style={{ background: token.colorBgContainer, borderRadius: 12, overflow: 'hidden' }}>
             <div style={{ padding: '16px 24px', borderBottom: `1px solid ${token.colorBorderSecondary}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <Text strong style={{ color: token.colorPrimary }}>그룹 리스트</Text>
-              <div style={{ background: token.colorBgLayout, padding: '2px 8px', borderRadius: 8, display: 'flex', gap: 12 }}>
+              <Space size="middle">
+                <Button
+                  size="small"
+                  icon={<Beaker size={14} />}
+                  onClick={() => {
+                    (window as any).onNavigate?.('synthesis-board');
+                  }}
+                >
+                  합성 보드
+                </Button>
+                <div style={{ background: token.colorBgLayout, padding: '4px 8px', borderRadius: 8, display: 'flex', gap: 12, alignItems: 'center' }}>
                 <Checkbox
                   checked={selectedDataSources.includes('my designs')}
                   onChange={(e) => {
@@ -316,6 +341,7 @@ const MyBoard: React.FC = () => {
                   <Text style={{ fontSize: 11 }}>My Compounds</Text>
                 </Checkbox>
               </div>
+              </Space>
             </div>
             <Table
               dataSource={mockGroups.filter(g => selectedDataSources.includes(g.type))}
@@ -332,6 +358,29 @@ const MyBoard: React.FC = () => {
             <div style={{ padding: '16px 24px', borderBottom: `1px solid ${token.colorBorderSecondary}`, display: 'flex', justifyContent: 'space-between' }}>
               <Text strong style={{ color: token.colorPrimary }}>그룹 상세 목록</Text>
               <Space>
+                <Button
+                  type="primary"
+                  size="small"
+                  icon={<Plus size={14} />}
+                  disabled={selectedGroupIds.length === 0}
+                  style={{ background: token.colorPrimary, borderColor: token.colorPrimary }}
+                  onClick={() => setIsDesignModalOpen(true)}
+                >
+                  Create Design
+                </Button>
+                <Button
+                  type="primary"
+                  size="small"
+                  icon={<Share2 size={14} />}
+                  disabled={sarTargetCount === 0}
+                  style={{ background: token.colorPrimary, borderColor: token.colorPrimary }}
+                  onClick={() => {
+                    setSelectedSarCompoundIds(filteredCompounds.map((compound) => compound.id));
+                    (window as any).onNavigate?.('sar-table');
+                  }}
+                >
+                  SAR Table로 보기 ({sarTargetCount})
+                </Button>
                 {viewMode === 'table' && (
                   <>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -368,45 +417,38 @@ const MyBoard: React.FC = () => {
                     <Divider type="vertical" />
                   </>
                 )}
-                <div style={{ background: token.colorBgLayout, padding: '2px', borderRadius: 6, display: 'flex' }}>
+                <div
+                  style={{
+                    background: token.colorBgLayout,
+                    padding: '2px',
+                    borderRadius: 8,
+                    display: 'flex',
+                    border: `1px solid ${token.colorBorderSecondary}`
+                  }}
+                >
                   <Button
-                    type={viewMode === 'table' ? 'text' : 'text'}
+                    type="text"
                     size="small"
                     icon={<ListIcon size={14} />}
-                    style={{
-                      background: viewMode === 'table' ? token.colorBgContainer : 'transparent',
-                      boxShadow: viewMode === 'table' ? '0 2px 4px rgba(0,0,0,0.05)' : 'none',
-                      borderRadius: 4,
-                      fontSize: 11
-                    }}
+                    style={getViewToggleButtonStyle('table')}
                     onClick={() => setViewMode('table')}
                   >
                     Table
                   </Button>
                   <Button
-                    type={viewMode === 'draw' ? 'text' : 'text'}
+                    type="text"
                     size="small"
                     icon={<ImageIcon size={14} />}
-                    style={{
-                      background: viewMode === 'draw' ? token.colorBgContainer : 'transparent',
-                      boxShadow: viewMode === 'draw' ? '0 2px 4px rgba(0,0,0,0.05)' : 'none',
-                      borderRadius: 4,
-                      fontSize: 11
-                    }}
+                    style={getViewToggleButtonStyle('draw')}
                     onClick={() => setViewMode('draw')}
                   >
                     Canvas
                   </Button>
                   <Button
-                    type={viewMode === 'tree' ? 'text' : 'text'}
+                    type="text"
                     size="small"
                     icon={<GitBranch size={14} />}
-                    style={{
-                      background: viewMode === 'tree' ? token.colorBgContainer : 'transparent',
-                      boxShadow: viewMode === 'tree' ? '0 2px 4px rgba(0,0,0,0.05)' : 'none',
-                      borderRadius: 4,
-                      fontSize: 11
-                    }}
+                    style={getViewToggleButtonStyle('tree')}
                     onClick={() => setViewMode('tree')}
                   >
                     Tree

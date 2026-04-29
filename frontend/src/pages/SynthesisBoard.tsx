@@ -78,6 +78,20 @@ const SynthesisBoard: React.FC = () => {
   const [selectedItem, setSelectedItem] = useState<SynthesisDetail | null>(null);
   const [viewMode, setViewMode] = useState<'table' | 'draw' | 'tree'>('table');
 
+  const getViewToggleButtonStyle = (mode: 'table' | 'draw' | 'tree'): React.CSSProperties => {
+    const isActive = viewMode === mode;
+
+    return {
+      background: isActive ? token.colorPrimaryBg : 'transparent',
+      border: `1px solid ${isActive ? token.colorPrimary : 'transparent'}`,
+      color: isActive ? token.colorPrimary : token.colorTextSecondary,
+      borderRadius: 6,
+      fontSize: 11,
+      fontWeight: isActive ? 600 : 500,
+      boxShadow: isActive ? '0 0 0 1px rgba(248, 124, 99, 0.15)' : 'none'
+    };
+  };
+
   // Filter States (Sync with MyBoard)
   const projectList = ['FGFR', 'C797S DM', 'cMET', 'VRK1', 'HER2', 'WRN', 'WEE1'];
   const shareList = ['내 물질', '공유함', '공유받음'];
@@ -436,17 +450,20 @@ const SynthesisBoard: React.FC = () => {
           <div className="c-card" style={{ background: token.colorBgContainer, borderRadius: 12, overflow: 'hidden' }}>
             <div style={{ padding: '16px 24px', borderBottom: `1px solid ${token.colorBorderSecondary}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <Text strong style={{ color: token.colorPrimary }}>합성 상세 목록</Text>
-              <div style={{ background: token.colorBgLayout, padding: '2px', borderRadius: 6, display: 'flex' }}>
+              <div
+                style={{
+                  background: token.colorBgLayout,
+                  padding: '2px',
+                  borderRadius: 8,
+                  display: 'flex',
+                  border: `1px solid ${token.colorBorderSecondary}`
+                }}
+              >
                 <Button 
                   type="text" 
                   size="small" 
                   icon={<ListIcon size={14} />} 
-                  style={{ 
-                    background: viewMode === 'table' ? token.colorBgContainer : 'transparent',
-                    boxShadow: viewMode === 'table' ? '0 2px 4px rgba(0,0,0,0.05)' : 'none',
-                    borderRadius: 4,
-                    fontSize: 11
-                  }}
+                  style={getViewToggleButtonStyle('table')}
                   onClick={() => setViewMode('table')}
                 >
                   Table
@@ -455,12 +472,7 @@ const SynthesisBoard: React.FC = () => {
                   type="text" 
                   size="small" 
                   icon={<ImageIcon size={14} />} 
-                  style={{ 
-                    background: viewMode === 'draw' ? token.colorBgContainer : 'transparent',
-                    boxShadow: viewMode === 'draw' ? '0 2px 4px rgba(0,0,0,0.05)' : 'none',
-                    borderRadius: 4,
-                    fontSize: 11
-                  }}
+                  style={getViewToggleButtonStyle('draw')}
                   onClick={() => setViewMode('draw')}
                 >
                   Canvas
@@ -469,12 +481,7 @@ const SynthesisBoard: React.FC = () => {
                   type="text" 
                   size="small" 
                   icon={<GitBranch size={14} />} 
-                  style={{ 
-                    background: viewMode === 'tree' ? token.colorBgContainer : 'transparent',
-                    boxShadow: viewMode === 'tree' ? '0 2px 4px rgba(0,0,0,0.05)' : 'none',
-                    borderRadius: 4,
-                    fontSize: 11
-                  }}
+                  style={getViewToggleButtonStyle('tree')}
                   onClick={() => setViewMode('tree')}
                 >
                   Tree

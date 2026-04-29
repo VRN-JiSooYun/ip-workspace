@@ -1,0 +1,23 @@
+name: Dev Server Deploy
+
+on:
+  push:
+    branches:
+      - dev
+
+jobs:
+  deploy:
+    runs-on: [self-hosted, myworkspace]
+    environment: dev_myworkspace
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Build and Run Docker Containers
+        run: |
+          # self-hosted runner는 checkout한 디렉토리에서 직접 실행됩니다.
+          docker compose -f docker-compose.dev.yml up --build -d --force-recreate
+          
+          # 사용하지 않는 이미지 정리
+          docker image prune -f

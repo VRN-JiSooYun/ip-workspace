@@ -111,8 +111,6 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                 children: [
                   { key: 'myboard', label: 'My board' },
                   { key: 'my-tree', label: 'My tree' },
-                  { key: 'sar-table', label: 'SAR Table' },
-                  { key: 'synthesis-board', label: '합성 보드' },
                 ],
               },
               {
