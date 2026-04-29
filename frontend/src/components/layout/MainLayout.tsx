@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { Layout, Menu, Button, theme, Input, Avatar, Badge, Space } from 'antd';
 import { useTheme } from '../../contexts/ThemeContext';
 import {
@@ -34,6 +35,24 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
   const [collapsed, setCollapsed] = useState(false);
   const { token } = theme.useToken();
   const { isDarkMode, toggleTheme } = useTheme();
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  // URL 경로에서 메뉴 키 추출 (예: /dashboard -> dashboard, /patents/write -> patent-write)
+  const getSelectedKey = () => {
+    const path = location.pathname;
+    if (path === '/dashboard') return 'dashboard';
+    if (path === '/myboard') return 'myboard';
+    if (path === '/my-tree') return 'my-tree';
+    if (path === '/patents/write') return 'patent-write';
+    if (path === '/patents/analysis') return 'patent-analysis';
+    if (path === '/patents/manage') return 'patent-manage';
+    if (path === '/papers/manage') return 'paper-manage';
+    if (path === '/conferences') return 'conferences';
+    if (path === '/pdbs') return 'pdbs';
+    if (path === '/universal-search') return 'universal-search';
+    return 'dashboard';
+  };
 
   return (
     <Layout style={{ minHeight: '100vh' }}>
@@ -60,16 +79,15 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
             justifyContent: 'center',
             color: '#fff',
             flexShrink: 0
-          }}>
+          }} onClick={() => navigate('/dashboard')} className="cursor-pointer">
             <FlaskConical size={24} />
           </div>
           {!collapsed && (
-            <div>
+            <div onClick={() => navigate('/dashboard')} style={{ cursor: 'pointer' }}>
               <div style={{ fontWeight: 800, fontSize: '18px', color: isDarkMode ? '#e8e8e8' : '#191c1e', letterSpacing: '-0.5px' }}>MyWorkspace</div>
             </div>
           )}
 
-          {/* Sider Toggle Button - Floating at the edge */}
           <Button
             type="text"
             icon={collapsed ? <ChevronRight size={16} color="#fff" /> : <ChevronLeft size={16} color="#fff" />}
@@ -96,21 +114,22 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
         <div style={{ overflowY: 'auto', flex: 1, padding: '0 8px' }}>
           <Menu
             mode="inline"
-            defaultSelectedKeys={['dashboard']}
+            selectedKeys={[getSelectedKey()]}
             style={{ background: 'transparent', borderRight: 0 }}
             items={[
               {
                 key: 'dashboard',
                 icon: <LayoutDashboard size={20} />,
                 label: <span style={{ fontWeight: 600 }}>Dashboard</span>,
+                onClick: () => navigate('/dashboard')
               },
               {
                 key: 'compounds',
                 icon: <Beaker size={20} />,
                 label: <span style={{ fontWeight: 600 }}>Compounds</span>,
                 children: [
-                  { key: 'myboard', label: 'My board' },
-                  { key: 'my-tree', label: 'My tree' },
+                  { key: 'myboard', label: 'My board', onClick: () => navigate('/myboard') },
+                  { key: 'my-tree', label: 'My tree', onClick: () => navigate('/my-tree') },
                 ],
               },
               {
@@ -122,35 +141,34 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                     key: 'patents',
                     label: 'Patents',
                     children: [
-                      { key: 'patent-write', label: 'My 특허 쓰기' },
-                      { key: 'patent-analysis', label: 'My 특허 분석' },
-                      { key: 'patent-manage', label: 'My 특허 관리' },
+                      { key: 'patent-write', label: 'My 특허 쓰기', onClick: () => navigate('/patents/write') },
+                      { key: 'patent-analysis', label: 'My 특허 분석', onClick: () => navigate('/patents/analysis') },
+                      { key: 'patent-manage', label: 'My 특허 관리', onClick: () => navigate('/patents/manage') },
                     ]
                   },
                   {
                     key: 'papers',
                     label: 'Papers',
                     children: [
-                      { key: 'paper-manage', label: 'My 논문 관리' },
+                      { key: 'paper-manage', label: 'My 논문 관리', onClick: () => navigate('/papers/manage') },
                     ]
                   },
-                  { key: 'conferences', label: 'Conferences' },
+                  { key: 'conferences', label: 'Conferences', onClick: () => navigate('/conferences') },
                 ],
               },
               {
                 key: 'pdbs',
-                icon: <Activity size={20} />,
+                icon: <Microscope size={20} />,
                 label: <span style={{ fontWeight: 600 }}>PDBs</span>,
+                onClick: () => navigate('/pdbs')
               },
               {
                 key: 'universal-search',
                 icon: <Search size={20} />,
                 label: <span style={{ fontWeight: 600 }}>통합검색</span>,
+                onClick: () => navigate('/universal-search')
               },
             ]}
-            onClick={({ key }) => {
-              (window as any).onNavigate?.(key);
-            }}
           />
         </div>
       </Sider>
@@ -223,6 +241,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
         }
         .ant-menu-inline .ant-menu-sub.ant-menu-inline { background: transparent !important; }
         .ant-menu-submenu-title { border-radius: 12px !important; height: 48px !important; display: flex !important; align-items: center !important; }
+        .cursor-pointer { cursor: pointer; }
       `}</style>
     </Layout>
   );

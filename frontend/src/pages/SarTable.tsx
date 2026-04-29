@@ -1,10 +1,10 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { 
-  Typography, Row, Col, Card, Table, Button, Input, Checkbox, 
+import {
+  Typography, Row, Col, Card, Table, Button, Input, Checkbox,
   Space, DatePicker, Segmented, Modal, Divider, Tag, theme
 } from 'antd';
-import { 
-  Search, FlaskConical, ChevronDown, ChevronUp, Beaker, 
+import {
+  Search, FlaskConical, ChevronDown, ChevronUp, Beaker,
   Settings, Download, Share2, Info, GripVertical, CheckCircle2, XCircle
 } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
@@ -95,7 +95,7 @@ const SarTable: React.FC = () => {
   const projectList = ['FGFR', 'C797S DM', 'cMET', 'VRK1', 'HER2', 'WRN', 'WEE1'];
   const shareList = ['내 물질', '공유함', '공유받음'];
   const sourceList = ['내 머리', '동료 머리', 'Patent', 'Paper', 'FBDD', 'ELN'];
-  
+
   const [selectedProjects, setSelectedProjects] = useState<string[]>(['ALL', ...projectList]);
   const [selectedShares, setSelectedShares] = useState<string[]>(['ALL', ...shareList]);
   const [selectedSources, setSelectedSources] = useState<string[]>(['ALL', ...sourceList]);
@@ -113,7 +113,7 @@ const SarTable: React.FC = () => {
   const [expandedColumns, setExpandedColumns] = useState<string[]>([]);
 
   const toggleExpand = (key: string) => {
-    setExpandedColumns(prev => 
+    setExpandedColumns(prev =>
       prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]
     );
   };
@@ -157,7 +157,7 @@ const SarTable: React.FC = () => {
   });
 
   const toggleColumn = (key: string) => {
-    setActiveColumns(prev => 
+    setActiveColumns(prev =>
       prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]
     );
   };
@@ -165,7 +165,7 @@ const SarTable: React.FC = () => {
   const toggleSubColumn = (parentKey: string, subKey: string) => {
     setSubColumnConfig(prev => ({
       ...prev,
-      [parentKey]: prev[parentKey].map(col => 
+      [parentKey]: prev[parentKey].map(col =>
         col.key === subKey ? { ...col, visible: !col.visible } : col
       )
     }));
@@ -193,7 +193,7 @@ const SarTable: React.FC = () => {
     const draggedItem = newOrder[draggedItemIndex];
     newOrder.splice(draggedItemIndex, 1);
     newOrder.splice(index, 0, draggedItem);
-    
+
     setColumnOrder(newOrder);
     setDraggedItemIndex(index);
   };
@@ -226,9 +226,9 @@ const SarTable: React.FC = () => {
 
   const handleCheckboxChange = (vals: string[], setFn: (v: string[]) => void, originalOptions: string[]) => {
     const currentlyHasAll = vals.includes('ALL');
-    const previouslyHadAll = (setFn === setSelectedProjects ? selectedProjects : 
-                             setFn === setSelectedShares ? selectedShares : 
-                             selectedSources).includes('ALL');
+    const previouslyHadAll = (setFn === setSelectedProjects ? selectedProjects :
+      setFn === setSelectedShares ? selectedShares :
+        selectedSources).includes('ALL');
 
     if (currentlyHasAll && !previouslyHadAll) {
       setFn(['ALL', ...originalOptions]);
@@ -247,7 +247,7 @@ const SarTable: React.FC = () => {
   // Heatmap rendering logic (relative scaling)
   const renderValue = (val: number | undefined, group: string) => {
     if (val === undefined) return '-';
-    
+
     let bgColor = 'transparent';
     let textColor = 'inherit';
 
@@ -260,10 +260,10 @@ const SarTable: React.FC = () => {
     }
 
     return (
-      <div style={{ 
-        backgroundColor: bgColor, 
+      <div style={{
+        backgroundColor: bgColor,
         color: textColor,
-        padding: '10px 4px', 
+        padding: '10px 4px',
         height: '100%',
         display: 'flex',
         alignItems: 'center',
@@ -276,11 +276,11 @@ const SarTable: React.FC = () => {
   };
 
   const allColumnsMap: Record<string, any> = {
-    'Compound': { 
-      title: 'Compound', 
-      dataIndex: 'compoundId', 
-      key: 'compoundId', 
-      fixed: 'left' as const, 
+    'Compound': {
+      title: 'Compound',
+      dataIndex: 'compoundId',
+      key: 'compoundId',
+      fixed: 'left' as const,
       width: 120,
       render: (text: string) => <Text strong style={{ color: token.colorPrimary }}>{text}</Text>
     },
@@ -370,7 +370,7 @@ const SarTable: React.FC = () => {
         if (col.children && subColumnConfig[key]) {
           const config = subColumnConfig[key];
           const visibleSubKeys = config.filter(c => c.visible).map(c => c.key);
-          
+
           // Rebuild children based on config order
           const orderedChildren: any[] = [];
           config.forEach(cfg => {
@@ -402,15 +402,15 @@ const SarTable: React.FC = () => {
         <Row gutter={[16, 16]} align="middle">
           <Col flex="auto">
             <Space size="middle">
-              <Input 
-                prefix={<Search size={18} color={token.colorTextTertiary} />} 
-                placeholder="검색어 입력 (이름, SMILES 등)" 
-                style={{ width: 350, height: 44, borderRadius: 12 }} 
+              <Input
+                prefix={<Search size={18} color={token.colorTextTertiary} />}
+                placeholder="검색어 입력 (이름, SMILES 등)"
+                style={{ width: 350, height: 44, borderRadius: 12 }}
                 value={keyword}
                 onChange={(e) => setKeyword(e.target.value)}
               />
-              <Button 
-                icon={showFilters ? <ChevronUp size={18} /> : <ChevronDown size={18} />} 
+              <Button
+                icon={showFilters ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
                 onClick={() => setShowFilters(!showFilters)}
                 style={{ height: 44, borderRadius: 12 }}
               >
@@ -431,40 +431,40 @@ const SarTable: React.FC = () => {
           <div style={{ marginTop: 24, padding: 20, background: token.colorBgLayout, borderRadius: 12 }}>
             <Row gutter={[32, 24]}>
               <Col span={10}>
-                <Text strong>Projects</Text><br/>
-                <Checkbox.Group 
-                  options={['ALL', ...projectList]} 
-                  value={selectedProjects} 
-                  onChange={(v) => handleCheckboxChange(v as string[], setSelectedProjects, projectList)} 
+                <Text strong>Projects</Text><br />
+                <Checkbox.Group
+                  options={['ALL', ...projectList]}
+                  value={selectedProjects}
+                  onChange={(v) => handleCheckboxChange(v as string[], setSelectedProjects, projectList)}
                 />
               </Col>
               <Col span={6}>
-                <Text strong>Share</Text><br/>
-                <Checkbox.Group 
-                  options={['ALL', ...shareList]} 
-                  value={selectedShares} 
-                  onChange={(v) => handleCheckboxChange(v as string[], setSelectedShares, shareList)} 
+                <Text strong>Share</Text><br />
+                <Checkbox.Group
+                  options={['ALL', ...shareList]}
+                  value={selectedShares}
+                  onChange={(v) => handleCheckboxChange(v as string[], setSelectedShares, shareList)}
                 />
               </Col>
               <Col span={8}>
-                <Text strong>Design Source</Text><br/>
-                <Checkbox.Group 
-                  options={['ALL', ...sourceList]} 
-                  value={selectedSources} 
-                  onChange={(v) => handleCheckboxChange(v as string[], setSelectedSources, sourceList)} 
+                <Text strong>Design Source</Text><br />
+                <Checkbox.Group
+                  options={['ALL', ...sourceList]}
+                  value={selectedSources}
+                  onChange={(v) => handleCheckboxChange(v as string[], setSelectedSources, sourceList)}
                 />
               </Col>
               <Col span={24}>
                 <Space size="large">
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <Text strong>기간:</Text>
-                    <Segmented 
-                      options={['3개월', '6개월', '12개월', '전체']} 
-                      value={period} 
-                      onChange={(v) => setPeriod(v as string)} 
+                    <Segmented
+                      options={['3개월', '6개월', '12개월', '전체']}
+                      value={period}
+                      onChange={(v) => setPeriod(v as string)}
                     />
-                    <DatePicker.RangePicker 
-                      style={{ borderRadius: 8 }} 
+                    <DatePicker.RangePicker
+                      style={{ borderRadius: 8 }}
                       disabled={period !== '전체'}
                     />
                   </div>
@@ -476,22 +476,22 @@ const SarTable: React.FC = () => {
       </Card>
 
       {/* Compound Cards Slider (Prototype Style) */}
-      <div style={{ 
-        padding: '24px 16px', 
-        background: token.colorBgContainer, 
-        borderRadius: 12, 
-        marginBottom: 20, 
+      <div style={{
+        padding: '24px 16px',
+        background: token.colorBgContainer,
+        borderRadius: 12,
+        marginBottom: 20,
         border: `1px solid ${token.colorBorderSecondary}`,
         overflowX: 'auto',
         whiteSpace: 'nowrap'
       }}>
         <div style={{ display: 'inline-flex', gap: 24 }}>
           {sarCompounds.map((item) => (
-            <div 
+            <div
               key={item.id}
               onClick={() => setSelectedRowKey(item.id)}
-              style={{ 
-                width: 200, 
+              style={{
+                width: 200,
                 padding: '16px',
                 textAlign: 'center',
                 cursor: 'pointer',
@@ -501,12 +501,12 @@ const SarTable: React.FC = () => {
                 transition: 'all 0.2s'
               }}
             >
-              <div style={{ 
-                height: 120, 
-                background: token.colorBgContainer, 
-                borderRadius: 8, 
-                display: 'flex', 
-                alignItems: 'center', 
+              <div style={{
+                height: 120,
+                background: token.colorBgContainer,
+                borderRadius: 8,
+                display: 'flex',
+                alignItems: 'center',
                 justifyContent: 'center',
                 marginBottom: 12,
                 border: `1px solid ${token.colorBorderSecondary}`
@@ -521,22 +521,22 @@ const SarTable: React.FC = () => {
 
       {/* Main SAR Table (Multi-level Header) */}
       <div style={{ background: token.colorBgContainer, borderRadius: 12, overflow: 'hidden', border: `1px solid ${token.colorBorderSecondary}`, boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
-        <div style={{ 
-          padding: '12px 24px', 
-          background: token.colorBgLayout, 
-          display: 'flex', 
-          justifyContent: 'space-between', 
+        <div style={{
+          padding: '12px 24px',
+          background: token.colorBgLayout,
+          display: 'flex',
+          justifyContent: 'space-between',
           alignItems: 'center',
           borderBottom: `1px solid ${token.colorBorderSecondary}`
         }}>
           <Space>
-            <div 
-              style={{ 
-                width: 28, height: 28, 
-                background: isColorActive ? token.colorPrimary : token.colorBgContainer, 
-                borderRadius: 4, 
-                display: 'flex', 
-                alignItems: 'center', 
+            <div
+              style={{
+                width: 28, height: 28,
+                background: isColorActive ? token.colorPrimary : token.colorBgContainer,
+                borderRadius: 4,
+                display: 'flex',
+                alignItems: 'center',
                 justifyContent: 'center',
                 cursor: 'pointer',
                 border: isColorActive ? `1px solid ${token.colorBorderSecondary}` : `1px solid ${token.colorBorderSecondary}`,
@@ -552,17 +552,17 @@ const SarTable: React.FC = () => {
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <div style={{ display: 'flex', gap: 4 }}>
               {[1, 2, 3, 4, 5].map(n => (
-                <div 
-                  key={n} 
+                <div
+                  key={n}
                   onClick={() => applyPreset(n)}
-                  style={{ 
-                    width: 24, height: 24, 
-                    background: activePreset === n ? token.colorPrimary : token.colorBorderSecondary, 
-                    borderRadius: 4, 
-                    fontSize: 11, 
-                    display: 'flex', 
-                    alignItems: 'center', 
-                    justifyContent: 'center', 
+                  style={{
+                    width: 24, height: 24,
+                    background: activePreset === n ? token.colorPrimary : token.colorBorderSecondary,
+                    borderRadius: 4,
+                    fontSize: 11,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
                     color: activePreset === n ? token.colorBgContainer : token.colorTextSecondary,
                     cursor: 'pointer',
                     fontWeight: activePreset === n ? 'bold' : 'normal',
@@ -573,17 +573,17 @@ const SarTable: React.FC = () => {
                 </div>
               ))}
             </div>
-            <Settings 
-              size={18} 
-              color={token.colorTextTertiary} 
-              style={{ cursor: 'pointer' }} 
+            <Settings
+              size={18}
+              color={token.colorTextTertiary}
+              style={{ cursor: 'pointer' }}
               onClick={() => setIsSettingsModalOpen(true)}
             />
           </div>
         </div>
-        <Table 
-          dataSource={sarCompounds} 
-          columns={dynamicColumns} 
+        <Table
+          dataSource={sarCompounds}
+          columns={dynamicColumns}
           rowKey="id"
           size="small"
           bordered
@@ -597,9 +597,9 @@ const SarTable: React.FC = () => {
       </div>
 
       {/* Table Settings Modal */}
-      <Modal 
-        title="Table Settings" 
-        open={isSettingsModalOpen} 
+      <Modal
+        title="테이블 컬럼 설정 (드래그하여 순서 변경)"
+        open={isSettingsModalOpen}
         onCancel={() => setIsSettingsModalOpen(false)}
         footer={[
           <Button key="save" type="primary" onClick={handleSavePreset} style={{ background: token.colorPrimary, borderColor: token.colorPrimary }}>
@@ -613,11 +613,11 @@ const SarTable: React.FC = () => {
             <Text strong style={{ display: 'block', marginBottom: 12 }}>설정 프리셋 선택</Text>
             <div style={{ display: 'flex', gap: 12 }}>
               {[1, 2, 3, 4, 5].map(n => (
-                <Button 
+                <Button
                   key={n}
                   type={activePreset === n ? 'primary' : 'default'}
                   onClick={() => applyPreset(n)}
-                  style={{ 
+                  style={{
                     width: 44, height: 44, borderRadius: 8,
                     background: activePreset === n ? token.colorPrimary : token.colorBgContainer,
                     borderColor: activePreset === n ? token.colorPrimary : token.colorBorder
@@ -638,19 +638,19 @@ const SarTable: React.FC = () => {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12, background: token.colorBgLayout, padding: 20, borderRadius: 12 }}>
             {columnOrder.map((item, index) => (
               <div key={item} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                <div 
+                <div
                   draggable
                   onDragStart={() => onDragStart(index)}
                   onDragOver={(e) => onDragOver(e, index)}
                   onDragEnd={onDragEnd}
-                  style={{ 
-                    padding: '12px 16px', 
-                    background: draggedItemIndex === index ? token.colorPrimaryBg : token.colorBgContainer, 
-                    color: token.colorText, 
-                    borderRadius: 8, 
+                  style={{
+                    padding: '12px 16px',
+                    background: draggedItemIndex === index ? token.colorPrimaryBg : token.colorBgContainer,
+                    color: token.colorText,
+                    borderRadius: 8,
                     border: draggedItemIndex === index ? `1px dashed ${token.colorBorderSecondary}` : `1px solid ${token.colorBorderSecondary}`,
-                    display: 'flex', 
-                    alignItems: 'center', 
+                    display: 'flex',
+                    alignItems: 'center',
                     justifyContent: 'space-between',
                     cursor: 'grab',
                     opacity: draggedItemIndex === index ? 0.6 : 1,
@@ -658,11 +658,11 @@ const SarTable: React.FC = () => {
                   }}
                 >
                   <Space size="middle">
-                    <div 
+                    <div
                       onClick={(e) => { e.stopPropagation(); toggleExpand(item); }}
-                      style={{ 
-                        cursor: 'pointer', 
-                        display: 'flex', 
+                      style={{
+                        cursor: 'pointer',
+                        display: 'flex',
                         alignItems: 'center',
                         visibility: subColumnConfig[item] ? 'visible' : 'hidden'
                       }}
@@ -674,8 +674,8 @@ const SarTable: React.FC = () => {
                       {item}
                     </Text>
                   </Space>
-                  <Checkbox 
-                    checked={activeColumns.includes(item)} 
+                  <Checkbox
+                    checked={activeColumns.includes(item)}
                     onChange={() => toggleColumn(item)}
                     onClick={(e) => e.stopPropagation()}
                   />
@@ -685,7 +685,7 @@ const SarTable: React.FC = () => {
                 {activeColumns.includes(item) && subColumnConfig[item] && expandedColumns.includes(item) && (
                   <div style={{ paddingLeft: 48, display: 'flex', flexDirection: 'column', gap: 6, marginTop: 4, marginBottom: 8 }}>
                     {subColumnConfig[item].map((sub, subIdx) => (
-                      <div 
+                      <div
                         key={sub.key}
                         draggable
                         onDragStart={(e) => {
@@ -705,7 +705,7 @@ const SarTable: React.FC = () => {
                           const fromIdx = parseInt(e.dataTransfer.getData('fromIdx'));
                           reorderSubColumns(item, fromIdx, subIdx);
                         }}
-                        style={{ 
+                        style={{
                           padding: '6px 12px',
                           background: token.colorBgContainer,
                           borderRadius: 6,
@@ -720,8 +720,8 @@ const SarTable: React.FC = () => {
                           <GripVertical size={12} color={token.colorBorder} />
                           <Text style={{ fontSize: 12, color: sub.visible ? token.colorText : token.colorTextTertiary }}>{sub.title}</Text>
                         </Space>
-                        <Checkbox 
-                          checked={sub.visible} 
+                        <Checkbox
+                          checked={sub.visible}
                           onChange={() => toggleSubColumn(item, sub.key)}
                         />
                       </div>

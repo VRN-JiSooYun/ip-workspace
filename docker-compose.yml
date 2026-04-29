@@ -1,5 +1,6 @@
 services:
-  frontend:
+  local-myworkspace-frontend:
+    container_name: local-myworkspace-frontend
     build:
       context: ./frontend
       dockerfile: Dockerfile

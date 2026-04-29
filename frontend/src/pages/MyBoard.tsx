@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Row, Col, Card, Table, Button, Input, Checkbox,
   Space, Typography, Modal, Form, Tag, List, Select, DatePicker, Avatar, Divider, Upload, Segmented, theme
@@ -18,6 +19,7 @@ const { Option } = Select;
 const { RangePicker } = DatePicker;
 
 const MyBoard: React.FC = () => {
+  const navigate = useNavigate();
   const { token } = theme.useToken();
   const { selectedGroupIds, toggleGroupSelection, setSelectedSarCompoundIds } = useBoardStore();
   const [isGroupModalOpen, setIsGroupModalOpen] = useState(false);
@@ -312,7 +314,7 @@ const MyBoard: React.FC = () => {
                   size="small"
                   icon={<Beaker size={14} />}
                   onClick={() => {
-                    (window as any).onNavigate?.('synthesis-board');
+                    navigate('/synthesis-board');
                   }}
                 >
                   합성 보드
@@ -376,7 +378,7 @@ const MyBoard: React.FC = () => {
                   style={{ background: token.colorPrimary, borderColor: token.colorPrimary }}
                   onClick={() => {
                     setSelectedSarCompoundIds(filteredCompounds.map((compound) => compound.id));
-                    (window as any).onNavigate?.('sar-table');
+                    navigate('/sar-table');
                   }}
                 >
                   SAR Table로 보기 ({sarTargetCount})
