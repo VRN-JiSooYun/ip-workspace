@@ -721,7 +721,6 @@ const SarTable: React.FC = () => {
                           <Text style={{ fontSize: 12, color: sub.visible ? token.colorText : token.colorTextTertiary }}>{sub.title}</Text>
                         </Space>
                         <Checkbox 
-                          size="small"
                           checked={sub.visible} 
                           onChange={() => toggleSubColumn(item, sub.key)}
                         />

@@ -2,8 +2,8 @@
 FROM oven/bun:1-alpine AS build
 WORKDIR /app
 
-# 종속성 설치
-COPY package.json bun.lockb* ./
+# 종속성 및 설정 파일 설치
+COPY package.json bun.lockb* tsconfig*.json ./
 RUN bun install
 
 # 소스 복사 및 빌드

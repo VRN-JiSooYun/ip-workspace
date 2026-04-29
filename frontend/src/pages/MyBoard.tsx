@@ -205,7 +205,7 @@ const MyBoard: React.FC = () => {
       key: 'calcs',
       render: (calcs: string[]) => (
         <Space size={[0, 4]} wrap>
-          {calcs?.map(c => <Tag key={c} size="small">{c}</Tag>)}
+          {calcs?.map(c => <Tag key={c}>{c}</Tag>)}
         </Space>
       )
     }
@@ -593,7 +593,7 @@ const MyBoard: React.FC = () => {
                   </div>
                   <FlaskConical size={64} color={token.colorPrimary} style={{ opacity: 0.2 }} />
                   <Text type="secondary" style={{ marginTop: 12 }}>ChemDraw Editor 연동 예정</Text>
-                  <Text size="small" style={{ color: token.colorTextTertiary, fontSize: '11px' }}>SMILES 입력 시 구조가 자동 생성됩니다.</Text>
+                  <Text style={{ color: token.colorTextTertiary, fontSize: '11px' }}>SMILES 입력 시 구조가 자동 생성됩니다.</Text>
                 </div>
               </Form.Item>
             </Col>
@@ -704,7 +704,7 @@ const MyBoard: React.FC = () => {
           ))}
         </div>
         <div style={{ marginTop: 16, padding: '12px', background: token.colorBgLayout, borderRadius: 8 }}>
-          <Text type="secondary" size="small">
+          <Text type="secondary" style={{ fontSize: '12px' }}>
             <Info size={12} style={{ marginRight: 4 }} />
             목록을 마우스로 끌어서 테이블 컬럼의 표시 순서를 변경할 수 있습니다.
           </Text>

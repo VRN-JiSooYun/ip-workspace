@@ -59,7 +59,7 @@ const App: React.FC = () => {
           colorPrimary: '#F87C63',
           borderRadius: 8,
           fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
-          colorBgBody: isDarkMode ? '#141414' : '#f7f9fb',
+          colorBgLayout: isDarkMode ? '#141414' : '#f7f9fb',
         },
         components: {
           Card: {
