@@ -1,5 +1,6 @@
 services:
   dev-myworkspace-frontend:
+    container_name: dev-myworkspace-frontend
     build:
       context: ./frontend
       dockerfile: Dockerfile.dev
