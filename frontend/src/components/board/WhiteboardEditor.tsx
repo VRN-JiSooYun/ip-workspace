@@ -41,7 +41,8 @@ const WhiteboardEditor: React.FC<WhiteboardEditorProps> = ({
     const loadSvg = (svgString: string, label: string) => {
       return fabric.loadSVGFromString(svgString).then((result) => {
         const { objects, options } = result;
-        const obj = fabric.util.groupSVGElements(objects, options);
+        const filteredObjects = objects.filter((o): o is fabric.FabricObject => o !== null);
+        const obj = fabric.util.groupSVGElements(filteredObjects, options);
         
         // Resize and position
         const scale = 120 / Math.max(obj.width || 1, obj.height || 1);
@@ -97,7 +98,8 @@ const WhiteboardEditor: React.FC<WhiteboardEditorProps> = ({
 
     fabric.loadSVGFromString(data.svg).then((result) => {
       const { objects, options } = result;
-      const obj = fabric.util.groupSVGElements(objects, options);
+      const filteredObjects = objects.filter((o): o is fabric.FabricObject => o !== null);
+      const obj = fabric.util.groupSVGElements(filteredObjects, options);
       
       const scale = 150 / Math.max(obj.width || 1, obj.height || 1);
       obj.set({
@@ -204,6 +206,7 @@ const WhiteboardEditor: React.FC<WhiteboardEditorProps> = ({
     const dataURL = fabricCanvasRef.current.toDataURL({
       format: 'png',
       quality: 1,
+      multiplier: 1,
     });
     const link = document.createElement('a');
     link.download = 'whiteboard-export.png';
