@@ -45,7 +45,7 @@ const App: React.FC = () => {
         },
       }}
     >
-      <Router>
+      <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <MainLayout>
           <Routes>
             <Route path="/" element={<Navigate to="/dashboard" replace />} />

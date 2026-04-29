@@ -13,6 +13,10 @@ import { useBoardStore } from '../store/useBoardStore';
 import { mockCompounds, mockGroups } from '../mocks/compounds';
 import RadarChart from '../components/charts/RadarChart';
 import dayjs from 'dayjs';
+import { useTheme } from '../contexts/ThemeContext';
+import { CHEMDRAW_CONFIG } from '../config/chemdraw';
+import WhiteboardEditor from '../components/board/WhiteboardEditor';
+import ChemDrawModal from '../components/common/ChemDrawModal';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
@@ -20,12 +24,15 @@ const { RangePicker } = DatePicker;
 
 const MyBoard: React.FC = () => {
   const navigate = useNavigate();
+  const { isDarkMode } = useTheme();
   const { token } = theme.useToken();
   const { selectedGroupIds, toggleGroupSelection, setSelectedSarCompoundIds } = useBoardStore();
   const [isGroupModalOpen, setIsGroupModalOpen] = useState(false);
   const [isDesignModalOpen, setIsDesignModalOpen] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [isStructureModalOpen, setIsStructureModalOpen] = useState(false);
+  const [cdjsInstance, setCdjsInstance] = useState<any>(null);
+  const [searchedSvg, setSearchedSvg] = useState<string | null>(null);
   const [showFilters, setShowFilters] = useState(false);
   const [viewMode, setViewMode] = useState<'table' | 'draw' | 'tree'>('table');
   const [assignedGroupIds, setAssignedGroupIds] = useState<string[]>([]);
@@ -127,12 +134,17 @@ const MyBoard: React.FC = () => {
     }
   };
 
-  const filteredCompounds = mockCompounds.filter(c => {
-    if (selectedGroupIds.length > 0 && !selectedGroupIds.includes(c.groupId)) return false;
-    if (!selectedProjects.includes('ALL') && c.project && !selectedProjects.includes(c.project)) return false;
-    if (!selectedShares.includes('ALL') && c.shareStatus && !selectedShares.includes(c.shareStatus)) return false;
-    if (!selectedSources.includes('ALL') && c.designSource && !selectedSources.includes(c.designSource)) return false;
-    if (keyword && !c.name.includes(keyword) && !c.smiles.includes(keyword)) return false;
+  const filteredCompounds = mockCompounds.filter((compound) => {
+    // If it's a structure search results mode, don't filter out by the keyword string
+    const matchesKeyword = keyword === 'Structure Search Result' || 
+      compound.name.toLowerCase().includes(keyword.toLowerCase()) ||
+      compound.smiles.toLowerCase().includes(keyword.toLowerCase());
+    
+    if (selectedGroupIds.length > 0 && !selectedGroupIds.includes(compound.groupId)) return false;
+    if (!selectedProjects.includes('ALL') && compound.project && !selectedProjects.includes(compound.project)) return false;
+    if (!selectedShares.includes('ALL') && compound.shareStatus && !selectedShares.includes(compound.shareStatus)) return false;
+    if (!selectedSources.includes('ALL') && compound.designSource && !selectedSources.includes(compound.designSource)) return false;
+    if (keyword && !matchesKeyword) return false;
     return true;
   });
 
@@ -178,9 +190,28 @@ const MyBoard: React.FC = () => {
       dataIndex: 'smiles',
       key: 'structure',
       width: 120,
-      render: () => (
-        <div style={{ width: 100, height: 60, background: token.colorBgLayout, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 4, border: `1px solid ${token.colorBorderSecondary}` }}>
-          <FlaskConical size={20} color={token.colorTextTertiary} />
+      render: (smiles: string) => (
+        <div 
+          style={{ 
+            width: 100, 
+            height: 60, 
+            background: token.colorBgLayout, 
+            display: 'flex', 
+            alignItems: 'center', 
+            justifyContent: 'center', 
+            borderRadius: 4, 
+            border: `1px solid ${token.colorBorderSecondary}`,
+            overflow: 'hidden'
+          }}
+        >
+          {searchedSvg && (keyword === smiles || keyword === 'Structure Search Result') ? (
+            <div 
+              style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+              dangerouslySetInnerHTML={{ __html: searchedSvg }} 
+            />
+          ) : (
+            <FlaskConical size={20} color={token.colorTextTertiary} />
+          )}
         </div>
       )
     },
@@ -240,6 +271,21 @@ const MyBoard: React.FC = () => {
 
   const onDragEnd = () => {
     setDraggedItemIndex(null);
+  };
+
+  const handleStructureSearchConfirm = (data: { smiles: string; svg: string | null }) => {
+    const { smiles, svg } = data;
+    console.log('Extracted Data:', { smiles, svgLength: svg?.length });
+    
+    if (svg) setSearchedSvg(svg);
+    
+    if (smiles && smiles.trim() !== '') {
+      setKeyword(smiles);
+    } else {
+      setKeyword('Structure Search Result'); 
+    }
+    
+    setIsStructureModalOpen(false);
   };
 
   return (
@@ -469,39 +515,13 @@ const MyBoard: React.FC = () => {
                 locale={{ emptyText: selectedGroupIds.length === 0 ? '왼쪽 그룹 리스트에서 그룹을 선택해 주세요.' : '검색 결과가 없습니다.' }}
               />
             ) : viewMode === 'draw' ? (
-              <div style={{ padding: 20, minHeight: 400 }}>
-                {selectedGroupIds.length === 0 ? (
-                  <div style={{ height: 360, display: 'flex', alignItems: 'center', justifyContent: 'center', color: token.colorTextTertiary }}>
-                    왼쪽 그룹 리스트에서 그룹을 선택해 주세요.
-                  </div>
-                ) : filteredCompounds.length === 0 ? (
-                  <div style={{ height: 360, display: 'flex', alignItems: 'center', justifyContent: 'center', color: token.colorTextTertiary }}>
-                    검색 결과가 없습니다.
-                  </div>
-                ) : (
-                  <Row gutter={[16, 16]}>
-                    {filteredCompounds.map(c => (
-                      <Col span={6} key={c.id}>
-                        <div style={{
-                          border: `1px solid ${token.colorBorderSecondary}`,
-                          borderRadius: 8,
-                          overflow: 'hidden',
-                          transition: 'all 0.3s ease',
-                          cursor: 'pointer'
-                        }}
-                          className="canvas-card"
-                        >
-                          <div style={{ padding: '8px 12px', background: token.colorBgLayout, borderBottom: `1px solid ${token.colorBorderSecondary}` }}>
-                            <Text strong style={{ color: token.colorPrimary, fontSize: 12 }}>{c.compoundId}</Text>
-                          </div>
-                          <div style={{ height: 120, display: 'flex', alignItems: 'center', justifyContent: 'center', background: token.colorBgContainer }}>
-                            <FlaskConical size={32} color={token.colorBorder} />
-                          </div>
-                        </div>
-                      </Col>
-                    ))}
-                  </Row>
-                )}
+              <div style={{ padding: 16 }}>
+                <WhiteboardEditor 
+                  height={650} 
+                  compounds={filteredCompounds}
+                  searchedSvg={searchedSvg}
+                  searchKeyword={keyword}
+                />
               </div>
             ) : (
               <div style={{ padding: 40, textAlign: 'center', color: token.colorTextTertiary }}>Tree View 준비 중...</div>
@@ -713,13 +733,20 @@ const MyBoard: React.FC = () => {
         </div>
       </Modal>
 
-      {/* Chemdraw Modal Placeholder */}
-      <Modal title="구조 검색 (Chemdraw)" open={isStructureModalOpen} onCancel={() => setIsStructureModalOpen(false)} footer={null} width={800}>
-        <div style={{ height: 400, background: token.colorBgLayout, borderRadius: 8, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', border: `2px dashed ${token.colorBorderSecondary}` }}>
-          <FlaskConical size={48} color={token.colorTextTertiary} />
-          <Text type="secondary" style={{ marginTop: 16 }}>Chemdraw Editor 공간 확보 (모의 이미지 사용 예정)</Text>
-        </div>
-      </Modal>
+      {/* Search by Structure Modal */}
+      <ChemDrawModal
+        open={isStructureModalOpen}
+        onCancel={() => setIsStructureModalOpen(false)}
+        onConfirm={handleStructureSearchConfirm}
+        title="구조 검색"
+        confirmText="이 구조로 검색"
+      />
+      <style>{`
+        .ant-table-thead > tr > th { background: ${isDarkMode ? '#1f1f1f' : '#f8f9fa'} !important; font-weight: 700; font-size: 13px; }
+        .ant-table-tbody > tr > td { font-size: 13px; }
+        .canvas-card:hover { border-color: ${token.colorPrimary} !important; transform: translateY(-4px); box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        .cdd-clipboard-icon-container, .CDW_Logo, .cdd-logo { display: none !important; }
+      `}</style>
     </div>
   );
 };
