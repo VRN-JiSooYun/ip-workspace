@@ -5,6 +5,7 @@ import {
   Space, 
   Tag, 
   Card, 
+  Modal,
   Typography, 
   Tabs, 
   Row, 
@@ -17,6 +18,7 @@ import {
 import { 
   Plus, 
   ChevronLeft,
+  Search,
   Dna,
   Beaker,
   BarChart3,
@@ -129,6 +131,8 @@ const PatentAnalysisDetail: React.FC = () => {
 
   const [pageIndices, setPageIndices] = React.useState<Record<string, number>>({});
   const [activeCompId, setActiveCompId] = React.useState<string | null>(null);
+  const [previewSvg, setPreviewSvg] = React.useState<string | null>(null);
+  const [previewTitle, setPreviewTitle] = React.useState<string>('이미지 미리보기');
   const [activeBBox, setActiveBBox] = React.useState<{pageNumber: number, rect: number[]} | null>(null);
   const [pendingHighlight, setPendingHighlight] = React.useState<{pageNumber: number, rect: number[]} | null>(null);
   const [activeHighlightRevision, setActiveHighlightRevision] = React.useState(0);
@@ -275,6 +279,7 @@ const PatentAnalysisDetail: React.FC = () => {
       return () => window.clearTimeout(timer);
     }
 
+
     debugLog('pending-highlight-ready', {
       pageNumber: pendingHighlight.pageNumber,
       pageSize: pdfPageSizes[pendingHighlight.pageNumber],
@@ -287,6 +292,50 @@ const PatentAnalysisDetail: React.FC = () => {
     setActiveHighlightRevision(prev => prev + 1);
     setPendingHighlight(null);
   }, [pendingHighlight, pdfPageSizes, ensurePdfPageSize, debugLog]);
+
+  // 페이지 렌더가 늦게 완료되어 하이라이트 위치가 틀어지는 경우를 보정
+  // activeBBox를 일시 제거 후 재추가하여 라이브러리가 강제로 DOM을 재배치하도록 유도
+  const isRebumpingRef = React.useRef(false);
+  const lastRebumpTargetRef = React.useRef<string>('');
+
+  useEffect(() => {
+    if (!activeBBox) return;
+    if (isRebumpingRef.current) return;
+
+    // 같은 대상에 대해 이미 rebump를 수행했으면 스킵
+    const targetKey = `${activeBBox.pageNumber}_${activeBBox.rect.join(',')}`;
+    if (lastRebumpTargetRef.current === targetKey) return;
+    lastRebumpTargetRef.current = targetKey;
+
+    const savedBBox = { ...activeBBox, rect: [...activeBBox.rect] };
+    const delays = [600, 1500];
+    const timers: number[] = [];
+
+    delays.forEach((delay) => {
+      timers.push(window.setTimeout(() => {
+        debugLog('delayed-highlight-rebump', {
+          pageNumber: savedBBox.pageNumber,
+          delay,
+          action: 'remove',
+        });
+        isRebumpingRef.current = true;
+        setActiveBBox(null);
+
+        requestAnimationFrame(() => {
+          setActiveBBox(savedBBox);
+          setActiveHighlightRevision(prev => prev + 1);
+          isRebumpingRef.current = false;
+          debugLog('delayed-highlight-rebump', {
+            pageNumber: savedBBox.pageNumber,
+            delay,
+            action: 'restore',
+          });
+        });
+      }, delay));
+    });
+
+    return () => timers.forEach(t => window.clearTimeout(t));
+  }, [activeBBox?.pageNumber, activeBBox?.rect]);
 
   useEffect(() => {
     if (selectedPatent) {
@@ -316,13 +365,10 @@ const PatentAnalysisDetail: React.FC = () => {
   const handleGoToPdf = (targetPage: number, bboxCoords?: any[]) => {
     if (!targetPage) return;
 
-    const pageElement = document.querySelector(`.page[data-page-number="${targetPage}"]`) as HTMLElement | null;
     debugLog('go-to-pdf', {
       targetPage,
       bboxCoords,
-      hasPageElement: !!pageElement,
       cachedPageSize: pdfPageSizes[targetPage],
-      scrollTop: pageElement?.parentElement?.scrollTop,
     });
 
     if (pdfDocumentRef.current) {
@@ -338,20 +384,28 @@ const PatentAnalysisDetail: React.FC = () => {
       setPendingHighlight(null);
     }
 
-    try {
-      // PDF.js / react-pdf 렌더링 영역의 특정 페이지 요소 찾기
-      const pageElement = document.querySelector(`.page[data-page-number="${targetPage}"]`);
-      if (pageElement) {
-        debugLog('scroll-into-view', {
-          targetPage,
-          domRect: (pageElement as HTMLElement).getBoundingClientRect(),
-        });
-        pageElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    // 라이브러리 utils의 setScrolledTo 또는 scrollTo를 통한 바로 이동
+    const utils = highlighterUtilsRef.current;
+    if (utils && typeof (utils as any).scrollTo === 'function') {
+      debugLog('scroll-via-utils-scrollTo', { targetPage });
+      (utils as any).scrollTo(targetPage);
+    } else {
+      // fallback: 페이지 DOM 요소 기준 바로 이동 (instant)
+      const el = document.querySelector(`.page[data-page-number="${targetPage}"]`);
+      if (el) {
+        debugLog('scroll-instant-fallback', { targetPage });
+        el.scrollIntoView({ behavior: 'instant' as ScrollBehavior, block: 'start' });
       } else {
-        console.warn(`Page ${targetPage} element not found in DOM`);
+        // 페이지 DOM 아직 없으면 retry
+        const retry = () => {
+          const el2 = document.querySelector(`.page[data-page-number="${targetPage}"]`);
+          if (el2) {
+            el2.scrollIntoView({ behavior: 'instant' as ScrollBehavior, block: 'start' });
+          }
+        };
+        window.setTimeout(retry, 200);
+        window.setTimeout(retry, 600);
       }
-    } catch (e) {
-      console.error('Failed to scroll to PDF page', e);
     }
   };
 
@@ -388,6 +442,11 @@ const PatentAnalysisDetail: React.FC = () => {
     });
     setActiveCompId(compId);
     handleGoToPdf(pageArray[currentIndex], bboxArray[currentIndex]);
+  };
+
+  const openSvgPreview = (svg: string, title: string) => {
+    setPreviewSvg(svg);
+    setPreviewTitle(title);
   };
 
   return (
@@ -478,7 +537,14 @@ const PatentAnalysisDetail: React.FC = () => {
                               <Row gutter={[16, 16]}>
                                 <Col span={12} md={6}>
                                   <Card size="small" type="inner" title="Parent Scaffold">
-                                    <div style={{ width: '100%', height: 120, background: '#fff', border: `1px solid ${token.colorBorderSecondary}`, borderRadius: '8px' }}>
+                                    <div style={{ width: '100%', height: 120, background: '#fff', border: `1px solid ${token.colorBorderSecondary}`, borderRadius: '8px', position: 'relative' }}>
+                                      <Button
+                                        size="small"
+                                        type="text"
+                                        icon={<Search size={14} />}
+                                        onClick={() => openSvgPreview(patentDetailData.analysis.parentScaffold.svg, 'Parent Scaffold')}
+                                        style={{ position: 'absolute', right: 4, top: 4, zIndex: 2, background: 'rgba(255,255,255,0.8)' }}
+                                      />
                                       <SvgRenderer svg={patentDetailData.analysis.parentScaffold.svg} />
                                     </div>
                                   </Card>
@@ -486,7 +552,14 @@ const PatentAnalysisDetail: React.FC = () => {
                                 {patentDetailData.analysis.scaffoldRanks && patentDetailData.analysis.scaffoldRanks.map(rankData => (
                                   <Col span={12} md={6} key={rankData.rank}>
                                     <Card size="small" type="inner" title={<><Badge count={rankData.rank} style={{ backgroundColor: rankData.rank === 1 ? '#f5222d' : rankData.rank === 2 ? '#fa8c16' : '#d9d9d9' }} /> Rank {rankData.rank}</>}>
-                                      <div style={{ width: '100%', height: 120, background: '#fff', border: `1px solid ${token.colorBorderSecondary}`, borderRadius: '8px' }}>
+                                      <div style={{ width: '100%', height: 120, background: '#fff', border: `1px solid ${token.colorBorderSecondary}`, borderRadius: '8px', position: 'relative' }}>
+                                        <Button
+                                          size="small"
+                                          type="text"
+                                          icon={<Search size={14} />}
+                                          onClick={() => openSvgPreview(rankData.svg, `Scaffold Rank ${rankData.rank}`)}
+                                          style={{ position: 'absolute', right: 4, top: 4, zIndex: 2, background: 'rgba(255,255,255,0.8)' }}
+                                        />
                                         <SvgRenderer svg={rankData.svg} />
                                       </div>
                                       <div style={{ marginTop: 8, textAlign: 'center' }}>
@@ -505,7 +578,19 @@ const PatentAnalysisDetail: React.FC = () => {
                                 {/* Scaffold Rank 1 Image for Functional Group Context */}
                                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
                                   <Title level={5} style={{ marginTop: 0, marginBottom: 8, color: token.colorPrimary }}>Scaffold Rank 1</Title>
-                                  <div style={{ width: 200, height: 200, background: '#fff', border: `1px solid ${token.colorBorderSecondary}`, borderRadius: '8px', padding: 8 }}>
+                                  <div style={{ width: 200, height: 200, background: '#fff', border: `1px solid ${token.colorBorderSecondary}`, borderRadius: '8px', padding: 8, position: 'relative' }}>
+                                    <Button
+                                      size="small"
+                                      type="text"
+                                      icon={<Search size={14} />}
+                                      onClick={() => openSvgPreview(
+                                        patentDetailData.analysis.scaffoldRanks && patentDetailData.analysis.scaffoldRanks.length > 0
+                                          ? patentDetailData.analysis.scaffoldRanks[0].svg
+                                          : patentDetailData.analysis.parentScaffold.svg,
+                                        'Functional Group - Scaffold Rank 1'
+                                      )}
+                                      style={{ position: 'absolute', right: 4, top: 4, zIndex: 2, background: 'rgba(255,255,255,0.8)' }}
+                                    />
                                     <SvgRenderer svg={patentDetailData.analysis.scaffoldRanks && patentDetailData.analysis.scaffoldRanks.length > 0 ? patentDetailData.analysis.scaffoldRanks[0].svg : patentDetailData.analysis.parentScaffold.svg} />
                                   </div>
                                 </div>
@@ -518,7 +603,14 @@ const PatentAnalysisDetail: React.FC = () => {
                                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16 }}>
                                         {group.variants.map((v: any, idx: number) => (
                                           <Card key={idx} size="small" type="inner" style={{ width: 140 }}>
-                                            <div style={{ width: '100%', height: 80 }}>
+                                            <div style={{ width: '100%', height: 80, position: 'relative' }}>
+                                              <Button
+                                                size="small"
+                                                type="text"
+                                                icon={<Search size={12} />}
+                                                onClick={() => openSvgPreview(v.svg, `${group.id} Variant ${idx + 1}`)}
+                                                style={{ position: 'absolute', right: 2, top: 2, zIndex: 2, background: 'rgba(255,255,255,0.8)' }}
+                                              />
                                               <SvgRenderer svg={v.svg} />
                                             </div>
                                             <div style={{ textAlign: 'center', marginTop: 4 }}>
@@ -549,7 +641,17 @@ const PatentAnalysisDetail: React.FC = () => {
                                       <Tag color="blue">Ranking {i + 1}</Tag>
                                       <span style={{ cursor: 'pointer', fontSize: 16, filter: i === 0 ? 'none' : 'grayscale(100%)' }} title="Key Compound">🔑</span>
                                     </div>
-                                    <div style={{ width: '100%', height: 150, background: '#fff', border: `1px solid ${token.colorBorderSecondary}`, borderRadius: '8px' }}>
+                                    <div style={{ width: '100%', height: 150, background: '#fff', border: `1px solid ${token.colorBorderSecondary}`, borderRadius: '8px', position: 'relative' }}>
+                                      <Button
+                                        size="small"
+                                        type="text"
+                                        icon={<Search size={14} />}
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          openSvgPreview(comp.svg, `추천 Key Compound - ex. ${comp.id}`);
+                                        }}
+                                        style={{ position: 'absolute', right: 4, top: 4, zIndex: 2, background: 'rgba(255,255,255,0.8)' }}
+                                      />
                                       <SvgRenderer svg={comp.svg} />
                                     </div>
                                     <div style={{ marginTop: 8, textAlign: 'center' }}>
@@ -733,7 +835,7 @@ const PatentAnalysisDetail: React.FC = () => {
           bottom: 0;
           left: 0;
           width: 100%;
-          height: 60px; /* 하단 정보 가림 */
+          height: 0px; /* 하단 잘림 방지: 가림 제거 */
           background-color: white;
           z-index: 5;
           pointer-events: none;
@@ -772,6 +874,20 @@ const PatentAnalysisDetail: React.FC = () => {
           overflow-x: hidden;
         }
       `}</style>
+
+      <Modal
+        title={previewTitle}
+        open={!!previewSvg}
+        onCancel={() => setPreviewSvg(null)}
+        footer={null}
+        width={900}
+      >
+        {previewSvg ? (
+          <div style={{ width: '100%', height: 600, background: '#fff', borderRadius: 8, border: `1px solid ${token.colorBorderSecondary}` }}>
+            <SvgRenderer svg={previewSvg} />
+          </div>
+        ) : null}
+      </Modal>
     </div>
   );
 };
