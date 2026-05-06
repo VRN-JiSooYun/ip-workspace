@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Typography, Row, Col, Card, Table, Button, Input, Checkbox,
   Space, DatePicker, Segmented, Modal, Divider, Tag, theme
@@ -11,13 +12,30 @@ import { useTheme } from '../contexts/ThemeContext';
 import { mockCompounds } from '../mocks/compounds';
 import { useBoardStore } from '../store/useBoardStore';
 import dayjs from 'dayjs';
+import { useUIStore } from '../store/useUIStore';
+import PageHeaderBreadcrumb from '../components/common/PageHeaderBreadcrumb';
 
 const { Title, Text } = Typography;
 
 const SarTable: React.FC = () => {
+  const navigate = useNavigate();
   const { token } = theme.useToken();
   const { isDarkMode } = useTheme();
   const { selectedSarCompoundIds } = useBoardStore();
+  const { setHeaderContent } = useUIStore();
+
+  useEffect(() => {
+    setHeaderContent(
+      <PageHeaderBreadcrumb 
+        items={[
+          { label: 'Compounds' },
+          { label: 'My board', onClick: () => navigate('/myboard') },
+          { label: 'SAR Table' }
+        ]} 
+      />
+    );
+    return () => setHeaderContent(null);
+  }, [setHeaderContent, navigate]);
 
   const sarCompounds = useMemo(() => {
     if (selectedSarCompoundIds.length === 0) return mockCompounds;

@@ -31,10 +31,13 @@ interface MainLayoutProps {
   children: React.ReactNode;
 }
 
+import { useUIStore } from '../../store/useUIStore';
+
 const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
   const [collapsed, setCollapsed] = useState(false);
   const { token } = theme.useToken();
   const { isDarkMode, toggleTheme } = useTheme();
+  const { headerContent } = useUIStore();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -184,21 +187,25 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
           borderBottom: 'none'
         }}>
           <div style={{ display: 'flex', alignItems: 'center', flex: 1 }}>
-            <div style={{ position: 'relative' }}>
-              <Input
-                prefix={<Search size={18} color={token.colorTextPlaceholder} />}
-                placeholder="Search workspace..."
-                style={{
-                  width: 256,
-                  border: 'none',
-                  background: isDarkMode ? '#2b2b2b' : '#f2f4f6',
-                  borderRadius: '12px',
-                  height: 40,
-                  fontSize: '14px',
-                  color: token.colorText
-                }}
-              />
-            </div>
+            {headerContent ? (
+              headerContent
+            ) : (
+              <div style={{ position: 'relative' }}>
+                <Input
+                  prefix={<Search size={18} color={token.colorTextPlaceholder} />}
+                  placeholder="Search workspace..."
+                  style={{
+                    width: 256,
+                    border: 'none',
+                    background: isDarkMode ? '#2b2b2b' : '#f2f4f6',
+                    borderRadius: '12px',
+                    height: 40,
+                    fontSize: '14px',
+                    color: token.colorText
+                  }}
+                />
+              </div>
+            )}
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
@@ -217,12 +224,18 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
           </div>
         </Header>
         <Content style={{
-          padding: '0 48px 48px 48px',
-          overflow: 'auto',
-          minHeight: 'calc(100vh - 80px)',
-          backgroundColor: token.colorBgLayout
+          padding: '24px 48px',
+          overflow: 'hidden', // 전체 스크롤 방지를 위해 hidden으로 변경
+          boxSizing: 'border-box',
+          height: 'calc(100vh - 80px)',
+          maxHeight: 'calc(100vh - 80px)', // 높이 팽창 방지
+          backgroundColor: token.colorBgLayout,
+          display: 'flex',
+          flexDirection: 'column'
         }}>
-          {children}
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
+            {children}
+          </div>
         </Content>
       </Layout>
       <style>{`
@@ -242,6 +255,19 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
         .ant-menu-inline .ant-menu-sub.ant-menu-inline { background: transparent !important; }
         .ant-menu-submenu-title { border-radius: 12px !important; height: 48px !important; display: flex !important; align-items: center !important; }
         .cursor-pointer { cursor: pointer; }
+      `}</style>
+      <style>{`
+        html, body, #root {
+          height: 100vh !important;
+          width: 100vw !important;
+          overflow: hidden !important;
+          margin: 0 !important;
+          padding: 0 !important;
+        }
+        .ant-layout {
+          height: 100vh !important;
+          overflow: hidden !important;
+        }
       `}</style>
     </Layout>
   );

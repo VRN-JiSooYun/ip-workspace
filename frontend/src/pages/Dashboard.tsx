@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Row, Col, Typography, Button, Space } from 'antd';
 import { 
   Beaker, 
@@ -10,10 +10,18 @@ import {
   Coffee, 
   Volume2 
 } from 'lucide-react';
+import { useUIStore } from '../store/useUIStore';
+import PageHeaderBreadcrumb from '../components/common/PageHeaderBreadcrumb';
 
 const { Title, Text } = Typography;
 
 const Dashboard: React.FC = () => {
+  const { setHeaderContent } = useUIStore();
+
+  useEffect(() => {
+    setHeaderContent(<PageHeaderBreadcrumb items={[{ label: 'Dashboard' }]} />);
+    return () => setHeaderContent(null);
+  }, [setHeaderContent]);
   return (
     <div className="dashboard-container" style={{ padding: 0, height: 'auto', display: 'block' }}>
       {/* Top Header Section */}

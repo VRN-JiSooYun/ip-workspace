@@ -8,4 +8,16 @@ export default defineConfig({
     host: true,
     port: 5173,
   },
+  resolve: {
+    alias: {
+    },
+  },
+  optimizeDeps: {
+    include: ['react-pdf-highlighter-plus', 'fabric', 'pdfjs-dist'],
+  },
+  build: {
+    commonjsOptions: {
+      include: [/pdfjs-dist/, /node_modules/],
+    },
+  },
 });

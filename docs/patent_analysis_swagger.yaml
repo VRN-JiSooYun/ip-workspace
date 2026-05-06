@@ -1,0 +1,173 @@
+openapi: 3.0.3
+info:
+  title: Patent Analysis Helper API
+  description: |
+    특허 분석 헬퍼 프로젝트의 API 명세서입니다.
+    이 시스템은 두 개의 포트로 운영됩니다:
+    - 10130: 주요 비즈니스 로직 (RPC 스타일)
+    - 8000: PDF 업로드 및 분석 (REST 스타일)
+  version: 1.0.0
+servers:
+  - url: http://172.16.1.210:10130
+    description: Main Business Logic Server (RPC)
+  - url: http://172.16.1.210:8000
+    description: PDF Upload & Analysis Server (REST)
+
+paths:
+  /api:
+    post:
+      summary: RPC Endpoint for Main Logic
+      description: |
+        `operation` 파라미터에 따라 다양한 기능을 수행합니다.
+        모든 요청은 `multipart/form-data` 형식을 사용합니다.
+      tags:
+        - Main Logic (RPC)
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                operation:
+                  type: string
+                  description: 수행할 작업의 이름
+                  enum:
+                    - GET-PATENT-DATA
+                    - GET-PATENT-LIST
+                    - GET-PATENT-LIST-BY-COMPOUND-ID
+                    - GET-EMBODIMENT-LIST
+                    - GET-COMPOUND-SEARCH-HISTORY
+                    - GET-ELASTIC-COMPOUND-LIST
+                    - GET-TARGET-LIST
+                    - ADD-NEW-TARGET
+                    - ENABLE-EMAIL-ALARM
+                    - DISABLE-EMAIL-ALARM
+                    - ADD-FOLDER
+                    - ADD-PATENTS-TO-FOLDER
+                    - ADD-FAVORITE
+                    - REMOVE-FAVORITE
+                    - MODIFY-EMBODIMENT
+                    - UPLOAD-PATENT-FILE
+                    - DOWNLOAD-FILE
+                    - DOWNLOAD-PDF-FILES
+                    - DOWNLOAD-EMBODIMENTS-EXCEL
+                owner_id:
+                  type: integer
+                  description: 유저 ID
+                publication_number:
+                  type: string
+                  description: 특허 번호
+                compound_id:
+                  type: integer
+                  description: 화합물 ID
+                filter_dict:
+                  type: string
+                  description: JSON 문자열 형식의 필터 조건
+                order_dict:
+                  type: string
+                  description: JSON 문자열 형식의 정렬 조건
+                page-no:
+                  type: integer
+                  default: 1
+                num-rows-per-page:
+                  type: integer
+                  default: 10
+                smiles:
+                  type: string
+                  description: 화합물 SMILES
+                type:
+                  type: string
+                  description: 검색 타입 (identical, substructure, similarity 등)
+                target_name:
+                  type: string
+                  description: 타겟 이름
+                folder_name:
+                  type: string
+                  description: 폴더 이름
+                parent_id:
+                  type: integer
+                  description: 부모 폴더 ID
+                folder_id:
+                  type: integer
+                  description: 폴더 ID
+                selected_patent_list:
+                  type: string
+                  description: JSON 배열 형태의 선택된 특허 목록
+                file:
+                  type: string
+                  format: binary
+                  description: 업로드할 파일
+              required:
+                - operation
+      responses:
+        '200':
+          description: 성공
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  result_code:
+                    type: string
+                    example: "0000"
+                  result:
+                    type: object
+
+  /upload_pdf/:
+    post:
+      summary: Extract Metadata from PDF
+      tags:
+        - Upload & Analysis (Port 8000)
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        '200':
+          description: 성공
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  metadata:
+                    type: object
+
+  /upload_new_patent/:
+    post:
+      summary: Register and Analyze New Patent
+      tags:
+        - Upload & Analysis (Port 8000)
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                source_path:
+                  type: string
+                target:
+                  type: string
+      responses:
+        '200':
+          description: 성공
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: string
+                  result:
+                    type: boolean
+                  save_path:
+                    type: string
+                  groupware_url:
+                    type: string

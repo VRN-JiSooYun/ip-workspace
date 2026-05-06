@@ -136,10 +136,10 @@ const MyBoard: React.FC = () => {
 
   const filteredCompounds = mockCompounds.filter((compound) => {
     // If it's a structure search results mode, don't filter out by the keyword string
-    const matchesKeyword = keyword === 'Structure Search Result' || 
+    const matchesKeyword = keyword === 'Structure Search Result' ||
       compound.name.toLowerCase().includes(keyword.toLowerCase()) ||
       compound.smiles.toLowerCase().includes(keyword.toLowerCase());
-    
+
     if (selectedGroupIds.length > 0 && !selectedGroupIds.includes(compound.groupId)) return false;
     if (!selectedProjects.includes('ALL') && compound.project && !selectedProjects.includes(compound.project)) return false;
     if (!selectedShares.includes('ALL') && compound.shareStatus && !selectedShares.includes(compound.shareStatus)) return false;
@@ -191,23 +191,23 @@ const MyBoard: React.FC = () => {
       key: 'structure',
       width: 120,
       render: (smiles: string) => (
-        <div 
-          style={{ 
-            width: 100, 
-            height: 60, 
-            background: token.colorBgLayout, 
-            display: 'flex', 
-            alignItems: 'center', 
-            justifyContent: 'center', 
-            borderRadius: 4, 
+        <div
+          style={{
+            width: 100,
+            height: 60,
+            background: token.colorBgLayout,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            borderRadius: 4,
             border: `1px solid ${token.colorBorderSecondary}`,
             overflow: 'hidden'
           }}
         >
           {searchedSvg && (keyword === smiles || keyword === 'Structure Search Result') ? (
-            <div 
+            <div
               style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-              dangerouslySetInnerHTML={{ __html: searchedSvg }} 
+              dangerouslySetInnerHTML={{ __html: searchedSvg }}
             />
           ) : (
             <FlaskConical size={20} color={token.colorTextTertiary} />
@@ -276,15 +276,15 @@ const MyBoard: React.FC = () => {
   const handleStructureSearchConfirm = (data: { smiles: string; svg: string | null }) => {
     const { smiles, svg } = data;
     console.log('Extracted Data:', { smiles, svgLength: svg?.length });
-    
+
     if (svg) setSearchedSvg(svg);
-    
+
     if (smiles && smiles.trim() !== '') {
       setKeyword(smiles);
     } else {
-      setKeyword('Structure Search Result'); 
+      setKeyword('Structure Search Result');
     }
-    
+
     setIsStructureModalOpen(false);
   };
 
@@ -434,17 +434,17 @@ const MyBoard: React.FC = () => {
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       <div style={{ display: 'flex', gap: 4 }}>
                         {[1, 2, 3, 4, 5].map(n => (
-                          <div 
-                            key={n} 
+                          <div
+                            key={n}
                             onClick={() => applyPreset(n)}
-                            style={{ 
-                              width: 24, height: 24, 
-                              background: activePreset === n ? token.colorPrimary : token.colorBorderSecondary, 
-                              borderRadius: 4, 
-                              fontSize: 11, 
-                              display: 'flex', 
-                              alignItems: 'center', 
-                              justifyContent: 'center', 
+                            style={{
+                              width: 24, height: 24,
+                              background: activePreset === n ? token.colorPrimary : token.colorBorderSecondary,
+                              borderRadius: 4,
+                              fontSize: 11,
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
                               color: activePreset === n ? token.colorBgContainer : token.colorTextSecondary,
                               cursor: 'pointer',
                               fontWeight: activePreset === n ? 'bold' : 'normal',
@@ -455,10 +455,10 @@ const MyBoard: React.FC = () => {
                           </div>
                         ))}
                       </div>
-                      <Settings 
-                        size={18} 
-                        color={token.colorTextTertiary} 
-                        style={{ cursor: 'pointer' }} 
+                      <Settings
+                        size={18}
+                        color={token.colorTextTertiary}
+                        style={{ cursor: 'pointer' }}
                         onClick={() => setIsSettingsModalOpen(true)}
                       />
                     </div>
@@ -516,8 +516,8 @@ const MyBoard: React.FC = () => {
               />
             ) : viewMode === 'draw' ? (
               <div style={{ padding: 16 }}>
-                <WhiteboardEditor 
-                  height={650} 
+                <WhiteboardEditor
+                  height={650}
                   compounds={filteredCompounds}
                   searchedSvg={searchedSvg}
                   searchKeyword={keyword}
@@ -674,11 +674,11 @@ const MyBoard: React.FC = () => {
             <Text strong style={{ display: 'block', marginBottom: 12 }}>설정 프리셋 선택</Text>
             <div style={{ display: 'flex', gap: 12 }}>
               {[1, 2, 3, 4, 5].map(n => (
-                <Button 
+                <Button
                   key={n}
                   type={activePreset === n ? 'primary' : 'default'}
                   onClick={() => applyPreset(n)}
-                  style={{ 
+                  style={{
                     width: 44, height: 44, borderRadius: 8,
                     background: activePreset === n ? token.colorPrimary : token.colorBgContainer,
                     borderColor: activePreset === n ? token.colorPrimary : token.colorBorder,
