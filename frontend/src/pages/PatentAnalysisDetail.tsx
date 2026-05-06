@@ -34,6 +34,7 @@ import {
 import { mockPatents, mockResidues } from '../mocks/patents';
 import { mockHighlights } from '../mocks/patentHighlights';
 import { patentDetailData } from '../mocks/patentDetail_WO2026090333A1';
+import patentResultRaw from '../mocks/WO2026090333A1_PATENT_DATA.json';
 import { useUIStore } from '../store/useUIStore';
 import PageHeaderBreadcrumb from '../components/common/PageHeaderBreadcrumb';
 import { 
@@ -131,7 +132,9 @@ const PatentAnalysisDetail: React.FC = () => {
 
   const [pageIndices, setPageIndices] = React.useState<Record<string, number>>({});
   const [activeCompId, setActiveCompId] = React.useState<string | null>(null);
+  const [rawDataView, setRawDataView] = React.useState<'table' | 'card'>('table');
   const [previewSvg, setPreviewSvg] = React.useState<string | null>(null);
+  const [previewImageSrc, setPreviewImageSrc] = React.useState<string | null>(null);
   const [previewTitle, setPreviewTitle] = React.useState<string>('이미지 미리보기');
   const [activeBBox, setActiveBBox] = React.useState<{pageNumber: number, rect: number[]} | null>(null);
   const [pendingHighlight, setPendingHighlight] = React.useState<{pageNumber: number, rect: number[]} | null>(null);
@@ -444,10 +447,134 @@ const PatentAnalysisDetail: React.FC = () => {
     handleGoToPdf(pageArray[currentIndex], bboxArray[currentIndex]);
   };
 
+  const normalizeTablePageNumber = (rawPage: any): number => {
+    if (Array.isArray(rawPage)) {
+      return normalizeTablePageNumber(rawPage[0]);
+    }
+    const page = Number(rawPage);
+    return Number.isFinite(page) ? page : 0;
+  };
+
+  const normalizeTableBbox = (rawBbox: any): number[] | undefined => {
+    if (typeof rawBbox === 'string') {
+      const trimmed = rawBbox.trim();
+
+      // "[265, 871, 1387, 1863]" 형태
+      if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+        try {
+          const parsedJson = JSON.parse(trimmed);
+          if (Array.isArray(parsedJson) && parsedJson.length === 4) {
+            const parsedNums = parsedJson.map(Number);
+            if (parsedNums.every(v => Number.isFinite(v))) return parsedNums;
+          }
+        } catch {
+          // JSON 파싱 실패 시 regex fallback 사용
+        }
+      }
+
+      // 숫자 추출 fallback (공백/쉼표/문자 혼합 대응)
+      const matched = trimmed.match(/-?\d+(?:\.\d+)?/g);
+      if (matched && matched.length >= 4) {
+        const parsedNums = matched.slice(0, 4).map(Number);
+        if (parsedNums.every(v => Number.isFinite(v))) return parsedNums;
+      }
+
+      return undefined;
+    }
+
+    if (Array.isArray(rawBbox)) {
+      if (rawBbox.length === 4) {
+        const parsed = rawBbox.map(Number);
+        if (parsed.every(v => Number.isFinite(v))) {
+          return parsed;
+        }
+      }
+      if (rawBbox.length > 0) {
+        return normalizeTableBbox(rawBbox[0]);
+      }
+      return undefined;
+    }
+
+    if (rawBbox && typeof rawBbox === 'object') {
+      const { x1, y1, x2, y2 } = rawBbox as Record<string, unknown>;
+      const parsed = [Number(x1), Number(y1), Number(x2), Number(y2)];
+      if (parsed.every(v => Number.isFinite(v))) {
+        return parsed;
+      }
+    }
+
+    return undefined;
+  };
+
+  const handleTableCardClick = (tableItem: any, index: number) => {
+    const cardKey = `table-${tableItem?.table_num ?? index}-${index}`;
+    const pageArray = Array.isArray(tableItem?.page) ? tableItem.page : [];
+    const bboxArray = Array.isArray(tableItem?.bbox) ? tableItem.bbox : [];
+    if (pageArray.length === 0) return;
+
+    const currentIndex = pageIndices[cardKey] ?? 0;
+    const targetPage = normalizeTablePageNumber(pageArray[currentIndex]);
+    const targetBbox = normalizeTableBbox(bboxArray[currentIndex]);
+
+    debugLog('table-card-click', {
+      cardKey,
+      targetPage,
+      rawBbox: bboxArray[currentIndex],
+      normalizedBbox: targetBbox,
+    });
+
+    setActiveCompId(cardKey);
+    if (targetPage) {
+      handleGoToPdf(targetPage, targetBbox as any);
+    }
+  };
+
+  const handleTablePageChange = (tableItem: any, index: number, direction: number) => {
+    const cardKey = `table-${tableItem?.table_num ?? index}-${index}`;
+    const pageArray = Array.isArray(tableItem?.page) ? tableItem.page : [];
+    const bboxArray = Array.isArray(tableItem?.bbox) ? tableItem.bbox : [];
+    if (pageArray.length === 0) return;
+
+    const currentIndex = pageIndices[cardKey] ?? 0;
+    let nextIndex = currentIndex + direction;
+    if (nextIndex < 0) nextIndex = pageArray.length - 1;
+    if (nextIndex >= pageArray.length) nextIndex = 0;
+
+    setPageIndices(prev => ({ ...prev, [cardKey]: nextIndex }));
+    setActiveCompId(cardKey);
+    const targetPage = normalizeTablePageNumber(pageArray[nextIndex]);
+    const targetBbox = normalizeTableBbox(bboxArray[nextIndex]);
+
+    debugLog('table-page-change', {
+      cardKey,
+      nextIndex,
+      targetPage,
+      rawBbox: bboxArray[nextIndex],
+      normalizedBbox: targetBbox,
+    });
+
+    if (targetPage) {
+      handleGoToPdf(targetPage, targetBbox as any);
+    }
+  };
+
   const openSvgPreview = (svg: string, title: string) => {
+    setPreviewImageSrc(null);
     setPreviewSvg(svg);
     setPreviewTitle(title);
   };
+
+  const openImagePreview = (src: string, title: string) => {
+    setPreviewSvg(null);
+    setPreviewImageSrc(src);
+    setPreviewTitle(title);
+  };
+
+  const resultTables = React.useMemo(() => {
+    const root: any = patentResultRaw as any;
+    const tables = root?.result?.tables;
+    return Array.isArray(tables) ? tables : [];
+  }, []);
 
   return (
     <div style={{ maxWidth: '1600px', margin: '0 auto', padding: '0 24px', flex: 1, width: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
@@ -684,45 +811,143 @@ const PatentAnalysisDetail: React.FC = () => {
                     children: (
                       <div style={{ padding: 24, flex: 1, overflowY: 'auto' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-                          <Title level={5} style={{ margin: 0 }}>Embodiment 화합물 목록 (Raw Data)</Title>
+                          <Title level={5} style={{ margin: 0 }}>Embodiment 화합물 목록</Title>
                           <Space>
+                            <div
+                              style={{
+                                background: token.colorBgLayout,
+                                padding: '2px',
+                                borderRadius: 8,
+                                display: 'flex',
+                                border: `1px solid ${token.colorBorderSecondary}`
+                              }}
+                            >
+                              <Button
+                                type="text"
+                                size="small"
+                                icon={<TableIcon size={14} />}
+                                onClick={() => setRawDataView('table')}
+                                style={{
+                                  background: rawDataView === 'table' ? token.colorPrimaryBg : 'transparent',
+                                  border: `1px solid ${rawDataView === 'table' ? token.colorPrimary : 'transparent'}`,
+                                  color: rawDataView === 'table' ? token.colorPrimary : token.colorTextSecondary,
+                                  borderRadius: 6,
+                                  fontWeight: rawDataView === 'table' ? 600 : 500
+                                }}
+                              >
+                                Table
+                              </Button>
+                              <Button
+                                type="text"
+                                size="small"
+                                icon={<LayoutGrid size={14} />}
+                                onClick={() => setRawDataView('card')}
+                                style={{
+                                  background: rawDataView === 'card' ? token.colorPrimaryBg : 'transparent',
+                                  border: `1px solid ${rawDataView === 'card' ? token.colorPrimary : 'transparent'}`,
+                                  color: rawDataView === 'card' ? token.colorPrimary : token.colorTextSecondary,
+                                  borderRadius: 6,
+                                  fontWeight: rawDataView === 'card' ? 600 : 500
+                                }}
+                              >
+                                Card
+                              </Button>
+                            </div>
                             <Button size="small">Export CSV</Button>
                             <Button size="small" type="primary">Filter</Button>
                           </Space>
                         </div>
-                        <Table 
-                          dataSource={patentDetailData.patentCompounds}
-                          size="small"
-                          rowKey="id"
-                          scroll={{ x: 'max-content' }}
-                          columns={[
-                            { 
-                              title: 'pin', 
-                              key: 'pin', 
-                              width: 50,
-                              fixed: 'left',
-                              render: () => <Pin size={14} style={{ cursor: 'pointer', color: '#bfbfbf' }} />
-                            },
-                            { title: 'rank', dataIndex: 'rank', key: 'rank', width: 60, render: (_, __, index) => index + 1 },
-                            { title: 'Scaffold Group', dataIndex: 'scaffoldGroup', key: 'scaffoldGroup', width: 120, render: () => 'SCF-001' },
-                            { title: 'Example Number', dataIndex: 'id', key: 'exampleNumber', width: 130 },
-                            { 
-                              title: 'Structure', 
-                              key: 'svg', 
-                              width: 120,
-                              render: (_, record) => (
-                                <div style={{ width: 80, height: 80, background: '#fff', padding: 4 }}>
-                                  <SvgRenderer svg={record.svg} />
-                                </div>
-                              )
-                            },
-                            { title: 'R1', key: 'r1', width: 100, render: () => <Tag color="blue">F</Tag> },
-                            { title: 'R2', key: 'r2', width: 100, render: () => <Tag color="green">Cl</Tag> },
-                            { title: 'R3', key: 'r3', width: 100, render: () => <Tag color="purple">CN</Tag> },
-                            { title: 'SMILES', dataIndex: 'smiles', key: 'smiles', ellipsis: true, width: 200 }
-                          ]}
-                          pagination={{ pageSize: 10 }}
-                        />
+                        {rawDataView === 'table' ? (
+                          <Table 
+                            dataSource={patentDetailData.patentCompounds}
+                            size="small"
+                            rowKey="id"
+                            scroll={{ x: 'max-content' }}
+                            columns={[
+                              { 
+                                title: 'pin', 
+                                key: 'pin', 
+                                width: 50,
+                                fixed: 'left',
+                                render: () => <Pin size={14} style={{ cursor: 'pointer', color: '#bfbfbf' }} />
+                              },
+                              { title: 'rank', dataIndex: 'rank', key: 'rank', width: 60, render: (_, __, index) => index + 1 },
+                              { title: 'Scaffold Group', dataIndex: 'scaffoldGroup', key: 'scaffoldGroup', width: 120, render: () => 'SCF-001' },
+                              { title: 'Example Number', dataIndex: 'id', key: 'exampleNumber', width: 130 },
+                              { 
+                                title: 'Structure', 
+                                key: 'svg', 
+                                width: 120,
+                                render: (_, record) => (
+                                  <div style={{ width: 80, height: 80, background: '#fff', padding: 4, position: 'relative' }}>
+                                    <Button
+                                      size="small"
+                                      type="text"
+                                      icon={<Search size={12} />}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        openSvgPreview(record.svg, `Raw Data - ex. ${record.id}`);
+                                      }}
+                                      style={{ position: 'absolute', right: 2, top: 2, zIndex: 2, background: 'rgba(255,255,255,0.8)' }}
+                                    />
+                                    <SvgRenderer svg={record.svg} />
+                                  </div>
+                                )
+                              },
+                              { title: 'R1', key: 'r1', width: 100, render: () => <Tag color="blue">F</Tag> },
+                              { title: 'R2', key: 'r2', width: 100, render: () => <Tag color="green">Cl</Tag> },
+                              { title: 'R3', key: 'r3', width: 100, render: () => <Tag color="purple">CN</Tag> },
+                              { title: 'SMILES', dataIndex: 'smiles', key: 'smiles', ellipsis: true, width: 200 }
+                            ]}
+                            pagination={{ pageSize: 10 }}
+                          />
+                        ) : (
+                          <Row gutter={[16, 16]}>
+                            {patentDetailData.patentCompounds.map((comp) => (
+                              <Col span={24} md={12} lg={8} key={comp.id}>
+                                <Card size="small" hoverable style={{ 
+                                  height: '100%',
+                                  border: activeCompId === comp.id.toString() ? '2px solid red' : undefined
+                                }}>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
+                                    <Text strong>ex. {comp.id}</Text>
+                                    <span style={{ fontSize: 16, filter: 'grayscale(100%)', cursor: 'pointer' }} title="Mark as Key Compound">🔑</span>
+                                  </div>
+                                  <div style={{ width: '100%', height: 150, background: '#fff', border: `1px solid ${token.colorBorderSecondary}`, borderRadius: '8px', marginBottom: 12, position: 'relative' }}>
+                                    <Button
+                                      size="small"
+                                      type="text"
+                                      icon={<Search size={14} />}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        openSvgPreview(comp.svg, `Raw Data Card - ex. ${comp.id}`);
+                                      }}
+                                      style={{ position: 'absolute', right: 4, top: 4, zIndex: 2, background: 'rgba(255,255,255,0.8)' }}
+                                    />
+                                    <SvgRenderer svg={comp.svg} />
+                                  </div>
+                                  <Space direction="vertical" style={{ width: '100%' }} size={4}>
+                                    <Text type="secondary" style={{ fontSize: 12, wordBreak: 'break-all' }} ellipsis={{ tooltip: comp.smiles }}>
+                                      {comp.smiles}
+                                    </Text>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 }}>
+                                      <Tag color="blue">Page {Array.isArray(comp.page) ? comp.page.join(', ') : comp.page}</Tag>
+                                      <Button size="small" icon={<ChevronLeft size={14} style={{ transform: 'rotate(180deg)' }} />} onClick={() => {
+                                        const pageArray = Array.isArray(comp.page) ? comp.page : [comp.page];
+                                        const bboxArray = Array.isArray((comp as any).bbox) ? (comp as any).bbox : [];
+                                        
+                                        setActiveCompId(comp.id.toString());
+                                        if (pageArray.length > 0) handleGoToPdf(pageArray[0], bboxArray[0]);
+                                      }}>
+                                        Go to PDF
+                                      </Button>
+                                    </div>
+                                  </Space>
+                                </Card>
+                              </Col>
+                            ))}
+                          </Row>
+                        )}
                       </div>
                     )
                   },
@@ -742,54 +967,101 @@ const PatentAnalysisDetail: React.FC = () => {
                   {
                     key: 'tables',
                     label: (
-                      <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <TableIcon size={16} /> Tables
+                        <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <LayoutGrid size={16} /> Tables
                       </span>
                     ),
                     children: (
-                      <div style={{ padding: 24, flex: 1, overflowY: 'auto' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-                          <Title level={5} style={{ margin: 0 }}>Embodiments (Card View)</Title>
-                          <Space>
-                            <Button size="small" type="primary">Filter</Button>
-                          </Space>
+                        <div style={{ padding: 24, flex: 1, overflowY: 'auto' }}>
+                          <Title level={5} style={{ marginTop: 0, marginBottom: 16 }}>Result Tables</Title>
+                          {resultTables.length === 0 ? (
+                              <Empty description="result.tables 데이터가 없습니다." />
+                          ) : (
+                              <Row gutter={[16, 16]}>
+                                {resultTables.map((tableItem: any, i: number) => {
+                                  const base64List = Array.isArray(tableItem?.table_base64) ? tableItem.table_base64 : [];
+                                  const firstImage = typeof base64List[0] === 'string'
+                                      ? (base64List[0].startsWith('data:') ? base64List[0] : `data:image/png;base64,${base64List[0]}`)
+                                      : null;
+                                  const pageArray = Array.isArray(tableItem?.page) ? tableItem.page : [];
+                                  const bboxArray = Array.isArray(tableItem?.bbox) ? tableItem.bbox : [];
+                                  const cardKey = `table-${tableItem?.table_num ?? i}-${i}`;
+                                  const tableCurrentIndex = pageIndices[cardKey] ?? 0;
+
+                                  return (
+                                      <Col span={24} md={12} lg={8} key={`table-${tableItem?.table_num ?? i}-${i}`}>
+                                      <Card
+                                          size="small"
+                                          hoverable
+                                          style={{
+                                            height: '100%',
+                                            borderRadius: 12,
+                                            border: activeCompId === cardKey ? '2px solid red' : undefined
+                                          }}
+                                          onClick={() => handleTableCardClick(tableItem, i)}
+                                      >
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+                                          <Tag color="blue">Table {tableItem?.table_group}</Tag>
+                                          <Tag color={tableItem?.has_compound ? 'green' : 'default'}>
+                                            {tableItem?.has_compound ? 'Compound 포함' : 'Compound 없음'}
+                                          </Tag>
+                                        </div>
+                                        <div style={{ width: '100%', height: 150, background: '#fff', border: `1px solid ${token.colorBorderSecondary}`, borderRadius: 8, position: 'relative', overflow: 'hidden' }}>
+                                          {firstImage ? (
+                                              <>
+                                                <Button
+                                                    size="small"
+                                                    type="text"
+                                                    icon={<Search size={14} />}
+                                                    onClick={(e) => {
+                                                      e.stopPropagation();
+                                                      openImagePreview(firstImage, `Table ${tableItem?.table_num ?? i + 1}`);
+                                                    }}
+                                                    style={{ position: 'absolute', right: 4, top: 4, zIndex: 2, background: 'rgba(255,255,255,0.8)' }}
+                                                />
+                                                <img src={firstImage} alt={`table-${tableItem?.table_num ?? i + 1}`} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                                              </>
+                                          ) : (
+                                              <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: token.colorTextTertiary }}>
+                                                이미지 없음
+                                              </div>
+                                          )}
+                                        </div>
+                                        <div style={{ marginTop: 8 }}>
+                                          <Text style={{ fontSize: 12 }}>Pages: {pageArray.length > 0 ? pageArray.join(', ') : '-'}</Text><br />
+                                          <Text style={{ fontSize: 12 }}>Images: {base64List.length}</Text>
+                                        </div>
+                                        <div style={{ marginTop: 8, display: 'flex', justifyContent: 'center', gap: 8 }}>
+                                          <Button
+                                            size="small"
+                                            type="text"
+                                            icon={<ChevronLeft size={14} />}
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              handleTablePageChange(tableItem, i, -1);
+                                            }}
+                                          />
+                                          <Text style={{ fontSize: 12, alignSelf: 'center' }}>
+                                            Page {pageArray.length > 0 ? pageArray[tableCurrentIndex] : '-'}
+                                          </Text>
+                                          <Button
+                                            size="small"
+                                            type="text"
+                                            style={{ transform: 'scaleX(-1)' }}
+                                            icon={<ChevronLeft size={14} />}
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              handleTablePageChange(tableItem, i, 1);
+                                            }}
+                                          />
+                                        </div>
+                                      </Card>
+                                      </Col>
+                                  );
+                                })}
+                              </Row>
+                          )}
                         </div>
-                        <Row gutter={[16, 16]}>
-                          {patentDetailData.patentCompounds.map((comp) => (
-                            <Col span={24} md={12} lg={8} key={comp.id}>
-                              <Card size="small" hoverable style={{ 
-                                height: '100%',
-                                border: activeCompId === comp.id.toString() ? '2px solid red' : undefined
-                              }}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
-                                  <Text strong>ex. {comp.id}</Text>
-                                  <span style={{ fontSize: 16, filter: 'grayscale(100%)', cursor: 'pointer' }} title="Mark as Key Compound">🔑</span>
-                                </div>
-                                <div style={{ width: '100%', height: 150, background: '#fff', border: `1px solid ${token.colorBorderSecondary}`, borderRadius: '8px', marginBottom: 12 }}>
-                                  <SvgRenderer svg={comp.svg} />
-                                </div>
-                                <Space direction="vertical" style={{ width: '100%' }} size={4}>
-                                  <Text type="secondary" style={{ fontSize: 12, wordBreak: 'break-all' }} ellipsis={{ tooltip: comp.smiles }}>
-                                    {comp.smiles}
-                                  </Text>
-                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 }}>
-                                    <Tag color="blue">Page {Array.isArray(comp.page) ? comp.page.join(', ') : comp.page}</Tag>
-                                    <Button size="small" icon={<ChevronLeft size={14} style={{ transform: 'rotate(180deg)' }} />} onClick={() => {
-                                      const pageArray = Array.isArray(comp.page) ? comp.page : [comp.page];
-                                      const bboxArray = Array.isArray((comp as any).bbox) ? (comp as any).bbox : [];
-                                      
-                                      setActiveCompId(comp.id.toString());
-                                      if (pageArray.length > 0) handleGoToPdf(pageArray[0], bboxArray[0]);
-                                    }}>
-                                      Go to PDF
-                                    </Button>
-                                  </div>
-                                </Space>
-                              </Card>
-                            </Col>
-                          ))}
-                        </Row>
-                      </div>
                     )
                   }
                 ]}
@@ -877,14 +1149,22 @@ const PatentAnalysisDetail: React.FC = () => {
 
       <Modal
         title={previewTitle}
-        open={!!previewSvg}
-        onCancel={() => setPreviewSvg(null)}
+        open={!!previewSvg || !!previewImageSrc}
+        onCancel={() => {
+          setPreviewSvg(null);
+          setPreviewImageSrc(null);
+        }}
         footer={null}
         width={900}
       >
-        {previewSvg ? (
-          <div style={{ width: '100%', height: 600, background: '#fff', borderRadius: 8, border: `1px solid ${token.colorBorderSecondary}` }}>
+        {previewSvg || previewImageSrc ? (
+          <div style={{ width: '100%', height: 600, background: '#fff', borderRadius: 8, border: `1px solid ${token.colorBorderSecondary}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            {previewImageSrc ? (
+              <img src={previewImageSrc} alt="table-preview" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
+            ) : null}
+            {previewSvg ? (
             <SvgRenderer svg={previewSvg} />
+            ) : null}
           </div>
         ) : null}
       </Modal>
