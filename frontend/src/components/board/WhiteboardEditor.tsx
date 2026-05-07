@@ -22,12 +22,12 @@ const WhiteboardEditor: React.FC<WhiteboardEditorProps> = ({
 }) => {
   const { token } = theme.useToken();
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const fabricCanvasRef = useRef<fabric.Canvas | null>(null);
+  const fabricCanvasRef = useRef<any>(null);
   const [activeTool, setActiveTool] = useState<string>('select');
   const [isChemDrawOpen, setIsChemDrawOpen] = useState(false);
 
   // SVG loading logic
-  const loadCompoundsToCanvas = async (canvas: fabric.Canvas) => {
+  const loadCompoundsToCanvas = async (canvas: any) => {
     canvas.clear();
     canvas.backgroundColor = token.colorBgLayout;
 
@@ -39,9 +39,9 @@ const WhiteboardEditor: React.FC<WhiteboardEditorProps> = ({
 
     // Helper to load individual SVG
     const loadSvg = (svgString: string, label: string) => {
-      return fabric.loadSVGFromString(svgString).then((result) => {
+      return fabric.loadSVGFromString(svgString).then((result: any) => {
         const { objects, options } = result;
-        const filteredObjects = objects.filter((o): o is fabric.FabricObject => o !== null);
+        const filteredObjects = objects.filter((o: any) => o !== null);
         const obj = fabric.util.groupSVGElements(filteredObjects, options);
         
         // Resize and position
@@ -96,9 +96,9 @@ const WhiteboardEditor: React.FC<WhiteboardEditorProps> = ({
       return;
     }
 
-    fabric.loadSVGFromString(data.svg).then((result) => {
+    fabric.loadSVGFromString(data.svg).then((result: any) => {
       const { objects, options } = result;
-      const filteredObjects = objects.filter((o): o is fabric.FabricObject => o !== null);
+      const filteredObjects = objects.filter((o: any) => o !== null);
       const obj = fabric.util.groupSVGElements(filteredObjects, options);
       
       const scale = 150 / Math.max(obj.width || 1, obj.height || 1);
