@@ -11,19 +11,42 @@ import {
   Volume2 
 } from 'lucide-react';
 import { useUIStore } from '../store/useUIStore';
+import { getPatentAnalysisLayoutPreset } from '../config/patentAnalysisLayout';
 import PageHeaderBreadcrumb from '../components/common/PageHeaderBreadcrumb';
 
 const { Title, Text } = Typography;
 
 const Dashboard: React.FC = () => {
   const { setHeaderContent } = useUIStore();
+  const [viewportWidth, setViewportWidth] = React.useState<number>(() => {
+    if (typeof window === 'undefined') return 1920;
+    return window.innerWidth;
+  });
+  const layoutPreset = React.useMemo(() => getPatentAnalysisLayoutPreset(viewportWidth), [viewportWidth]);
 
   useEffect(() => {
     setHeaderContent(<PageHeaderBreadcrumb items={[{ label: 'Dashboard' }]} />);
     return () => setHeaderContent(null);
   }, [setHeaderContent]);
+
+  useEffect(() => {
+    const onResize = () => setViewportWidth(window.innerWidth);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+
   return (
-    <div className="dashboard-container" style={{ padding: 0, height: 'auto', display: 'block' }}>
+    <div
+      className="dashboard-container"
+      style={{
+        maxWidth: layoutPreset.maxWidth,
+        margin: '0 auto',
+        padding: `0 ${layoutPreset.sidePadding}px`,
+        height: 'auto',
+        width: '100%',
+        display: 'block'
+      }}
+    >
       {/* Top Header Section */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
         <Title level={4} style={{ margin: 0, color: '#F87C63', fontWeight: 600 }}>

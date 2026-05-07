@@ -8,6 +8,7 @@ import {
   UserPlus, CheckCircle2, Clock, AlertCircle, GripVertical, Users, Activity, List as ListIcon
 } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
+import { getPatentAnalysisLayoutPreset } from '../config/patentAnalysisLayout';
 import dayjs from 'dayjs';
 
 const { Title, Text } = Typography;
@@ -77,6 +78,11 @@ const SynthesisBoard: React.FC = () => {
   const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState<SynthesisDetail | null>(null);
   const [viewMode, setViewMode] = useState<'table' | 'draw' | 'tree'>('table');
+  const [viewportWidth, setViewportWidth] = useState<number>(() => {
+    if (typeof window === 'undefined') return 1920;
+    return window.innerWidth;
+  });
+  const layoutPreset = React.useMemo(() => getPatentAnalysisLayoutPreset(viewportWidth), [viewportWidth]);
 
   const getViewToggleButtonStyle = (mode: 'table' | 'draw' | 'tree'): React.CSSProperties => {
     const isActive = viewMode === mode;
@@ -121,6 +127,12 @@ const SynthesisBoard: React.FC = () => {
       }
     }
   };
+
+  React.useEffect(() => {
+    const onResize = () => setViewportWidth(window.innerWidth);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
 
   // Mock Data for Designs
   const designGroups = [
@@ -333,7 +345,15 @@ const SynthesisBoard: React.FC = () => {
   ];
 
   return (
-    <div className="gx-main-content">
+    <div
+      className="gx-main-content"
+      style={{
+        maxWidth: layoutPreset.maxWidth,
+        margin: '0 auto',
+        padding: `0 ${layoutPreset.sidePadding}px`,
+        width: '100%'
+      }}
+    >
       {/* Top Search Header - Removed Source Toggle from here */}
       <Card variant="borderless" className="c-card" style={{ marginBottom: 20, borderRadius: 12, boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
         <Row gutter={[16, 16]} align="middle">

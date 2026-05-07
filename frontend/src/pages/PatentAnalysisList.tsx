@@ -26,6 +26,7 @@ import {
 } from 'lucide-react';
 import { Patent, mockPatents } from '../mocks/patents';
 import ChemDrawModal from '../components/common/ChemDrawModal';
+import { getPatentAnalysisLayoutPreset } from '../config/patentAnalysisLayout';
 import { useUIStore } from '../store/useUIStore';
 import PageHeaderBreadcrumb from '../components/common/PageHeaderBreadcrumb';
 
@@ -40,7 +41,12 @@ const PatentAnalysisList: React.FC = () => {
   const [showFilters, setShowFilters] = useState(false);
   const [selectedProject, setSelectedProject] = useState('EGFR');
   const [period, setPeriod] = useState('전체');
+  const [viewportWidth, setViewportWidth] = useState<number>(() => {
+    if (typeof window === 'undefined') return 1920;
+    return window.innerWidth;
+  });
   const { setHeaderContent } = useUIStore();
+  const layoutPreset = React.useMemo(() => getPatentAnalysisLayoutPreset(viewportWidth), [viewportWidth]);
 
   useEffect(() => {
     setHeaderContent(
@@ -54,6 +60,12 @@ const PatentAnalysisList: React.FC = () => {
     );
     return () => setHeaderContent(null);
   }, [setHeaderContent]);
+
+  useEffect(() => {
+    const onResize = () => setViewportWidth(window.innerWidth);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
 
   const columns = [
     {
@@ -127,7 +139,7 @@ const PatentAnalysisList: React.FC = () => {
   ];
 
   return (
-    <div style={{ maxWidth: '1600px', margin: '0 auto', padding: '0 24px', height: '100%', width: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+    <div style={{ maxWidth: layoutPreset.maxWidth, margin: '0 auto', padding: `0 ${layoutPreset.sidePadding}px`, height: '100%', width: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', animation: 'fadeIn 0.3s ease-out' }}>
         <Card variant="borderless" style={{ marginBottom: 16, borderRadius: 12, flexShrink: 0 }}>
           <Row gutter={[16, 16]} align="middle">

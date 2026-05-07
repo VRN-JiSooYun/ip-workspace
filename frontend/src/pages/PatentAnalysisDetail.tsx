@@ -35,6 +35,7 @@ import { mockPatents, mockResidues } from '../mocks/patents';
 import { mockHighlights } from '../mocks/patentHighlights';
 import { patentDetailData } from '../mocks/patentDetail_WO2026090333A1';
 import patentResultRaw from '../mocks/WO2026090333A1_PATENT_DATA.json';
+import { getPatentAnalysisLayoutPreset } from '../config/patentAnalysisLayout';
 import { useUIStore } from '../store/useUIStore';
 import PageHeaderBreadcrumb from '../components/common/PageHeaderBreadcrumb';
 import { 
@@ -59,6 +60,9 @@ const DEFAULT_PDF_HIGHLIGHT_SCALE = 0.36;
 const HIGHLIGHT_PADDING_X = 8;
 const HIGHLIGHT_PADDING_Y = 10;
 const ENABLE_HIGHLIGHT_DEBUG_LOG = true;
+const SPLIT_MIN_PERCENT = 30;
+const SPLIT_MAX_PERCENT = 70;
+const SPLIT_DEFAULT_PERCENT = 50;
 
 const getPdfHighlightScale = (_patentNumber?: string): number => DEFAULT_PDF_HIGHLIGHT_SCALE;
 
@@ -125,6 +129,10 @@ const PatentAnalysisDetail: React.FC = () => {
     highlighterUtilsRef.current = utils;
   }, []);
 
+  const clampSplitRatio = React.useCallback((value: number) => {
+    return Math.min(Math.max(value, SPLIT_MIN_PERCENT), SPLIT_MAX_PERCENT);
+  }, []);
+
   const debugLog = React.useCallback((event: string, payload: Record<string, unknown>) => {
     if (!ENABLE_HIGHLIGHT_DEBUG_LOG) return;
     console.log('[PDFHighlightDebug]', event, payload);
@@ -139,8 +147,123 @@ const PatentAnalysisDetail: React.FC = () => {
   const [activeBBox, setActiveBBox] = React.useState<{pageNumber: number, rect: number[]} | null>(null);
   const [pendingHighlight, setPendingHighlight] = React.useState<{pageNumber: number, rect: number[]} | null>(null);
   const [activeHighlightRevision, setActiveHighlightRevision] = React.useState(0);
+  const [splitRatio, setSplitRatio] = React.useState<number>(SPLIT_DEFAULT_PERCENT);
+  const [isResizingSplit, setIsResizingSplit] = React.useState(false);
+  const [viewportWidth, setViewportWidth] = React.useState<number>(() => {
+    if (typeof window === 'undefined') return 1920;
+    return window.innerWidth;
+  });
   // PDF 페이지 실제 포인트 크기 캐시 (scale=1 viewport 기준)
   const [pdfPageSizes, setPdfPageSizes] = React.useState<Record<number, {width: number, height: number}>>({});
+  const splitContainerRef = React.useRef<HTMLDivElement | null>(null);
+  const splitRafRef = React.useRef<number | null>(null);
+  const splitStorageKey = React.useMemo(() => `patent-analysis-split:${id ?? 'default'}`, [id]);
+  const layoutPreset = React.useMemo(() => getPatentAnalysisLayoutPreset(viewportWidth), [viewportWidth]);
+
+  useEffect(() => {
+    const onResize = () => setViewportWidth(window.innerWidth);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+
+  useEffect(() => {
+    const raw = window.localStorage.getItem(splitStorageKey);
+    if (!raw) {
+      setSplitRatio(clampSplitRatio(layoutPreset.defaultSplit));
+      return;
+    }
+    const parsed = Number(raw);
+    if (Number.isFinite(parsed)) {
+      setSplitRatio(clampSplitRatio(parsed));
+    }
+  }, [splitStorageKey, clampSplitRatio, layoutPreset.defaultSplit]);
+
+  useEffect(() => {
+    window.localStorage.setItem(splitStorageKey, String(splitRatio));
+  }, [splitRatio, splitStorageKey]);
+
+  const updateSplitRatioFromClientX = React.useCallback((clientX: number) => {
+    const container = splitContainerRef.current;
+    if (!container) return;
+    const rect = container.getBoundingClientRect();
+    if (rect.width <= 0) return;
+    const nextRatio = ((clientX - rect.left) / rect.width) * 100;
+    setSplitRatio(clampSplitRatio(nextRatio));
+  }, [clampSplitRatio]);
+
+  const stopSplitResize = React.useCallback(() => {
+    setIsResizingSplit(false);
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
+  }, []);
+
+  useEffect(() => {
+    if (!isResizingSplit) return;
+
+    const onMouseMove = (event: MouseEvent) => {
+      if (splitRafRef.current) {
+        window.cancelAnimationFrame(splitRafRef.current);
+      }
+      splitRafRef.current = window.requestAnimationFrame(() => {
+        updateSplitRatioFromClientX(event.clientX);
+      });
+    };
+
+    const onMouseUp = () => {
+      stopSplitResize();
+    };
+
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+
+    return () => {
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+      if (splitRafRef.current) {
+        window.cancelAnimationFrame(splitRafRef.current);
+        splitRafRef.current = null;
+      }
+    };
+  }, [isResizingSplit, stopSplitResize, updateSplitRatioFromClientX]);
+
+  const handleSplitMouseDown = React.useCallback((event: React.MouseEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    setIsResizingSplit(true);
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+  }, []);
+
+  const handleSplitKeyDown = React.useCallback((event: React.KeyboardEvent<HTMLDivElement>) => {
+    const step = 2;
+    if (event.key === 'ArrowLeft') {
+      event.preventDefault();
+      setSplitRatio(prev => clampSplitRatio(prev - step));
+      return;
+    }
+    if (event.key === 'ArrowRight') {
+      event.preventDefault();
+      setSplitRatio(prev => clampSplitRatio(prev + step));
+      return;
+    }
+    if (event.key === 'Home') {
+      event.preventDefault();
+      setSplitRatio(SPLIT_MIN_PERCENT);
+      return;
+    }
+    if (event.key === 'End') {
+      event.preventDefault();
+      setSplitRatio(SPLIT_MAX_PERCENT);
+      return;
+    }
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      setSplitRatio(clampSplitRatio(layoutPreset.defaultSplit));
+    }
+  }, [clampSplitRatio, layoutPreset.defaultSplit]);
+
+  const resetSplitRatio = React.useCallback(() => {
+    setSplitRatio(clampSplitRatio(layoutPreset.defaultSplit));
+  }, [clampSplitRatio, layoutPreset.defaultSplit]);
 
   const highlightScale = React.useMemo(
     () => getPdfHighlightScale(selectedPatent?.patentNumber),
@@ -577,7 +700,7 @@ const PatentAnalysisDetail: React.FC = () => {
   }, []);
 
   return (
-    <div style={{ maxWidth: '1600px', margin: '0 auto', padding: '0 24px', flex: 1, width: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+    <div style={{ maxWidth: layoutPreset.maxWidth, margin: '0 auto', padding: `0 ${layoutPreset.sidePadding}px`, flex: 1, width: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', animation: 'fadeIn 0.3s ease-out', paddingBottom: 8 }}>
         
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, padding: '0 4px', flexShrink: 0 }}>
@@ -597,9 +720,18 @@ const PatentAnalysisDetail: React.FC = () => {
           </Button>
         </div>
 
-        <Row gutter={24} style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
+        <div ref={splitContainerRef} style={{ flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex' }}>
           {/* 좌측: PDF 뷰어 영역 */}
-          <Col span={12} style={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          <div
+            style={{
+              width: `calc(${splitRatio}% - 6px)`,
+              minWidth: 0,
+              height: '100%',
+              display: 'flex',
+              flexDirection: 'column',
+              overflow: 'hidden'
+            }}
+          >
             <Card 
               style={{ 
                 flex: 1,
@@ -637,10 +769,50 @@ const PatentAnalysisDetail: React.FC = () => {
                 </PdfLoader>
               </div>
             </Card>
-          </Col>
+          </div>
+
+          <div
+            role="separator"
+            aria-orientation="vertical"
+            aria-label="PDF 영역 너비 조절"
+            aria-valuemin={SPLIT_MIN_PERCENT}
+            aria-valuemax={SPLIT_MAX_PERCENT}
+            aria-valuenow={Math.round(splitRatio)}
+            tabIndex={0}
+            onMouseDown={handleSplitMouseDown}
+            onDoubleClick={resetSplitRatio}
+            onKeyDown={handleSplitKeyDown}
+            style={{
+              width: 12,
+              flexShrink: 0,
+              cursor: 'col-resize',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              outline: 'none'
+            }}
+          >
+            <div
+              style={{
+                width: 4,
+                height: 64,
+                borderRadius: 999,
+                background: isResizingSplit ? token.colorPrimary : token.colorBorder,
+                transition: 'background-color 0.2s ease'
+              }}
+            />
+          </div>
 
           {/* 우측: 데이터 분석 영역 */}
-          <Col span={12} style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+          <div
+            style={{
+              width: `calc(${100 - splitRatio}% - 6px)`,
+              minWidth: 0,
+              height: '100%',
+              display: 'flex',
+              flexDirection: 'column'
+            }}
+          >
             <Card style={{ flex: 1, borderRadius: '16px', overflow: 'hidden', display: 'flex', flexDirection: 'column' }} styles={{ body: { padding: 0, flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' } }}>
               <Tabs
                 defaultActiveKey="summary"
@@ -1067,8 +1239,8 @@ const PatentAnalysisDetail: React.FC = () => {
                 ]}
               />
             </Card>
-          </Col>
-        </Row>
+          </div>
+        </div>
       </div>
       <style>{`
         @keyframes fadeIn {

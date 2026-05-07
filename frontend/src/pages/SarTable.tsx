@@ -11,6 +11,7 @@ import {
 import { useTheme } from '../contexts/ThemeContext';
 import { mockCompounds } from '../mocks/compounds';
 import { useBoardStore } from '../store/useBoardStore';
+import { getPatentAnalysisLayoutPreset } from '../config/patentAnalysisLayout';
 import dayjs from 'dayjs';
 import { useUIStore } from '../store/useUIStore';
 import PageHeaderBreadcrumb from '../components/common/PageHeaderBreadcrumb';
@@ -47,6 +48,11 @@ const SarTable: React.FC = () => {
   const [showFilters, setShowFilters] = useState(true);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [activePreset, setActivePreset] = useState<number>(1);
+  const [viewportWidth, setViewportWidth] = useState<number>(() => {
+    if (typeof window === 'undefined') return 1920;
+    return window.innerWidth;
+  });
+  const layoutPreset = useMemo(() => getPatentAnalysisLayoutPreset(viewportWidth), [viewportWidth]);
 
   useEffect(() => {
     if (sarCompounds.length === 0) {
@@ -59,6 +65,12 @@ const SarTable: React.FC = () => {
       setSelectedRowKey(sarCompounds[0].id);
     }
   }, [sarCompounds, selectedRowKey]);
+
+  useEffect(() => {
+    const onResize = () => setViewportWidth(window.innerWidth);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
 
   // Default states for columns
   const defaultOrder = ['Compound', 'Enzyme', 'Cell', 'MS', 'PPB', 'CYP', 'hERG', 'PK'];
@@ -414,7 +426,15 @@ const SarTable: React.FC = () => {
   }, [columnOrder, activeColumns, subColumnConfig, isColorActive]);
 
   return (
-    <div className="gx-main-content">
+    <div
+      className="gx-main-content"
+      style={{
+        maxWidth: layoutPreset.maxWidth,
+        margin: '0 auto',
+        padding: `0 ${layoutPreset.sidePadding}px`,
+        width: '100%'
+      }}
+    >
       {/* Search & Filter Header (MyBoard Layout) */}
       <Card variant="borderless" className="c-card" style={{ marginBottom: 20, borderRadius: 12 }}>
         <Row gutter={[16, 16]} align="middle">

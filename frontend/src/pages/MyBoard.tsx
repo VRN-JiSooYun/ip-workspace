@@ -15,12 +15,16 @@ import RadarChart from '../components/charts/RadarChart';
 import dayjs from 'dayjs';
 import { useTheme } from '../contexts/ThemeContext';
 import { CHEMDRAW_CONFIG } from '../config/chemdraw';
+import { getPatentAnalysisLayoutPreset } from '../config/patentAnalysisLayout';
 import WhiteboardEditor from '../components/board/WhiteboardEditor';
 import ChemDrawModal from '../components/common/ChemDrawModal';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
 const { RangePicker } = DatePicker;
+const MYBOARD_SPLIT_MIN_PERCENT = 30;
+const MYBOARD_SPLIT_MAX_PERCENT = 70;
+const MYBOARD_SPLIT_DEFAULT_PERCENT = 50;
 
 const MyBoard: React.FC = () => {
   const navigate = useNavigate();
@@ -38,6 +42,20 @@ const MyBoard: React.FC = () => {
   const [assignedGroupIds, setAssignedGroupIds] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [selectedDataSources, setSelectedDataSources] = useState<string[]>(['my designs']);
+  const [viewportWidth, setViewportWidth] = useState<number>(() => {
+    if (typeof window === 'undefined') return 1920;
+    return window.innerWidth;
+  });
+  const layoutPreset = React.useMemo(() => getPatentAnalysisLayoutPreset(viewportWidth), [viewportWidth]);
+  const [splitRatio, setSplitRatio] = useState<number>(MYBOARD_SPLIT_DEFAULT_PERCENT);
+  const [isResizingSplit, setIsResizingSplit] = useState(false);
+  const splitContainerRef = React.useRef<HTMLDivElement | null>(null);
+  const splitRafRef = React.useRef<number | null>(null);
+  const splitStorageKey = 'my-board-split:group-detail';
+
+  const clampSplitRatio = React.useCallback((value: number) => {
+    return Math.min(Math.max(value, MYBOARD_SPLIT_MIN_PERCENT), MYBOARD_SPLIT_MAX_PERCENT);
+  }, []);
 
   const getViewToggleButtonStyle = (mode: 'table' | 'draw' | 'tree'): React.CSSProperties => {
     const isActive = viewMode === mode;
@@ -59,6 +77,111 @@ const MyBoard: React.FC = () => {
       setAssignedGroupIds(selectedGroupIds);
     }
   }, [isDesignModalOpen, selectedGroupIds]);
+
+  React.useEffect(() => {
+    const onResize = () => setViewportWidth(window.innerWidth);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+
+  React.useEffect(() => {
+    const raw = window.localStorage.getItem(splitStorageKey);
+    if (!raw) {
+      setSplitRatio(MYBOARD_SPLIT_DEFAULT_PERCENT);
+      return;
+    }
+    const parsed = Number(raw);
+    if (Number.isFinite(parsed)) {
+      setSplitRatio(clampSplitRatio(parsed));
+    }
+  }, [clampSplitRatio]);
+
+  React.useEffect(() => {
+    window.localStorage.setItem(splitStorageKey, String(splitRatio));
+  }, [splitRatio]);
+
+  const updateSplitRatioFromClientX = React.useCallback((clientX: number) => {
+    const container = splitContainerRef.current;
+    if (!container) return;
+    const rect = container.getBoundingClientRect();
+    if (rect.width <= 0) return;
+    const nextRatio = ((clientX - rect.left) / rect.width) * 100;
+    setSplitRatio(clampSplitRatio(nextRatio));
+  }, [clampSplitRatio]);
+
+  const stopSplitResize = React.useCallback(() => {
+    setIsResizingSplit(false);
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
+  }, []);
+
+  React.useEffect(() => {
+    if (!isResizingSplit) return;
+
+    const onMouseMove = (event: MouseEvent) => {
+      if (splitRafRef.current) {
+        window.cancelAnimationFrame(splitRafRef.current);
+      }
+      splitRafRef.current = window.requestAnimationFrame(() => {
+        updateSplitRatioFromClientX(event.clientX);
+      });
+    };
+
+    const onMouseUp = () => {
+      stopSplitResize();
+    };
+
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+
+    return () => {
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+      if (splitRafRef.current) {
+        window.cancelAnimationFrame(splitRafRef.current);
+        splitRafRef.current = null;
+      }
+    };
+  }, [isResizingSplit, stopSplitResize, updateSplitRatioFromClientX]);
+
+  const handleSplitMouseDown = React.useCallback((event: React.MouseEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    setIsResizingSplit(true);
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+  }, []);
+
+  const handleSplitKeyDown = React.useCallback((event: React.KeyboardEvent<HTMLDivElement>) => {
+    const step = 2;
+    if (event.key === 'ArrowLeft') {
+      event.preventDefault();
+      setSplitRatio(prev => clampSplitRatio(prev - step));
+      return;
+    }
+    if (event.key === 'ArrowRight') {
+      event.preventDefault();
+      setSplitRatio(prev => clampSplitRatio(prev + step));
+      return;
+    }
+    if (event.key === 'Home') {
+      event.preventDefault();
+      setSplitRatio(MYBOARD_SPLIT_MIN_PERCENT);
+      return;
+    }
+    if (event.key === 'End') {
+      event.preventDefault();
+      setSplitRatio(MYBOARD_SPLIT_MAX_PERCENT);
+      return;
+    }
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      setSplitRatio(MYBOARD_SPLIT_DEFAULT_PERCENT);
+    }
+  }, [clampSplitRatio]);
+
+  const resetSplitRatio = React.useCallback(() => {
+    setSplitRatio(MYBOARD_SPLIT_DEFAULT_PERCENT);
+  }, []);
 
   // COLUMN STATES (Order & Visibility)
   const [columnOrder, setColumnOrder] = useState<string[]>([
@@ -289,7 +412,15 @@ const MyBoard: React.FC = () => {
   };
 
   return (
-    <div className="gx-main-content">
+    <div
+      className="gx-main-content"
+      style={{
+        maxWidth: layoutPreset.maxWidth,
+        margin: '0 auto',
+        padding: `0 ${layoutPreset.sidePadding}px`,
+        width: '100%'
+      }}
+    >
       {/* Search Header */}
       <Card variant="borderless" className="c-card" style={{ marginBottom: 24, borderRadius: 12 }}>
         <Row gutter={[16, 16]} align="middle">
@@ -350,8 +481,8 @@ const MyBoard: React.FC = () => {
         )}
       </Card>
 
-      <Row gutter={[24, 24]}>
-        <Col span={10}>
+      <div ref={splitContainerRef} style={{ display: 'flex', gap: 0, minHeight: 0 }}>
+        <div style={{ width: `calc(${splitRatio}% - 6px)`, minWidth: 0 }}>
           <div className="c-card" style={{ background: token.colorBgContainer, borderRadius: 12, overflow: 'hidden' }}>
             <div style={{ padding: '16px 24px', borderBottom: `1px solid ${token.colorBorderSecondary}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <Text strong style={{ color: token.colorPrimary }}>그룹 리스트</Text>
@@ -399,9 +530,41 @@ const MyBoard: React.FC = () => {
               rowKey="id"
             />
           </div>
-        </Col>
+        </div>
 
-        <Col span={14}>
+        <div
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="MyBoard 패널 너비 조절"
+          aria-valuemin={MYBOARD_SPLIT_MIN_PERCENT}
+          aria-valuemax={MYBOARD_SPLIT_MAX_PERCENT}
+          aria-valuenow={Math.round(splitRatio)}
+          tabIndex={0}
+          onMouseDown={handleSplitMouseDown}
+          onDoubleClick={resetSplitRatio}
+          onKeyDown={handleSplitKeyDown}
+          style={{
+            width: 12,
+            flexShrink: 0,
+            cursor: 'col-resize',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            outline: 'none'
+          }}
+        >
+          <div
+            style={{
+              width: 4,
+              height: 72,
+              borderRadius: 999,
+              background: isResizingSplit ? token.colorPrimary : token.colorBorder,
+              transition: 'background-color 0.2s ease'
+            }}
+          />
+        </div>
+
+        <div style={{ width: `calc(${100 - splitRatio}% - 6px)`, minWidth: 0 }}>
           <div className="c-card" style={{ background: token.colorBgContainer, borderRadius: 12, overflow: 'hidden' }}>
             <div style={{ padding: '16px 24px', borderBottom: `1px solid ${token.colorBorderSecondary}`, display: 'flex', justifyContent: 'space-between' }}>
               <Text strong style={{ color: token.colorPrimary }}>그룹 상세 목록</Text>
@@ -527,8 +690,8 @@ const MyBoard: React.FC = () => {
               <div style={{ padding: 40, textAlign: 'center', color: token.colorTextTertiary }}>Tree View 준비 중...</div>
             )}
           </div>
-        </Col>
-      </Row>
+        </div>
+      </div>
 
       {/* Create Group Modal */}
       <Modal
