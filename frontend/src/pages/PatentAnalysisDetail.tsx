@@ -31,6 +31,7 @@ import {
   Layers,
   FileSpreadsheet
 } from 'lucide-react';
+import { Maximize2, Minimize2 } from 'lucide-react';
 import { mockPatents, mockResidues } from '../mocks/patents';
 import { mockHighlights } from '../mocks/patentHighlights';
 import { patentDetailData } from '../mocks/patentDetail_WO2026090333A1';
@@ -157,6 +158,7 @@ const PatentAnalysisDetail: React.FC = () => {
   const [pdfPageSizes, setPdfPageSizes] = React.useState<Record<number, {width: number, height: number}>>({});
   const splitContainerRef = React.useRef<HTMLDivElement | null>(null);
   const splitRafRef = React.useRef<number | null>(null);
+  const pdfViewerContainerRef = React.useRef<HTMLDivElement | null>(null);
   const splitStorageKey = React.useMemo(() => `patent-analysis-split:${id ?? 'default'}`, [id]);
   const layoutPreset = React.useMemo(() => getPatentAnalysisLayoutPreset(viewportWidth), [viewportWidth]);
 
@@ -510,19 +512,18 @@ const PatentAnalysisDetail: React.FC = () => {
       setPendingHighlight(null);
     }
 
-    // 라이브러리 utils의 setScrolledTo 또는 scrollTo를 통한 바로 이동
+    // 라이브러리 utils의 scrollTo를 통한 이동
     const utils = highlighterUtilsRef.current;
     if (utils && typeof (utils as any).scrollTo === 'function') {
       debugLog('scroll-via-utils-scrollTo', { targetPage });
       (utils as any).scrollTo(targetPage);
     } else {
-      // fallback: 페이지 DOM 요소 기준 바로 이동 (instant)
+      // fallback: 페이지 DOM 요소 기준 즉시 이동 (instant)
       const el = document.querySelector(`.page[data-page-number="${targetPage}"]`);
       if (el) {
         debugLog('scroll-instant-fallback', { targetPage });
         el.scrollIntoView({ behavior: 'instant' as ScrollBehavior, block: 'start' });
       } else {
-        // 페이지 DOM 아직 없으면 retry
         const retry = () => {
           const el2 = document.querySelector(`.page[data-page-number="${targetPage}"]`);
           if (el2) {
@@ -699,6 +700,18 @@ const PatentAnalysisDetail: React.FC = () => {
     return Array.isArray(tables) ? tables : [];
   }, []);
 
+  const fitPageToScreen = React.useCallback(() => {
+    if (splitRatio <= SPLIT_MIN_PERCENT) {
+      // 현재 최소(30%) 상태이면 기본값(50%)으로 확대
+      debugLog('fit-to-page-expand', { currentRatio: splitRatio, targetRatio: SPLIT_DEFAULT_PERCENT });
+      setSplitRatio(SPLIT_DEFAULT_PERCENT);
+    } else {
+      // 그 외 상태이면 30%로 축소 (우측 분석 영역 최대화)
+      debugLog('fit-to-page-shrink', { currentRatio: splitRatio, targetRatio: SPLIT_MIN_PERCENT });
+      setSplitRatio(SPLIT_MIN_PERCENT);
+    }
+  }, [splitRatio, debugLog]);
+
   return (
     <div style={{ maxWidth: layoutPreset.maxWidth, margin: '0 auto', padding: `0 ${layoutPreset.sidePadding}px`, flex: 1, width: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', animation: 'fadeIn 0.3s ease-out', paddingBottom: 8 }}>
@@ -729,23 +742,50 @@ const PatentAnalysisDetail: React.FC = () => {
               height: '100%',
               display: 'flex',
               flexDirection: 'column',
-              overflow: 'hidden'
+              overflow: 'hidden',
+              position: 'relative',   // 버튼 absolute 기준점
             }}
-          >
-            <Card 
-              style={{ 
+            >
+            {/* PDF Card 위에 float하는 툴바 */}
+            <div style={{
+              position: 'absolute',
+              top: 10,
+              right: 16,
+              zIndex: 10,
+              display: 'flex',
+              gap: 8,
+            }}>
+              <Button
+                icon={splitRatio <= SPLIT_MIN_PERCENT ? <Maximize2 size={16} /> : <Minimize2 size={16} />}
+                size="small"
+                onClick={fitPageToScreen}
+                title={splitRatio <= SPLIT_MIN_PERCENT ? 'PDF 영역 확대 (50%)' : 'PDF 영역 축소 (30%)'}
+                style={{
+                  borderRadius: '6px',
+                  background: token.colorBgElevated,
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+                  border: `1px solid ${token.colorBorderSecondary}`,
+                }}
+              >
+                {splitRatio <= SPLIT_MIN_PERCENT ? 'Expand' : 'Shrink'}
+              </Button>
+            </div>
+            <Card
+              style={{
                 flex: 1,
-                borderRadius: '16px', 
+                borderRadius: '16px',
                 background: token.colorBgContainer,
                 border: `1px solid ${token.colorBorderSecondary}`,
                 overflow: 'hidden',
                 position: 'relative',
                 display: 'flex',
-                flexDirection: 'column'
+                flexDirection: 'column',
+                minHeight: 0,
               }}
-              styles={{ body: { flex: 1, padding: 0, overflow: 'hidden', position: 'relative' } }}
+              styles={{ body: { flex: 1, padding: 0, overflow: 'hidden', position: 'relative', display: 'flex', flexDirection: 'column' } }}
             >
-              <div style={{ position: 'absolute', inset: 0, overflow: 'auto' }}>
+              <div style={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
+                <div ref={pdfViewerContainerRef} style={{ height: '100%', width: '100%' }}>
                 <PdfLoader document="/WO2026090333A1.pdf">
                   {(pdfDocument) => {
                     pdfDocumentRef.current = pdfDocument;
@@ -767,6 +807,7 @@ const PatentAnalysisDetail: React.FC = () => {
                     );
                   }}
                 </PdfLoader>
+                  </div>
               </div>
             </Card>
           </div>
