@@ -1,2 +1,8 @@
 @import "pdfjs-dist/web/pdf_viewer.css";
 @import "react-pdf-highlighter-plus/style/style.css";
+
+/* Override library default highlight background */
+.AreaHighlight__part {
+  background: rgba(255, 255, 255) !important;
+}
+
