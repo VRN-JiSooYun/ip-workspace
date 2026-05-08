@@ -1,7 +1,6 @@
 import React, { useEffect } from 'react';
 import { PdfHighlighter, type PdfHighlighterUtils } from 'react-pdf-highlighter-plus';
 import PatentPdfHighlightContainer from '../PatentPdfHighlightContainer';
-import PdfTip from '../Interactions/PdfTip';
 
 type PatentPdfRendererProps = {
   pdfDocument: any;
@@ -48,22 +47,6 @@ const PatentPdfRenderer: React.FC<PatentPdfRendererProps> = ({
       utilsRef={setHighlighterUtils}
       pdfScaleValue="page-width"
       style={{ height: '100%', overflow: 'auto' }}
-      onSelectionFinished={(
-        position,
-        content,
-        hideTipAndClearSelection,
-        transformSelection
-      ) => (
-        <PdfTip
-          onOpen={transformSelection}
-          onConfirm={(comment) => {
-            if (onAddHighlight) {
-              onAddHighlight({ content, position, comment });
-            }
-            hideTipAndClearSelection();
-          }}
-        />
-      )}
     >
       <PatentPdfHighlightContainer />
     </PdfHighlighter>

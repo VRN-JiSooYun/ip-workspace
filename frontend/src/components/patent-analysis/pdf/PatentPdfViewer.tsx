@@ -5,7 +5,6 @@ import type { PdfHighlighterUtils } from 'react-pdf-highlighter-plus';
 import * as pdfjs from 'pdfjs-dist';
 import pdfjsWorker from 'pdfjs-dist/build/pdf.worker.mjs?url';
 import PatentPdfRenderer from './Viewer/PatentPdfRenderer';
-import PdfSidebar from './Sidebar/PdfSidebar';
 import './patentPdfViewer.css';
 
 pdfjs.GlobalWorkerOptions.workerSrc = pdfjsWorker;
@@ -13,7 +12,7 @@ pdfjs.GlobalWorkerOptions.workerSrc = pdfjsWorker;
 type PatentPdfViewerProps = {
   document: string;
   rotation: number;
-  viewerContainerRef: React.RefObject<HTMLDivElement | null>;
+  viewerContainerRef: React.RefObject<HTMLDivElement>;
   pdfTotalPages: number;
   activeBBox: { pageNumber: number; rect: number[] } | null;
   dynamicHighlights: any[];
@@ -23,7 +22,6 @@ type PatentPdfViewerProps = {
   setHighlighterUtils: (utils: PdfHighlighterUtils) => void;
   backgroundColor: string;
   borderColor: string;
-  // New handlers for highlights
   onAddHighlight?: (highlight: any) => void;
   onDeleteHighlight?: (id: string) => void;
   onScrollToHighlight?: (highlight: any) => void;
@@ -36,15 +34,12 @@ const PatentPdfViewer: React.FC<PatentPdfViewerProps> = ({
   pdfTotalPages,
   activeBBox,
   dynamicHighlights,
-  userHighlights,
   onPdfDocumentReady,
   onPdfTotalPagesChange,
   setHighlighterUtils,
   backgroundColor,
   borderColor,
   onAddHighlight,
-  onDeleteHighlight,
-  onScrollToHighlight,
 }) => {
   return (
     <Card
@@ -66,49 +61,37 @@ const PatentPdfViewer: React.FC<PatentPdfViewerProps> = ({
           overflow: 'hidden',
           position: 'relative',
           display: 'flex',
-          flexDirection: 'row', // Change to row to accommodate sidebar
+          flexDirection: 'column',
         },
       }}
     >
-      {/* PDF View Area */}
       <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-        <div style={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
-          <div
-            ref={viewerContainerRef}
-            style={{
-              height: '100%',
-              width: '100%',
-              transform: `rotate(${rotation}deg)`,
-              transformOrigin: 'center center',
-              transition: 'transform 0.2s ease',
-            }}
-          >
-            <PdfLoader document={document}>
-              {(pdfDocument: any) => (
-                <PatentPdfRenderer
-                  pdfDocument={pdfDocument}
-                  pdfTotalPages={pdfTotalPages}
-                  activeBBox={activeBBox}
-                  dynamicHighlights={dynamicHighlights}
-                  onPdfDocumentReady={onPdfDocumentReady}
-                  onPdfTotalPagesChange={onPdfTotalPagesChange}
-                  setHighlighterUtils={setHighlighterUtils}
-                  onAddHighlight={onAddHighlight}
-                />
-              )}
-            </PdfLoader>
-          </div>
+        <div
+          ref={viewerContainerRef}
+          style={{
+            height: '100%',
+            width: '100%',
+            transform: `rotate(${rotation}deg)`,
+            transformOrigin: 'center center',
+            transition: 'transform 0.2s ease',
+          }}
+        >
+          <PdfLoader document={document}>
+            {(pdfDocument: any) => (
+              <PatentPdfRenderer
+                pdfDocument={pdfDocument}
+                pdfTotalPages={pdfTotalPages}
+                activeBBox={activeBBox}
+                dynamicHighlights={dynamicHighlights}
+                onPdfDocumentReady={onPdfDocumentReady}
+                onPdfTotalPagesChange={onPdfTotalPagesChange}
+                setHighlighterUtils={setHighlighterUtils}
+                onAddHighlight={onAddHighlight}
+              />
+            )}
+          </PdfLoader>
         </div>
       </div>
-
-      {/* Sidebar for highlights */}
-      <PdfSidebar
-        highlights={userHighlights}
-        onScrollToHighlight={(h) => onScrollToHighlight?.(h)}
-        onDeleteHighlight={(id) => onDeleteHighlight?.(id)}
-        backgroundColor={backgroundColor}
-        borderColor={borderColor}
-      />
     </Card>
   );
 };

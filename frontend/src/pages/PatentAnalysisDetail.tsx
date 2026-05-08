@@ -470,8 +470,6 @@ const PatentAnalysisDetail: React.FC = () => {
               minSplitPercent={SPLIT_MIN_PERCENT}
               borderColor={token.colorBorderSecondary}
               backgroundColor={token.colorBgContainer}
-              warningBorderColor={token.colorWarning}
-              warningBackgroundColor={token.colorWarningBg}
               textColor={token.colorText}
               searchQuery={pdfViewer.searchQuery}
               searchMatchCount={pdfViewer.matchCount.total}
@@ -481,7 +479,7 @@ const PatentAnalysisDetail: React.FC = () => {
               totalPages={pdfViewer.pdfTotalPages}
               onToggleFit={fitPageToScreen}
               onSearchQueryChange={pdfViewer.searchPdf}
-              onRunSearch={() => {}} // Library handles this via searchPdf
+              onRunSearch={() => {}}
               onClearSearch={() => pdfViewer.searchPdf('')}
               onMoveSearchMatch={(dir) => dir > 0 ? pdfViewer.findNext() : pdfViewer.findPrevious()}
               onRotateLeft={() => pdfViewer.setPdfRotation(r => (r - 90 + 360) % 360)}
@@ -1163,17 +1161,6 @@ const PatentAnalysisDetail: React.FC = () => {
         }
         .pdfViewer .page .annotationLayer {
           z-index: 4 !important;
-        }
-        .pdfViewer .page::before {
-          content: "";
-          position: absolute;
-          top: 0;
-          left: 0;
-          width: 100%;
-          height: 45px; /* 헤더 가림 */
-          background-color: white;
-          z-index: 5;
-          pointer-events: none;
         }
         .TextHighlight__part {
           background-color: rgba(248, 124, 99, 0.3) !important;
