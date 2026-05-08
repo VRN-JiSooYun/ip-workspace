@@ -33,7 +33,6 @@ import {
   Layers,
   FileSpreadsheet
 } from 'lucide-react';
-import { Maximize2, Minimize2 } from 'lucide-react';
 import { mockPatents, mockResidues } from '../mocks/patents';
 import { mockHighlights } from '../mocks/patentHighlights';
 import { patentDetailData } from '../mocks/patentDetail_WO2026090333A1';
@@ -42,33 +41,16 @@ import { getPatentAnalysisLayoutPreset } from '../config/patentAnalysisLayout';
 import { useUIStore } from '../store/useUIStore';
 import PageHeaderBreadcrumb from '../components/common/PageHeaderBreadcrumb';
 import DataCardItem from '../components/patent-analysis/DataCardItem';
-import { 
-  PdfLoader, 
-  PdfHighlighter, 
-  TextHighlight, 
-  AreaHighlight,
-  PdfHighlighterUtils,
-  useHighlightContainerContext,
-  usePdfHighlighterContext
-} from "react-pdf-highlighter-plus";
-import "react-pdf-highlighter-plus/style/style.css";
-import * as pdfjs from 'pdfjs-dist';
-
-// PDF.js worker 설정
-import pdfjsWorker from 'pdfjs-dist/build/pdf.worker.mjs?url';
-pdfjs.GlobalWorkerOptions.workerSrc = pdfjsWorker;
+import PatentPdfToolbar from '../components/patent-analysis/pdf/PatentPdfToolbar';
+import PatentPdfViewer from '../components/patent-analysis/pdf/PatentPdfViewer';
+import { usePatentPdfViewer } from '../hooks/usePatentPdfViewer';
 
 const { Title, Text, Paragraph } = Typography;
 
-const DEFAULT_PDF_HIGHLIGHT_SCALE = 0.36;
-const HIGHLIGHT_PADDING_X = 8;
-const HIGHLIGHT_PADDING_Y = 10;
 const ENABLE_HIGHLIGHT_DEBUG_LOG = true;
 const SPLIT_MIN_PERCENT = 30;
 const SPLIT_MAX_PERCENT = 70;
 const SPLIT_DEFAULT_PERCENT = 50;
-
-const getPdfHighlightScale = (_patentNumber?: string): number => DEFAULT_PDF_HIGHLIGHT_SCALE;
 
 // SVG 렌더링 컴포넌트
 const SvgRenderer: React.FC<{ svg: string; height?: number | string }> = ({ svg, height = '100%' }) => (
@@ -77,38 +59,6 @@ const SvgRenderer: React.FC<{ svg: string; height?: number | string }> = ({ svg,
     dangerouslySetInnerHTML={{ __html: svg }}
   />
 );
-
-const HighlightContainer = () => {
-  const { highlight, isScrolledTo, highlightBindings } = useHighlightContainerContext();
-  
-  const highlightId = String(highlight.id ?? '');
-  const isActive = highlightId.startsWith('active_compound_highlight');
-
-  if (highlight.type === "area") {
-    return (
-      <AreaHighlight
-        highlight={highlight}
-        isScrolledTo={isScrolledTo}
-        bounds={highlightBindings.textLayer}
-        onChange={() => {}}
-        style={{
-          border: `3px solid ${isActive ? 'rgba(255,0,0,0.9)' : 'rgba(255, 226, 143, 1)'}`,
-          backgroundColor: isActive ? 'rgba(255, 0, 0, 0.25)' : 'rgba(255, 226, 143, 0.4)',
-          pointerEvents: 'none',
-        }}
-      />
-    );
-  }
-
-  // 텍스트 하이라이트 (기본)
-  return (
-    <TextHighlight
-      highlight={highlight}
-      isScrolledTo={isScrolledTo}
-      style={{ background: "rgba(248, 124, 99, 0.3)", borderRadius: '4px' }}
-    />
-  );
-};
 
 const PatentAnalysisDetail: React.FC = () => {
   const { token } = theme.useToken();
@@ -121,17 +71,15 @@ const PatentAnalysisDetail: React.FC = () => {
   }, [id]);
 
   const { setHeaderContent } = useUIStore();
-  const highlighterUtilsRef = React.useRef<PdfHighlighterUtils | null>(null);
-  const pdfDocumentRef = React.useRef<any | null>(null);
 
   const currentHighlights = useMemo(() => {
     if (!selectedPatent) return [];
     return mockHighlights[selectedPatent.id] || [];
   }, [selectedPatent]);
-
-  const setHighlighterUtils = React.useCallback((utils: PdfHighlighterUtils) => {
-    highlighterUtilsRef.current = utils;
-  }, []);
+  const pdfViewer = usePatentPdfViewer({
+    patentNumber: selectedPatent?.patentNumber,
+    currentHighlights,
+  });
 
   const clampSplitRatio = React.useCallback((value: number) => {
     return Math.min(Math.max(value, SPLIT_MIN_PERCENT), SPLIT_MAX_PERCENT);
@@ -148,9 +96,6 @@ const PatentAnalysisDetail: React.FC = () => {
   const [previewSvg, setPreviewSvg] = React.useState<string | null>(null);
   const [previewImageSrc, setPreviewImageSrc] = React.useState<string | null>(null);
   const [previewTitle, setPreviewTitle] = React.useState<string>('이미지 미리보기');
-  const [activeBBox, setActiveBBox] = React.useState<{pageNumber: number, rect: number[]} | null>(null);
-  const [pendingHighlight, setPendingHighlight] = React.useState<{pageNumber: number, rect: number[]} | null>(null);
-  const [activeHighlightRevision, setActiveHighlightRevision] = React.useState(0);
   const [splitRatio, setSplitRatio] = React.useState<number>(SPLIT_DEFAULT_PERCENT);
   const [isResizingSplit, setIsResizingSplit] = React.useState(false);
   const [viewportWidth, setViewportWidth] = React.useState<number>(() => {
@@ -161,11 +106,8 @@ const PatentAnalysisDetail: React.FC = () => {
     if (typeof window === 'undefined') return 1080;
     return window.innerHeight;
   });
-  // PDF 페이지 실제 포인트 크기 캐시 (scale=1 viewport 기준)
-  const [pdfPageSizes, setPdfPageSizes] = React.useState<Record<number, {width: number, height: number}>>({});
   const splitContainerRef = React.useRef<HTMLDivElement | null>(null);
   const splitRafRef = React.useRef<number | null>(null);
-  const pdfViewerContainerRef = React.useRef<HTMLDivElement | null>(null);
   const splitStorageKey = React.useMemo(() => `patent-analysis-split:${id ?? 'default'}`, [id]);
   const layoutPreset = React.useMemo(() => getPatentAnalysisLayoutPreset(viewportWidth), [viewportWidth]);
   const rawDataTableScrollY = React.useMemo(() => {
@@ -285,204 +227,6 @@ const PatentAnalysisDetail: React.FC = () => {
     setSplitRatio(clampSplitRatio(layoutPreset.defaultSplit));
   }, [clampSplitRatio, layoutPreset.defaultSplit]);
 
-  const highlightScale = React.useMemo(
-    () => getPdfHighlightScale(selectedPatent?.patentNumber),
-    [selectedPatent?.patentNumber]
-  );
-
-  const ensurePdfPageSize = React.useCallback((pdfDocument: any, pageNumber: number) => {
-    if (!pageNumber || pdfPageSizes[pageNumber]) return;
-    pdfDocument.getPage(pageNumber).then((page: any) => {
-      const vp = page.getViewport({ scale: 1 });
-      setPdfPageSizes(prev => {
-        if (prev[pageNumber]) return prev;
-        return { ...prev, [pageNumber]: { width: vp.width, height: vp.height } };
-      });
-    }).catch((error: unknown) => {
-      console.warn(`Failed to get PDF page size for page ${pageNumber}`, error);
-    });
-  }, [pdfPageSizes]);
-
-  const normalizeBbox = React.useCallback((bboxRaw: number[]) => {
-    if (!Array.isArray(bboxRaw) || bboxRaw.length !== 4) return null;
-    const [rx1, ry1, rx2, ry2] = bboxRaw.map(Number);
-    if ([rx1, ry1, rx2, ry2].some(v => !Number.isFinite(v))) return null;
-
-    return {
-      x1: Math.min(rx1, rx2),
-      y1: Math.min(ry1, ry2),
-      x2: Math.max(rx1, rx2),
-      y2: Math.max(ry1, ry2),
-    };
-  }, []);
-
-  /**
-   * API bbox 픽셀 좌표 → react-pdf-highlighter-plus ScaledPosition 변환
-   *
-   * portal.html 동일 로직:
-   *   left   = x1 * scale * 0.36
-   *   top    = y1 * scale * 0.36
-   * 즉 API bbox는 (PDF포인트 / 0.36) 배 크기의 이미지 픽셀 좌표.
-   * 라이브러리는 boundingRect를 "캡처 당시 viewport 크기 대비 픽셀" 로 저장하므로
-   * 포인트 크기(scale=1)를 width/height 로 주고, 좌표를 * 0.36 변환하면 된다.
-   */
-  const bboxToPosition = React.useCallback((bboxPx: number[], pageNumber: number) => {
-    const normalized = normalizeBbox(bboxPx);
-    if (!normalized) {
-      debugLog('bbox-normalize-failed', { bboxPx, pageNumber });
-      return null;
-    }
-
-    // 페이지 실제 크기 확보 전 fallback으로 렌더링하면 첫 클릭 위치가 틀어질 수 있어 대기
-    const pageSize = pdfPageSizes[pageNumber];
-    if (!pageSize) {
-      debugLog('page-size-not-ready', { pageNumber, bboxPx });
-      return null;
-    }
-    const pw = pageSize.width;
-    const ph = pageSize.height;
-
-    const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
-    const x1 = clamp((normalized.x1 * highlightScale) - HIGHLIGHT_PADDING_X, 0, pw);
-    const x2 = clamp((normalized.x2 * highlightScale) + HIGHLIGHT_PADDING_X, 0, pw);
-    const y1 = clamp((normalized.y1 * highlightScale) - HIGHLIGHT_PADDING_Y, 0, ph);
-    const y2 = clamp((normalized.y2 * highlightScale) + HIGHLIGHT_PADDING_Y, 0, ph);
-
-    if (x2 <= x1 || y2 <= y1) {
-      debugLog('bbox-invalid-after-convert', {
-        pageNumber,
-        bboxPx,
-        converted: { x1, y1, x2, y2 },
-      });
-      return null;
-    }
-
-    debugLog('bbox-converted', {
-      pageNumber,
-      bboxPx,
-      normalized,
-      scale: highlightScale,
-      pageSize,
-      converted: { x1, y1, x2, y2, width: pw, height: ph },
-    });
-
-    return {
-      boundingRect: { x1, y1, x2, y2, width: pw, height: ph, pageNumber },
-      rects: [],
-      pageNumber,
-    };
-  }, [normalizeBbox, pdfPageSizes, highlightScale, debugLog]);
-
-  const dynamicHighlights = useMemo(() => {
-    const base = [...currentHighlights];
-
-    if (activeBBox) {
-      const pn = activeBBox.pageNumber;
-      const position = bboxToPosition(activeBBox.rect, pn);
-      if (!position) {
-        debugLog('highlight-render-skipped', {
-          activeBBox,
-          cachedPageSize: pdfPageSizes[pn],
-        });
-        return base;
-      }
-      debugLog('highlight-render', {
-        activeBBox,
-        boundingRect: position.boundingRect,
-      });
-      const h: any = {
-        id: `active_compound_highlight_${activeHighlightRevision}_${pn}`,
-        type: "area",
-        content: { text: "" },
-        position,
-        comment: { text: "", emoji: "" }
-      };
-      return [...base, h];
-    }
-    return base;
-  }, [currentHighlights, activeBBox, bboxToPosition, activeHighlightRevision, pdfPageSizes, debugLog]);
-
-  useEffect(() => {
-    if (!pendingHighlight) return;
-
-    if (pdfDocumentRef.current) {
-      ensurePdfPageSize(pdfDocumentRef.current, pendingHighlight.pageNumber);
-    }
-
-    const pageSizeReady = !!pdfPageSizes[pendingHighlight.pageNumber];
-    const pageElement = document.querySelector(`.page[data-page-number="${pendingHighlight.pageNumber}"]`) as HTMLElement | null;
-    const pageRendered = !!pageElement?.querySelector('canvas');
-
-    if (!pageSizeReady || !pageRendered) {
-      debugLog('pending-highlight-wait', {
-        pageNumber: pendingHighlight.pageNumber,
-        pageSizeReady,
-        pageRendered,
-      });
-      const timer = window.setTimeout(() => {
-        setPendingHighlight(prev => (prev ? { ...prev } : prev));
-      }, 120);
-      return () => window.clearTimeout(timer);
-    }
-
-
-    debugLog('pending-highlight-ready', {
-      pageNumber: pendingHighlight.pageNumber,
-      pageSize: pdfPageSizes[pendingHighlight.pageNumber],
-    });
-
-    setActiveBBox({
-      pageNumber: pendingHighlight.pageNumber,
-      rect: pendingHighlight.rect,
-    });
-    setActiveHighlightRevision(prev => prev + 1);
-    setPendingHighlight(null);
-  }, [pendingHighlight, pdfPageSizes, ensurePdfPageSize, debugLog]);
-
-  // 페이지 렌더가 늦게 완료되어 하이라이트 위치가 틀어지는 경우를 보정
-  // activeBBox를 일시 제거 후 재추가하여 라이브러리가 강제로 DOM을 재배치하도록 유도
-  const isRebumpingRef = React.useRef(false);
-  const lastRebumpTargetRef = React.useRef<string>('');
-
-  useEffect(() => {
-    if (!activeBBox) return;
-    if (isRebumpingRef.current) return;
-
-    // 같은 대상에 대해 이미 rebump를 수행했으면 스킵
-    const targetKey = `${activeBBox.pageNumber}_${activeBBox.rect.join(',')}`;
-    if (lastRebumpTargetRef.current === targetKey) return;
-    lastRebumpTargetRef.current = targetKey;
-
-    const savedBBox = { ...activeBBox, rect: [...activeBBox.rect] };
-    const delays = [600, 1500];
-    const timers: number[] = [];
-
-    delays.forEach((delay) => {
-      timers.push(window.setTimeout(() => {
-        debugLog('delayed-highlight-rebump', {
-          pageNumber: savedBBox.pageNumber,
-          delay,
-          action: 'remove',
-        });
-        isRebumpingRef.current = true;
-        setActiveBBox(null);
-
-        requestAnimationFrame(() => {
-          setActiveBBox(savedBBox);
-          setActiveHighlightRevision(prev => prev + 1);
-          isRebumpingRef.current = false;
-          debugLog('delayed-highlight-rebump', {
-            pageNumber: savedBBox.pageNumber,
-            delay,
-            action: 'restore',
-          });
-        });
-      }, delay));
-    });
-
-    return () => timers.forEach(t => window.clearTimeout(t));
-  }, [activeBBox?.pageNumber, activeBBox?.rect]);
-
   useEffect(() => {
     if (selectedPatent) {
       setHeaderContent(
@@ -509,49 +253,7 @@ const PatentAnalysisDetail: React.FC = () => {
   }
 
   const handleGoToPdf = (targetPage: number, bboxCoords?: any[]) => {
-    if (!targetPage) return;
-
-    debugLog('go-to-pdf', {
-      targetPage,
-      bboxCoords,
-      cachedPageSize: pdfPageSizes[targetPage],
-    });
-
-    if (pdfDocumentRef.current) {
-      ensurePdfPageSize(pdfDocumentRef.current, targetPage);
-    }
-    
-    if (bboxCoords && bboxCoords.length === 4) {
-      // 페이지 렌더/크기 준비 후 하이라이트를 표시하기 위해 pending 큐에 저장
-      setActiveBBox(null);
-      setPendingHighlight({ pageNumber: targetPage, rect: bboxCoords.map(Number) });
-    } else {
-      setActiveBBox(null);
-      setPendingHighlight(null);
-    }
-
-    // 라이브러리 utils의 scrollTo를 통한 이동
-    const utils = highlighterUtilsRef.current;
-    if (utils && typeof (utils as any).scrollTo === 'function') {
-      debugLog('scroll-via-utils-scrollTo', { targetPage });
-      (utils as any).scrollTo(targetPage);
-    } else {
-      // fallback: 페이지 DOM 요소 기준 즉시 이동 (instant)
-      const el = document.querySelector(`.page[data-page-number="${targetPage}"]`);
-      if (el) {
-        debugLog('scroll-instant-fallback', { targetPage });
-        el.scrollIntoView({ behavior: 'instant' as ScrollBehavior, block: 'start' });
-      } else {
-        const retry = () => {
-          const el2 = document.querySelector(`.page[data-page-number="${targetPage}"]`);
-          if (el2) {
-            el2.scrollIntoView({ behavior: 'instant' as ScrollBehavior, block: 'start' });
-          }
-        };
-        window.setTimeout(retry, 200);
-        window.setTimeout(retry, 600);
-      }
-    }
+    pdfViewer.handleGoToPdf(targetPage, bboxCoords);
   };
 
   const handlePageChange = (compId: string, direction: number, pages: any, bboxes?: any[]) => {
@@ -760,74 +462,49 @@ const PatentAnalysisDetail: React.FC = () => {
               height: '100%',
               display: 'flex',
               flexDirection: 'column',
-              overflow: 'hidden',
-              position: 'relative',   // 버튼 absolute 기준점
+              overflow: 'hidden'
             }}
             >
-            {/* PDF Card 위에 float하는 툴바 */}
-            <div style={{
-              position: 'absolute',
-              top: 10,
-              right: 16,
-              zIndex: 10,
-              display: 'flex',
-              gap: 8,
-            }}>
-              <Button
-                icon={splitRatio <= SPLIT_MIN_PERCENT ? <Maximize2 size={16} /> : <Minimize2 size={16} />}
-                size="small"
-                onClick={fitPageToScreen}
-                title={splitRatio <= SPLIT_MIN_PERCENT ? 'PDF 영역 확대 (50%)' : 'PDF 영역 축소 (30%)'}
-                style={{
-                  borderRadius: '6px',
-                  background: token.colorBgElevated,
-                  boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
-                  border: `1px solid ${token.colorBorderSecondary}`,
-                }}
-              >
-                {splitRatio <= SPLIT_MIN_PERCENT ? 'Expand' : 'Shrink'}
-              </Button>
-            </div>
-            <Card
-              style={{
-                flex: 1,
-                borderRadius: '16px',
-                background: token.colorBgContainer,
-                border: `1px solid ${token.colorBorderSecondary}`,
-                overflow: 'hidden',
-                position: 'relative',
-                display: 'flex',
-                flexDirection: 'column',
-                minHeight: 0,
-              }}
-              styles={{ body: { flex: 1, padding: 0, overflow: 'hidden', position: 'relative', display: 'flex', flexDirection: 'column' } }}
-            >
-              <div style={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
-                <div ref={pdfViewerContainerRef} style={{ height: '100%', width: '100%' }}>
-                <PdfLoader document="/WO2026090333A1.pdf">
-                  {(pdfDocument: any) => {
-                    pdfDocumentRef.current = pdfDocument;
-                    // 기본 페이지 + 활성 페이지는 우선 캐시
-                    ensurePdfPageSize(pdfDocument, 1);
-                    if (activeBBox?.pageNumber) {
-                      ensurePdfPageSize(pdfDocument, activeBBox.pageNumber);
-                    }
-                    return (
-                      <PdfHighlighter
-                        pdfDocument={pdfDocument}
-                        highlights={dynamicHighlights}
-                        utilsRef={setHighlighterUtils}
-                        pdfScaleValue="page-width"
-                        style={{ height: '100%', overflow: 'auto' }}
-                      >
-                        <HighlightContainer />
-                      </PdfHighlighter>
-                    );
-                  }}
-                </PdfLoader>
-                  </div>
-              </div>
-            </Card>
+            <PatentPdfToolbar
+              splitRatio={splitRatio}
+              minSplitPercent={SPLIT_MIN_PERCENT}
+              borderColor={token.colorBorderSecondary}
+              backgroundColor={token.colorBgContainer}
+              warningBorderColor={token.colorWarning}
+              warningBackgroundColor={token.colorWarningBg}
+              textColor={token.colorText}
+              searchQuery={pdfViewer.searchQuery}
+              searchMatchCount={pdfViewer.matchCount.total}
+              activeMatchIndex={pdfViewer.matchCount.current}
+              searchExecuted={pdfViewer.matchCount.total > 0}
+              currentPage={pdfViewer.pdfCurrentPage}
+              totalPages={pdfViewer.pdfTotalPages}
+              onToggleFit={fitPageToScreen}
+              onSearchQueryChange={pdfViewer.searchPdf}
+              onRunSearch={() => {}} // Library handles this via searchPdf
+              onClearSearch={() => pdfViewer.searchPdf('')}
+              onMoveSearchMatch={(dir) => dir > 0 ? pdfViewer.findNext() : pdfViewer.findPrevious()}
+              onRotateLeft={() => pdfViewer.setPdfRotation(r => (r - 90 + 360) % 360)}
+              onRotateRight={() => pdfViewer.setPdfRotation(r => (r + 90) % 360)}
+            />
+
+            <PatentPdfViewer
+              document="/WO2026090333A1.pdf"
+              rotation={pdfViewer.pdfRotation}
+              viewerContainerRef={pdfViewer.pdfViewerContainerRef}
+              pdfTotalPages={pdfViewer.pdfTotalPages}
+              activeBBox={pdfViewer.activeBBox}
+              dynamicHighlights={pdfViewer.dynamicHighlights}
+              userHighlights={pdfViewer.userHighlights}
+              onPdfDocumentReady={pdfViewer.setPdfDocument}
+              onPdfTotalPagesChange={pdfViewer.setPdfTotalPages}
+              setHighlighterUtils={pdfViewer.setHighlighterUtils}
+              backgroundColor={token.colorBgContainer}
+              borderColor={token.colorBorderSecondary}
+              onAddHighlight={pdfViewer.addHighlight}
+              onDeleteHighlight={pdfViewer.deleteHighlight}
+              onScrollToHighlight={pdfViewer.scrollToHighlight}
+            />
           </div>
 
           <div
@@ -1447,7 +1124,45 @@ const PatentAnalysisDetail: React.FC = () => {
           to { opacity: 1; transform: translateY(0); }
         }
         .pdfViewer .page {
-          position: relative;
+          position: relative !important;
+          margin: 1px auto 10px auto !important;
+          display: block !important;
+          box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+        }
+        .pdfViewer .page .canvasWrapper,
+        .pdfViewer .page .textLayer,
+        .pdfViewer .page .Highlight__container,
+        .pdfViewer .page .PdfHighlighter__highlight-layer,
+        .pdfViewer .page .annotationLayer {
+          position: absolute !important;
+          top: 0 !important;
+          left: 0 !important;
+          width: 100% !important;
+          height: 100% !important;
+        }
+        .pdfViewer .page .canvasWrapper {
+          z-index: 1 !important;
+        }
+        .pdfViewer .page .textLayer {
+          z-index: 2 !important;
+          opacity: 1 !important;
+          mix-blend-mode: multiply;
+        }
+        .pdfViewer .page .textLayer > span,
+        .pdfViewer .page .textLayer > div {
+          position: absolute !important;
+          white-space: pre !important;
+          cursor: text !important;
+          transform-origin: 0% 0% !important;
+          color: transparent !important;
+        }
+        .pdfViewer .page .Highlight__container,
+        .pdfViewer .page .PdfHighlighter__highlight-layer {
+          z-index: 3 !important;
+          pointer-events: none;
+        }
+        .pdfViewer .page .annotationLayer {
+          z-index: 4 !important;
         }
         .pdfViewer .page::before {
           content: "";
@@ -1487,7 +1202,11 @@ const PatentAnalysisDetail: React.FC = () => {
           overflow: hidden !important;
           width: 100% !important;
           max-width: 100% !important;
-          opacity: 0.2;
+          opacity: 1 !important;
+        }
+        .textLayer span,
+        .textLayer br {
+          color: transparent;
         }
         .pdfViewer {
           overflow-x: hidden !important;

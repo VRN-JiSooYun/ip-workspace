@@ -156,12 +156,12 @@ const DataCardItem: React.FC<DataCardItemProps> = ({
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
         <div style={{ flex: 1 }}>
           <Text strong style={{ fontSize: 13 }}>
-            {title}
+            {typeof title === 'object' ? JSON.stringify(title) : String(title ?? '')}
           </Text>
           {subtitle && (
             <div style={{ marginTop: 2 }}>
               <Text type="secondary" style={{ fontSize: 11 }}>
-                {subtitle}
+                {typeof subtitle === 'object' ? JSON.stringify(subtitle) : String(subtitle ?? '')}
               </Text>
             </div>
           )}
@@ -173,7 +173,7 @@ const DataCardItem: React.FC<DataCardItemProps> = ({
             <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
               {tags.map((tag, idx) => (
                 <Tag key={idx} color={tag.color} style={{ fontSize: 11, margin: 0 }}>
-                  {tag.label}
+                  {typeof tag.label === 'object' ? JSON.stringify(tag.label) : String(tag.label ?? '')}
                 </Tag>
               ))}
             </div>
@@ -227,8 +227,8 @@ const DataCardItem: React.FC<DataCardItemProps> = ({
 
       {/* 푸터 텍스트 */}
       {footerText && (
-        <Text type="secondary" style={{ fontSize: 11 }} ellipsis={{ tooltip: footerText }}>
-          {footerText}
+        <Text type="secondary" style={{ fontSize: 11 }} ellipsis={{ tooltip: typeof footerText === 'object' ? JSON.stringify(footerText) : String(footerText ?? '') }}>
+          {typeof footerText === 'object' ? JSON.stringify(footerText) : String(footerText ?? '')}
         </Text>
       )}
 

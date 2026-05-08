@@ -1,0 +1,65 @@
+# PDF Reader Component Refactor Report
+
+## Summary
+- `PatentAnalysisDetail.tsx`에 집중되어 있던 PDF 리더 렌더링, 툴바 UI, 검색/하이라이트 상태 관리를 별도 컴포넌트와 훅으로 분리했다.
+- `react-pdf-highlighter-plus` 연동 코드를 재사용 가능한 구조로 정리해 이후 다른 PDF 화면에서도 동일한 뷰어를 재활용할 수 있도록 했다.
+
+## Added Files
+- `frontend/src/hooks/usePatentPdfViewer.ts`
+  - PDF 검색 상태, 텍스트 레이어 하이라이트 동기화, 페이지 이동, 회전을 관리하는 전용 훅
+- `frontend/src/components/patent-analysis/pdf/PatentPdfHighlightContainer.tsx`
+  - 활성 compound/search 하이라이트 스타일을 렌더링하는 전용 컨테이너
+- `frontend/src/components/patent-analysis/pdf/PatentPdfToolbar.tsx`
+  - 검색, 매치 이동, 회전, PDF 영역 확장/축소를 담당하는 툴바 UI
+- `frontend/src/components/patent-analysis/pdf/PatentPdfViewer.tsx`
+  - `PdfLoader`와 `PdfHighlighter`를 감싸는 뷰어 컴포넌트
+
+## Updated File
+- `frontend/src/pages/PatentAnalysisDetail.tsx`
+  - 페이지 내부 PDF 관련 구현을 새 훅/컴포넌트 호출 구조로 대체
+  - 카드/테이블 클릭 시 페이지 이동 로직은 유지하면서 실제 PDF 이동은 `usePatentPdfViewer`로 위임
+
+## Refactor Intent
+- 페이지 컴포넌트의 책임 축소
+- PDF 기능별 변경 범위 축소
+- 향후 PDF 리더 기능 확장 시 툴바/뷰어/상태 로직을 독립적으로 수정 가능하도록 구조 개선
+
+## Notes
+- 빌드/실행 검증은 수행하지 않았다. 저장소 가이드에 따라 사용자가 Docker/Bun 환경에서 확인하는 전제를 유지했다.
+
+## 2026-05-08 Follow-up: PDF Search Rebuild
+- 기존 검색은 `PdfHighlighterUtils.search`, PDF.js event bus, `.textLayer .highlight` DOM에 의존해 렌더 타이밍에 따라 매치/하이라이트가 불안정했다.
+- `usePatentPdfViewer.ts`에서 검색을 처음부터 다시 구현했다.
+- 새 방식은 렌더된 `.textLayer span`을 직접 인덱싱하고, 검색 매치의 DOM `Range` 위치를 계산해 디버그 좌표와 활성 매치 정보를 만든다.
+- 초기 검색 하이라이트는 텍스트 레이어 span에 전용 DOM class를 적용하는 방식으로 실험했으나, 후속 수정에서 highlighter 레이어 기반 `AreaHighlight` 방식으로 교체했다.
+- `highlightAll`은 전체 매치를 표시하고, `Prev`/`Next`는 저장된 매치 인덱스를 기준으로 활성 하이라이트와 스크롤 위치를 갱신한다.
+- 페이지 스타일에서 더 이상 사용하지 않는 `.textLayer .highlight`, `.pdf-search-match` CSS를 제거했다.
+
+## 2026-05-08 Follow-up: Search Render Timing Fix
+- 검색 이동도 key compound 이동과 동일하게 `highlighterUtils.scrollTo(pageNumber)`를 우선 사용하도록 변경했다.
+- 검색 매치 인덱싱은 `.textLayer span`만으로 판단하지 않고, 해당 페이지의 canvas가 생성된 뒤에만 매치로 인정한다.
+- PDF 렌더 mutation 감지는 text layer뿐 아니라 canvas 추가/크기 변경도 포함하도록 확장했다.
+
+## 2026-05-08 Follow-up: Search Highlight Layer Alignment
+- 검색 좌표 계산 결과는 맞지만 하이라이트가 보이지 않는 문제를 확인해, text layer DOM class 방식에서 `react-pdf-highlighter-plus`의 `AreaHighlight` 렌더링 방식으로 되돌렸다.
+- 검색 결과도 key compound 하이라이트와 동일하게 `position.boundingRect`, `rects`, `pageNumber`를 가진 highlight 데이터로 변환해 `dynamicHighlights`에 넣는다.
+- 좌표 변환 기준은 text layer보다 안정적인 canvas rect를 우선 사용하도록 변경했다. canvas/page 크기가 준비되지 않은 페이지는 하이라이트 생성을 보류한다.
+- canvas가 아직 없는 페이지를 매번 콘솔에 출력하던 `pdf-search-skip-page-until-canvas` 로그는 제거했다.
+- PDF 하이라이트 내부 디버그 콘솔 출력은 기본 비활성화했다. UI의 활성 매치 디버그 표시는 그대로 유지한다.
+
+## 2026-05-08 Follow-up: Search Match Count Stabilization
+- 검색어가 text layer에서 발견됐는데도 page size/좌표 변환 준비 전이라는 이유로 match 자체가 0개가 되는 문제를 수정했다.
+- 이제 검색 텍스트 매치는 먼저 집계하고, `AreaHighlight`에 필요한 `position`은 canvas/page size가 준비되는 즉시 재계산해 붙인다.
+- PDF.js text span 사이에 무조건 공백을 삽입하던 로직을 제거하고, 실제 줄바꿈/시각적 간격이 있을 때만 synthetic space를 추가하도록 변경했다.
+
+## 2026-05-08 Follow-up: Search Highlight Trace Logs
+- 검색 하이라이트가 보이지 않는 원인 확인을 위해 `[PDFSearchHighlightTrace]` 전용 콘솔 로그를 추가했다.
+- 로그 단계는 page size 요청/준비, match 좌표 변환 결과, active match 선택, `dynamicHighlights` 주입/스킵, `PatentPdfHighlightContainer` 렌더링이다.
+- UI 활성 매치 로그에도 `positionStatus`와 `positionReason`을 추가해 `scaled` 좌표가 없는 이유를 바로 확인할 수 있게 했다.
+
+## 2026-05-08 Follow-up: Search Reference Geometry Fix
+- `invalid-scaled-rect` 원인은 검색 span의 `viewportRect.x`가 canvas 기준 너비 밖에 있어 scaled 변환이 zero/outside rect로 판정되는 것이었다.
+- 좌표 변환 기준을 canvas 고정에서 text layer 우선으로 변경했다. 다만 `scrollWidth` 기반 확장은 PDF.js span transform 때문에 폭이 과도하게 커져 좌표가 왼쪽으로 압축될 수 있어 제거했다.
+- 현재는 `textLayer` 또는 합리적인 범위의 `textLayer-span-extent`를 우선 사용하고, 필요 시 `canvas`, `page`를 fallback으로 사용한다.
+- UI/콘솔 로그에 `referenceSource`를 추가해 현재 변환 기준이 `textLayer`, `textLayer-span-extent`, `canvas`, `page` 중 무엇인지 확인할 수 있게 했다.
+- canvas가 없는 페이지에 대해서는 검색 중 page size 요청을 하지 않도록 정리해, 매치 없는 전체 페이지의 `page-size-request` 로그가 쏟아지지 않게 했다.
