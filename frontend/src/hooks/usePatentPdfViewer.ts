@@ -402,7 +402,7 @@ export const usePatentPdfViewer = ({
     lastRebumpTargetRef.current = targetKey;
 
     const savedBBox = { ...activeBBox, rect: [...activeBBox.rect] };
-    const timers = [600, 1500].map((delay) => window.setTimeout(() => {
+    const timers = [600].map((delay) => window.setTimeout(() => {
       const position = bboxToPosition(savedBBox.rect, savedBBox.pageNumber);
       if (!position) return;
 
