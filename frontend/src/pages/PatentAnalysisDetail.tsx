@@ -609,7 +609,7 @@ const PatentAnalysisDetail: React.FC = () => {
                   setActiveTab(key);
                   if (key !== 'raw-data') setRGroupFilter(null);
                 }}
-                destroyInactiveTabPane
+                destroyOnHidden
                 style={{ height: '100%', display: 'flex', flexDirection: 'column' }}
                 tabBarStyle={{ padding: '0 24px', margin: 0, height: 50, flexShrink: 0 }}
                 items={[
