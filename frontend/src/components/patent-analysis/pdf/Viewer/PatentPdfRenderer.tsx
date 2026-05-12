@@ -46,7 +46,6 @@ const PatentPdfRenderer: React.FC<PatentPdfRendererProps> = ({
       highlights={dynamicHighlights}
       utilsRef={setHighlighterUtils}
       pdfScaleValue="page-width"
-      style={{ position: 'absolute', inset: 0, overflow: 'auto' }}
     >
       <PatentPdfHighlightContainer />
     </PdfHighlighter>

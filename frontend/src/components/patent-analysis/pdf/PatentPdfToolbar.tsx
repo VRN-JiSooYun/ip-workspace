@@ -24,6 +24,7 @@ type PatentPdfToolbarProps = {
   onRotateLeft: () => void;
   onRotateRight: () => void;
   onGoToPage?: (page: number) => void;
+  onPageStep?: (step: number) => void;
 };
 
 const PatentPdfToolbar: React.FC<PatentPdfToolbarProps> = ({
@@ -46,6 +47,7 @@ const PatentPdfToolbar: React.FC<PatentPdfToolbarProps> = ({
   onRotateLeft,
   onRotateRight,
   onGoToPage,
+  onPageStep,
 }) => {
   const [pageInput, setPageInput] = React.useState<number | null>(currentPage);
 
@@ -114,6 +116,12 @@ const PatentPdfToolbar: React.FC<PatentPdfToolbarProps> = ({
       </Button>
 
       <Space size={4} style={{ marginLeft: 'auto' }}>
+        <Button size="small" onClick={() => onPageStep?.(-1)} disabled={!totalPages}>
+          Page Up
+        </Button>
+        <Button size="small" onClick={() => onPageStep?.(1)} disabled={!totalPages}>
+          Page Down
+        </Button>
         <Button size="small" icon={<RotateCcw size={14} />} onClick={onRotateLeft} title="좌측으로 회전" />
         <Button size="small" icon={<RotateCw size={14} />} onClick={onRotateRight} title="우측으로 회전" />
         <InputNumber

@@ -266,4 +266,3 @@ const DataCardItem: React.FC<DataCardItemProps> = ({
 };
 
 export default DataCardItem;
-
