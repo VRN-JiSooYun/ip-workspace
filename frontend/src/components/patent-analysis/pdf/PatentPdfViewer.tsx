@@ -3,11 +3,14 @@ import { Card } from 'antd';
 import { PdfLoader } from 'react-pdf-highlighter-plus';
 import type { PdfHighlighterUtils } from 'react-pdf-highlighter-plus';
 import * as pdfjs from 'pdfjs-dist';
-import pdfjsWorker from 'pdfjs-dist/build/pdf.worker.mjs?url';
+import pdfjsWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import PatentPdfRenderer from './Viewer/PatentPdfRenderer';
 import './patentPdfViewer.css';
 
 pdfjs.GlobalWorkerOptions.workerSrc = pdfjsWorker;
+if (typeof window !== 'undefined' && (window as any).pdfjsLib?.GlobalWorkerOptions) {
+  (window as any).pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker;
+}
 
 type PatentPdfViewerProps = {
   document: string;
