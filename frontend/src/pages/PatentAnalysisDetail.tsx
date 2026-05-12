@@ -31,7 +31,8 @@ import {
   Pin,
   Table as TableIcon,
   Layers,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Copy
 } from 'lucide-react';
 import { mockPatents, mockResidues } from '../mocks/patents';
 import { mockHighlights } from '../mocks/patentHighlights';
@@ -47,7 +48,7 @@ import { usePatentPdfViewer } from '../hooks/usePatentPdfViewer';
 
 const { Title, Text, Paragraph } = Typography;
 
-const ENABLE_HIGHLIGHT_DEBUG_LOG = true;
+const ENABLE_HIGHLIGHT_DEBUG_LOG = false;
 const SPLIT_MIN_PERCENT = 30;
 const SPLIT_MAX_PERCENT = 70;
 const SPLIT_DEFAULT_PERCENT = 50;
@@ -101,10 +102,13 @@ const PatentAnalysisDetail: React.FC = () => {
   const [activeCompId, setActiveCompId] = React.useState<string | null>(null);
   const [rawDataView, setRawDataView] = React.useState<'table' | 'card'>('table');
   const [cleanDataView, setCleanDataView] = React.useState<'table' | 'card'>('table');
+  const [activeTab, setActiveTab] = React.useState<string>('summary');
+  const [rGroupFilter, setRGroupFilter] = React.useState<{ key: string; smiles: string } | null>(null);
   const [previewSvg, setPreviewSvg] = React.useState<string | null>(null);
   const [previewImageSrc, setPreviewImageSrc] = React.useState<string | null>(null);
   const [previewTitle, setPreviewTitle] = React.useState<string>('이미지 미리보기');
   const [splitRatio, setSplitRatio] = React.useState<number>(SPLIT_DEFAULT_PERCENT);
+  const [thumbnailCollapsed, setThumbnailCollapsed] = React.useState(true);
   const [isResizingSplit, setIsResizingSplit] = React.useState(false);
   const [viewportWidth, setViewportWidth] = React.useState<number>(() => {
     if (typeof window === 'undefined') return 1920;
@@ -416,6 +420,39 @@ const PatentAnalysisDetail: React.FC = () => {
     setPreviewTitle(title);
   };
 
+  const copySmiles = (smiles: string) => {
+    navigator.clipboard.writeText(smiles)
+      .then(() => message.success('SMILES 복사 완료'))
+      .catch(() => message.error('복사 실패'));
+  };
+
+  /** 돋보기 + copy 버튼 세트 (smiles가 있을 때만 copy 표시) */
+  const renderSvgActionButtons = (opts: { svg: string; title: string; smiles?: string; iconSize?: number }) => {
+    const sz = opts.iconSize ?? 14;
+    return (
+      <div style={{ position: 'absolute', right: 4, top: 4, zIndex: 2, display: 'flex', gap: 2 }}>
+        {opts.smiles && (
+          <Tooltip title={`SMILES: ${opts.smiles}`}>
+            <Button
+              size="small"
+              type="text"
+              icon={<Copy size={sz} />}
+              onClick={(e) => { e.stopPropagation(); copySmiles(opts.smiles!); }}
+              style={{ background: 'rgba(255,255,255,0.8)' }}
+            />
+          </Tooltip>
+        )}
+        <Button
+          size="small"
+          type="text"
+          icon={<Search size={sz} />}
+          onClick={(e) => { e.stopPropagation(); openSvgPreview(opts.svg, opts.title); }}
+          style={{ background: 'rgba(255,255,255,0.8)' }}
+        />
+      </div>
+    );
+  };
+
   const openImagePreview = (src: string, title: string) => {
     setPreviewSvg(null);
     setPreviewImageSrc(src);
@@ -497,6 +534,8 @@ const PatentAnalysisDetail: React.FC = () => {
                 );
                 handleGoToPdf(next);
               }}
+              thumbnailCollapsed={thumbnailCollapsed}
+              onToggleThumbnail={() => setThumbnailCollapsed(prev => !prev)}
             />
 
             <PatentPdfViewer
@@ -517,6 +556,7 @@ const PatentAnalysisDetail: React.FC = () => {
               onAddHighlight={pdfViewer.addHighlight}
               onDeleteHighlight={pdfViewer.deleteHighlight}
               onScrollToHighlight={pdfViewer.scrollToHighlight}
+              thumbnailCollapsed={thumbnailCollapsed}
             />
           </div>
 
@@ -564,7 +604,12 @@ const PatentAnalysisDetail: React.FC = () => {
           >
             <Card style={{ flex: 1, borderRadius: '16px', overflow: 'hidden', display: 'flex', flexDirection: 'column' }} styles={{ body: { padding: 0, flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' } }}>
               <Tabs
-                defaultActiveKey="summary"
+                activeKey={activeTab}
+                onChange={(key) => {
+                  setActiveTab(key);
+                  if (key !== 'raw-data') setRGroupFilter(null);
+                }}
+                destroyInactiveTabPane
                 style={{ height: '100%', display: 'flex', flexDirection: 'column' }}
                 tabBarStyle={{ padding: '0 24px', margin: 0, height: 50, flexShrink: 0 }}
                 items={[
@@ -586,13 +631,7 @@ const PatentAnalysisDetail: React.FC = () => {
                                 <Col span={12} md={6}>
                                   <Card size="small" type="inner" title="Parent Scaffold">
                                     <div style={{ width: '100%', height: 120, background: '#fff', border: `1px solid ${token.colorBorderSecondary}`, borderRadius: '8px', position: 'relative' }}>
-                                      <Button
-                                        size="small"
-                                        type="text"
-                                        icon={<Search size={14} />}
-                                        onClick={() => openSvgPreview(patentDetailData.analysis.parentScaffold.svg, 'Parent Scaffold')}
-                                        style={{ position: 'absolute', right: 4, top: 4, zIndex: 2, background: 'rgba(255,255,255,0.8)' }}
-                                      />
+                                      {renderSvgActionButtons({ svg: patentDetailData.analysis.parentScaffold.svg, title: 'Parent Scaffold', smiles: patentDetailData.analysis.parentScaffold.smiles })}
                                       <SvgRenderer svg={patentDetailData.analysis.parentScaffold.svg} />
                                     </div>
                                   </Card>
@@ -601,13 +640,7 @@ const PatentAnalysisDetail: React.FC = () => {
                                   <Col span={12} md={6} key={rankData.rank}>
                                     <Card size="small" type="inner" title={<><Badge count={rankData.rank} style={{ backgroundColor: rankData.rank === 1 ? '#f5222d' : rankData.rank === 2 ? '#fa8c16' : '#d9d9d9' }} /> Rank {rankData.rank}</>}>
                                       <div style={{ width: '100%', height: 120, background: '#fff', border: `1px solid ${token.colorBorderSecondary}`, borderRadius: '8px', position: 'relative' }}>
-                                        <Button
-                                          size="small"
-                                          type="text"
-                                          icon={<Search size={14} />}
-                                          onClick={() => openSvgPreview(rankData.svg, `Scaffold Rank ${rankData.rank}`)}
-                                          style={{ position: 'absolute', right: 4, top: 4, zIndex: 2, background: 'rgba(255,255,255,0.8)' }}
-                                        />
+                                        {renderSvgActionButtons({ svg: rankData.svg, title: `Scaffold Rank ${rankData.rank}`, smiles: rankData.smiles })}
                                         <SvgRenderer svg={rankData.svg} />
                                       </div>
                                       <div style={{ marginTop: 8, textAlign: 'center' }}>
@@ -627,18 +660,11 @@ const PatentAnalysisDetail: React.FC = () => {
                                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
                                   <Title level={5} style={{ marginTop: 0, marginBottom: 8, color: token.colorPrimary }}>Scaffold Rank 1</Title>
                                   <div style={{ width: 200, height: 200, background: '#fff', border: `1px solid ${token.colorBorderSecondary}`, borderRadius: '8px', padding: 8, position: 'relative' }}>
-                                    <Button
-                                      size="small"
-                                      type="text"
-                                      icon={<Search size={14} />}
-                                      onClick={() => openSvgPreview(
-                                        patentDetailData.analysis.scaffoldRanks && patentDetailData.analysis.scaffoldRanks.length > 0
-                                          ? patentDetailData.analysis.scaffoldRanks[0].svg
-                                          : patentDetailData.analysis.parentScaffold.svg,
-                                        'Functional Group - Scaffold Rank 1'
-                                      )}
-                                      style={{ position: 'absolute', right: 4, top: 4, zIndex: 2, background: 'rgba(255,255,255,0.8)' }}
-                                    />
+                                    {renderSvgActionButtons({
+                                      svg: patentDetailData.analysis.scaffoldRanks?.[0]?.svg ?? patentDetailData.analysis.parentScaffold.svg,
+                                      title: 'Functional Group - Scaffold Rank 1',
+                                      smiles: patentDetailData.analysis.scaffoldRanks?.[0]?.smiles ?? patentDetailData.analysis.parentScaffold.smiles,
+                                    })}
                                     <SvgRenderer svg={patentDetailData.analysis.scaffoldRanks && patentDetailData.analysis.scaffoldRanks.length > 0 ? patentDetailData.analysis.scaffoldRanks[0].svg : patentDetailData.analysis.parentScaffold.svg} />
                                   </div>
                                 </div>
@@ -652,17 +678,21 @@ const PatentAnalysisDetail: React.FC = () => {
                                         {group.variants.map((v: any, idx: number) => (
                                           <Card key={idx} size="small" type="inner" style={{ width: 140 }}>
                                             <div style={{ width: '100%', height: 80, position: 'relative' }}>
-                                              <Button
-                                                size="small"
-                                                type="text"
-                                                icon={<Search size={12} />}
-                                                onClick={() => openSvgPreview(v.svg, `${group.id} Variant ${idx + 1}`)}
-                                                style={{ position: 'absolute', right: 2, top: 2, zIndex: 2, background: 'rgba(255,255,255,0.8)' }}
-                                              />
+                                              {renderSvgActionButtons({ svg: v.svg, title: `${group.id} Variant ${idx + 1}`, smiles: v.smiles, iconSize: 12 })}
                                               <SvgRenderer svg={v.svg} />
                                             </div>
                                             <div style={{ textAlign: 'center', marginTop: 4 }}>
-                                              <Text type="secondary">Freq: {v.frequency}</Text>
+                                              <Button
+                                                type="link"
+                                                size="small"
+                                                style={{ fontSize: 12, padding: 0 }}
+                                                onClick={() => {
+                                                  setRGroupFilter({ key: group.id, smiles: v.smiles });
+                                                  setActiveTab('raw-data');
+                                                }}
+                                              >
+                                                Freq: {v.frequency}
+                                              </Button>
                                             </div>
                                           </Card>
                                         ))}
@@ -699,6 +729,7 @@ const PatentAnalysisDetail: React.FC = () => {
                                         isActive={activeCompId === compKey}
                                         onClick={() => handleCompoundCardClick(comp, comp.ranking)}
                                         onPreview={() => openSvgPreview(comp.compound_svg, `추천 Key Compound - ${comp.compound_id}`)}
+                                        smiles={comp.smiles}
                                         pagination={
                                           pageArr.length > 0
                                             ? {
@@ -777,10 +808,22 @@ const PatentAnalysisDetail: React.FC = () => {
                             <Button size="small" type="primary">Filter</Button>
                           </Space>
                         </div>
+                        {rGroupFilter && (
+                          <div style={{ marginBottom: 12, padding: '8px 12px', background: token.colorPrimaryBg, borderRadius: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <Text style={{ fontSize: 13 }}>
+                              필터: <Tag color="blue">{rGroupFilter.key}</Tag> = <Tag>{rGroupFilter.smiles}</Tag>
+                            </Text>
+                            <Button size="small" type="text" danger onClick={() => setRGroupFilter(null)}>해제</Button>
+                          </div>
+                        )}
                         {rawDataView === 'table' ? (
                           (() => {
                             // patentResultRaw에서 실제 patent_compound 데이터 사용
-                            const rawPc: any[] = patentResult.patent_compound ?? [];
+                            const rawPcAll: any[] = patentResult.patent_compound ?? [];
+                            const rawPc = (rGroupFilter
+                              ? rawPcAll.filter((c: any) => c.r_groups?.[rGroupFilter.key] === rGroupFilter.smiles)
+                              : rawPcAll
+                            ).map((c: any, idx: number) => ({ ...c, __rowIdx: idx }));
                             // 전체 r_group key 수집 (R1~R7 등 동적)
                             const allRGroupKeys = Array.from(
                               new Set(rawPc.flatMap((c: any) => Object.keys(c.r_groups ?? {})))
@@ -803,6 +846,7 @@ const PatentAnalysisDetail: React.FC = () => {
                                       className="raw-data-svg-frame"
                                       style={{ width: 140, height: 100, background: '#fff', border: `1px solid ${token.colorBorderSecondary}`, borderRadius: 6, position: 'relative', cursor: svg ? 'pointer' : 'default', overflow: 'hidden', boxSizing: 'border-box', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                                       onClick={() => { if (svg) openSvgPreview(svg, `${key}: ${smiles}`); }}>
+                                      {svg && renderSvgActionButtons({ svg, title: `${key}: ${smiles}`, smiles, iconSize: 11 })}
                                       {svg ? (
                                         <SvgRenderer svg={svg} height={92} />
                                       ) : (
@@ -858,9 +902,7 @@ const PatentAnalysisDetail: React.FC = () => {
                                         style={{ width: 180, height: 130, background: '#fff', border: `2px solid ${activeCompId === compKey ? 'red' : token.colorBorderSecondary}`, borderRadius: 8, position: 'relative', cursor: 'pointer', overflow: 'hidden', boxSizing: 'border-box', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                                         onClick={() => { setActiveCompId(compKey); handleGoToPdf(pageArr[curIdx], bboxArr[curIdx]); }}
                                       >
-                                        <Button size="small" type="text" icon={<Search size={11} />}
-                                          onClick={(e) => { e.stopPropagation(); openSvgPreview(record.compound_svg, `Compound ${record.compound_id}`); }}
-                                          style={{ position: 'absolute', right: 2, top: 2, zIndex: 2, background: 'rgba(255,255,255,0.85)', padding: '0 2px' }} />
+                                        {renderSvgActionButtons({ svg: record.compound_svg, title: `Compound ${record.compound_id}`, smiles: record.smiles, iconSize: 11 })}
                                         <SvgRenderer svg={record.compound_svg} height={120} />
                                       </div>
                                       <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -884,9 +926,7 @@ const PatentAnalysisDetail: React.FC = () => {
                                     style={{ width: 170, height: 130, background: '#fff', border: `1px solid ${token.colorBorderSecondary}`, borderRadius: 8, cursor: 'pointer', position: 'relative', overflow: 'hidden', boxSizing: 'border-box', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                                     onClick={() => openSvgPreview(record.scaffold_svg, `Scaffold - ${record.compound_id}`)}
                                   >
-                                    <Button size="small" type="text" icon={<Search size={11} />}
-                                      onClick={(e) => { e.stopPropagation(); openSvgPreview(record.scaffold_svg, `Scaffold - ${record.compound_id}`); }}
-                                      style={{ position: 'absolute', right: 2, top: 2, zIndex: 2, background: 'rgba(255,255,255,0.85)', padding: '0 2px' }} />
+                                    {renderSvgActionButtons({ svg: record.scaffold_svg, title: `Scaffold - ${record.compound_id}`, smiles: record.scaffold_smiles, iconSize: 11 })}
                                     <SvgRenderer svg={record.scaffold_svg} height={120} />
                                   </div>
                                 ) : (
@@ -933,7 +973,7 @@ const PatentAnalysisDetail: React.FC = () => {
                                   className="raw-data-embodiment-table"
                                   dataSource={rawPc}
                                   size="small"
-                                  rowKey={(record: any, idx?: number) => `${record.id}-${idx ?? 0}`}
+                                  rowKey={(record: any) => `${record.id}-${record.__rowIdx}`}
                                   scroll={{ x: 'max-content', y: rawDataTableScrollY }}
                                   columns={columns}
                                   rowClassName={(record: any) => activeCompId === String(record.id) ? 'raw-data-row-active' : ''}
@@ -958,7 +998,10 @@ const PatentAnalysisDetail: React.FC = () => {
 
                         ) : (
                           <Row gutter={[16, 16]}>
-                            {(patentResult.patent_compound ?? []).map((comp: any, idx: number) => {
+                            {(rGroupFilter
+                              ? (patentResult.patent_compound ?? []).filter((c: any) => c.r_groups?.[rGroupFilter.key] === rGroupFilter.smiles)
+                              : (patentResult.patent_compound ?? [])
+                            ).map((comp: any, idx: number) => {
                               const compKey = String(comp.id);
                               const pageArr: number[] = Array.isArray(comp.page) ? comp.page : [];
                               const bboxArr: any[] = Array.isArray(comp.bbox) ? comp.bbox : [];
@@ -984,6 +1027,7 @@ const PatentAnalysisDetail: React.FC = () => {
                                       if (pageArr.length > 0) handleGoToPdf(pageArr[curIdx], bboxArr[curIdx]);
                                     }}
                                     onPreview={() => openSvgPreview(comp.compound_svg, comp.compound_id)}
+                                    smiles={comp.smiles}
                                     extraInfo={
                                       rEntries.length > 0 && (
                                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
@@ -1154,6 +1198,7 @@ const PatentAnalysisDetail: React.FC = () => {
                                       className="raw-data-svg-frame"
                                       style={{ width: 140, height: 100, background: '#fff', border: `1px solid ${token.colorBorderSecondary}`, borderRadius: 6, position: 'relative', cursor: svg ? 'pointer' : 'default', overflow: 'hidden', boxSizing: 'border-box', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                                       onClick={() => { if (svg) openSvgPreview(svg, `${key}: ${smiles}`); }}>
+                                      {svg && renderSvgActionButtons({ svg, title: `${key}: ${smiles}`, smiles, iconSize: 11 })}
                                       {svg ? (
                                         <SvgRenderer svg={svg} height={92} />
                                       ) : (
@@ -1227,13 +1272,7 @@ const PatentAnalysisDetail: React.FC = () => {
                                         style={{ width: 180, height: 130, background: '#fff', border: `2px solid ${activeCompId === compKey ? 'red' : token.colorBorderSecondary}`, borderRadius: 8, position: 'relative', cursor: 'pointer', overflow: 'hidden', boxSizing: 'border-box', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                                         onClick={() => { setActiveCompId(compKey); handleGoToPdf(pageArr[curIdx], bboxArr[curIdx]); }}
                                       >
-                                        <Button
-                                          size="small"
-                                          type="text"
-                                          icon={<Search size={11} />}
-                                          onClick={(e) => { e.stopPropagation(); openSvgPreview(record.compound_svg, `Compound ${record.compound_id}`); }}
-                                          style={{ position: 'absolute', right: 2, top: 2, zIndex: 2, background: 'rgba(255,255,255,0.85)', padding: '0 2px' }}
-                                        />
+                                        {renderSvgActionButtons({ svg: record.compound_svg, title: `Compound ${record.compound_id}`, smiles: record.smiles, iconSize: 11 })}
                                         <SvgRenderer svg={record.compound_svg} height={120} />
                                       </div>
                                       <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -1258,13 +1297,7 @@ const PatentAnalysisDetail: React.FC = () => {
                                     style={{ width: 170, height: 130, background: '#fff', border: `1px solid ${token.colorBorderSecondary}`, borderRadius: 8, cursor: 'pointer', position: 'relative', overflow: 'hidden', boxSizing: 'border-box', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                                     onClick={() => openSvgPreview(record.scaffold_svg, `Scaffold - ${record.compound_id}`)}
                                   >
-                                    <Button
-                                      size="small"
-                                      type="text"
-                                      icon={<Search size={11} />}
-                                      onClick={(e) => { e.stopPropagation(); openSvgPreview(record.scaffold_svg, `Scaffold - ${record.compound_id}`); }}
-                                      style={{ position: 'absolute', right: 2, top: 2, zIndex: 2, background: 'rgba(255,255,255,0.85)', padding: '0 2px' }}
-                                    />
+                                    {renderSvgActionButtons({ svg: record.scaffold_svg, title: `Scaffold - ${record.compound_id}`, smiles: record.scaffold_smiles, iconSize: 11 })}
                                     <SvgRenderer svg={record.scaffold_svg} height={120} />
                                   </div>
                                 ) : (
@@ -1357,6 +1390,7 @@ const PatentAnalysisDetail: React.FC = () => {
                                           if (pageArr.length > 0) handleGoToPdf(pageArr[curIdx], bboxArr[curIdx]);
                                         }}
                                         onPreview={() => openSvgPreview(comp.compound_svg, comp.compound_id)}
+                                        smiles={comp.smiles}
                                         extraInfo={
                                           bioEntries.length > 0 && (
                                             <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>

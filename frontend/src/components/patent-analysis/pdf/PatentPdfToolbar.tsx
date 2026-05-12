@@ -1,6 +1,6 @@
 import React from 'react';
 import { Button, Input, InputNumber, Space, Typography } from 'antd';
-import { Maximize2, Minimize2, RotateCcw, RotateCw } from 'lucide-react';
+import { Maximize2, Minimize2, RotateCcw, RotateCw, PanelLeftClose, PanelLeftOpen, ChevronLeft, ChevronRight, ChevronUp, ChevronDown } from 'lucide-react';
 
 const { Text } = Typography;
 
@@ -25,6 +25,8 @@ type PatentPdfToolbarProps = {
   onRotateRight: () => void;
   onGoToPage?: (page: number) => void;
   onPageStep?: (step: number) => void;
+  thumbnailCollapsed?: boolean;
+  onToggleThumbnail?: () => void;
 };
 
 const PatentPdfToolbar: React.FC<PatentPdfToolbarProps> = ({
@@ -48,6 +50,8 @@ const PatentPdfToolbar: React.FC<PatentPdfToolbarProps> = ({
   onRotateRight,
   onGoToPage,
   onPageStep,
+  thumbnailCollapsed,
+  onToggleThumbnail,
 }) => {
   const [pageInput, setPageInput] = React.useState<number | null>(currentPage);
 
@@ -79,12 +83,18 @@ const PatentPdfToolbar: React.FC<PatentPdfToolbarProps> = ({
       }}
     >
       <Button
+        icon={thumbnailCollapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
+        size="small"
+        onClick={onToggleThumbnail}
+        title={thumbnailCollapsed ? '썸네일 펼치기' : '썸네일 접기'}
+      />
+
+      <Button
         icon={splitRatio <= minSplitPercent ? <Maximize2 size={16} /> : <Minimize2 size={16} />}
         size="small"
         onClick={onToggleFit}
         title={splitRatio <= minSplitPercent ? 'PDF 영역 확대 (50%)' : 'PDF 영역 축소 (30%)'}
       >
-        {splitRatio <= minSplitPercent ? 'Expand' : 'Shrink'}
       </Button>
 
       <Input
@@ -108,20 +118,12 @@ const PatentPdfToolbar: React.FC<PatentPdfToolbarProps> = ({
                 ? '0 matches'
                 : '-/-'}
       </Text>
-      <Button size="small" onClick={() => onMoveSearchMatch(-1)} disabled={searchMatchCount === 0}>
-        Prev
-      </Button>
-      <Button size="small" onClick={() => onMoveSearchMatch(1)} disabled={searchMatchCount === 0}>
-        Next
-      </Button>
+      <Button size="small" icon={<ChevronLeft size={14} />} onClick={() => onMoveSearchMatch(-1)} disabled={searchMatchCount === 0} title="이전 검색 결과" />
+      <Button size="small" icon={<ChevronRight size={14} />} onClick={() => onMoveSearchMatch(1)} disabled={searchMatchCount === 0} title="다음 검색 결과" />
 
       <Space size={4} style={{ marginLeft: 'auto' }}>
-        <Button size="small" onClick={() => onPageStep?.(-1)} disabled={!totalPages}>
-          Page Up
-        </Button>
-        <Button size="small" onClick={() => onPageStep?.(1)} disabled={!totalPages}>
-          Page Down
-        </Button>
+        <Button size="small" icon={<ChevronUp size={14} />} onClick={() => onPageStep?.(-1)} disabled={!totalPages} title="이전 페이지" />
+        <Button size="small" icon={<ChevronDown size={14} />} onClick={() => onPageStep?.(1)} disabled={!totalPages} title="다음 페이지" />
         <Button size="small" icon={<RotateCcw size={14} />} onClick={onRotateLeft} title="좌측으로 회전" />
         <Button size="small" icon={<RotateCw size={14} />} onClick={onRotateRight} title="우측으로 회전" />
         <InputNumber

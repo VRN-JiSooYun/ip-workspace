@@ -1,6 +1,6 @@
 import React from 'react';
-import { Button, Card, Tag, Typography, theme } from 'antd';
-import { Search, ChevronLeft } from 'lucide-react';
+import { Button, Card, Tag, Tooltip, Typography, message, theme } from 'antd';
+import { Search, ChevronLeft, Copy } from 'lucide-react';
 
 const { Text } = Typography;
 
@@ -30,6 +30,8 @@ export interface DataCardItemProps {
   onImageClick?: () => void;
   /** 이미지 미리보기 버튼 클릭 콜백 */
   onPreview?: () => void;
+  /** SMILES 문자열 (값이 있으면 copy 버튼 표시) */
+  smiles?: string;
 
   // ===== 푸터 영역 =====
   /** 추가 정보 (R Groups 태그 등) */
@@ -76,6 +78,7 @@ const DataCardItem: React.FC<DataCardItemProps> = ({
   imageHeight = 130,
   onImageClick,
   onPreview,
+  smiles,
   extraInfo,
   footerText,
   pagination,
@@ -199,24 +202,38 @@ const DataCardItem: React.FC<DataCardItemProps> = ({
           imageClickHandler?.();
         }}
       >
-        {/* 미리보기 버튼 */}
-        {onPreview && (
-          <Button
-            size="small"
-            type="text"
-            icon={<Search size={size === 'small' ? 12 : 14} />}
-            onClick={(e) => {
-              e.stopPropagation();
-              onPreview();
-            }}
-            style={{
-              position: 'absolute',
-              right: 4,
-              top: 4,
-              zIndex: 2,
-              background: 'rgba(255,255,255,0.85)',
-            }}
-          />
+        {/* 미리보기 & 복사 버튼 */}
+        {(onPreview || smiles) && (
+          <div style={{ position: 'absolute', right: 4, top: 4, zIndex: 2, display: 'flex', gap: 2 }}>
+            {smiles && (
+              <Tooltip title={`SMILES: ${smiles}`}>
+                <Button
+                  size="small"
+                  type="text"
+                  icon={<Copy size={size === 'small' ? 12 : 14} />}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    navigator.clipboard.writeText(smiles)
+                      .then(() => message.success('SMILES 복사 완료'))
+                      .catch(() => message.error('복사 실패'));
+                  }}
+                  style={{ background: 'rgba(255,255,255,0.85)' }}
+                />
+              </Tooltip>
+            )}
+            {onPreview && (
+              <Button
+                size="small"
+                type="text"
+                icon={<Search size={size === 'small' ? 12 : 14} />}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onPreview();
+                }}
+                style={{ background: 'rgba(255,255,255,0.85)' }}
+              />
+            )}
+          </div>
         )}
 
         {renderImage()}

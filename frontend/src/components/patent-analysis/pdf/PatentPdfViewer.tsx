@@ -23,87 +23,7 @@ type PatentPdfViewerProps = {
   onAddHighlight?: (highlight: any) => void;
   onDeleteHighlight?: (id: string) => void;
   onScrollToHighlight?: (highlight: any) => void;
-};
-
-type PdfViewerContentProps = {
-  pdfDocument: any;
-  highlighterUtils: PdfHighlighterUtils | null;
-  onGoToPage?: (page: number) => void;
-  viewerContainerRef: React.RefObject<HTMLDivElement>;
-  borderColor: string;
-  rotation: number;
-  pdfTotalPages: number;
-  activeBBox: { pageNumber: number; rect: number[] } | null;
-  dynamicHighlights: any[];
-  onPdfDocumentReady: (pdfDocument: any) => void;
-  onPdfTotalPagesChange: (totalPages: number) => void;
-  setHighlighterUtils: (utils: PdfHighlighterUtils) => void;
-  onAddHighlight?: (highlight: any) => void;
-};
-
-const PdfViewerContent: React.FC<PdfViewerContentProps> = ({
-  pdfDocument,
-  highlighterUtils,
-  onGoToPage,
-  viewerContainerRef,
-  borderColor,
-  rotation,
-  pdfTotalPages,
-  activeBBox,
-  dynamicHighlights,
-  onPdfDocumentReady,
-  onPdfTotalPagesChange,
-  setHighlighterUtils,
-  onAddHighlight,
-}) => {
-  return (
-    <>
-      <div
-        style={{
-          width: 240,
-          minWidth: 200,
-          borderRight: `1px solid ${borderColor}`,
-          minHeight: 0,
-          overflow: 'hidden',
-          display: 'flex',
-          flexDirection: 'column',
-          background: '#fff',
-        }}
-      >
-        <ThumbnailSidebar
-          pdfDocument={pdfDocument}
-          highlighterUtils={highlighterUtils}
-          onGoToPage={onGoToPage}
-        />
-      </div>
-
-      <div style={{ flex: 1, minWidth: 0, position: 'relative', display: 'flex', flexDirection: 'column' }}>
-        <div
-          className="patent-pdf-main-viewer"
-          ref={viewerContainerRef}
-          style={{
-            height: '100%',
-            width: '100%',
-            position: 'relative',
-            transform: `rotate(${rotation}deg)`,
-            transformOrigin: 'center center',
-            transition: 'transform 0.2s ease',
-          }}
-        >
-          <PatentPdfRenderer
-            pdfDocument={pdfDocument}
-            pdfTotalPages={pdfTotalPages}
-            activeBBox={activeBBox}
-            dynamicHighlights={dynamicHighlights}
-            onPdfDocumentReady={onPdfDocumentReady}
-            onPdfTotalPagesChange={onPdfTotalPagesChange}
-            setHighlighterUtils={setHighlighterUtils}
-            onAddHighlight={onAddHighlight}
-          />
-        </div>
-      </div>
-    </>
-  );
+  thumbnailCollapsed?: boolean;
 };
 
 const ThumbnailSidebar: React.FC<{
@@ -111,7 +31,6 @@ const ThumbnailSidebar: React.FC<{
   highlighterUtils: PdfHighlighterUtils | null;
   onGoToPage?: (page: number) => void;
 }> = ({ pdfDocument, highlighterUtils, onGoToPage }) => {
-  const ENABLE_THUMBNAIL_DEBUG_LOG = true;
   const PRELOAD_LIMIT = 10;
   const THUMBNAIL_WIDTH = 140;
   const THUMBNAIL_IMAGE_QUALITY = 0.68;
@@ -179,17 +98,10 @@ const ThumbnailSidebar: React.FC<{
     queuedRef.current.delete(page);
     activeRenderRef.current = true;
 
-    if (ENABLE_THUMBNAIL_DEBUG_LOG) {
-      console.log('[ThumbnailDebug] render start', { page, queueSize: queueRef.current.length });
-    }
-
     try {
       const dataUrl = await renderThumbnail(page);
       loadedRef.current.add(page);
       updateThumbnail(page, { pageNumber: page, dataUrl, isLoading: false });
-      if (ENABLE_THUMBNAIL_DEBUG_LOG) {
-        console.log('[ThumbnailDebug] render done', { page });
-      }
     } catch (error) {
       updateThumbnail(page, {
         pageNumber: page,
@@ -197,9 +109,6 @@ const ThumbnailSidebar: React.FC<{
         isLoading: false,
         error: error instanceof Error ? error.message : 'Failed to load',
       });
-      if (ENABLE_THUMBNAIL_DEBUG_LOG) {
-        console.warn('[ThumbnailDebug] render failed', { page, error });
-      }
     } finally {
       loadingRef.current.delete(page);
       activeRenderRef.current = false;
@@ -215,10 +124,6 @@ const ThumbnailSidebar: React.FC<{
     queuedRef.current.add(page);
     queueRef.current.push(page);
     updateThumbnail(page, { pageNumber: page, dataUrl: null, isLoading: true });
-
-    if (ENABLE_THUMBNAIL_DEBUG_LOG) {
-      console.log('[ThumbnailDebug] queued', { page, queueSize: queueRef.current.length });
-    }
 
     processQueue();
   }, [processQueue, totalPages, updateThumbnail]);
@@ -241,22 +146,6 @@ const ThumbnailSidebar: React.FC<{
     }
   }, [loadThumbnail, totalPages]);
 
-  React.useEffect(() => {
-    if (!ENABLE_THUMBNAIL_DEBUG_LOG) return;
-    const entries = Array.from(thumbnails.entries());
-    const loading = entries.filter(([, value]) => value?.isLoading).map(([page]) => page);
-    const loaded = entries.filter(([, value]) => !!value?.dataUrl && !value?.isLoading).map(([page]) => page);
-    const failed = entries.filter(([, value]) => !!value?.error && !value?.isLoading).map(([page]) => page);
-    console.log('[ThumbnailDebug] snapshot', {
-      totalPages,
-      cacheSize: entries.length,
-      loading,
-      loadedCount: loaded.length,
-      failed,
-      queueSize: queueRef.current.length,
-      activeRender: activeRenderRef.current,
-    });
-  }, [thumbnails, totalPages]);
 
   const resolvedCurrentPage = currentPage > 0 ? currentPage : 1;
 
@@ -294,13 +183,16 @@ const PatentPdfViewer: React.FC<PatentPdfViewerProps> = ({
   backgroundColor,
   borderColor,
   onAddHighlight,
+  thumbnailCollapsed,
 }) => {
   const [highlighterUtils, setLocalHighlighterUtils] = React.useState<PdfHighlighterUtils | null>(null);
+  const [pdfDoc, setPdfDoc] = React.useState<any>(null);
 
   const handleHighlighterUtils = React.useCallback((utils: PdfHighlighterUtils) => {
     setLocalHighlighterUtils(utils);
     setHighlighterUtils(utils);
   }, [setHighlighterUtils]);
+
 
   return (
     <Card
@@ -327,25 +219,62 @@ const PatentPdfViewer: React.FC<PatentPdfViewerProps> = ({
       }}
     >
       <div style={{ flex: 1, overflow: 'hidden', display: 'flex', minHeight: 0 }}>
-        <PdfLoader document={document}>
-          {(pdfDocument: any) => (
-            <PdfViewerContent
-              pdfDocument={pdfDocument}
+        <div
+          style={{
+            width: thumbnailCollapsed ? 0 : 240,
+            minWidth: thumbnailCollapsed ? 0 : 200,
+            borderRight: thumbnailCollapsed ? 'none' : `1px solid ${borderColor}`,
+            minHeight: 0,
+            overflow: 'hidden',
+            display: thumbnailCollapsed ? 'none' : 'flex',
+            flexDirection: 'column',
+            background: '#fff',
+            transition: 'width 0.2s ease',
+          }}
+        >
+          {pdfDoc && (
+            <ThumbnailSidebar
+              pdfDocument={pdfDoc}
               highlighterUtils={highlighterUtils}
               onGoToPage={onGoToPage}
-              viewerContainerRef={viewerContainerRef}
-              borderColor={borderColor}
-              rotation={rotation}
-              pdfTotalPages={pdfTotalPages}
-              activeBBox={activeBBox}
-              dynamicHighlights={dynamicHighlights}
-              onPdfDocumentReady={onPdfDocumentReady}
-              onPdfTotalPagesChange={onPdfTotalPagesChange}
-              setHighlighterUtils={handleHighlighterUtils}
-              onAddHighlight={onAddHighlight}
             />
           )}
-        </PdfLoader>
+        </div>
+
+        <div style={{ flex: 1, minWidth: 0, position: 'relative', display: 'flex', flexDirection: 'column' }}>
+          <PdfLoader document={document}>
+            {(pdfDocument: any) => {
+              if (pdfDocument !== pdfDoc) {
+                setTimeout(() => setPdfDoc(pdfDocument), 0);
+              }
+              return (
+                <div
+                  className="patent-pdf-main-viewer"
+                  ref={viewerContainerRef}
+                  style={{
+                    height: '100%',
+                    width: '100%',
+                    position: 'relative',
+                    transform: `rotate(${rotation}deg)`,
+                    transformOrigin: 'center center',
+                    transition: 'transform 0.2s ease',
+                  }}
+                >
+                  <PatentPdfRenderer
+                    pdfDocument={pdfDocument}
+                    pdfTotalPages={pdfTotalPages}
+                    activeBBox={activeBBox}
+                    dynamicHighlights={dynamicHighlights}
+                    onPdfDocumentReady={onPdfDocumentReady}
+                    onPdfTotalPagesChange={onPdfTotalPagesChange}
+                    setHighlighterUtils={handleHighlighterUtils}
+                    onAddHighlight={onAddHighlight}
+                  />
+                </div>
+              );
+            }}
+          </PdfLoader>
+        </div>
       </div>
     </Card>
   );
