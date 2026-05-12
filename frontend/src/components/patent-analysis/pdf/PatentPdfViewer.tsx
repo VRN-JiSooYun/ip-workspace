@@ -74,6 +74,7 @@ const PatentPdfViewer: React.FC<PatentPdfViewerProps> = ({
           style={{
             height: '100%',
             width: '100%',
+            position: 'relative',
             transform: `rotate(${rotation}deg)`,
             transformOrigin: 'center center',
             transition: 'transform 0.2s ease',
