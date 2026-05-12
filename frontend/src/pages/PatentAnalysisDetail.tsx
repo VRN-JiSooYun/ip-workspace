@@ -49,7 +49,7 @@ import { usePatentPdfViewer } from '../hooks/usePatentPdfViewer';
 const { Title, Text, Paragraph } = Typography;
 
 const ENABLE_HIGHLIGHT_DEBUG_LOG = false;
-const SPLIT_MIN_PERCENT = 30;
+const SPLIT_MIN_PERCENT = 20;
 const SPLIT_MAX_PERCENT = 70;
 const SPLIT_DEFAULT_PERCENT = 50;
 
