@@ -631,7 +631,7 @@ const PatentAnalysisDetail: React.FC = () => {
                                 <Col span={12} md={6}>
                                   <Card size="small" type="inner" title="Parent Scaffold">
                                     <div style={{ width: '100%', height: 120, background: '#fff', border: `1px solid ${token.colorBorderSecondary}`, borderRadius: '8px', position: 'relative' }}>
-                                      {renderSvgActionButtons({ svg: patentDetailData.analysis.parentScaffold.svg, title: 'Parent Scaffold', smiles: patentDetailData.analysis.parentScaffold.smiles })}
+                                      {renderSvgActionButtons({ svg: patentDetailData.analysis.parentScaffold.svg, title: 'Parent Scaffold', smiles: (patentDetailData.analysis.parentScaffold as any).smiles })}
                                       <SvgRenderer svg={patentDetailData.analysis.parentScaffold.svg} />
                                     </div>
                                   </Card>
@@ -640,7 +640,7 @@ const PatentAnalysisDetail: React.FC = () => {
                                   <Col span={12} md={6} key={rankData.rank}>
                                     <Card size="small" type="inner" title={<><Badge count={rankData.rank} style={{ backgroundColor: rankData.rank === 1 ? '#f5222d' : rankData.rank === 2 ? '#fa8c16' : '#d9d9d9' }} /> Rank {rankData.rank}</>}>
                                       <div style={{ width: '100%', height: 120, background: '#fff', border: `1px solid ${token.colorBorderSecondary}`, borderRadius: '8px', position: 'relative' }}>
-                                        {renderSvgActionButtons({ svg: rankData.svg, title: `Scaffold Rank ${rankData.rank}`, smiles: rankData.smiles })}
+                                        {renderSvgActionButtons({ svg: rankData.svg, title: `Scaffold Rank ${rankData.rank}`, smiles: (rankData as any).smiles })}
                                         <SvgRenderer svg={rankData.svg} />
                                       </div>
                                       <div style={{ marginTop: 8, textAlign: 'center' }}>
@@ -663,7 +663,7 @@ const PatentAnalysisDetail: React.FC = () => {
                                     {renderSvgActionButtons({
                                       svg: patentDetailData.analysis.scaffoldRanks?.[0]?.svg ?? patentDetailData.analysis.parentScaffold.svg,
                                       title: 'Functional Group - Scaffold Rank 1',
-                                      smiles: patentDetailData.analysis.scaffoldRanks?.[0]?.smiles ?? patentDetailData.analysis.parentScaffold.smiles,
+                                      smiles: (patentDetailData.analysis.scaffoldRanks?.[0] as any)?.smiles ?? (patentDetailData.analysis.parentScaffold as any)?.smiles,
                                     })}
                                     <SvgRenderer svg={patentDetailData.analysis.scaffoldRanks && patentDetailData.analysis.scaffoldRanks.length > 0 ? patentDetailData.analysis.scaffoldRanks[0].svg : patentDetailData.analysis.parentScaffold.svg} />
                                   </div>

@@ -8,7 +8,7 @@ export type MockApiTuple<T> = [boolean, boolean, T];
 export const mockPatentData608Api = patentData608ApiRaw as MockApiTuple<Record<string, any>>;
 export const mockEmbodimentList608Api = embodimentList608ApiRaw as MockApiTuple<Record<string, any>>;
 export const mockPatentData609 = patentData609Raw as Record<string, any>;
-export const mockEmbodimentList609Api = embodimentList609ApiRaw as MockApiTuple<Record<string, any>>;
+export const mockEmbodimentList609Api = embodimentList609ApiRaw as unknown as MockApiTuple<Record<string, any>>;
 
 export const getMockApiPayload = <T>(response: unknown): T | null => {
   if (Array.isArray(response) && response.length > 2) {
@@ -23,7 +23,7 @@ export const getMockApiPayload = <T>(response: unknown): T | null => {
 export const mergeEmbodimentPayload = (
   patentPayload: Record<string, any>,
   embodimentPayload: Record<string, any> | null
-) => ({
+): Record<string, any> => ({
   ...patentPayload,
   modified_partial_rows: embodimentPayload?.modified_partial_rows ?? patentPayload.modified_partial_rows ?? [],
   modified_total_rows: embodimentPayload?.modified_total_rows ?? patentPayload.modified_total_rows ?? [],

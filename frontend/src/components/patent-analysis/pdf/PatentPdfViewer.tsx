@@ -1,5 +1,6 @@
 import React from 'react';
 import { Card } from 'antd';
+// @ts-ignore - runtime exports exist but not in type declarations
 import { PdfLoader, ThumbnailPanel, usePageNavigation } from 'react-pdf-highlighter-plus';
 import type { PdfHighlighterUtils } from 'react-pdf-highlighter-plus';
 import PatentPdfRenderer from './Viewer/PatentPdfRenderer';
@@ -156,7 +157,7 @@ const ThumbnailSidebar: React.FC<{
         currentPage={resolvedCurrentPage}
         thumbnails={thumbnails}
         loadThumbnail={loadThumbnail}
-        onPageSelect={(page) => {
+        onPageSelect={(page: number) => {
           onGoToPage?.(page);
           goToPage(page);
         }}
