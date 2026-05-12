@@ -1,5 +1,5 @@
 import React from 'react';
-import { Button, Input, Space, Typography } from 'antd';
+import { Button, Input, InputNumber, Space, Typography } from 'antd';
 import { Maximize2, Minimize2, RotateCcw, RotateCw } from 'lucide-react';
 
 const { Text } = Typography;
@@ -23,6 +23,7 @@ type PatentPdfToolbarProps = {
   onMoveSearchMatch: (direction: number) => void;
   onRotateLeft: () => void;
   onRotateRight: () => void;
+  onGoToPage?: (page: number) => void;
 };
 
 const PatentPdfToolbar: React.FC<PatentPdfToolbarProps> = ({
@@ -44,7 +45,22 @@ const PatentPdfToolbar: React.FC<PatentPdfToolbarProps> = ({
   onMoveSearchMatch,
   onRotateLeft,
   onRotateRight,
+  onGoToPage,
 }) => {
+  const [pageInput, setPageInput] = React.useState<number | null>(currentPage);
+
+  React.useEffect(() => {
+    setPageInput(currentPage);
+  }, [currentPage]);
+
+  const commitPage = () => {
+    if (pageInput && pageInput >= 1 && pageInput <= totalPages && onGoToPage) {
+      onGoToPage(pageInput);
+    } else {
+      setPageInput(currentPage);
+    }
+  };
+
   return (
     <div
       style={{
@@ -100,9 +116,22 @@ const PatentPdfToolbar: React.FC<PatentPdfToolbarProps> = ({
       <Space size={4} style={{ marginLeft: 'auto' }}>
         <Button size="small" icon={<RotateCcw size={14} />} onClick={onRotateLeft} title="좌측으로 회전" />
         <Button size="small" icon={<RotateCw size={14} />} onClick={onRotateRight} title="우측으로 회전" />
-        <Text style={{ fontSize: 12, marginLeft: 4 }}>
-          Page {currentPage}/{totalPages || '-'}
-        </Text>
+        <InputNumber
+          size="small"
+          min={1}
+          max={totalPages || 1}
+          value={currentPage}
+          onChange={(val) => {
+            if (val && onGoToPage) onGoToPage(val);
+          }}
+          onPressEnter={(e) => {
+            const val = Number((e.target as HTMLInputElement).value);
+            if (val >= 1 && val <= totalPages && onGoToPage) onGoToPage(val);
+          }}
+          style={{ width: 60 }}
+          controls={false}
+        />
+        <Text style={{ fontSize: 12 }}>/ {totalPages || '-'}</Text>
       </Space>
     </div>
   );

@@ -64,6 +64,10 @@ const PatentAnalysisDetail: React.FC = () => {
   const { token } = theme.useToken();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const patentResult = (patentResultRaw as any)?.result ?? {};
+  const frequencyAnalysis = patentResult.frequency_analysis_result_json
+    ?? patentResult.data?.[0]?.frequency_analysis_result_json
+    ?? { r_groups: {} };
   
   const selectedPatent = useMemo(() => {
     if (!id) return null;
@@ -114,7 +118,7 @@ const PatentAnalysisDetail: React.FC = () => {
     return Math.max(300, viewportHeight - 470);
   }, [viewportHeight]);
   const rawDataTablePageSize = React.useMemo(() => {
-    const estimatedRowHeight = 42;
+    const estimatedRowHeight = 72;
     const calculated = Math.floor(rawDataTableScrollY / estimatedRowHeight);
     return Math.min(40, Math.max(10, calculated));
   }, [rawDataTableScrollY]);
@@ -484,6 +488,7 @@ const PatentAnalysisDetail: React.FC = () => {
               onMoveSearchMatch={(dir) => dir > 0 ? pdfViewer.findNext() : pdfViewer.findPrevious()}
               onRotateLeft={() => pdfViewer.setPdfRotation(r => (r - 90 + 360) % 360)}
               onRotateRight={() => pdfViewer.setPdfRotation(r => (r + 90) % 360)}
+              onGoToPage={(page) => handleGoToPdf(page)}
             />
 
             <PatentPdfViewer
@@ -765,7 +770,7 @@ const PatentAnalysisDetail: React.FC = () => {
                         {rawDataView === 'table' ? (
                           (() => {
                             // patentResultRaw에서 실제 patent_compound 데이터 사용
-                            const rawPc: any[] = (patentResultRaw as any)?.result?.patent_compound ?? [];
+                            const rawPc: any[] = patentResult.patent_compound ?? [];
                             // 전체 r_group key 수집 (R1~R7 등 동적)
                             const allRGroupKeys = Array.from(
                               new Set(rawPc.flatMap((c: any) => Object.keys(c.r_groups ?? {})))
@@ -774,25 +779,29 @@ const PatentAnalysisDetail: React.FC = () => {
                             const rGroupColumns = allRGroupKeys.map((key) => ({
                               title: key,
                               key: `rg_${key}`,
-                              width: 110,
+                              width: 190,
                               render: (_: any, record: any) => {
                                 const smiles = record.r_groups?.[key];
-                                if (!smiles) return <Text type="secondary">-</Text>;
                                 // frequency_analysis_result_json에서 SVG 찾기
-                                const faRGroups = (patentResultRaw as any)?.result?.frequency_analysis_result_json?.r_groups ?? {};
+                                const faRGroups = frequencyAnalysis?.r_groups ?? {};
                                 const variants: any[] = faRGroups[key] ?? [];
                                 const match = variants.find((v: any) => v.smiles === smiles);
+                                const svg = match?._svg || record.r_group_svgs?.[key] || '';
                                 return (
-                                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
-                                    {match?._svg ? (
-                                      <div
-                                        className="raw-data-svg-frame"
-                                        style={{ width: 60, height: 40, background: '#fff', border: `1px solid ${token.colorBorderSecondary}`, borderRadius: 4, position: 'relative', cursor: 'pointer', overflow: 'hidden', boxSizing: 'border-box', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                                        onClick={() => openSvgPreview(match._svg, `${key}: ${smiles}`)}>
-                                        <SvgRenderer svg={match._svg} height={40} />
-                                      </div>
-                                    ) : null}
-                                    <Text style={{ fontSize: 10, color: token.colorTextSecondary, maxWidth: 100, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={smiles}>{smiles}</Text>
+                                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+                                    <div
+                                      className="raw-data-svg-frame"
+                                      style={{ width: 140, height: 100, background: '#fff', border: `1px solid ${token.colorBorderSecondary}`, borderRadius: 6, position: 'relative', cursor: svg ? 'pointer' : 'default', overflow: 'hidden', boxSizing: 'border-box', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                                      onClick={() => { if (svg) openSvgPreview(svg, `${key}: ${smiles}`); }}>
+                                      {svg ? (
+                                        <SvgRenderer svg={svg} height={92} />
+                                      ) : (
+                                        <Text style={{ fontSize: 12, color: token.colorTextTertiary }}>no image</Text>
+                                      )}
+                                    </div>
+                                    <Text style={{ fontSize: 11, color: token.colorTextSecondary, maxWidth: 170, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={smiles}>
+                                      {smiles || '-'}
+                                    </Text>
                                   </div>
                                 );
                               }
@@ -802,11 +811,11 @@ const PatentAnalysisDetail: React.FC = () => {
                               {
                                 title: 'pin',
                                 key: 'pin',
-                                width: 40,
+                                width: 56,
                                 fixed: 'left' as const,
                                 render: () => <Pin size={14} style={{ cursor: 'pointer', color: '#bfbfbf' }} />
                               },
-                              { title: 'Rank', dataIndex: 'ranking', key: 'ranking', width: 70, fixed: 'left' as const,
+                              { title: 'Rank', dataIndex: 'ranking', key: 'ranking', width: 90, fixed: 'left' as const,
                                 sorter: (a: any, b: any) => (a.ranking ?? 999) - (b.ranking ?? 999),
                                 render: (ranking: any, _: any, index: number) => {
                                   // 같은 ranking 값이 여러 개인지 확인 (동률)
@@ -821,28 +830,28 @@ const PatentAnalysisDetail: React.FC = () => {
                                   );
                                 }
                               },
-                              { title: 'Scaffold Rank', dataIndex: 'scaffold_ranking', key: 'scaffold_ranking', width: 90, render: (v: any) => v ?? '-' },
-                              { title: 'Example No.', dataIndex: 'compound_id', key: 'compound_id', width: 110, fixed: 'left' as const },
+                              { title: 'Scaffold Rank', dataIndex: 'scaffold_ranking', key: 'scaffold_ranking', width: 120, render: (v: any) => v ?? '-' },
+                              { title: 'Example No.', dataIndex: 'compound_id', key: 'compound_id', width: 130, fixed: 'left' as const },
                               {
                                 title: 'Structure',
                                 key: 'structure',
-                                width: 140,
+                                width: 240,
                                 render: (_: any, record: any) => {
                                   const compKey = String(record.id);
                                   const pageArr: number[] = Array.isArray(record.page) ? record.page : [];
                                   const bboxArr: any[] = Array.isArray(record.bbox) ? record.bbox : [];
                                   const curIdx = pageIndices[compKey] ?? 0;
                                   return (
-                                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+                                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
                                       <div
                                         className="raw-data-svg-frame"
-                                        style={{ width: 100, height: 80, background: '#fff', border: `2px solid ${activeCompId === compKey ? 'red' : token.colorBorderSecondary}`, borderRadius: 6, position: 'relative', cursor: 'pointer', overflow: 'hidden', boxSizing: 'border-box', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                                        style={{ width: 180, height: 130, background: '#fff', border: `2px solid ${activeCompId === compKey ? 'red' : token.colorBorderSecondary}`, borderRadius: 8, position: 'relative', cursor: 'pointer', overflow: 'hidden', boxSizing: 'border-box', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                                         onClick={() => { setActiveCompId(compKey); handleGoToPdf(pageArr[curIdx], bboxArr[curIdx]); }}
                                       >
                                         <Button size="small" type="text" icon={<Search size={11} />}
                                           onClick={(e) => { e.stopPropagation(); openSvgPreview(record.compound_svg, `Compound ${record.compound_id}`); }}
                                           style={{ position: 'absolute', right: 2, top: 2, zIndex: 2, background: 'rgba(255,255,255,0.85)', padding: '0 2px' }} />
-                                        <SvgRenderer svg={record.compound_svg} height={80} />
+                                        <SvgRenderer svg={record.compound_svg} height={120} />
                                       </div>
                                       <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                                         <Button size="small" type="text" icon={<ChevronLeft size={12} />}
@@ -858,19 +867,26 @@ const PatentAnalysisDetail: React.FC = () => {
                               {
                                 title: 'Scaffold',
                                 key: 'scaffold',
-                                width: 120,
+                                width: 220,
                                 render: (_: any, record: any) => record.scaffold_svg ? (
                                   <div
                                     className="raw-data-svg-frame"
-                                    style={{ width: 100, height: 80, background: '#fff', border: `1px solid ${token.colorBorderSecondary}`, borderRadius: 6, cursor: 'pointer', position: 'relative', overflow: 'hidden', boxSizing: 'border-box', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                                    style={{ width: 170, height: 130, background: '#fff', border: `1px solid ${token.colorBorderSecondary}`, borderRadius: 8, cursor: 'pointer', position: 'relative', overflow: 'hidden', boxSizing: 'border-box', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                                     onClick={() => openSvgPreview(record.scaffold_svg, `Scaffold - ${record.compound_id}`)}
                                   >
                                     <Button size="small" type="text" icon={<Search size={11} />}
                                       onClick={(e) => { e.stopPropagation(); openSvgPreview(record.scaffold_svg, `Scaffold - ${record.compound_id}`); }}
                                       style={{ position: 'absolute', right: 2, top: 2, zIndex: 2, background: 'rgba(255,255,255,0.85)', padding: '0 2px' }} />
-                                    <SvgRenderer svg={record.scaffold_svg} height={80} />
+                                    <SvgRenderer svg={record.scaffold_svg} height={120} />
                                   </div>
-                                ) : <Text type="secondary">-</Text>
+                                ) : (
+                                  <div
+                                    className="raw-data-svg-frame"
+                                    style={{ width: 170, height: 130, background: '#fff', border: `1px solid ${token.colorBorderSecondary}`, borderRadius: 8, boxSizing: 'border-box', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                                  >
+                                    <Text style={{ fontSize: 12, color: token.colorTextTertiary }}>no image</Text>
+                                  </div>
+                                )
                               },
                               ...rGroupColumns,
                               {
@@ -878,7 +894,7 @@ const PatentAnalysisDetail: React.FC = () => {
                                 dataIndex: 'scaffold',
                                 key: 'smiles',
                                 ellipsis: true,
-                                width: 200,
+                                width: 300,
                                 render: (_v: any, record: any) => {
                                   const smilesText = typeof record.scaffold === 'string' ? record.scaffold.trim() : '';
                                   if (!smilesText) {
@@ -1195,6 +1211,10 @@ const PatentAnalysisDetail: React.FC = () => {
         .textLayer br {
           color: transparent;
         }
+        .textLayer .highlight.end,
+        .textLayer .highlight:not(.begin):not(.middle):not(.selected) {
+          padding-right: 8px;
+        }
         .pdfViewer {
           overflow-x: hidden !important;
           padding-bottom: 0 !important;
@@ -1233,13 +1253,13 @@ const PatentAnalysisDetail: React.FC = () => {
         .raw-data-tab-content .raw-data-embodiment-table .ant-table-thead > tr > th {
           background: transparent !important;
           border-bottom: 2px solid ${token.colorBorderSecondary} !important;
-          padding: 10px 10px;
-          font-size: 12px;
+          padding: 14px 12px;
+          font-size: 13px;
           font-weight: 600;
         }
         .raw-data-tab-content .raw-data-embodiment-table .ant-table-tbody > tr > td {
           vertical-align: middle;
-          padding: 8px 10px;
+          padding: 14px 12px;
           transition: background-color 0.2s ease;
         }
         .raw-data-tab-content .raw-data-embodiment-table .raw-data-row-active > td {
