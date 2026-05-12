@@ -11,6 +11,8 @@ interface ChemDrawModalProps {
   onConfirm: (data: { smiles: string; svg: string | null }) => void;
   title?: string;
   confirmText?: string;
+  initialSmiles?: string;
+  initialMolblock?: string;
 }
 
 const ChemDrawModal: React.FC<ChemDrawModalProps> = ({ 
@@ -18,7 +20,9 @@ const ChemDrawModal: React.FC<ChemDrawModalProps> = ({
   onCancel, 
   onConfirm,
   title = "구조 편집 (ChemDraw JS)",
-  confirmText = "확인"
+  confirmText = "확인",
+  initialSmiles,
+  initialMolblock
 }) => {
   const { token } = theme.useToken();
   const [cdjsInstance, setCdjsInstance] = useState<any>(null);
@@ -57,6 +61,38 @@ const ChemDrawModal: React.FC<ChemDrawModalProps> = ({
               viewOnly: false,
               callback: (editor: any) => {
                 setCdjsInstance(editor);
+                // initialMolblock 또는 initialSmiles를 에디터에 로드
+                const loadStructure = () => {
+                  if (!editor) return;
+                  try {
+                    if (initialMolblock) {
+                      // ChemDraw JS: MOL V2000 로드
+                      if (editor.loadMOL) {
+                        editor.loadMOL(initialMolblock);
+                      } else if (editor.setData) {
+                        // 가능한 format key들 시도
+                        const formats = (window as any).perkinelmer?.DataFormats;
+                        const molFormat = formats?.MOLV2000 || formats?.MOL || formats?.mol || 'chemical/x-mdl-molfile';
+                        editor.setData(molFormat, initialMolblock);
+                      } else if (editor.setMolecule) {
+                        editor.setMolecule(initialMolblock);
+                      }
+                    } else if (initialSmiles) {
+                      if (editor.loadSMILES) {
+                        editor.loadSMILES(initialSmiles);
+                      } else if (editor.setData) {
+                        const formats = (window as any).perkinelmer?.DataFormats;
+                        editor.setData(formats?.SMILES || 'chemical/x-daylight-smiles', initialSmiles);
+                      } else if (editor.setMolecule) {
+                        editor.setMolecule(initialSmiles);
+                      }
+                    }
+                  } catch (e) {
+                    console.warn('Failed to load structure into editor:', e);
+                  }
+                };
+                // 에디터 초기화 직후에는 준비 안 될 수 있으므로 약간의 딜레이
+                setTimeout(loadStructure, 500);
               }
             });
           }, 300);
@@ -75,7 +111,7 @@ const ChemDrawModal: React.FC<ChemDrawModalProps> = ({
         setCdjsInstance(null);
       }
     };
-  }, [open, containerId]);
+  }, [open, containerId, initialSmiles, initialMolblock]);
 
   const handleCancel = () => {
     setCdjsInstance(null);

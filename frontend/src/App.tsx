@@ -1,6 +1,6 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { ConfigProvider, theme } from 'antd';
+import { App as AntApp, ConfigProvider, theme } from 'antd';
 import { useTheme } from './contexts/ThemeContext';
 import MainLayout from './components/layout/MainLayout';
 import Dashboard from './pages/Dashboard';
@@ -48,25 +48,27 @@ const App: React.FC = () => {
       }}
     >
       <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-        <MainLayout>
-          <Routes>
-            <Route path="/" element={<Navigate to="/dashboard" replace />} />
-            <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/myboard" element={<MyBoard />} />
-            <Route path="/my-tree" element={<EmptyPage title="My tree" breadcrumb={[{ label: 'Compounds' }, { label: 'My tree' }]} />} />
-            <Route path="/sar-table" element={<SarTable />} />
-            <Route path="/synthesis-board" element={<SynthesisBoard />} />
-            <Route path="/patents/write" element={<EmptyPage title="My 특허 쓰기" breadcrumb={[{ label: 'Documents' }, { label: 'Patents' }, { label: 'My 특허 쓰기' }]} />} />
-            <Route path="/patents/analysis" element={<PatentAnalysisList />} />
-            <Route path="/patents/analysis/:id" element={<PatentAnalysisDetail />} />
-            <Route path="/patents/manage" element={<EmptyPage title="My 특허 관리" breadcrumb={[{ label: 'Documents' }, { label: 'Patents' }, { label: 'My 특허 관리' }]} />} />
-            <Route path="/papers/manage" element={<EmptyPage title="My 논문 관리" breadcrumb={[{ label: 'Documents' }, { label: 'Papers' }, { label: 'My 논문 관리' }]} />} />
-            <Route path="/conferences" element={<EmptyPage title="Conferences" breadcrumb={[{ label: 'Documents' }, { label: 'Conferences' }]} />} />
-            <Route path="/pdbs" element={<EmptyPage title="PDBs" breadcrumb={[{ label: 'PDBs' }]} />} />
-            <Route path="/universal-search" element={<EmptyPage title="통합검색" breadcrumb={[{ label: '통합검색' }]} />} />
-            <Route path="*" element={<Navigate to="/dashboard" replace />} />
-          </Routes>
-        </MainLayout>
+        <AntApp>
+          <MainLayout>
+            <Routes>
+              <Route path="/" element={<Navigate to="/dashboard" replace />} />
+              <Route path="/dashboard" element={<Dashboard />} />
+              <Route path="/myboard" element={<MyBoard />} />
+              <Route path="/my-tree" element={<EmptyPage title="My tree" breadcrumb={[{ label: 'Compounds' }, { label: 'My tree' }]} />} />
+              <Route path="/sar-table" element={<SarTable />} />
+              <Route path="/synthesis-board" element={<SynthesisBoard />} />
+              <Route path="/patents/write" element={<EmptyPage title="My 특허 쓰기" breadcrumb={[{ label: 'Documents' }, { label: 'Patents' }, { label: 'My 특허 쓰기' }]} />} />
+              <Route path="/patents/analysis" element={<PatentAnalysisList />} />
+              <Route path="/patents/analysis/:id" element={<PatentAnalysisDetail />} />
+              <Route path="/patents/manage" element={<EmptyPage title="My 특허 관리" breadcrumb={[{ label: 'Documents' }, { label: 'Patents' }, { label: 'My 특허 관리' }]} />} />
+              <Route path="/papers/manage" element={<EmptyPage title="My 논문 관리" breadcrumb={[{ label: 'Documents' }, { label: 'Papers' }, { label: 'My 논문 관리' }]} />} />
+              <Route path="/conferences" element={<EmptyPage title="Conferences" breadcrumb={[{ label: 'Documents' }, { label: 'Conferences' }]} />} />
+              <Route path="/pdbs" element={<EmptyPage title="PDBs" breadcrumb={[{ label: 'PDBs' }]} />} />
+              <Route path="/universal-search" element={<EmptyPage title="통합검색" breadcrumb={[{ label: '통합검색' }]} />} />
+              <Route path="*" element={<Navigate to="/dashboard" replace />} />
+            </Routes>
+          </MainLayout>
+        </AntApp>
       </Router>
     </ConfigProvider>
   );

@@ -15,7 +15,7 @@ import {
   Empty,
   Table,
   Badge,
-  message
+  App
 } from 'antd';
 import { 
   Plus, 
@@ -32,7 +32,8 @@ import {
   Table as TableIcon,
   Layers,
   FileSpreadsheet,
-  Copy
+  Copy,
+  FlaskConical
 } from 'lucide-react';
 import { mockPatents, mockResidues } from '../mocks/patents';
 import { mockHighlights } from '../mocks/patentHighlights';
@@ -42,6 +43,7 @@ import { getPatentAnalysisLayoutPreset } from '../config/patentAnalysisLayout';
 import { useUIStore } from '../store/useUIStore';
 import PageHeaderBreadcrumb from '../components/common/PageHeaderBreadcrumb';
 import DataCardItem from '../components/patent-analysis/DataCardItem';
+import ChemDrawModal from '../components/common/ChemDrawModal';
 import PatentPdfToolbar from '../components/patent-analysis/pdf/PatentPdfToolbar';
 import PatentPdfViewer from '../components/patent-analysis/pdf/PatentPdfViewer';
 import { usePatentPdfViewer } from '../hooks/usePatentPdfViewer';
@@ -56,13 +58,15 @@ const SPLIT_DEFAULT_PERCENT = 50;
 // SVG 렌더링 컴포넌트
 const SvgRenderer: React.FC<{ svg: string; height?: number | string }> = ({ svg, height = '100%' }) => (
   <div 
-    style={{ height, width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}
+    className="svg-renderer-frame"
+    style={{ height, width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', boxSizing: 'border-box', padding: 4 }}
     dangerouslySetInnerHTML={{ __html: svg }}
   />
 );
 
 const PatentAnalysisDetail: React.FC = () => {
   const { token } = theme.useToken();
+  const { message } = App.useApp();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const selectedPatent = useMemo(() => {
@@ -105,6 +109,10 @@ const PatentAnalysisDetail: React.FC = () => {
   const [activeTab, setActiveTab] = React.useState<string>('summary');
   const [rGroupFilter, setRGroupFilter] = React.useState<{ key: string; smiles: string } | null>(null);
   const [previewSvg, setPreviewSvg] = React.useState<string | null>(null);
+  const [chemDrawOpen, setChemDrawOpen] = React.useState(false);
+  const [chemDrawSmiles, setChemDrawSmiles] = React.useState('');
+  const [chemDrawMolblock, setChemDrawMolblock] = React.useState('');
+  const [chemDrawTitle, setChemDrawTitle] = React.useState('');
   const [previewImageSrc, setPreviewImageSrc] = React.useState<string | null>(null);
   const [previewTitle, setPreviewTitle] = React.useState<string>('이미지 미리보기');
   const [splitRatio, setSplitRatio] = React.useState<number>(SPLIT_DEFAULT_PERCENT);
@@ -427,13 +435,27 @@ const PatentAnalysisDetail: React.FC = () => {
   };
 
   /** 돋보기 + copy 버튼 세트 (smiles가 있을 때만 copy 표시) */
-  const renderSvgActionButtons = (opts: { svg: string; title: string; smiles?: string; iconSize?: number }) => {
+  const renderSvgActionButtons = (opts: { svg: string; title: string; smiles?: string; molblock?: string; iconSize?: number }) => {
     const sz = opts.iconSize ?? 14;
+    const hasChemData = !!(opts.smiles || opts.molblock);
     return (
       <div style={{ position: 'absolute', right: 4, top: 4, zIndex: 2, display: 'flex', gap: 2 }}>
+        {hasChemData && (
+          <Tooltip title="ChemDraw">
+            <Button
+              className="svg-action-btn"
+              size="small"
+              type="text"
+              icon={<FlaskConical size={sz} />}
+              onClick={(e) => { e.stopPropagation(); setChemDrawSmiles(opts.smiles || ''); setChemDrawMolblock(opts.molblock || ''); setChemDrawTitle(opts.title); setChemDrawOpen(true); }}
+              style={{ background: 'rgba(255,255,255,0.8)' }}
+            />
+          </Tooltip>
+        )}
         {opts.smiles && (
           <Tooltip title={`SMILES: ${opts.smiles}`}>
             <Button
+              className="svg-action-btn"
               size="small"
               type="text"
               icon={<Copy size={sz} />}
@@ -443,6 +465,7 @@ const PatentAnalysisDetail: React.FC = () => {
           </Tooltip>
         )}
         <Button
+          className="svg-action-btn"
           size="small"
           type="text"
           icon={<Search size={sz} />}
@@ -630,8 +653,8 @@ const PatentAnalysisDetail: React.FC = () => {
                               <Row gutter={[16, 16]}>
                                 <Col span={12} md={6}>
                                   <Card size="small" type="inner" title="Parent Scaffold">
-                                    <div style={{ width: '100%', height: 120, background: '#fff', border: `1px solid ${token.colorBorderSecondary}`, borderRadius: '8px', position: 'relative' }}>
-                                      {renderSvgActionButtons({ svg: patentDetailData.analysis.parentScaffold.svg, title: 'Parent Scaffold', smiles: (patentDetailData.analysis.parentScaffold as any).smiles })}
+                                    <div style={{ width: '100%', height: 120, background: token.colorBgContainer, border: `1px solid ${token.colorBorderSecondary}`, borderRadius: '8px', position: 'relative' }}>
+                                      {renderSvgActionButtons({ svg: patentDetailData.analysis.parentScaffold.svg, title: 'Parent Scaffold', smiles: (patentDetailData.analysis.parentScaffold as any).smiles ?? (patentDetailData.analysis.scaffoldRanks?.[0] as any)?.smiles, molblock: (frequencyAnalysis as any)?.parent_scaffold?.mol_block })}
                                       <SvgRenderer svg={patentDetailData.analysis.parentScaffold.svg} />
                                     </div>
                                   </Card>
@@ -639,7 +662,7 @@ const PatentAnalysisDetail: React.FC = () => {
                                 {patentDetailData.analysis.scaffoldRanks && patentDetailData.analysis.scaffoldRanks.map(rankData => (
                                   <Col span={12} md={6} key={rankData.rank}>
                                     <Card size="small" type="inner" title={<><Badge count={rankData.rank} style={{ backgroundColor: rankData.rank === 1 ? '#f5222d' : rankData.rank === 2 ? '#fa8c16' : '#d9d9d9' }} /> Rank {rankData.rank}</>}>
-                                      <div style={{ width: '100%', height: 120, background: '#fff', border: `1px solid ${token.colorBorderSecondary}`, borderRadius: '8px', position: 'relative' }}>
+                                      <div style={{ width: '100%', height: 120, background: token.colorBgContainer, border: `1px solid ${token.colorBorderSecondary}`, borderRadius: '8px', position: 'relative' }}>
                                         {renderSvgActionButtons({ svg: rankData.svg, title: `Scaffold Rank ${rankData.rank}`, smiles: (rankData as any).smiles })}
                                         <SvgRenderer svg={rankData.svg} />
                                       </div>
@@ -659,7 +682,7 @@ const PatentAnalysisDetail: React.FC = () => {
                                 {/* Scaffold Rank 1 Image for Functional Group Context */}
                                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
                                   <Title level={5} style={{ marginTop: 0, marginBottom: 8, color: token.colorPrimary }}>Scaffold Rank 1</Title>
-                                  <div style={{ width: 200, height: 200, background: '#fff', border: `1px solid ${token.colorBorderSecondary}`, borderRadius: '8px', padding: 8, position: 'relative' }}>
+                                  <div style={{ width: 200, height: 200, background: token.colorBgContainer, border: `1px solid ${token.colorBorderSecondary}`, borderRadius: '8px', padding: 8, position: 'relative' }}>
                                     {renderSvgActionButtons({
                                       svg: patentDetailData.analysis.scaffoldRanks?.[0]?.svg ?? patentDetailData.analysis.parentScaffold.svg,
                                       title: 'Functional Group - Scaffold Rank 1',
@@ -730,6 +753,7 @@ const PatentAnalysisDetail: React.FC = () => {
                                         onClick={() => handleCompoundCardClick(comp, comp.ranking)}
                                         onPreview={() => openSvgPreview(comp.compound_svg, `추천 Key Compound - ${comp.compound_id}`)}
                                         smiles={comp.smiles}
+                                        molblock={comp.molblock}
                                         pagination={
                                           pageArr.length > 0
                                             ? {
@@ -844,7 +868,7 @@ const PatentAnalysisDetail: React.FC = () => {
                                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
                                     <div
                                       className="raw-data-svg-frame"
-                                      style={{ width: 140, height: 100, background: '#fff', border: `1px solid ${token.colorBorderSecondary}`, borderRadius: 6, position: 'relative', cursor: svg ? 'pointer' : 'default', overflow: 'hidden', boxSizing: 'border-box', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                                      style={{ width: 140, height: 100, background: token.colorBgContainer, border: `1px solid ${token.colorBorderSecondary}`, borderRadius: 6, position: 'relative', cursor: svg ? 'pointer' : 'default', overflow: 'hidden', boxSizing: 'border-box', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                                       onClick={() => { if (svg) openSvgPreview(svg, `${key}: ${smiles}`); }}>
                                       {svg && renderSvgActionButtons({ svg, title: `${key}: ${smiles}`, smiles, iconSize: 11 })}
                                       {svg ? (
@@ -899,10 +923,10 @@ const PatentAnalysisDetail: React.FC = () => {
                                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
                                       <div
                                         className="raw-data-svg-frame"
-                                        style={{ width: 180, height: 130, background: '#fff', border: `2px solid ${activeCompId === compKey ? 'red' : token.colorBorderSecondary}`, borderRadius: 8, position: 'relative', cursor: 'pointer', overflow: 'hidden', boxSizing: 'border-box', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                                        style={{ width: 180, height: 130, background: token.colorBgContainer, border: `2px solid ${activeCompId === compKey ? 'red' : token.colorBorderSecondary}`, borderRadius: 8, position: 'relative', cursor: 'pointer', overflow: 'hidden', boxSizing: 'border-box', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                                         onClick={() => { setActiveCompId(compKey); handleGoToPdf(pageArr[curIdx], bboxArr[curIdx]); }}
                                       >
-                                        {renderSvgActionButtons({ svg: record.compound_svg, title: `Compound ${record.compound_id}`, smiles: record.smiles, iconSize: 11 })}
+                                        {renderSvgActionButtons({ svg: record.compound_svg, title: `Compound ${record.compound_id}`, smiles: record.smiles, molblock: record.molblock, iconSize: 11 })}
                                         <SvgRenderer svg={record.compound_svg} height={120} />
                                       </div>
                                       <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -923,16 +947,16 @@ const PatentAnalysisDetail: React.FC = () => {
                                 render: (_: any, record: any) => record.scaffold_svg ? (
                                   <div
                                     className="raw-data-svg-frame"
-                                    style={{ width: 170, height: 130, background: '#fff', border: `1px solid ${token.colorBorderSecondary}`, borderRadius: 8, cursor: 'pointer', position: 'relative', overflow: 'hidden', boxSizing: 'border-box', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                                    style={{ width: 170, height: 130, background: token.colorBgContainer, border: `1px solid ${token.colorBorderSecondary}`, borderRadius: 8, cursor: 'pointer', position: 'relative', overflow: 'hidden', boxSizing: 'border-box', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                                     onClick={() => openSvgPreview(record.scaffold_svg, `Scaffold - ${record.compound_id}`)}
                                   >
-                                    {renderSvgActionButtons({ svg: record.scaffold_svg, title: `Scaffold - ${record.compound_id}`, smiles: record.scaffold_smiles, iconSize: 11 })}
+                                    {renderSvgActionButtons({ svg: record.scaffold_svg, title: `Scaffold - ${record.compound_id}`, smiles: record.scaffold, iconSize: 11 })}
                                     <SvgRenderer svg={record.scaffold_svg} height={120} />
                                   </div>
                                 ) : (
                                   <div
                                     className="raw-data-svg-frame"
-                                    style={{ width: 170, height: 130, background: '#fff', border: `1px solid ${token.colorBorderSecondary}`, borderRadius: 8, boxSizing: 'border-box', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                                    style={{ width: 170, height: 130, background: token.colorBgContainer, border: `1px solid ${token.colorBorderSecondary}`, borderRadius: 8, boxSizing: 'border-box', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                                   >
                                     <Text style={{ fontSize: 12, color: token.colorTextTertiary }}>no image</Text>
                                   </div>
@@ -1028,6 +1052,7 @@ const PatentAnalysisDetail: React.FC = () => {
                                     }}
                                     onPreview={() => openSvgPreview(comp.compound_svg, comp.compound_id)}
                                     smiles={comp.smiles}
+                                    molblock={comp.molblock}
                                     extraInfo={
                                       rEntries.length > 0 && (
                                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
@@ -1196,7 +1221,7 @@ const PatentAnalysisDetail: React.FC = () => {
                                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
                                     <div
                                       className="raw-data-svg-frame"
-                                      style={{ width: 140, height: 100, background: '#fff', border: `1px solid ${token.colorBorderSecondary}`, borderRadius: 6, position: 'relative', cursor: svg ? 'pointer' : 'default', overflow: 'hidden', boxSizing: 'border-box', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                                      style={{ width: 140, height: 100, background: token.colorBgContainer, border: `1px solid ${token.colorBorderSecondary}`, borderRadius: 6, position: 'relative', cursor: svg ? 'pointer' : 'default', overflow: 'hidden', boxSizing: 'border-box', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                                       onClick={() => { if (svg) openSvgPreview(svg, `${key}: ${smiles}`); }}>
                                       {svg && renderSvgActionButtons({ svg, title: `${key}: ${smiles}`, smiles, iconSize: 11 })}
                                       {svg ? (
@@ -1269,10 +1294,10 @@ const PatentAnalysisDetail: React.FC = () => {
                                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
                                       <div
                                         className="raw-data-svg-frame"
-                                        style={{ width: 180, height: 130, background: '#fff', border: `2px solid ${activeCompId === compKey ? 'red' : token.colorBorderSecondary}`, borderRadius: 8, position: 'relative', cursor: 'pointer', overflow: 'hidden', boxSizing: 'border-box', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                                        style={{ width: 180, height: 130, background: token.colorBgContainer, border: `2px solid ${activeCompId === compKey ? 'red' : token.colorBorderSecondary}`, borderRadius: 8, position: 'relative', cursor: 'pointer', overflow: 'hidden', boxSizing: 'border-box', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                                         onClick={() => { setActiveCompId(compKey); handleGoToPdf(pageArr[curIdx], bboxArr[curIdx]); }}
                                       >
-                                        {renderSvgActionButtons({ svg: record.compound_svg, title: `Compound ${record.compound_id}`, smiles: record.smiles, iconSize: 11 })}
+                                        {renderSvgActionButtons({ svg: record.compound_svg, title: `Compound ${record.compound_id}`, smiles: record.smiles, molblock: record.molblock, iconSize: 11 })}
                                         <SvgRenderer svg={record.compound_svg} height={120} />
                                       </div>
                                       <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -1286,7 +1311,6 @@ const PatentAnalysisDetail: React.FC = () => {
                                   );
                                 }
                               },
-                              ...bioColumns,
                               {
                                 title: 'Scaffold',
                                 key: 'scaffold',
@@ -1294,22 +1318,22 @@ const PatentAnalysisDetail: React.FC = () => {
                                 render: (_: any, record: any) => record.scaffold_svg ? (
                                   <div
                                     className="raw-data-svg-frame"
-                                    style={{ width: 170, height: 130, background: '#fff', border: `1px solid ${token.colorBorderSecondary}`, borderRadius: 8, cursor: 'pointer', position: 'relative', overflow: 'hidden', boxSizing: 'border-box', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                                    style={{ width: 170, height: 130, background: token.colorBgContainer, border: `1px solid ${token.colorBorderSecondary}`, borderRadius: 8, cursor: 'pointer', position: 'relative', overflow: 'hidden', boxSizing: 'border-box', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                                     onClick={() => openSvgPreview(record.scaffold_svg, `Scaffold - ${record.compound_id}`)}
                                   >
-                                    {renderSvgActionButtons({ svg: record.scaffold_svg, title: `Scaffold - ${record.compound_id}`, smiles: record.scaffold_smiles, iconSize: 11 })}
+                                    {renderSvgActionButtons({ svg: record.scaffold_svg, title: `Scaffold - ${record.compound_id}`, smiles: record.scaffold, iconSize: 11 })}
                                     <SvgRenderer svg={record.scaffold_svg} height={120} />
                                   </div>
                                 ) : (
                                   <div
                                     className="raw-data-svg-frame"
-                                    style={{ width: 170, height: 130, background: '#fff', border: `1px solid ${token.colorBorderSecondary}`, borderRadius: 8, boxSizing: 'border-box', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                                    style={{ width: 170, height: 130, background: token.colorBgContainer, border: `1px solid ${token.colorBorderSecondary}`, borderRadius: 8, boxSizing: 'border-box', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                                   >
                                     <Text style={{ fontSize: 12, color: token.colorTextTertiary }}>no image</Text>
                                   </div>
                                 )
                               },
-                              ...rGroupColumns,
+                              ...bioColumns,
                               {
                                 title: '관리',
                                 key: 'manage',
@@ -1391,6 +1415,7 @@ const PatentAnalysisDetail: React.FC = () => {
                                         }}
                                         onPreview={() => openSvgPreview(comp.compound_svg, comp.compound_id)}
                                         smiles={comp.smiles}
+                                        molblock={comp.molblock}
                                         extraInfo={
                                           bioEntries.length > 0 && (
                                             <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
@@ -1655,7 +1680,7 @@ const PatentAnalysisDetail: React.FC = () => {
         width={900}
       >
         {previewSvg || previewImageSrc ? (
-          <div style={{ width: '100%', height: 600, background: '#fff', borderRadius: 8, border: `1px solid ${token.colorBorderSecondary}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ width: '100%', height: 600, background: token.colorBgContainer, borderRadius: 8, border: `1px solid ${token.colorBorderSecondary}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             {previewImageSrc ? (
               <img src={previewImageSrc} alt="table-preview" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
             ) : null}
@@ -1665,6 +1690,19 @@ const PatentAnalysisDetail: React.FC = () => {
           </div>
         ) : null}
       </Modal>
+
+      {/* ChemDraw Modal */}
+      <ChemDrawModal
+        open={chemDrawOpen}
+        initialSmiles={chemDrawSmiles}
+        initialMolblock={chemDrawMolblock}
+        onCancel={() => setChemDrawOpen(false)}
+        onConfirm={(data) => {
+          message.success(`SMILES: ${data.smiles || '(empty)'}`);
+          setChemDrawOpen(false);
+        }}
+        title={chemDrawTitle ? `구조 편집 — ${chemDrawTitle}` : undefined}
+      />
     </div>
   );
 };

@@ -1,6 +1,7 @@
-import React from 'react';
-import { Button, Card, Tag, Tooltip, Typography, message, theme } from 'antd';
-import { Search, ChevronLeft, Copy } from 'lucide-react';
+import React, { useState } from 'react';
+import { App, Button, Card, Tag, Tooltip, Typography, theme } from 'antd';
+import { Search, ChevronLeft, Copy, FlaskConical } from 'lucide-react';
+import ChemDrawModal from '../common/ChemDrawModal';
 
 const { Text } = Typography;
 
@@ -32,6 +33,8 @@ export interface DataCardItemProps {
   onPreview?: () => void;
   /** SMILES 문자열 (값이 있으면 copy 버튼 표시) */
   smiles?: string;
+  /** Molblock 문자열 (ChemDraw 로드용) */
+  molblock?: string;
 
   // ===== 푸터 영역 =====
   /** 추가 정보 (R Groups 태그 등) */
@@ -79,6 +82,7 @@ const DataCardItem: React.FC<DataCardItemProps> = ({
   onImageClick,
   onPreview,
   smiles,
+  molblock,
   extraInfo,
   footerText,
   pagination,
@@ -88,6 +92,8 @@ const DataCardItem: React.FC<DataCardItemProps> = ({
   hoverable = true,
 }) => {
   const { token } = theme.useToken();
+  const { message } = App.useApp();
+  const [chemDrawOpen, setChemDrawOpen] = useState(false);
   const imageClickHandler = onImageClick ?? onClick;
 
   // SVG 렌더링 컴포넌트
@@ -113,6 +119,7 @@ const DataCardItem: React.FC<DataCardItemProps> = ({
       case 'svg':
         return (
           <div
+            className="svg-renderer-frame"
             style={{
               height: imageHeight,
               width: '100%',
@@ -144,6 +151,7 @@ const DataCardItem: React.FC<DataCardItemProps> = ({
   };
 
   return (
+    <>
     <Card
       size={size}
       hoverable={hoverable}
@@ -186,10 +194,11 @@ const DataCardItem: React.FC<DataCardItemProps> = ({
 
       {/* 이미지 영역 */}
       <div
+        className="raw-data-svg-frame"
         style={{
           width: '100%',
           height: imageHeight,
-          background: '#fff',
+          background: token.colorBgContainer,
           border: `1px solid ${token.colorBorderSecondary}`,
           borderRadius: 8,
           marginBottom: 8,
@@ -202,12 +211,25 @@ const DataCardItem: React.FC<DataCardItemProps> = ({
           imageClickHandler?.();
         }}
       >
-        {/* 미리보기 & 복사 버튼 */}
-        {(onPreview || smiles) && (
+        {/* 미리보기 & 복사 & ChemDraw 버튼 */}
+        {(onPreview || smiles || molblock) && (
           <div style={{ position: 'absolute', right: 4, top: 4, zIndex: 2, display: 'flex', gap: 2 }}>
+            {(smiles || molblock) && (
+              <Tooltip title="ChemDraw">
+                <Button
+                  className="svg-action-btn"
+                  size="small"
+                  type="text"
+                  icon={<FlaskConical size={size === 'small' ? 12 : 14} />}
+                  onClick={(e) => { e.stopPropagation(); setChemDrawOpen(true); }}
+                  style={{ background: 'rgba(255,255,255,0.85)' }}
+                />
+              </Tooltip>
+            )}
             {smiles && (
               <Tooltip title={`SMILES: ${smiles}`}>
                 <Button
+                  className="svg-action-btn"
                   size="small"
                   type="text"
                   icon={<Copy size={size === 'small' ? 12 : 14} />}
@@ -223,6 +245,7 @@ const DataCardItem: React.FC<DataCardItemProps> = ({
             )}
             {onPreview && (
               <Button
+                className="svg-action-btn"
                 size="small"
                 type="text"
                 icon={<Search size={size === 'small' ? 12 : 14} />}
@@ -279,6 +302,17 @@ const DataCardItem: React.FC<DataCardItemProps> = ({
         </div>
       )}
     </Card>
+    {(smiles || molblock) && (
+      <ChemDrawModal
+        open={chemDrawOpen}
+        initialSmiles={smiles}
+        initialMolblock={molblock}
+        onCancel={() => setChemDrawOpen(false)}
+        onConfirm={() => setChemDrawOpen(false)}
+        title={`구조 편집 — ${title}`}
+      />
+    )}
+    </>
   );
 };
 

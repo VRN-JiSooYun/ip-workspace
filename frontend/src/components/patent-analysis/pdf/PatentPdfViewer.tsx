@@ -229,7 +229,7 @@ const PatentPdfViewer: React.FC<PatentPdfViewerProps> = ({
             overflow: 'hidden',
             display: thumbnailCollapsed ? 'none' : 'flex',
             flexDirection: 'column',
-            background: '#fff',
+            background: backgroundColor,
             transition: 'width 0.2s ease',
           }}
         >
