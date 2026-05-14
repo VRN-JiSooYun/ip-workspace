@@ -47,6 +47,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
     if (path === '/dashboard') return 'dashboard';
     if (path === '/myboard') return 'myboard';
     if (path === '/my-tree') return 'my-tree';
+    if (path === '/chem-space') return 'chem-space';
     if (path === '/patents/write') return 'patent-write';
     if (path === '/patents/analysis') return 'patent-analysis';
     if (path === '/patents/manage') return 'patent-manage';
@@ -133,6 +134,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                 children: [
                   { key: 'myboard', label: 'My board', onClick: () => navigate('/myboard') },
                   { key: 'my-tree', label: 'My tree', onClick: () => navigate('/my-tree') },
+                  { key: 'chem-space', label: 'Chem Space', onClick: () => navigate('/chem-space') },
                 ],
               },
               {

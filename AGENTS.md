@@ -14,7 +14,7 @@
 
 ## Build, Test, and Development Commands
 - 모든 빌드 및 실행은 사용자가 할게
-- `docker-compose up --build`: 프론트엔드 로컬 개발 스택 실행 (포트 5174:5173).
+- `docker compose up --build`: 프론트엔드 로컬 개발 스택 실행 (포트 5174:5173).
 - 프론트엔드 개발 서버는 Docker 내 Bun으로 Vite 개발 서버 실행 (`bun run dev --host`).
 - 빌드: `bun build ./src/main.tsx --outdir ./dist` (현재 Vite 설정 미적용, Bun 직접 빌드).
 
