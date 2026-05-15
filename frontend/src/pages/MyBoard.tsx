@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Row, Col, Card, Table, Button, Input, Switch,
@@ -16,8 +16,11 @@ import dayjs from 'dayjs';
 import { useTheme } from '../contexts/ThemeContext';
 import { CHEMDRAW_CONFIG } from '../config/chemdraw';
 import { getPatentAnalysisLayoutPreset } from '../config/patentAnalysisLayout';
+import { useUIStore } from '../store/useUIStore';
+import PageHeaderBreadcrumb from '../components/common/PageHeaderBreadcrumb';
 import WhiteboardEditor from '../components/board/WhiteboardEditor';
 import ChemDrawModal from '../components/common/ChemDrawModal';
+import BenzeneIcon from '../components/common/BenzeneIcon';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
@@ -30,6 +33,7 @@ const MyBoard: React.FC = () => {
   const navigate = useNavigate();
   const { isDarkMode } = useTheme();
   const { token } = theme.useToken();
+  const { setHeaderContent } = useUIStore();
   const { selectedGroupIds, toggleGroupSelection, setSelectedSarCompoundIds } = useBoardStore();
   const [isGroupModalOpen, setIsGroupModalOpen] = useState(false);
   const [isDesignModalOpen, setIsDesignModalOpen] = useState(false);
@@ -77,6 +81,18 @@ const MyBoard: React.FC = () => {
       setAssignedGroupIds(selectedGroupIds);
     }
   }, [isDesignModalOpen, selectedGroupIds]);
+
+  useEffect(() => {
+    setHeaderContent(
+      <PageHeaderBreadcrumb 
+        items={[
+          { label: 'Workspace' },
+          { label: 'My Board' }
+        ]} 
+      />
+    );
+    return () => setHeaderContent(null);
+  }, [setHeaderContent]);
 
   React.useEffect(() => {
     const onResize = () => setViewportWidth(window.innerWidth);
@@ -268,26 +284,22 @@ const MyBoard: React.FC = () => {
   const sarTargetCount = selectedGroupIds.length > 0 ? filteredCompounds.length : 0;
 
   const groupColumns = [
-    {
-      title: '',
-      key: 'selection',
-      width: 40,
-      render: (record: any) => (
-        <Switch
-          size="small"
-          checked={selectedGroupIds.includes(record.id)}
-          onChange={() => {
-            setIsLoading(true);
-            toggleGroupSelection(record.id);
-            setTimeout(() => setIsLoading(false), 500); // Simulate loading
-          }}
-        />
+    { title: 'Date', dataIndex: 'creDate', key: 'creDate', width: 100 },
+    { 
+      title: 'Type', 
+      dataIndex: 'type', 
+      key: 'type', 
+      width: 60, 
+      align: 'center' as const,
+      render: (type: string) => (
+        <Tag color={type === 'my designs' ? 'orange' : 'cyan'} style={{ fontWeight: 700, borderRadius: 4, margin: 0 }}>
+          {type === 'my designs' ? 'D' : 'C'}
+        </Tag>
       )
     },
-    { title: 'Date', dataIndex: 'creDate', key: 'creDate', width: 100 },
-    { title: 'Type', dataIndex: 'type', key: 'type', width: 100 },
     { title: 'Target', dataIndex: 'target', key: 'target', width: 80, render: (t: string) => <Tag color="blue">{t}</Tag> },
     { title: 'Title', dataIndex: 'name', key: 'name' },
+    { title: '개수', dataIndex: 'count', key: 'count', align: 'right' as const, width: 60 },
     {
       title: '공유',
       dataIndex: 'shareStatus',
@@ -295,8 +307,7 @@ const MyBoard: React.FC = () => {
       render: (status: string) => (
         status === '공유함' ? <Button size="small" type="text" danger icon={<XCircle size={14} />}>공유취소</Button> : null
       )
-    },
-    { title: '개수', dataIndex: 'count', key: 'count', align: 'right' as const, width: 60 }
+    }
   ];
 
   const allColumnsMap: Record<string, any> = {
@@ -328,7 +339,7 @@ const MyBoard: React.FC = () => {
               dangerouslySetInnerHTML={{ __html: searchedSvg }}
             />
           ) : (
-            <FlaskConical size={20} color={token.colorTextTertiary} />
+            <BenzeneIcon size={20} color={token.colorTextTertiary} />
           )}
         </div>
       )
@@ -416,31 +427,32 @@ const MyBoard: React.FC = () => {
         width: '100%'
       }}
     >
-      {/* Search Header */}
-      <Card variant="borderless" className="c-card" style={{ marginBottom: 24, borderRadius: 12 }}>
+      {/* Local Filter Card (Condensed) */}
+      <Card variant="borderless" className="c-card" style={{ marginBottom: 24 }}>
         <Row gutter={[16, 16]} align="middle">
           <Col flex="auto">
             <Space size="middle">
               <Input
                 prefix={<Search size={18} color={token.colorTextTertiary} />}
                 placeholder="검색어 입력 (이름, SMILES 등)"
-                style={{ width: 350, height: 44, borderRadius: 12 }}
+                className="v-search-input"
+                style={{ width: 350 }}
                 value={keyword}
                 onChange={(e) => setKeyword(e.target.value)}
               />
               <Button
                 icon={showFilters ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
                 onClick={() => setShowFilters(!showFilters)}
-                style={{ height: 44, borderRadius: 12 }}
+                className="v-action-btn"
               >
                 상세 필터 {showFilters ? '닫기' : '열기'}
               </Button>
-              <Button icon={<Beaker size={18} />} onClick={() => setIsStructureModalOpen(true)} style={{ height: 44, borderRadius: 12 }}>구조 검색</Button>
+              <Button icon={<BenzeneIcon size={18} />} onClick={() => setIsStructureModalOpen(true)} className="v-action-btn">구조 검색</Button>
             </Space>
           </Col>
           <Col>
             <Space>
-              <Button type="primary" icon={<Plus size={18} />} onClick={() => setIsGroupModalOpen(true)} style={{ height: 44, borderRadius: 12, background: token.colorPrimary, borderColor: token.colorPrimary }}>상위 그룹 생성</Button>
+              <Button type="primary" icon={<Plus size={18} />} onClick={() => setIsGroupModalOpen(true)} className="v-action-btn" style={{ background: token.colorPrimary, borderColor: token.colorPrimary }}>상위 그룹 생성</Button>
             </Space>
           </Col>
         </Row>
@@ -453,7 +465,12 @@ const MyBoard: React.FC = () => {
                   {['ALL', ...projectList].map(opt => (
                     <Space key={opt} size={4} style={{ marginRight: 8 }}>
                       <Switch size="small" checked={selectedProjects.includes(opt)} onChange={(c) => handleToggleChange(c, opt, setSelectedProjects, selectedProjects, projectList)} />
-                      <Text style={{ fontSize: 12 }}>{opt}</Text>
+                      <Text 
+                        style={{ fontSize: 12, cursor: 'pointer', userSelect: 'none' }}
+                        onClick={() => handleToggleChange(!selectedProjects.includes(opt), opt, setSelectedProjects, selectedProjects, projectList)}
+                      >
+                        {opt}
+                      </Text>
                     </Space>
                   ))}
                 </Space>
@@ -464,7 +481,12 @@ const MyBoard: React.FC = () => {
                   {['ALL', ...shareList].map(opt => (
                     <Space key={opt} size={4} style={{ marginRight: 8 }}>
                       <Switch size="small" checked={selectedShares.includes(opt)} onChange={(c) => handleToggleChange(c, opt, setSelectedShares, selectedShares, shareList)} />
-                      <Text style={{ fontSize: 12 }}>{opt}</Text>
+                      <Text 
+                        style={{ fontSize: 12, cursor: 'pointer', userSelect: 'none' }}
+                        onClick={() => handleToggleChange(!selectedShares.includes(opt), opt, setSelectedShares, selectedShares, shareList)}
+                      >
+                        {opt}
+                      </Text>
                     </Space>
                   ))}
                 </Space>
@@ -475,7 +497,12 @@ const MyBoard: React.FC = () => {
                   {['ALL', ...sourceList].map(opt => (
                     <Space key={opt} size={4} style={{ marginRight: 8 }}>
                       <Switch size="small" checked={selectedSources.includes(opt)} onChange={(c) => handleToggleChange(c, opt, setSelectedSources, selectedSources, sourceList)} />
-                      <Text style={{ fontSize: 12 }}>{opt}</Text>
+                      <Text 
+                        style={{ fontSize: 12, cursor: 'pointer', userSelect: 'none' }}
+                        onClick={() => handleToggleChange(!selectedSources.includes(opt), opt, setSelectedSources, selectedSources, sourceList)}
+                      >
+                        {opt}
+                      </Text>
                     </Space>
                   ))}
                 </Space>
@@ -499,48 +526,70 @@ const MyBoard: React.FC = () => {
 
       <div ref={splitContainerRef} style={{ display: 'flex', gap: 0, minHeight: 0 }}>
         <div style={{ width: `calc(${splitRatio}% - 6px)`, minWidth: 0 }}>
-          <div className="c-card" style={{ background: token.colorBgContainer, borderRadius: 12, overflow: 'hidden' }}>
-            <div style={{ padding: '16px 24px', borderBottom: `1px solid ${token.colorBorderSecondary}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Text strong style={{ color: token.colorPrimary }}>그룹 리스트</Text>
-              <Space size="middle">
-                <Button
+          <div className="v-table-card">
+            <div className="v-table-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                <Text strong style={{ color: token.colorPrimary }}>그룹 리스트</Text>
+                <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                  <Space size={6}>
+                    <Switch
+                      size="small"
+                      checked={selectedDataSources.includes('my designs')}
+                      onChange={(checked) => {
+                        const next = checked
+                          ? [...selectedDataSources, 'my designs']
+                          : selectedDataSources.filter(s => s !== 'my designs');
+                        if (next.length > 0) setSelectedDataSources(next);
+                      }}
+                    />
+                    <Text 
+                      style={{ fontSize: 11, cursor: 'pointer', userSelect: 'none' }}
+                      onClick={() => {
+                        const checked = !selectedDataSources.includes('my designs');
+                        const next = checked
+                          ? [...selectedDataSources, 'my designs']
+                          : selectedDataSources.filter(s => s !== 'my designs');
+                        if (next.length > 0) setSelectedDataSources(next);
+                      }}
+                    >
+                      My Designs
+                    </Text>
+                  </Space>
+                  <Space size={6}>
+                    <Switch
+                      size="small"
+                      checked={selectedDataSources.includes('my compounds')}
+                      onChange={(checked) => {
+                        const next = checked
+                          ? [...selectedDataSources, 'my compounds']
+                          : selectedDataSources.filter(s => s !== 'my compounds');
+                        if (next.length > 0) setSelectedDataSources(next);
+                      }}
+                    />
+                    <Text 
+                      style={{ fontSize: 11, cursor: 'pointer', userSelect: 'none' }}
+                      onClick={() => {
+                        const checked = !selectedDataSources.includes('my compounds');
+                        const next = checked
+                          ? [...selectedDataSources, 'my compounds']
+                          : selectedDataSources.filter(s => s !== 'my compounds');
+                        if (next.length > 0) setSelectedDataSources(next);
+                      }}
+                    >
+                      My Compounds
+                    </Text>
+                  </Space>
+                </div>
+              </div>
+              <Button
                   size="small"
-                  icon={<Beaker size={14} />}
+                  icon={<BenzeneIcon size={14} />}
                   onClick={() => {
                     navigate('/synthesis-board');
                   }}
-                >
-                  합성 보드
-                </Button>
-                <div style={{ background: token.colorBgLayout, padding: '4px 8px', borderRadius: 8, display: 'flex', gap: 12, alignItems: 'center' }}>
-                <Space size={6}>
-                  <Switch
-                    size="small"
-                    checked={selectedDataSources.includes('my designs')}
-                    onChange={(checked) => {
-                      const next = checked
-                        ? [...selectedDataSources, 'my designs']
-                        : selectedDataSources.filter(s => s !== 'my designs');
-                      if (next.length > 0) setSelectedDataSources(next);
-                    }}
-                  />
-                  <Text style={{ fontSize: 11 }}>My Designs</Text>
-                </Space>
-                <Space size={6}>
-                  <Switch
-                    size="small"
-                    checked={selectedDataSources.includes('my compounds')}
-                    onChange={(checked) => {
-                      const next = checked
-                        ? [...selectedDataSources, 'my compounds']
-                        : selectedDataSources.filter(s => s !== 'my compounds');
-                      if (next.length > 0) setSelectedDataSources(next);
-                    }}
-                  />
-                  <Text style={{ fontSize: 11 }}>My Compounds</Text>
-                </Space>
-              </div>
-              </Space>
+              >
+                합성 보드
+              </Button>
             </div>
             <Table
               dataSource={mockGroups.filter(g => selectedDataSources.includes(g.type))}
@@ -548,6 +597,15 @@ const MyBoard: React.FC = () => {
               pagination={false}
               size="small"
               rowKey="id"
+              onRow={(record) => ({
+                onClick: () => {
+                  setIsLoading(true);
+                  toggleGroupSelection(record.id);
+                  setTimeout(() => setIsLoading(false), 500);
+                },
+                style: { cursor: 'pointer' }
+              })}
+              rowClassName={(record) => selectedGroupIds.includes(record.id) ? 'row-selected' : ''}
             />
           </div>
         </div>
@@ -584,35 +642,40 @@ const MyBoard: React.FC = () => {
           />
         </div>
 
-        <div style={{ width: `calc(${100 - splitRatio}% - 6px)`, minWidth: 0 }}>
-          <div className="c-card" style={{ background: token.colorBgContainer, borderRadius: 12, overflow: 'hidden' }}>
-            <div style={{ padding: '16px 24px', borderBottom: `1px solid ${token.colorBorderSecondary}`, display: 'flex', justifyContent: 'space-between' }}>
-              <Text strong style={{ color: token.colorPrimary }}>그룹 상세 목록</Text>
-              <Space>
-                <Button
-                  type="primary"
-                  size="small"
-                  icon={<Plus size={14} />}
-                  disabled={selectedGroupIds.length === 0}
-                  style={{ background: token.colorPrimary, borderColor: token.colorPrimary }}
-                  onClick={() => setIsDesignModalOpen(true)}
-                >
-                  Create Design
-                </Button>
-                <Button
-                  type="primary"
-                  size="small"
-                  icon={<Share2 size={14} />}
-                  disabled={sarTargetCount === 0}
-                  style={{ background: token.colorPrimary, borderColor: token.colorPrimary }}
-                  onClick={() => {
-                    setSelectedSarCompoundIds(filteredCompounds.map((compound) => compound.id));
-                    navigate('/sar-table');
-                  }}
-                >
-                  SAR Table로 보기 ({sarTargetCount})
-                </Button>
-                {viewMode === 'table' && (
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div className="v-table-card">
+            <div className="v-table-header" style={{ flexWrap: 'wrap', gap: '12px', alignItems: 'center' }}>
+              <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
+                <Text strong style={{ color: token.colorPrimary }}>그룹 상세 목록</Text>
+                <Space>
+                  <Button
+                    type="primary"
+                    size="small"
+                    icon={<Plus size={14} />}
+                    disabled={selectedGroupIds.length === 0}
+                    style={{ background: token.colorPrimary, borderColor: token.colorPrimary }}
+                    onClick={() => setIsDesignModalOpen(true)}
+                  >
+                    Create Design
+                  </Button>
+                  <Button
+                    type="primary"
+                    size="small"
+                    icon={<Share2 size={14} />}
+                    disabled={sarTargetCount === 0}
+                    style={{ background: token.colorPrimary, borderColor: token.colorPrimary }}
+                    onClick={() => {
+                      setSelectedSarCompoundIds(filteredCompounds.map((compound) => compound.id));
+                      navigate('/sar-table');
+                    }}
+                  >
+                    SAR Table로 보기 ({sarTargetCount})
+                  </Button>
+                </Space>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', flex: '1 1 auto' }}>
+                <Space>
+                  {viewMode === 'table' && (
                   <>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       <div style={{ display: 'flex', gap: 4 }}>
@@ -684,8 +747,9 @@ const MyBoard: React.FC = () => {
                   >
                     Tree
                   </Button>
-                </div>
-              </Space>
+                  </div>
+                </Space>
+              </div>
             </div>
             {viewMode === 'table' ? (
               <Table
@@ -695,6 +759,7 @@ const MyBoard: React.FC = () => {
                 rowKey="id"
                 pagination={{ pageSize: 8 }}
                 loading={isLoading}
+                scroll={{ x: 'max-content' }}
                 locale={{ emptyText: selectedGroupIds.length === 0 ? '왼쪽 그룹 리스트에서 그룹을 선택해 주세요.' : '검색 결과가 없습니다.' }}
               />
             ) : viewMode === 'draw' ? (

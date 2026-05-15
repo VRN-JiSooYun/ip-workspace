@@ -18,12 +18,14 @@ import {
   PlusSquare,
   Microscope,
   Menu as MenuIcon,
-  ChevronLeft,
-  ChevronRight,
+  PanelLeftClose,
+  PanelLeftOpen,
   FileText,
   BookOpen,
-  Users as UsersIcon
+  Users as UsersIcon,
+  HelpCircle
 } from 'lucide-react';
+import BenzeneIcon from '../common/BenzeneIcon';
 
 const { Header, Sider, Content } = Layout;
 
@@ -34,7 +36,7 @@ interface MainLayoutProps {
 import { useUIStore } from '../../store/useUIStore';
 
 const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
-  const [collapsed, setCollapsed] = useState(false);
+  const [sidebarMode, setSidebarMode] = useState<'full' | 'mini' | 'hidden'>('full');
   const { token } = theme.useToken();
   const { isDarkMode, toggleTheme } = useTheme();
   const { headerContent } = useUIStore();
@@ -55,6 +57,8 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
     if (path === '/conferences') return 'conferences';
     if (path === '/pdbs') return 'pdbs';
     if (path === '/universal-search') return 'universal-search';
+    if (path === '/development-status') return 'development-status';
+    if (path === '/contact') return 'contact';
     return 'dashboard';
   };
 
@@ -63,16 +67,28 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
       <Sider
         trigger={null}
         collapsible
-        collapsed={collapsed}
+        collapsed={sidebarMode !== 'full'}
+        collapsedWidth={sidebarMode === 'hidden' ? 0 : 64}
         theme={isDarkMode ? 'dark' : 'light'}
-        width={280}
+        width={220}
         style={{
           background: isDarkMode ? '#1a1a1a' : '#f2f4f6',
-          padding: collapsed ? '24px 8px' : '32px 16px',
-          borderRight: isDarkMode ? '1px solid #303030' : 'none'
+          padding: sidebarMode === 'full' ? '24px 12px' : (sidebarMode === 'mini' ? '24px 0' : 0),
+          borderRight: isDarkMode ? '1px solid #303030' : 'none',
+          transition: 'all 0.2s',
+          overflow: 'hidden'
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '0 16px', marginBottom: 40, position: 'relative' }}>
+        <div style={{ 
+          display: 'flex', 
+          alignItems: 'center', 
+          gap: '12px', 
+          padding: '0 16px', 
+          marginBottom: 40, 
+          position: 'relative',
+          opacity: sidebarMode === 'hidden' ? 0 : 1,
+          transition: 'opacity 0.2s'
+        }}>
           <div style={{
             width: 40,
             height: 40,
@@ -86,36 +102,14 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
           }} onClick={() => navigate('/dashboard')} className="cursor-pointer">
             <FlaskConical size={24} />
           </div>
-          {!collapsed && (
+          {sidebarMode === 'full' && (
             <div onClick={() => navigate('/dashboard')} style={{ cursor: 'pointer' }}>
               <div style={{ fontWeight: 800, fontSize: '18px', color: isDarkMode ? '#e8e8e8' : '#191c1e', letterSpacing: '-0.5px' }}>MyWorkspace</div>
             </div>
           )}
-
-          <Button
-            type="text"
-            icon={collapsed ? <ChevronRight size={16} color="#fff" /> : <ChevronLeft size={16} color="#fff" />}
-            onClick={() => setCollapsed(!collapsed)}
-            style={{
-              position: 'absolute',
-              right: collapsed ? -20 : -28,
-              top: 40,
-              width: 24,
-              height: 24,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              background: '#F87C63',
-              borderRadius: '50%',
-              border: isDarkMode ? '2px solid #1a1a1a' : '2px solid #fff',
-              boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-              zIndex: 100,
-              padding: 0
-            }}
-          />
         </div>
 
-        <div style={{ overflowY: 'auto', flex: 1, padding: '0 8px' }}>
+        <div style={{ overflowY: 'auto', flex: 1, padding: '0 8px', display: sidebarMode === 'hidden' ? 'none' : 'block' }}>
           <Menu
             mode="inline"
             selectedKeys={[getSelectedKey()]}
@@ -123,13 +117,13 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
             items={[
               {
                 key: 'dashboard',
-                icon: <LayoutDashboard size={20} />,
+                icon: <LayoutDashboard size={22} />,
                 label: <span style={{ fontWeight: 600 }}>Dashboard</span>,
                 onClick: () => navigate('/dashboard')
               },
               {
                 key: 'compounds',
-                icon: <Beaker size={20} />,
+                icon: <BenzeneIcon size={22} />,
                 label: <span style={{ fontWeight: 600 }}>Compounds</span>,
                 children: [
                   { key: 'myboard', label: 'My board', onClick: () => navigate('/myboard') },
@@ -139,7 +133,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
               },
               {
                 key: 'documents',
-                icon: <FileText size={20} />,
+                icon: <FileText size={22} />,
                 label: <span style={{ fontWeight: 600 }}>Documents</span>,
                 children: [
                   {
@@ -163,15 +157,27 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
               },
               {
                 key: 'pdbs',
-                icon: <Microscope size={20} />,
+                icon: <Microscope size={22} />,
                 label: <span style={{ fontWeight: 600 }}>PDBs</span>,
                 onClick: () => navigate('/pdbs')
               },
               {
                 key: 'universal-search',
-                icon: <Search size={20} />,
+                icon: <Search size={22} />,
                 label: <span style={{ fontWeight: 600 }}>통합검색</span>,
                 onClick: () => navigate('/universal-search')
+              },
+              {
+                key: 'development-status',
+                icon: <Activity size={22} />,
+                label: <span style={{ fontWeight: 600 }}>수리응용2팀 서비스 개발 진행 현황</span>,
+                onClick: () => navigate('/development-status')
+              },
+              {
+                key: 'contact',
+                icon: <HelpCircle size={22} />,
+                label: <span style={{ fontWeight: 600 }}>문의하기</span>,
+                onClick: () => navigate('/contact')
               },
             ]}
           />
@@ -180,7 +186,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
 
       <Layout>
         <Header style={{
-          padding: '0 48px',
+          padding: '0 32px',
           background: token.colorBgLayout,
           display: 'flex',
           alignItems: 'center',
@@ -188,7 +194,30 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
           height: 80,
           borderBottom: 'none'
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', flex: 1 }}>
+          <div style={{ display: 'flex', alignItems: 'center', flex: 1, gap: 16 }}>
+            <Button
+              type="text"
+              icon={
+                sidebarMode === 'full' ? <PanelLeftClose size={20} /> :
+                sidebarMode === 'mini' ? <PanelLeftOpen size={20} /> :
+                <MenuIcon size={20} />
+              }
+              onClick={() => {
+                if (sidebarMode === 'full') setSidebarMode('mini');
+                else if (sidebarMode === 'mini') setSidebarMode('hidden');
+                else setSidebarMode('full');
+              }}
+              style={{
+                width: 40,
+                height: 40,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                borderRadius: '10px',
+                background: isDarkMode ? '#2b2b2b' : '#fff',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.05)'
+              }}
+            />
             {headerContent ? (
               headerContent
             ) : (
@@ -226,7 +255,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
           </div>
         </Header>
         <Content style={{
-          padding: '24px 48px',
+          padding: '0 32px 24px 32px',
           overflow: 'hidden', // 전체 스크롤 방지를 위해 hidden으로 변경
           boxSizing: 'border-box',
           height: 'calc(100vh - 80px)',

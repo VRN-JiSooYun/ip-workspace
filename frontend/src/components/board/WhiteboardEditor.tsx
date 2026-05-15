@@ -131,6 +131,62 @@ const WhiteboardEditor: React.FC<WhiteboardEditorProps> = ({
     // Initial load
     loadCompoundsToCanvas(canvas);
 
+    const handlePaste = async (e: ClipboardEvent) => {
+      const items = e.clipboardData?.items;
+      if (!items) return;
+
+      for (let i = 0; i < items.length; i++) {
+        // Handle Images
+        if (items[i].type.indexOf('image') !== -1) {
+          const blob = items[i].getAsFile();
+          if (blob) {
+            const reader = new FileReader();
+            reader.onload = (event) => {
+              const data = event.target?.result as string;
+              fabric.Image.fromURL(data).then((img) => {
+                // Resize if too large
+                if (img.width! > 500) {
+                  img.scaleToWidth(500);
+                }
+                
+                // Center in viewport
+                const center = canvas.getVpCenter();
+                img.set({
+                  left: center.x - (img.getScaledWidth() / 2),
+                  top: center.y - (img.getScaledHeight() / 2),
+                });
+                
+                canvas.add(img);
+                canvas.setActiveObject(img);
+                canvas.renderAll();
+              });
+            };
+            reader.readAsDataURL(blob);
+          }
+        }
+        // Handle Text
+        else if (items[i].type.indexOf('text/plain') !== -1) {
+          items[i].getAsString((text) => {
+            const center = canvas.getVpCenter();
+            const fabricText = new fabric.IText(text, {
+              left: center.x,
+              top: center.y,
+              fontSize: 20,
+              fontFamily: 'Inter',
+              fill: token.colorText,
+              originX: 'center',
+              originY: 'center',
+            });
+            canvas.add(fabricText);
+            canvas.setActiveObject(fabricText);
+            canvas.renderAll();
+          });
+        }
+      }
+    };
+
+    window.addEventListener('paste', handlePaste);
+
     const handleResize = () => {
       if (canvasRef.current?.parentElement) {
         canvas.setDimensions({
@@ -143,10 +199,11 @@ const WhiteboardEditor: React.FC<WhiteboardEditorProps> = ({
     window.addEventListener('resize', handleResize);
 
     return () => {
+      window.removeEventListener('paste', handlePaste);
       window.removeEventListener('resize', handleResize);
       canvas.dispose();
     };
-  }, [height, token.colorBgLayout, compounds, searchedSvg]);
+  }, [height, token, compounds, searchedSvg]);
 
   // Tool functions
   const addRect = () => {

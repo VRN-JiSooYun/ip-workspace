@@ -1,13 +1,17 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Row, Col, Card, Table, Button, Input, Switch,
   Space, Typography, Modal, Form, Tag, Select, DatePicker, Avatar, Divider, Segmented, Popover, theme
 } from 'antd';
 import {
   Search, Plus, Filter, Settings, FlaskConical, Info, ChevronDown, ChevronUp, Beaker, Image as ImageIcon, GitBranch,
-  UserPlus, CheckCircle2, Clock, AlertCircle, GripVertical, Users, Activity, List as ListIcon
+  UserPlus, CheckCircle2, Clock, AlertCircle, GripVertical, Users, Activity, List as ListIcon, ClipboardList, ArrowLeft
 } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
+import { useUIStore } from '../store/useUIStore';
+import PageHeaderBreadcrumb from '../components/common/PageHeaderBreadcrumb';
+import BenzeneIcon from '../components/common/BenzeneIcon';
 import { getPatentAnalysisLayoutPreset } from '../config/patentAnalysisLayout';
 import dayjs from 'dayjs';
 
@@ -70,6 +74,8 @@ const ManagerComparisonPopup = ({ record, currentMgrName }: { record: any, curre
 
 const SynthesisBoard: React.FC = () => {
   const { token } = theme.useToken();
+  const navigate = useNavigate();
+  const { setHeaderContent } = useUIStore();
   const { isDarkMode } = useTheme();
   const [selectedDataSources, setSelectedDataSources] = useState<string[]>(['Designs']);
   const [showFilters, setShowFilters] = useState(false);
@@ -123,6 +129,18 @@ const SynthesisBoard: React.FC = () => {
     setFn(next);
   };
 
+  useEffect(() => {
+    setHeaderContent(
+      <PageHeaderBreadcrumb 
+        items={[
+          { label: 'Workspace' },
+          { label: 'Synthesis Board' }
+        ]} 
+      />
+    );
+    return () => setHeaderContent(null);
+  }, [setHeaderContent]);
+
   React.useEffect(() => {
     const onResize = () => setViewportWidth(window.innerWidth);
     window.addEventListener('resize', onResize);
@@ -132,7 +150,7 @@ const SynthesisBoard: React.FC = () => {
   // Mock Data for Designs
   const designGroups = [
     {
-      id: 'sg1', num: 1, date: '2026-04-10', type: 'My Designs', target: 'FGFR', title: 'Leucine series A',
+      id: 'sg1', num: 1, date: '2026.04.10', type: 'My Designs', target: 'FGFR', title: 'Leucine series A',
       share: '공유함', ing: 2, done: 1, unassigned: 2, total: 5,
       managers: [
         { name: '담당자1', count: 2, ing: 1, done: 1 },
@@ -141,7 +159,7 @@ const SynthesisBoard: React.FC = () => {
       ]
     },
     {
-      id: 'sg2', num: 2, date: '2026-04-12', type: 'My Designs', target: 'HER2', title: 'Scaffold B optimization',
+      id: 'sg2', num: 2, date: '2026.04.12', type: 'My Designs', target: 'HER2', title: 'Scaffold B optimization',
       share: '비공개', ing: 1, done: 2, unassigned: 0, total: 3,
       managers: [
         { name: '담당자4', count: 3, ing: 1, done: 2 }
@@ -152,7 +170,7 @@ const SynthesisBoard: React.FC = () => {
   // Mock Data for Compounds
   const compoundGroups = [
     {
-      id: 'cg1', num: 1, date: '2026-04-15', type: 'My Compounds', target: 'cMET', title: 'Synthesized VRA-100s',
+      id: 'cg1', num: 1, date: '2026.04.15', type: 'My Compounds', target: 'cMET', title: 'Synthesized VRA-100s',
       share: '공유받음', ing: 5, done: 10, unassigned: 0, total: 15,
       managers: [
         { name: '담당자1', count: 8, ing: 3, done: 5 },
@@ -160,7 +178,7 @@ const SynthesisBoard: React.FC = () => {
       ]
     },
     {
-      id: 'cg2', num: 2, date: '2026-04-20', type: 'My Compounds', target: 'WRN', title: 'Lead Compound Batch 1',
+      id: 'cg2', num: 2, date: '2026.04.20', type: 'My Compounds', target: 'WRN', title: 'Lead Compound Batch 1',
       share: '비공개', ing: 2, done: 8, unassigned: 1, total: 11,
       managers: [
         { name: '담당자2', count: 4, ing: 1, done: 3 },
@@ -179,14 +197,14 @@ const SynthesisBoard: React.FC = () => {
 
   const mockSynthesisDetails: SynthesisDetail[] = [
     // Designs items
-    { id: 'sd1', groupId: 'sg1', groupNum: 1, compoundId: 'VRA-001', name: 'VRA-001', smiles: 'CC1=CC=C(C=C1)S', assignee: '담당자1', requestDate: '2026-04-10', completeDate: null },
-    { id: 'sd2', groupId: 'sg1', groupNum: 2, compoundId: 'VRA-002', name: 'VRA-002', smiles: 'CNC1=NC=NC=C1', assignee: '담당자2', requestDate: '2026-04-11', completeDate: null },
-    { id: 'sd_new1', groupId: 'sg1', groupNum: 3, compoundId: 'VRA-003', name: 'VRA-003 (미배정)', smiles: 'CC(=O)C1=CC=CC=C1', assignee: null, requestDate: '2026-04-12', completeDate: null },
-    { id: 'sd3', groupId: 'sg2', groupNum: 1, compoundId: 'VRA-004', name: 'VRA-004', smiles: 'C1=CC=C(C=C1)N', assignee: '담당자1', requestDate: '2026-04-12', completeDate: '2026-04-20' },
+    { id: 'sd1', groupId: 'sg1', groupNum: 1, compoundId: 'VRA-001', name: 'VRA-001', smiles: 'CC1=CC=C(C=C1)S', assignee: '담당자1', requestDate: '2026.04.10', completeDate: null },
+    { id: 'sd2', groupId: 'sg1', groupNum: 2, compoundId: 'VRA-002', name: 'VRA-002', smiles: 'CNC1=NC=NC=C1', assignee: '담당자2', requestDate: '2026.04.11', completeDate: null },
+    { id: 'sd_new1', groupId: 'sg1', groupNum: 3, compoundId: 'VRA-003', name: 'VRA-003 (미배정)', smiles: 'CC(=O)C1=CC=CC=C1', assignee: null, requestDate: '2026.04.12', completeDate: null },
+    { id: 'sd3', groupId: 'sg2', groupNum: 1, compoundId: 'VRA-004', name: 'VRA-004', smiles: 'C1=CC=C(C=C1)N', assignee: '담당자1', requestDate: '2026.04.12', completeDate: '2026.04.20' },
     // Compounds items
-    { id: 'sd4', groupId: 'cg1', groupNum: 1, compoundId: 'VRA-101', name: 'VRA-101', smiles: 'CC(=O)NC1=CC=CC=C1', assignee: '담당자1', requestDate: '2026-04-15', completeDate: null },
-    { id: 'sd5', groupId: 'cg2', groupNum: 1, compoundId: 'VRA-102', name: 'VRA-102', smiles: 'CC(C)C1=CC=CC=C1', assignee: '담당자2', requestDate: '2026-04-16', completeDate: '2026-04-21' },
-    { id: 'sd_new2', groupId: 'cg2', groupNum: 2, compoundId: 'VRA-103', name: 'VRA-103 (미배정)', smiles: 'C1=CC=CC=C1O', assignee: null, requestDate: '2026-04-22', completeDate: null },
+    { id: 'sd4', groupId: 'cg1', groupNum: 1, compoundId: 'VRA-101', name: 'VRA-101', smiles: 'CC(=O)NC1=CC=CC=C1', assignee: '담당자1', requestDate: '2026.04.15', completeDate: null },
+    { id: 'sd5', groupId: 'cg2', groupNum: 1, compoundId: 'VRA-102', name: 'VRA-102', smiles: 'CC(C)C1=CC=CC=C1', assignee: '담당자2', requestDate: '2026.04.16', completeDate: '2026.04.21' },
+    { id: 'sd_new2', groupId: 'cg2', groupNum: 2, compoundId: 'VRA-103', name: 'VRA-103 (미배정)', smiles: 'C1=CC=CC=C1O', assignee: null, requestDate: '2026.04.22', completeDate: null },
   ];
 
   const filteredDetails = useMemo(() => {
@@ -199,7 +217,18 @@ const SynthesisBoard: React.FC = () => {
   const groupColumns = [
     { title: 'Num', dataIndex: 'num', key: 'num', width: 50, align: 'center' as const },
     { title: 'Date', dataIndex: 'date', key: 'date', width: 90, render: (date: string) => <Text style={{ fontSize: 11 }}>{date}</Text> },
-    { title: 'Type', dataIndex: 'type', key: 'type', width: 80, render: (type: string) => <Tag style={{ fontSize: 11, borderRadius: 4 }}>{type}</Tag> },
+    { 
+      title: 'Type', 
+      dataIndex: 'type', 
+      key: 'type', 
+      width: 60, 
+      align: 'center' as const,
+      render: (type: string) => (
+        <Tag color={type === 'My Designs' ? 'orange' : 'cyan'} style={{ fontWeight: 700, borderRadius: 4, margin: 0 }}>
+          {type === 'My Designs' ? 'D' : 'C'}
+        </Tag>
+      )
+    },
     { title: 'Target', dataIndex: 'target', key: 'target', width: 80, render: (text: string) => <Tag color="blue" style={{ fontSize: 11 }}>{text}</Tag> },
     { title: 'Title', dataIndex: 'title', key: 'title', ellipsis: true, render: (text: string) => <Text strong style={{ fontSize: 12 }}>{text}</Text> },
     { title: '공유', dataIndex: 'share', key: 'share', width: 70, render: (text: string) => <Text type="secondary" style={{ fontSize: 11 }}>{text}</Text> },
@@ -293,7 +322,7 @@ const SynthesisBoard: React.FC = () => {
       align: 'center' as const,
       render: () => (
         <div style={{ width: 80, height: 50, background: token.colorBgLayout, borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', border: `1px solid ${token.colorBorderSecondary}` }}>
-          <FlaskConical size={18} color={token.colorBorder} />
+          <BenzeneIcon size={18} color={token.colorBorder} />
         </div>
       )
     },
@@ -350,21 +379,22 @@ const SynthesisBoard: React.FC = () => {
       }}
     >
       {/* Top Search Header - Removed Source Toggle from here */}
-      <Card variant="borderless" className="c-card" style={{ marginBottom: 20, borderRadius: 12, boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+      <Card variant="borderless" className="c-card" style={{ marginBottom: 20 }}>
         <Row gutter={[16, 16]} align="middle">
           <Col flex="auto">
             <Space size="middle">
               <Input
                 prefix={<Search size={18} color={token.colorTextTertiary} />}
                 placeholder="그룹 또는 화합물 ID 검색"
-                style={{ width: 350, height: 44, borderRadius: 12 }}
+                className="v-search-input"
+                style={{ width: 350 }}
                 value={keyword}
                 onChange={(e) => setKeyword(e.target.value)}
               />
               <Button
                 icon={showFilters ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
                 onClick={() => setShowFilters(!showFilters)}
-                style={{ height: 44, borderRadius: 12 }}
+                className="v-action-btn"
               >
                 상세 필터 {showFilters ? '닫기' : '열기'}
               </Button>
@@ -372,8 +402,9 @@ const SynthesisBoard: React.FC = () => {
           </Col>
           <Col>
             <Space>
-              <Button type="primary" icon={<Plus size={18} />} style={{ height: 44, borderRadius: 12, background: token.colorPrimary, borderColor: token.colorPrimary }}>New Group</Button>
-              <Button icon={<Settings size={18} />} style={{ height: 44, borderRadius: 12 }}>설정</Button>
+              <Button type="primary" icon={<Plus size={18} />} className="v-action-btn" style={{ background: token.colorPrimary, borderColor: token.colorPrimary }}>New Group</Button>
+              <Button icon={<ClipboardList size={18} />} className="v-action-btn">합성 관리</Button>
+              <Button icon={<ArrowLeft size={18} />} className="v-action-btn" onClick={() => navigate(-1)}>돌아가기</Button>
             </Space>
           </Col>
         </Row>
@@ -390,7 +421,12 @@ const SynthesisBoard: React.FC = () => {
                         checked={selectedProjects.includes(opt)} 
                         onChange={(checked) => handleToggleChange(checked, opt, setSelectedProjects, selectedProjects, projectList)} 
                       />
-                      <Text style={{ fontSize: 12 }}>{opt}</Text>
+                      <Text 
+                        style={{ fontSize: 12, cursor: 'pointer', userSelect: 'none' }}
+                        onClick={() => handleToggleChange(!selectedProjects.includes(opt), opt, setSelectedProjects, selectedProjects, projectList)}
+                      >
+                        {opt}
+                      </Text>
                     </Space>
                   ))}
                 </Space>
@@ -405,7 +441,12 @@ const SynthesisBoard: React.FC = () => {
                         checked={selectedShares.includes(opt)} 
                         onChange={(checked) => handleToggleChange(checked, opt, setSelectedShares, selectedShares, shareList)} 
                       />
-                      <Text style={{ fontSize: 12 }}>{opt}</Text>
+                      <Text 
+                        style={{ fontSize: 12, cursor: 'pointer', userSelect: 'none' }}
+                        onClick={() => handleToggleChange(!selectedShares.includes(opt), opt, setSelectedShares, selectedShares, shareList)}
+                      >
+                        {opt}
+                      </Text>
                     </Space>
                   ))}
                 </Space>
@@ -420,7 +461,12 @@ const SynthesisBoard: React.FC = () => {
                         checked={selectedSources.includes(opt)} 
                         onChange={(checked) => handleToggleChange(checked, opt, setSelectedSources, selectedSources, sourceList)} 
                       />
-                      <Text style={{ fontSize: 12 }}>{opt}</Text>
+                      <Text 
+                        style={{ fontSize: 12, cursor: 'pointer', userSelect: 'none' }}
+                        onClick={() => handleToggleChange(!selectedSources.includes(opt), opt, setSelectedSources, selectedSources, sourceList)}
+                      >
+                        {opt}
+                      </Text>
                     </Space>
                   ))}
                 </Space>
@@ -449,36 +495,60 @@ const SynthesisBoard: React.FC = () => {
       <Row gutter={[20, 20]}>
         {/* Left: Group List (Single Select) - Increased width for many columns */}
         <Col span={14}>
-          <div className="c-card" style={{ background: token.colorBgContainer, borderRadius: 12, overflow: 'hidden' }}>
-            <div style={{ padding: '16px 24px', borderBottom: `1px solid ${token.colorBorderSecondary}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Text strong style={{ color: token.colorPrimary }}>합성 그룹 리스트</Text>
-              <div style={{ background: token.colorBgLayout, padding: '4px 12px', borderRadius: 8, display: 'flex', gap: 16 }}>
-                <Space size={6}>
-                  <Switch
-                    size="small"
-                    checked={selectedDataSources.includes('Designs')}
-                    onChange={(checked) => {
-                      const next = checked
-                        ? [...selectedDataSources, 'Designs']
-                        : selectedDataSources.filter(s => s !== 'Designs');
-                      if (next.length > 0) setSelectedDataSources(next);
-                    }}
-                  />
-                  <Text style={{ fontSize: 11 }}>My Designs</Text>
-                </Space>
-                <Space size={6}>
-                  <Switch
-                    size="small"
-                    checked={selectedDataSources.includes('Compounds')}
-                    onChange={(checked) => {
-                      const next = checked
-                        ? [...selectedDataSources, 'Compounds']
-                        : selectedDataSources.filter(s => s !== 'Compounds');
-                      if (next.length > 0) setSelectedDataSources(next);
-                    }}
-                  />
-                  <Text style={{ fontSize: 11 }}>My Compounds</Text>
-                </Space>
+          <div className="v-table-card">
+            <div className="v-table-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                <Text strong style={{ color: token.colorPrimary }}>합성 그룹 리스트</Text>
+                <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
+                  <Space size={6}>
+                    <Switch
+                      size="small"
+                      checked={selectedDataSources.includes('Designs')}
+                      onChange={(checked) => {
+                        const next = checked
+                          ? [...selectedDataSources, 'Designs']
+                          : selectedDataSources.filter(s => s !== 'Designs');
+                        if (next.length > 0) setSelectedDataSources(next);
+                      }}
+                    />
+                    <Text 
+                      style={{ fontSize: 11, cursor: 'pointer', userSelect: 'none' }}
+                      onClick={() => {
+                        const checked = !selectedDataSources.includes('Designs');
+                        const next = checked
+                          ? [...selectedDataSources, 'Designs']
+                          : selectedDataSources.filter(s => s !== 'Designs');
+                        if (next.length > 0) setSelectedDataSources(next);
+                      }}
+                    >
+                      My Designs
+                    </Text>
+                  </Space>
+                  <Space size={6}>
+                    <Switch
+                      size="small"
+                      checked={selectedDataSources.includes('Compounds')}
+                      onChange={(checked) => {
+                        const next = checked
+                          ? [...selectedDataSources, 'Compounds']
+                          : selectedDataSources.filter(s => s !== 'Compounds');
+                        if (next.length > 0) setSelectedDataSources(next);
+                      }}
+                    />
+                    <Text 
+                      style={{ fontSize: 11, cursor: 'pointer', userSelect: 'none' }}
+                      onClick={() => {
+                        const checked = !selectedDataSources.includes('Compounds');
+                        const next = checked
+                          ? [...selectedDataSources, 'Compounds']
+                          : selectedDataSources.filter(s => s !== 'Compounds');
+                        if (next.length > 0) setSelectedDataSources(next);
+                      }}
+                    >
+                      My Compounds
+                    </Text>
+                  </Space>
+                </div>
               </div>
             </div>
             <Table
@@ -487,7 +557,7 @@ const SynthesisBoard: React.FC = () => {
               pagination={false}
               size="small"
               rowKey="id"
-              scroll={{ x: 1200, y: 'calc(100vh - 350px)' }}
+              scroll={{ x: 1200, y: currentGroups.length > 10 ? 'calc(100vh - 350px)' : undefined }}
               onRow={(record) => ({
                 onClick: () => setSelectedGroupId(record.id),
                 style: { cursor: 'pointer' }
@@ -499,8 +569,8 @@ const SynthesisBoard: React.FC = () => {
 
         {/* Right: Synthesis Details */}
         <Col span={10}>
-          <div className="c-card" style={{ background: token.colorBgContainer, borderRadius: 12, overflow: 'hidden' }}>
-            <div style={{ padding: '16px 24px', borderBottom: `1px solid ${token.colorBorderSecondary}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div className="v-table-card">
+            <div className="v-table-header">
               <Text strong style={{ color: token.colorPrimary }}>합성 상세 목록</Text>
               <div
                 style={{
@@ -547,7 +617,7 @@ const SynthesisBoard: React.FC = () => {
                 size="small"
                 pagination={{ pageSize: 20 }}
                 rowKey="id"
-                scroll={{ y: 'calc(100vh - 350px)' }}
+                scroll={{ y: filteredDetails.length > 10 ? 'calc(100vh - 350px)' : undefined }}
               />
             ) : viewMode === 'draw' ? (
               <div style={{ padding: 20, overflowY: 'auto', height: 'calc(100vh - 350px)' }}>
@@ -647,9 +717,6 @@ const SynthesisBoard: React.FC = () => {
         }
         .ant-table-tbody > tr > td {
           font-size: 12px;
-        }
-        .c-card {
-          border: 1px solid ${isDarkMode ? '#303030' : '#f0f0f0'} !important;
         }
         .canvas-card:hover {
           border-color: #F87C63 !important;

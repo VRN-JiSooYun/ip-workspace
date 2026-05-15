@@ -182,4 +182,18 @@ const ChemDrawModal: React.FC<ChemDrawModalProps> = ({
   );
 };
 
+const styles = `
+  .CDW_Logo, 
+  .cdd-logo, 
+  .cdd-clipboard-icon-row-container {
+    display: none !important;
+  }
+`;
+
+if (typeof document !== 'undefined') {
+  const styleSheet = document.createElement("style");
+  styleSheet.innerText = styles;
+  document.head.appendChild(styleSheet);
+}
+
 export default ChemDrawModal;

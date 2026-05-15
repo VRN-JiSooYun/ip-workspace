@@ -85,31 +85,39 @@ const ChemSpace: React.FC = () => {
           <Input 
             prefix={<Search size={16} />} 
             placeholder="Search SMILES or Target..." 
-            style={{ width: 300, borderRadius: 8 }}
+            className="v-search-input"
+            style={{ width: 300 }}
             value={searchTerm}
             onChange={e => setSearchTerm(e.target.value)}
           />
           <Button 
             type={is3DView ? "primary" : "default"}
             icon={is3DView ? <LayoutGrid size={16} /> : <Rotate3d size={16} />} 
+            className="v-action-btn"
             onClick={() => setIs3DView(!is3DView)}
           >
             {is3DView ? '2D View' : '3D View'}
           </Button>
-          <Button icon={<Download size={16} />}>Export</Button>
+          <Button icon={<Download size={16} />} className="v-action-btn">Export</Button>
         </Space>
       </div>
 
       <Row gutter={[20, 20]} style={{ flex: 1, minHeight: 0 }}>
         <Col span={6}>
-          <Card 
-            title={<Space><Filter size={16} /><span>Visual Controls</span></Space>}
-            style={{ height: '100%', borderRadius: 12 }}
-            styles={{ body: { padding: '20px' } }}
-          >
+          <div className="v-table-card" style={{ height: '100%' }}>
+            <div className="v-table-header">
+              <Space><Filter size={16} /><span>Visual Controls</span></Space>
+            </div>
+            <div style={{ padding: '20px' }}>
             <Space direction="vertical" style={{ width: '100%' }} size={24}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', opacity: is3DView ? 0.5 : 1, pointerEvents: is3DView ? 'none' : 'auto' }}>
-                <Space><LayoutGrid size={16} /><Text strong>3Chart Mode</Text></Space>
+                <Space 
+                  style={{ cursor: 'pointer', userSelect: 'none' }}
+                  onClick={() => setIsThreeChartMode(!isThreeChartMode)}
+                >
+                  <LayoutGrid size={16} />
+                  <Text strong>3Chart Mode</Text>
+                </Space>
                 <Switch checked={isThreeChartMode} onChange={setIsThreeChartMode} size="small" />
               </div>
 
@@ -194,18 +202,23 @@ const ChemSpace: React.FC = () => {
                 ))}
               </div>
             </Space>
-          </Card>
-        </Col>
+          </div>
+        </div>
+      </Col>
 
         <Col span={18}>
           <Card 
             loading={loading}
-            style={{ height: '100%', borderRadius: 12, position: 'relative' }}
+            style={{ height: '100%', position: 'relative' }}
             styles={{ body: { height: 'calc(100% - 56px)', padding: isThreeChartMode ? '8px' : '12px' } }}
             extra={
               <Space size={16}>
                 {is3DView && (
-                  <Space size={8} style={{ marginRight: 8 }}>
+                  <Space 
+                    size={8} 
+                    style={{ marginRight: 8, cursor: 'pointer', userSelect: 'none' }}
+                    onClick={() => setShow3DAxes(!show3DAxes)}
+                  >
                     <Text style={{ fontSize: 12 }}>Show Axis</Text>
                     <Switch checked={show3DAxes} onChange={setShow3DAxes} size="small" />
                   </Space>
@@ -228,7 +241,7 @@ const ChemSpace: React.FC = () => {
                         <Card 
                           size="small" 
                           title={<Text style={{ fontSize: 13, fontWeight: 600 }}>{config.title}</Text>}
-                          style={{ height: '100%', borderRadius: 8, boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}
+                          style={{ height: '100%', boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}
                           styles={{ body: { height: 'calc(100% - 38px)', padding: 8 } }}
                         >
                           <ChemSpaceChart 
@@ -268,9 +281,9 @@ const ChemSpace: React.FC = () => {
                           right: 12, 
                           background: isDarkMode ? 'rgba(0,0,0,0.4)' : 'rgba(255,255,255,0.8)',
                           padding: '4px 10px',
-                          borderRadius: 6,
+                          borderRadius: 12,
                           backdropFilter: 'blur(4px)',
-                          border: `1px solid ${isDarkMode ? '#333' : '#eee'}`,
+                          border: `1px solid ${isDarkMode ? '#434343' : '#d8dbe0'}`,
                           zIndex: 100
                         }}>
                           <Text style={{ fontSize: 11 }}>Showing <b>{filteredData.length}</b> compounds</Text>
@@ -298,9 +311,10 @@ const ChemSpace: React.FC = () => {
           display: 'flex',
           flexDirection: 'column'
         }}>
+          <div className="v-table-card" style={{ flex: 1, display: 'flex', flexDirection: 'column', borderRadius: 12, padding: 24 }}>
            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 20 }}>
             <Title level={3} style={{ margin: 0 }}>Fullscreen View</Title>
-            <Button icon={<Minimize2 size={16} />} onClick={() => setIsFullScreen(false)}>Exit</Button>
+            <Button icon={<Minimize2 size={16} />} onClick={() => setIsFullScreen(false)} className="v-action-btn">Exit</Button>
           </div>
           <div style={{ flex: 1 }}>
             {is3DView ? (
@@ -321,6 +335,7 @@ const ChemSpace: React.FC = () => {
                 isDarkMode={isDarkMode}
               />
             )}
+            </div>
           </div>
         </div>
       )}

@@ -13,6 +13,7 @@ import {
 import { useUIStore } from '../store/useUIStore';
 import { getPatentAnalysisLayoutPreset } from '../config/patentAnalysisLayout';
 import PageHeaderBreadcrumb from '../components/common/PageHeaderBreadcrumb';
+import BenzeneIcon from '../components/common/BenzeneIcon';
 
 const { Title, Text } = Typography;
 
@@ -55,10 +56,9 @@ const Dashboard: React.FC = () => {
         <Button 
           type="primary" 
           size="large"
+          className="v-action-btn"
           style={{ 
-            height: 44, 
             padding: '0 24px', 
-            borderRadius: '8px', 
             background: '#F87C63', 
             border: 'none',
             fontWeight: 700,
@@ -75,7 +75,7 @@ const Dashboard: React.FC = () => {
         {/* Top Priority Cards (Synthesis, Documents, PDBs, Calculations) */}
         <Col xs={24} sm={12} lg={6}>
           <div className="dashboard-card" style={{ minHeight: 320 }}>
-            <div className="dashboard-card-icon" style={{ borderColor: '#F87C63', color: '#F87C63' }}><Beaker size={20} /></div>
+            <div className="dashboard-card-icon" style={{ borderColor: '#F87C63', color: '#F87C63' }}><BenzeneIcon size={20} /></div>
             <div className="dashboard-card-title" style={{ color: '#F87C63', borderColor: '#f0f0f0' }}>Compounds</div>
             <div className="dashboard-card-content" style={{ fontSize: '13px' }}>
               <div className="dashboard-list-title" style={{ color: '#F87C63' }}>Synthesis</div>

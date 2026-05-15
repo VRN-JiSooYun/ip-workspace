@@ -6,7 +6,7 @@ import {
 } from 'antd';
 import {
   Search, FlaskConical, ChevronDown, ChevronUp, Beaker,
-  Settings, Download, Share2, Info, GripVertical, CheckCircle2, XCircle
+  Settings, Download, Share2, Info, GripVertical, CheckCircle2, XCircle, ArrowLeft
 } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
 import { mockCompounds } from '../mocks/compounds';
@@ -15,6 +15,8 @@ import { getPatentAnalysisLayoutPreset } from '../config/patentAnalysisLayout';
 import dayjs from 'dayjs';
 import { useUIStore } from '../store/useUIStore';
 import PageHeaderBreadcrumb from '../components/common/PageHeaderBreadcrumb';
+import BenzeneIcon from '../components/common/BenzeneIcon';
+import ChemDrawModal from '../components/common/ChemDrawModal';
 
 const { Title, Text } = Typography;
 
@@ -38,15 +40,30 @@ const SarTable: React.FC = () => {
     return () => setHeaderContent(null);
   }, [setHeaderContent, navigate]);
 
+  const [keyword, setKeyword] = useState<string>('');
+
   const sarCompounds = useMemo(() => {
-    if (selectedSarCompoundIds.length === 0) return mockCompounds;
-    return mockCompounds.filter((compound) => selectedSarCompoundIds.includes(compound.id));
-  }, [selectedSarCompoundIds]);
+    let base = selectedSarCompoundIds.length === 0 
+      ? mockCompounds 
+      : mockCompounds.filter((compound) => selectedSarCompoundIds.includes(compound.id));
+    
+    if (keyword) {
+      base = base.filter(c => 
+        c.id.toLowerCase().includes(keyword.toLowerCase()) ||
+        c.name.toLowerCase().includes(keyword.toLowerCase()) ||
+        c.smiles?.toLowerCase().includes(keyword.toLowerCase())
+      );
+    }
+    return base;
+  }, [selectedSarCompoundIds, keyword]);
 
   const [isColorActive, setIsColorActive] = useState(false);
   const [selectedRowKey, setSelectedRowKey] = useState<string | null>(null);
+  const [hoveredRowKey, setHoveredRowKey] = useState<string | null>(null);
   const [showFilters, setShowFilters] = useState(true);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
+  const [isStructureModalOpen, setIsStructureModalOpen] = useState(false);
+  const [searchedSvg, setSearchedSvg] = useState<string | null>(null);
   const [activePreset, setActivePreset] = useState<number>(1);
   const [viewportWidth, setViewportWidth] = useState<number>(() => {
     if (typeof window === 'undefined') return 1920;
@@ -130,7 +147,17 @@ const SarTable: React.FC = () => {
   const [selectedShares, setSelectedShares] = useState<string[]>(['ALL', ...shareList]);
   const [selectedSources, setSelectedSources] = useState<string[]>(['ALL', ...sourceList]);
   const [period, setPeriod] = useState<string>('전체');
-  const [keyword, setKeyword] = useState<string>('');
+
+  const handleStructureSearchConfirm = (data: { smiles: string; svg: string | null }) => {
+    const { smiles, svg } = data;
+    if (svg) setSearchedSvg(svg);
+    if (smiles && smiles.trim() !== '') {
+      setKeyword(smiles);
+    } else {
+      setKeyword('');
+    }
+    setIsStructureModalOpen(false);
+  };
 
   // COLUMN STATES (Order & Visibility)
   const [columnOrder, setColumnOrder] = useState<string[]>([
@@ -431,32 +458,39 @@ const SarTable: React.FC = () => {
       }}
     >
       {/* Search & Filter Header (MyBoard Layout) */}
-      <Card variant="borderless" className="c-card" style={{ marginBottom: 20, borderRadius: 12 }}>
+      <Card variant="borderless" className="c-card" style={{ marginBottom: 20 }}>
         <Row gutter={[16, 16]} align="middle">
           <Col flex="auto">
             <Space size="middle">
               <Input
                 prefix={<Search size={18} color={token.colorTextTertiary} />}
                 placeholder="검색어 입력 (이름, SMILES 등)"
-                style={{ width: 350, height: 44, borderRadius: 12 }}
+                className="v-search-input"
+                style={{ width: 350 }}
                 value={keyword}
                 onChange={(e) => setKeyword(e.target.value)}
               />
               <Button
                 icon={showFilters ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
                 onClick={() => setShowFilters(!showFilters)}
-                style={{ height: 44, borderRadius: 12 }}
+                className="v-action-btn"
               >
                 상세 필터 {showFilters ? '닫기' : '열기'}
               </Button>
-              <Button icon={<Beaker size={18} />} style={{ height: 44, borderRadius: 12 }}>구조 검색</Button>
-              <Button icon={<Download size={18} />} style={{ height: 44, borderRadius: 12 }}>Export</Button>
+              <Button 
+                icon={<BenzeneIcon size={18} />} 
+                className="v-action-btn"
+                onClick={() => setIsStructureModalOpen(true)}
+              >
+                구조 검색
+              </Button>
+              <Button icon={<Download size={18} />} className="v-action-btn">Export</Button>
             </Space>
           </Col>
           <Col>
             <Space>
-              <Button type="primary" style={{ height: 44, borderRadius: 12, background: '#003a8c', borderColor: '#003a8c' }}>추가하기</Button>
-              <Button style={{ height: 44, borderRadius: 12 }}>돌아가기</Button>
+              <Button type="primary" className="v-action-btn" style={{ background: '#003a8c', borderColor: '#003a8c' }}>추가하기</Button>
+              <Button icon={<ArrowLeft size={18} />} className="v-action-btn" onClick={() => navigate(-1)}>돌아가기</Button>
             </Space>
           </Col>
         </Row>
@@ -469,7 +503,12 @@ const SarTable: React.FC = () => {
                   {['ALL', ...projectList].map(opt => (
                     <Space key={opt} size={4} style={{ marginRight: 8 }}>
                       <Switch size="small" checked={selectedProjects.includes(opt)} onChange={(c) => handleToggleChange(c, opt, setSelectedProjects, selectedProjects, projectList)} />
-                      <Text style={{ fontSize: 12 }}>{opt}</Text>
+                      <Text 
+                        style={{ fontSize: 12, cursor: 'pointer', userSelect: 'none' }}
+                        onClick={() => handleToggleChange(!selectedProjects.includes(opt), opt, setSelectedProjects, selectedProjects, projectList)}
+                      >
+                        {opt}
+                      </Text>
                     </Space>
                   ))}
                 </Space>
@@ -480,7 +519,12 @@ const SarTable: React.FC = () => {
                   {['ALL', ...shareList].map(opt => (
                     <Space key={opt} size={4} style={{ marginRight: 8 }}>
                       <Switch size="small" checked={selectedShares.includes(opt)} onChange={(c) => handleToggleChange(c, opt, setSelectedShares, selectedShares, shareList)} />
-                      <Text style={{ fontSize: 12 }}>{opt}</Text>
+                      <Text 
+                        style={{ fontSize: 12, cursor: 'pointer', userSelect: 'none' }}
+                        onClick={() => handleToggleChange(!selectedShares.includes(opt), opt, setSelectedShares, selectedShares, shareList)}
+                      >
+                        {opt}
+                      </Text>
                     </Space>
                   ))}
                 </Space>
@@ -491,7 +535,12 @@ const SarTable: React.FC = () => {
                   {['ALL', ...sourceList].map(opt => (
                     <Space key={opt} size={4} style={{ marginRight: 8 }}>
                       <Switch size="small" checked={selectedSources.includes(opt)} onChange={(c) => handleToggleChange(c, opt, setSelectedSources, selectedSources, sourceList)} />
-                      <Text style={{ fontSize: 12 }}>{opt}</Text>
+                      <Text 
+                        style={{ fontSize: 12, cursor: 'pointer', userSelect: 'none' }}
+                        onClick={() => handleToggleChange(!selectedSources.includes(opt), opt, setSelectedSources, selectedSources, sourceList)}
+                      >
+                        {opt}
+                      </Text>
                     </Space>
                   ))}
                 </Space>
@@ -506,7 +555,8 @@ const SarTable: React.FC = () => {
                       onChange={(v) => setPeriod(v as string)}
                     />
                     <DatePicker.RangePicker
-                      style={{ borderRadius: 8 }}
+                      className="v-action-btn"
+                      style={{ borderRadius: 12 }}
                       disabled={period !== '전체'}
                     />
                   </div>
@@ -523,7 +573,6 @@ const SarTable: React.FC = () => {
         background: token.colorBgContainer,
         borderRadius: 12,
         marginBottom: 20,
-        border: `1px solid ${token.colorBorderSecondary}`,
         overflowX: 'auto',
         whiteSpace: 'nowrap'
       }}>
@@ -532,21 +581,21 @@ const SarTable: React.FC = () => {
             <div
               key={item.id}
               onClick={() => setSelectedRowKey(item.id)}
+              className={`v-item-card ${selectedRowKey === item.id ? 'selected' : ''} ${hoveredRowKey === item.id ? 'hovered' : ''}`}
+              onMouseEnter={() => setHoveredRowKey(item.id)}
+              onMouseLeave={() => setHoveredRowKey(null)}
               style={{
                 width: 200,
                 padding: '16px',
                 textAlign: 'center',
                 cursor: 'pointer',
-                borderRadius: 12,
-                border: selectedRowKey === item.id ? `2px solid ${token.colorBorderSecondary}` : `1px solid ${token.colorBorderSecondary}`,
-                background: selectedRowKey === item.id ? (isDarkMode ? '#111d2c' : '#e6f7ff') : token.colorBgContainer,
-                transition: 'all 0.2s'
+                background: selectedRowKey === item.id || hoveredRowKey === item.id ? (isDarkMode ? '#111d2c' : '#e6f7ff') : token.colorBgContainer,
               }}
             >
               <div style={{
                 height: 120,
                 background: token.colorBgContainer,
-                borderRadius: 8,
+                borderRadius: 12,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -562,15 +611,8 @@ const SarTable: React.FC = () => {
       </div>
 
       {/* Main SAR Table (Multi-level Header) */}
-      <div style={{ background: token.colorBgContainer, borderRadius: 12, overflow: 'hidden', border: `1px solid ${token.colorBorderSecondary}`, boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
-        <div style={{
-          padding: '12px 24px',
-          background: token.colorBgLayout,
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          borderBottom: `1px solid ${token.colorBorderSecondary}`
-        }}>
+      <div className="v-table-card">
+        <div className="v-table-header">
           <Space>
             <div
               style={{
@@ -628,13 +670,19 @@ const SarTable: React.FC = () => {
           columns={dynamicColumns}
           rowKey="id"
           size="small"
-          bordered
           pagination={false}
-          scroll={{ x: 1800, y: 500 }}
+          scroll={{ x: 1800, y: sarCompounds.length > 10 ? 500 : undefined }}
           onRow={(record) => ({
             onClick: () => setSelectedRowKey(record.id),
+            onMouseEnter: () => setHoveredRowKey(record.id),
+            onMouseLeave: () => setHoveredRowKey(null)
           })}
-          rowClassName={(record) => record.id === selectedRowKey ? 'sar-row-selected' : ''}
+          rowClassName={(record) => {
+            let classes = [];
+            if (record.id === selectedRowKey) classes.push('sar-row-selected');
+            if (record.id === hoveredRowKey) classes.push('sar-row-hovered');
+            return classes.join(' ');
+          }}
         />
       </div>
 
@@ -660,7 +708,7 @@ const SarTable: React.FC = () => {
                   type={activePreset === n ? 'primary' : 'default'}
                   onClick={() => applyPreset(n)}
                   style={{
-                    width: 44, height: 44, borderRadius: 8,
+                    width: 44, height: 44, borderRadius: 12,
                     background: activePreset === n ? token.colorPrimary : token.colorBgContainer,
                     borderColor: activePreset === n ? token.colorPrimary : token.colorBorder
                   }}
@@ -689,7 +737,7 @@ const SarTable: React.FC = () => {
                     padding: '12px 16px',
                     background: draggedItemIndex === index ? token.colorPrimaryBg : token.colorBgContainer,
                     color: token.colorText,
-                    borderRadius: 8,
+                    borderRadius: 12,
                     border: draggedItemIndex === index ? `1px dashed ${token.colorBorderSecondary}` : `1px solid ${token.colorBorderSecondary}`,
                     display: 'flex',
                     alignItems: 'center',
@@ -712,7 +760,15 @@ const SarTable: React.FC = () => {
                       {expandedColumns.includes(item) ? <ChevronUp size={16} color={token.colorTextTertiary} /> : <ChevronDown size={16} color={token.colorTextTertiary} />}
                     </div>
                     <GripVertical size={16} color={token.colorTextTertiary} />
-                    <Text strong={activeColumns.includes(item)} style={{ color: activeColumns.includes(item) ? token.colorPrimary : token.colorTextTertiary }}>
+                    <Text 
+                      strong={activeColumns.includes(item)} 
+                      style={{ 
+                        color: activeColumns.includes(item) ? token.colorPrimary : token.colorTextTertiary,
+                        cursor: 'pointer',
+                        userSelect: 'none'
+                      }}
+                      onClick={() => toggleColumn(item)}
+                    >
                       {item}
                     </Text>
                   </Space>
@@ -750,7 +806,7 @@ const SarTable: React.FC = () => {
                         style={{
                           padding: '6px 12px',
                           background: token.colorBgContainer,
-                          borderRadius: 6,
+                          borderRadius: 12,
                           border: `1px solid ${token.colorBorderSecondary}`,
                           display: 'flex',
                           alignItems: 'center',
@@ -760,7 +816,17 @@ const SarTable: React.FC = () => {
                       >
                         <Space>
                           <GripVertical size={12} color={token.colorBorder} />
-                          <Text style={{ fontSize: 12, color: sub.visible ? token.colorText : token.colorTextTertiary }}>{sub.title}</Text>
+                          <Text 
+                            style={{ 
+                              fontSize: 12, 
+                              color: sub.visible ? token.colorText : token.colorTextTertiary,
+                              cursor: 'pointer',
+                              userSelect: 'none'
+                            }}
+                            onClick={() => toggleSubColumn(item, sub.key)}
+                          >
+                            {sub.title}
+                          </Text>
                         </Space>
                         <Switch
                           size="small"
@@ -777,6 +843,12 @@ const SarTable: React.FC = () => {
         </div>
       </Modal>
 
+      <ChemDrawModal
+        open={isStructureModalOpen}
+        onCancel={() => setIsStructureModalOpen(false)}
+        onConfirm={handleStructureSearchConfirm}
+      />
+
       <style>{`
         .sar-row-selected {
           background-color: ${isDarkMode ? '#2a1f1d' : '#fff7f6'} !important;
@@ -784,6 +856,13 @@ const SarTable: React.FC = () => {
         .sar-row-selected td {
           background-color: ${isDarkMode ? '#2a1f1d' : '#fff7f6'} !important;
           border-bottom: 1px solid ${isDarkMode ? '#F87C6333' : '#F87C6322'} !important;
+        }
+        .sar-row-hovered td {
+          background-color: ${isDarkMode ? '#1a1a1a' : '#fafafa'} !important;
+          cursor: pointer;
+        }
+        .sar-row-selected.sar-row-hovered td {
+          background-color: ${isDarkMode ? '#322522' : '#fff0ee'} !important;
         }
         .ant-table-thead > tr > th {
           background: ${isDarkMode ? '#1f1f1f' : '#fafafa'} !important;
@@ -806,6 +885,32 @@ const SarTable: React.FC = () => {
         }
         .ant-table-bordered .ant-table-container {
           border-color: ${isDarkMode ? '#303030' : '#f0f0f0'} !important;
+        }
+        .ant-table-tbody > tr:hover > td {
+          background-color: ${isDarkMode ? '#1a1a1a' : '#fafafa'} !important;
+          cursor: pointer;
+        }
+        .ant-table-tbody > tr.sar-row-selected:hover > td {
+          background-color: ${isDarkMode ? '#322522' : '#fff0ee'} !important;
+        }
+        .sar-compound-card:hover {
+          border-color: ${token.colorPrimary} !important;
+          background-color: ${isDarkMode ? '#1a1a1a' : '#f9f9f9'} !important;
+          transform: translateY(-2px);
+          box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        .sar-compound-card.selected {
+          border-color: ${token.colorPrimary} !important;
+          box-shadow: 0 0 0 1px ${token.colorPrimary};
+        }
+        .sar-compound-card.selected:hover {
+          background-color: ${isDarkMode ? '#111d2c' : '#e6f7ff'} !important;
+        }
+        .sar-compound-card.hovered {
+          border-color: ${token.colorPrimary} !important;
+          background-color: ${isDarkMode ? '#111d2c' : '#e6f7ff'} !important;
+          transform: translateY(-2px);
+          box-shadow: 0 4px 12px rgba(0,0,0,0.1);
         }
       `}</style>
     </div>

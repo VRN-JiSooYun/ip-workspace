@@ -1,7 +1,7 @@
 import React from 'react';
 import ReactECharts from 'echarts-for-react';
 import 'echarts-gl';
-import { Typography } from 'antd';
+import { Typography, theme } from 'antd';
 
 const { Text } = Typography;
 
@@ -15,6 +15,7 @@ interface ChemSpaceChart3DProps {
 }
 
 const ChemSpaceChart3D: React.FC<ChemSpaceChart3DProps> = ({ data, xAxis, yAxis, zAxis, isDarkMode, showAxes }) => {
+  const { token } = theme.useToken();
   const getAxisName = (key: string) => {
     const names: Record<string, string> = {
       molWt: 'MW',
@@ -69,7 +70,7 @@ const ChemSpaceChart3D: React.FC<ChemSpaceChart3DProps> = ({ data, xAxis, yAxis,
           `;
         },
         backgroundColor: isDarkMode ? '#1f1f1f' : '#fff',
-        borderColor: isDarkMode ? '#303030' : '#f0f0f0',
+        borderColor: token.colorBorderSecondary,
         textStyle: { color: isDarkMode ? '#e8e8e8' : '#333' }
       },
       visualMap: {
@@ -107,7 +108,7 @@ const ChemSpaceChart3D: React.FC<ChemSpaceChart3DProps> = ({ data, xAxis, yAxis,
           show: true,
           lineStyle: {
             color: showAxes ? (isDarkMode ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.2)') : 'transparent',
-            width: 3
+            width: 1
           }
         },
         axisTick: {
@@ -121,7 +122,7 @@ const ChemSpaceChart3D: React.FC<ChemSpaceChart3DProps> = ({ data, xAxis, yAxis,
           show: true,
           lineStyle: {
             color: showAxes ? (isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)') : 'transparent',
-            width: 2
+            width: 1
           }
         }
       },
@@ -147,7 +148,7 @@ const ChemSpaceChart3D: React.FC<ChemSpaceChart3DProps> = ({ data, xAxis, yAxis,
           show: true,
           lineStyle: {
             color: showAxes ? (isDarkMode ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.2)') : 'transparent',
-            width: 3
+            width: 1
           }
         },
         axisTick: {
@@ -161,7 +162,7 @@ const ChemSpaceChart3D: React.FC<ChemSpaceChart3DProps> = ({ data, xAxis, yAxis,
           show: true,
           lineStyle: {
             color: showAxes ? (isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)') : 'transparent',
-            width: 2
+            width: 1
           }
         }
       },
@@ -187,7 +188,7 @@ const ChemSpaceChart3D: React.FC<ChemSpaceChart3DProps> = ({ data, xAxis, yAxis,
           show: true,
           lineStyle: {
             color: showAxes ? (isDarkMode ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.2)') : 'transparent',
-            width: 3
+            width: 1
           }
         },
         axisTick: {
@@ -201,7 +202,7 @@ const ChemSpaceChart3D: React.FC<ChemSpaceChart3DProps> = ({ data, xAxis, yAxis,
           show: true,
           lineStyle: {
             color: showAxes ? (isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)') : 'transparent',
-            width: 2
+            width: 1
           }
         }
       },

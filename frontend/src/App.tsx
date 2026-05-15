@@ -22,14 +22,28 @@ const App: React.FC = () => {
         algorithm: isDarkMode ? theme.darkAlgorithm : theme.defaultAlgorithm,
         token: {
           colorPrimary: '#F87C63',
-          borderRadius: 8,
+          borderRadius: 12,
           fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
           colorBgLayout: isDarkMode ? '#141414' : '#f7f9fb',
+          colorBorder: isDarkMode ? '#434343' : '#d8dbe0',
+          colorBorderSecondary: isDarkMode ? '#303030' : '#f0f0f0',
+          lineWidth: 1,
         },
         components: {
           Card: {
-            borderRadiusLG: 2,
+            borderRadiusLG: 12,
             boxShadow: isDarkMode ? 'none' : '0 1px 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.24)',
+          },
+          Table: {
+            borderRadius: 12,
+          },
+          Input: {
+            borderRadius: 12,
+            controlHeight: 40,
+          },
+          Select: {
+            borderRadius: 12,
+            controlHeight: 40,
           },
           Layout: {
             bodyBg: isDarkMode ? '#141414' : '#f8f9fa',
@@ -69,6 +83,8 @@ const App: React.FC = () => {
               <Route path="/conferences" element={<EmptyPage title="Conferences" breadcrumb={[{ label: 'Documents' }, { label: 'Conferences' }]} />} />
               <Route path="/pdbs" element={<EmptyPage title="PDBs" breadcrumb={[{ label: 'PDBs' }]} />} />
               <Route path="/universal-search" element={<EmptyPage title="통합검색" breadcrumb={[{ label: '통합검색' }]} />} />
+              <Route path="/development-status" element={<EmptyPage title="수리응용2팀 서비스 개발 진행 현황" breadcrumb={[{ label: '수리응용2팀 서비스 개발 진행 현황' }]} />} />
+              <Route path="/contact" element={<EmptyPage title="문의하기" breadcrumb={[{ label: '문의하기' }]} />} />
               <Route path="*" element={<Navigate to="/dashboard" replace />} />
             </Routes>
           </MainLayout>

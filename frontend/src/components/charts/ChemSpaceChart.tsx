@@ -1,5 +1,6 @@
 import React from 'react';
 import ReactECharts from 'echarts-for-react';
+import { theme } from 'antd';
 
 interface ChemSpaceChartProps {
   data: any[];
@@ -33,6 +34,7 @@ const ChemSpaceChart: React.FC<ChemSpaceChartProps> = ({
   isDarkMode,
   height = '100%' 
 }) => {
+  const { token } = theme.useToken();
   const egfrData = data.filter(item => item.e === 1);
   const otherData = data.filter(item => item.e === 0);
 
@@ -59,7 +61,7 @@ const ChemSpaceChart: React.FC<ChemSpaceChartProps> = ({
           `;
         },
         backgroundColor: isDarkMode ? '#1f1f1f' : '#fff',
-        borderColor: isDarkMode ? '#303030' : '#f0f0f0',
+        borderColor: token.colorBorderSecondary,
         textStyle: { color: isDarkMode ? '#e8e8e8' : '#333' }
       },
       grid: {
@@ -73,7 +75,7 @@ const ChemSpaceChart: React.FC<ChemSpaceChartProps> = ({
         name: xAxis === 'molWt' ? 'MW' : xAxis.toUpperCase(),
         nameLocation: 'middle',
         nameGap: 35,
-        splitLine: { lineStyle: { type: 'dashed', color: isDarkMode ? '#333' : '#eee' } },
+        splitLine: { lineStyle: { type: 'dashed', color: token.colorBorderSecondary } },
         axisLabel: { color: isDarkMode ? '#888' : '#666', fontSize: 11 },
         scale: false,
         min: (xAxis === 'molWt' || xAxis === 'tpsa') ? 0 : undefined
@@ -82,7 +84,7 @@ const ChemSpaceChart: React.FC<ChemSpaceChartProps> = ({
         name: yAxis === 'molWt' ? 'MW' : yAxis.toUpperCase(),
         nameLocation: 'middle',
         nameGap: 45,
-        splitLine: { lineStyle: { type: 'dashed', color: isDarkMode ? '#333' : '#eee' } },
+        splitLine: { lineStyle: { type: 'dashed', color: token.colorBorderSecondary } },
         axisLabel: { color: isDarkMode ? '#888' : '#666', fontSize: 11 },
         scale: false,
         min: (yAxis === 'molWt' || yAxis === 'tpsa') ? 0 : undefined

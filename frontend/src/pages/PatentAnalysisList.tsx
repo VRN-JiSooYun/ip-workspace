@@ -21,9 +21,9 @@ import {
   Star, 
   ChevronDown,
   ChevronUp,
-  ExternalLink,
-  Beaker
+  ExternalLink
 } from 'lucide-react';
+import BenzeneIcon from '../components/common/BenzeneIcon';
 import { Patent, mockPatents } from '../mocks/patents';
 import ChemDrawModal from '../components/common/ChemDrawModal';
 import { getPatentAnalysisLayoutPreset } from '../config/patentAnalysisLayout';
@@ -141,7 +141,7 @@ const PatentAnalysisList: React.FC = () => {
   return (
     <div style={{ maxWidth: layoutPreset.maxWidth, margin: '0 auto', padding: `0 ${layoutPreset.sidePadding}px`, height: '100%', width: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', animation: 'fadeIn 0.3s ease-out' }}>
-        <Card variant="borderless" style={{ marginBottom: 16, borderRadius: 12, flexShrink: 0 }}>
+        <Card variant="borderless" style={{ marginBottom: 16, flexShrink: 0 }}>
           <Row gutter={[16, 16]} align="middle">
             <Col flex="auto">
               <Space size="middle">
@@ -150,19 +150,20 @@ const PatentAnalysisList: React.FC = () => {
                   placeholder="특허 제목, 번호, 초록 검색..."
                   value={searchText}
                   onChange={e => setSearchText(e.target.value)}
-                  style={{ width: 350, height: 44, borderRadius: 12 }}
+                  className="v-search-input"
+                  style={{ width: 350 }}
                 />
                 <Button
                   icon={showFilters ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
                   onClick={() => setShowFilters(!showFilters)}
-                  style={{ height: 44, borderRadius: 12 }}
+                  className="v-action-btn"
                 >
                   상세 필터 {showFilters ? '닫기' : '열기'}
                 </Button>
                 <Button
-                  icon={<Beaker size={18} />}
+                  icon={<BenzeneIcon size={18} />}
                   onClick={() => setIsChemDrawVisible(true)}
-                  style={{ height: 44, borderRadius: 12 }}
+                  className="v-action-btn"
                 >
                   구조 검색
                 </Button>
@@ -172,7 +173,8 @@ const PatentAnalysisList: React.FC = () => {
               <Button 
                 type="primary" 
                 icon={<Plus size={18} />} 
-                style={{ height: 44, borderRadius: 12, background: '#F87C63', borderColor: '#F87C63' }}
+                className="v-action-btn"
+                style={{ background: '#F87C63', borderColor: '#F87C63' }}
               >
                 신규 특허 등록
               </Button>
@@ -215,12 +217,7 @@ const PatentAnalysisList: React.FC = () => {
                         key={project}
                         checked={selectedProject === project}
                         onChange={(checked) => checked && setSelectedProject(project)}
-                        style={{ 
-                          padding: '4px 12px', 
-                          fontSize: '14px',
-                          border: `1px solid ${selectedProject === project ? token.colorPrimary : token.colorBorder}`,
-                          borderRadius: '6px'
-                        }}
+                        className="v-project-tag"
                       >
                         {project}
                       </Tag.CheckableTag>
@@ -234,10 +231,8 @@ const PatentAnalysisList: React.FC = () => {
                       options={['3개월', '6개월', '12개월', '전체']} 
                       value={period} 
                       onChange={(v) => setPeriod(v as string)} 
-                      style={{ borderRadius: '8px' }}
                     />
                     <DatePicker.RangePicker 
-                      style={{ borderRadius: '8px' }} 
                       disabled={period !== '전체'}
                     />
                   </div>
@@ -247,15 +242,7 @@ const PatentAnalysisList: React.FC = () => {
           )}
         </Card>
 
-        <div style={{
-          flex: 1,
-          background: token.colorBgContainer,
-          borderRadius: '20px',
-          overflow: 'hidden',
-          border: `1px solid ${token.colorBorderSecondary}`,
-          display: 'flex',
-          flexDirection: 'column'
-        }}>
+        <div className="v-table-card" style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
           <Table
             columns={columns}
             dataSource={mockPatents.filter(p => p.title.toLowerCase().includes(searchText.toLowerCase()) || p.patentNumber.includes(searchText))}
@@ -288,7 +275,7 @@ const PatentAnalysisList: React.FC = () => {
         }
         .ant-table-thead > tr > th {
           background: transparent !important;
-          border-bottom: 2px solid ${token.colorBorderSecondary} !important;
+          border-bottom: 1px solid ${token.colorBorderSecondary} !important;
         }
         .ant-table-row:hover \u003e td {
           background: ${token.colorFillAlter} !important;

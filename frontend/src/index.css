@@ -34,9 +34,83 @@ body {
 /* CORE UI Style Utilities */
 .c-card {
   border: 1px solid var(--c-card-border) !important;
-  border-radius: 4px !important;
+  border-radius: 12px !important;
   box-shadow: none !important;
   background-color: var(--card-bg) !important;
+}
+
+/* Standardized Table Container */
+.v-table-card {
+  background-color: var(--card-bg);
+  border: 1px solid var(--c-card-border);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.v-table-header {
+  padding: 12px 24px;
+  background: var(--bg-color);
+  border-bottom: 1px solid var(--c-card-border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+/* Responsive Overrides */
+@media (max-width: 1600px) {
+  .v-table-header {
+    padding: 8px 16px;
+  }
+  .v-search-input, .v-action-btn {
+    height: 40px !important;
+  }
+}
+
+@media (max-width: 1200px) {
+  .v-table-header {
+    padding: 6px 12px;
+  }
+  .v-search-input {
+    width: 250px !important;
+  }
+}
+
+/* Compound/Item Cards */
+.v-item-card {
+  border: 1px solid var(--c-card-border);
+  border-radius: 12px;
+  background-color: var(--card-bg);
+  transition: all 0.2s ease;
+}
+
+.v-item-card:hover {
+  border-color: #F87C63 !important;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+.v-item-card.selected {
+  border-color: #F87C63 !important;
+  box-shadow: 0 0 0 1px #F87C63;
+}
+
+/* Table Row Selection */
+.row-selected {
+  background-color: rgba(248, 124, 99, 0.08) !important;
+}
+[data-theme='dark'] .row-selected {
+  background-color: rgba(248, 124, 99, 0.15) !important;
+}
+
+/* Standardized Inputs/Buttons */
+.v-search-input {
+  height: 44px !important;
+  border-radius: 12px !important;
+}
+
+.v-action-btn {
+  height: 44px !important;
+  border-radius: 12px !important;
 }
 
 /* Dashboard Renewal Styles */
@@ -49,7 +123,7 @@ body {
 .dashboard-card {
   background: var(--card-bg);
   border: 1px solid var(--card-border);
-  border-radius: 4px;
+  border-radius: 12px;
   height: 100%;
   position: relative;
   display: flex;
@@ -62,7 +136,7 @@ body {
   height: 40px;
   background: var(--card-bg);
   border: 1px solid #F87C63;
-  border-radius: 4px;
+  border-radius: 12px;
   display: flex;
   align-items: center;
   justify-content: center;

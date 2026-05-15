@@ -58,14 +58,14 @@ export interface Compound {
 }
 
 export const mockGroups: CompoundGroup[] = [
-  { id: 'g1', name: 'FGFR 나의 디자인', type: 'my designs', count: 11, creDate: '2026-04-20', target: 'FGFR', shareStatus: '공유함' },
-  { id: 'g2', name: 'HER2 활성 증가', type: 'my designs', count: 17, creDate: '2026-04-18', target: 'HER2', shareStatus: '공유안함' },
-  { id: 'g3', name: 'cMET Tepotinib 변형', type: 'my designs', count: 7, creDate: '2026-04-15', target: 'cMET', shareStatus: '공유함' },
+  { id: 'g1', name: 'FGFR 나의 디자인', type: 'my designs', count: 11, creDate: '2026.04.20', target: 'FGFR', shareStatus: '공유함' },
+  { id: 'g2', name: 'HER2 활성 증가', type: 'my designs', count: 17, creDate: '2026.04.18', target: 'HER2', shareStatus: '공유안함' },
+  { id: 'g3', name: 'cMET Tepotinib 변형', type: 'my designs', count: 7, creDate: '2026.04.15', target: 'cMET', shareStatus: '공유함' },
 ];
 
 export const mockCompounds: Compound[] = [
   {
-    id: 'c1', groupId: 'g3', compoundId: 'VNA240137', name: 'VNA240137', source: 'Manual', smiles: 'CC(C)CC(C(=O)O)N', creDate: '2025-04-10', project: 'cMET', shareStatus: '내 물질', designSource: '내 머리',
+    id: 'c1', groupId: 'g3', compoundId: 'VNA240137', name: 'VNA240137', source: 'Manual', smiles: 'CC(C)CC(C(=O)O)N', creDate: '2025.04.10', project: 'cMET', shareStatus: '내 물질', designSource: '내 머리',
     sar: {
       enzyme: { wt: 0.22, d1228n: 0.19, f1250k: 0.07, wt_f1250k: 3.0 },
       cell: { naive: 10, fgfr3: 0.09, fgfr3_v555m: 0.1, rt112: 0.35, mkn45: 0.29 },
@@ -80,7 +80,7 @@ export const mockCompounds: Compound[] = [
     requiredCalcs: ['3D TPSA QM', 'Solubility QM']
   },
   {
-    id: 'c2', groupId: 'g3', compoundId: 'VNA240138', name: 'VNA240138', source: 'Manual', smiles: 'CN(C)C(=O)C1=CC=CC=C1', creDate: '2025-03-21', project: 'cMET', shareStatus: '공유함', designSource: 'Patent',
+    id: 'c2', groupId: 'g3', compoundId: 'VNA240138', name: 'VNA240138', source: 'Manual', smiles: 'CN(C)C(=O)C1=CC=CC=C1', creDate: '2025.03.21', project: 'cMET', shareStatus: '공유함', designSource: 'Patent',
     sar: {
       enzyme: { wt: 0.02, d1228n: 0.35, f1250k: 0.17, wt_f1250k: 0.1 },
       cell: { naive: 5.42, fgfr3: 0.008, fgfr3_v555m: 0.04, rt112: 0.76, mkn45: 0.02 },
@@ -95,7 +95,7 @@ export const mockCompounds: Compound[] = [
     requiredCalcs: ['Solubility DL', 'E-Sol QM']
   },
   {
-    id: 'c3', groupId: 'g3', compoundId: 'VNA240139', name: 'VNA240139', source: 'Manual', smiles: 'C1=CC=C(C=C1)S(=O)(=O)N', creDate: '2024-12-15', project: 'cMET', shareStatus: '공유받음', designSource: 'Paper',
+    id: 'c3', groupId: 'g3', compoundId: 'VNA240139', name: 'VNA240139', source: 'Manual', smiles: 'C1=CC=C(C=C1)S(=O)(=O)N', creDate: '2024.12.15', project: 'cMET', shareStatus: '공유받음', designSource: 'Paper',
     sar: {
       enzyme: { wt: 1.25, d1228n: 0.99, f1250k: 0.03, wt_f1250k: 34.8 },
       cell: { naive: 10, fgfr3: 0.89, fgfr3_v555m: 0.65, rt112: 0.9, mkn45: 0 },

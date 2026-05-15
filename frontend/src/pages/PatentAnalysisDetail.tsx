@@ -625,7 +625,7 @@ const PatentAnalysisDetail: React.FC = () => {
               flexDirection: 'column'
             }}
           >
-            <Card style={{ flex: 1, borderRadius: '16px', overflow: 'hidden', display: 'flex', flexDirection: 'column' }} styles={{ body: { padding: 0, flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' } }}>
+            <div className="v-table-card" style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
               <Tabs
                 activeKey={activeTab}
                 onChange={(key) => {
@@ -649,11 +649,11 @@ const PatentAnalysisDetail: React.FC = () => {
                         
                         <Row gutter={[16, 16]}>
                           <Col span={24}>
-                            <Card size="small" title="Scaffold Ranking" style={{ borderRadius: '12px' }}>
+                            <Card size="small" title="Scaffold Ranking">
                               <Row gutter={[16, 16]}>
                                 <Col span={12} md={6}>
                                   <Card size="small" type="inner" title="Parent Scaffold">
-                                    <div style={{ width: '100%', height: 120, background: token.colorBgContainer, border: `1px solid ${token.colorBorderSecondary}`, borderRadius: '8px', position: 'relative' }}>
+                                    <div style={{ width: '100%', height: 120, background: token.colorBgContainer, border: `1px solid ${token.colorBorderSecondary}`, borderRadius: 8, position: 'relative' }}>
                                       {renderSvgActionButtons({ svg: patentDetailData.analysis.parentScaffold.svg, title: 'Parent Scaffold', smiles: (patentDetailData.analysis.parentScaffold as any).smiles ?? (patentDetailData.analysis.scaffoldRanks?.[0] as any)?.smiles, molblock: (frequencyAnalysis as any)?.parent_scaffold?.mol_block })}
                                       <SvgRenderer svg={patentDetailData.analysis.parentScaffold.svg} />
                                     </div>
@@ -677,7 +677,7 @@ const PatentAnalysisDetail: React.FC = () => {
                           </Col>
 
                           <Col span={24}>
-                            <Card size="small" title="Functional Group Analysis" style={{ borderRadius: '12px' }}>
+                            <Card size="small" title="Functional Group Analysis">
                               <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
                                 {/* Scaffold Rank 1 Image for Functional Group Context */}
                                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
@@ -728,7 +728,7 @@ const PatentAnalysisDetail: React.FC = () => {
                           </Col>
 
                           <Col span={24}>
-                            <Card size="small" title="추천 Key Compound (빈도수/중요도 기반)" style={{ borderRadius: '12px' }}>
+                            <Card size="small" title="추천 Key Compound (빈도수/중요도 기반)">
                               <div style={{ display: 'flex', overflowX: 'auto', gap: 16, paddingBottom: 8 }}>
                                 {(patentResult.patent_compound ?? []).slice(0, 10).map((comp: any, idx: number) => {
                                   const compKey = String(comp.id);
@@ -923,7 +923,7 @@ const PatentAnalysisDetail: React.FC = () => {
                                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
                                       <div
                                         className="raw-data-svg-frame"
-                                        style={{ width: 180, height: 130, background: token.colorBgContainer, border: `2px solid ${activeCompId === compKey ? 'red' : token.colorBorderSecondary}`, borderRadius: 8, position: 'relative', cursor: 'pointer', overflow: 'hidden', boxSizing: 'border-box', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                                        style={{ width: 180, height: 130, background: token.colorBgContainer, border: `1px solid ${activeCompId === compKey ? 'red' : token.colorBorderSecondary}`, borderRadius: 8, position: 'relative', cursor: 'pointer', overflow: 'hidden', boxSizing: 'border-box', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                                         onClick={() => { setActiveCompId(compKey); handleGoToPdf(pageArr[curIdx], bboxArr[curIdx]); }}
                                       >
                                         {renderSvgActionButtons({ svg: record.compound_svg, title: `Compound ${record.compound_id}`, smiles: record.smiles, molblock: record.molblock, iconSize: 11 })}
@@ -1294,7 +1294,7 @@ const PatentAnalysisDetail: React.FC = () => {
                                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
                                       <div
                                         className="raw-data-svg-frame"
-                                        style={{ width: 180, height: 130, background: token.colorBgContainer, border: `2px solid ${activeCompId === compKey ? 'red' : token.colorBorderSecondary}`, borderRadius: 8, position: 'relative', cursor: 'pointer', overflow: 'hidden', boxSizing: 'border-box', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                                        style={{ width: 180, height: 130, background: token.colorBgContainer, border: `1px solid ${activeCompId === compKey ? 'red' : token.colorBorderSecondary}`, borderRadius: 8, position: 'relative', cursor: 'pointer', overflow: 'hidden', boxSizing: 'border-box', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                                         onClick={() => { setActiveCompId(compKey); handleGoToPdf(pageArr[curIdx], bboxArr[curIdx]); }}
                                       >
                                         {renderSvgActionButtons({ svg: record.compound_svg, title: `Compound ${record.compound_id}`, smiles: record.smiles, molblock: record.molblock, iconSize: 11 })}
@@ -1527,7 +1527,7 @@ const PatentAnalysisDetail: React.FC = () => {
                   }
                 ]}
               />
-            </Card>
+            </div>
           </div>
         </div>
       </div>
