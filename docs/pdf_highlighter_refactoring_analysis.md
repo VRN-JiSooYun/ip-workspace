@@ -62,3 +62,4 @@ src/components/patent-analysis/pdf/
 ### Step 4: 메인 뷰어 최적화
 - `PatentPdfViewer.tsx`는 레이아웃과 데이터 흐름만 담당하도록 경량화합니다.
 - 검색 결과 하이라이트와 사용자 추가 하이라이트를 구분하여 렌더링 로직을 정돈합니다.
+ 

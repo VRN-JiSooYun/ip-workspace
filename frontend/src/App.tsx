@@ -8,6 +8,7 @@ import MyBoard from './pages/MyBoard';
 import SarTable from './pages/SarTable';
 import SynthesisBoard from './pages/SynthesisBoard';
 import ChemSpace from './pages/ChemSpace';
+import ChemSpace3D from './pages/ChemSpace3D';
 import PatentAnalysisList from './pages/PatentAnalysisList';
 import PatentAnalysisDetail from './pages/PatentAnalysisDetail';
 import EmptyPage from './pages/EmptyPage';
@@ -57,6 +58,7 @@ const App: React.FC = () => {
               <Route path="/myboard" element={<MyBoard />} />
               <Route path="/my-tree" element={<EmptyPage title="My tree" breadcrumb={[{ label: 'Compounds' }, { label: 'My tree' }]} />} />
               <Route path="/chem-space" element={<ChemSpace />} />
+              <Route path="/chem-space-3d" element={<ChemSpace3D />} />
               <Route path="/sar-table" element={<SarTable />} />
               <Route path="/synthesis-board" element={<SynthesisBoard />} />
               <Route path="/patents/write" element={<EmptyPage title="My 특허 쓰기" breadcrumb={[{ label: 'Documents' }, { label: 'Patents' }, { label: 'My 특허 쓰기' }]} />} />

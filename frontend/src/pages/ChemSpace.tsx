@@ -1,18 +1,20 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import { Row, Col, Card, Typography, Select, Space, Button, Input, Divider, Tooltip } from 'antd';
+import { Row, Col, Card, Typography, Select, Space, Button, Input, Divider, Tooltip, Switch } from 'antd';
+import { useUIStore } from '../store/useUIStore';
+import PageHeaderBreadcrumb from '../components/common/PageHeaderBreadcrumb';
+import { useTheme } from '../contexts/ThemeContext';
+import ChemSpaceChart from '../components/charts/ChemSpaceChart';
+import { useNavigate } from 'react-router-dom';
 import { 
   Search, 
   Filter, 
   Download, 
   Info,
   Maximize2,
-  Minimize2
+  Minimize2,
+  LayoutGrid,
+  Box
 } from 'lucide-react';
-import ReactECharts from 'echarts-for-react';
-import { useUIStore } from '../store/useUIStore';
-import PageHeaderBreadcrumb from '../components/common/PageHeaderBreadcrumb';
-import { chemSpaceData } from '../mocks/chemSpaceData';
-import { useTheme } from '../contexts/ThemeContext';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
@@ -20,6 +22,7 @@ const { Option } = Select;
 const ChemSpace: React.FC = () => {
   const { setHeaderContent } = useUIStore();
   const { isDarkMode } = useTheme();
+  const navigate = useNavigate();
   const [data, setData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [xAxis, setXAxis] = useState('molLogP');
@@ -27,6 +30,13 @@ const ChemSpace: React.FC = () => {
   const [colorBy, setColorBy] = useState('kinase');
   const [searchTerm, setSearchTerm] = useState('');
   const [isFullScreen, setIsFullScreen] = useState(false);
+  const [isThreeChartMode, setIsThreeChartMode] = useState(false);
+
+  const chartConfigs = [
+    { x: 'molLogP', y: 'tpsa', title: 'Lipophilicity vs Polar Surface Area' },
+    { x: 'molWt', y: 'molLogP', title: 'Size vs Lipophilicity' },
+    { x: 'maxAbsEStateIndex', y: 'molWt', title: 'Electronic Index vs Size' }
+  ];
 
   useEffect(() => {
     setHeaderContent(<PageHeaderBreadcrumb items={[{ label: 'Compounds' }, { label: 'Chemical Space' }]} />);
@@ -55,148 +65,7 @@ const ChemSpace: React.FC = () => {
     );
   }, [searchTerm, data]);
 
-  const keyMap: Record<string, string> = {
-    'molWt': 'mw',
-    'molLogP': 'lp',
-    'tpsa': 'tp',
-    'maxAbsEStateIndex': 'ei'
-  };
-
-  const getOption = () => {
-    const kinaseGroups = ['TK', 'TKL', 'STE', 'CK1', 'AGC', 'CMGC', 'Other'];
-    const kinaseColors = ['#F87C63', '#4ECDC4', '#FFD166', '#06D6A0', '#118AB2', '#073B4C', '#8D99AE'];
-    
-    const kinaseToIdx = (k: string) => {
-      const idx = kinaseGroups.indexOf(k);
-      return idx === -1 ? 6 : idx;
-    };
-
-    const egfrData = filteredData.filter(item => item.e === 1);
-    const otherData = filteredData.filter(item => item.e === 0);
-
-    const option: any = {
-      backgroundColor: 'transparent',
-      tooltip: {
-        trigger: 'item',
-        formatter: (params: any) => {
-          const d = params.data?.item;
-          if (!d) return '';
-          return `
-            <div style="padding: 8px;">
-              <div style="font-weight: bold; margin-bottom: 4px;">${d.n || 'Unknown'}</div>
-              <div style="font-size: 12px; color: #666;">Kinase: ${d.k || 'Unknown'}</div>
-              <div style="font-size: 11px; font-family: monospace; margin: 4px 0; max-width: 200px; word-break: break-all;">${d.s || ''}</div>
-              <div style="display: flex; gap: 8px; margin-top: 4px;">
-                <span style="font-size: 11px;">MW: ${typeof d.mw === 'number' ? d.mw.toFixed(2) : '-'}</span>
-                <span style="font-size: 11px;">LogP: ${typeof d.lp === 'number' ? d.lp.toFixed(2) : '-'}</span>
-                <span style="font-size: 11px;">TPSA: ${typeof d.tp === 'number' ? d.tp.toFixed(2) : '-'}</span>
-              </div>
-              ${d.e ? '<div style="margin-top: 4px; color: #fde725; font-weight: bold; font-size: 11px;">★ EGFR Positive</div>' : ''}
-            </div>
-          `;
-        },
-        backgroundColor: isDarkMode ? '#1f1f1f' : '#fff',
-        borderColor: isDarkMode ? '#303030' : '#f0f0f0',
-        textStyle: { color: isDarkMode ? '#e8e8e8' : '#333' }
-      },
-      grid: {
-        top: 60,
-        left: 80,
-        right: 80,
-        bottom: 80
-      },
-      xAxis: {
-        name: xAxis.toUpperCase(),
-        nameLocation: 'middle',
-        nameGap: 40,
-        splitLine: { lineStyle: { type: 'dashed', color: isDarkMode ? '#333' : '#eee' } },
-        axisLabel: { color: isDarkMode ? '#888' : '#666' },
-        scale: true
-      },
-      yAxis: {
-        name: yAxis.toUpperCase(),
-        nameLocation: 'middle',
-        nameGap: 50,
-        splitLine: { lineStyle: { type: 'dashed', color: isDarkMode ? '#333' : '#eee' } },
-        axisLabel: { color: isDarkMode ? '#888' : '#666' },
-        scale: true
-      },
-      series: [
-        {
-          name: 'Other Compounds',
-          type: 'scatter',
-          symbolSize: 2,
-          large: true,
-          largeThreshold: 2000,
-          data: otherData.map(item => ({
-            value: [
-              item[keyMap[xAxis] as keyof typeof item], 
-              item[keyMap[yAxis] as keyof typeof item],
-              colorBy === 'kinase' ? kinaseToIdx(item.k) : 0
-            ],
-            item: item
-          })),
-          itemStyle: {
-            opacity: 0.6
-          }
-        },
-        {
-          name: 'EGFR Positive',
-          type: 'scatter',
-          symbolSize: 6,
-          z: 10,
-          data: egfrData.map(item => ({
-            value: [
-              item[keyMap[xAxis] as keyof typeof item], 
-              item[keyMap[yAxis] as keyof typeof item],
-              colorBy === 'kinase' ? kinaseToIdx(item.k) : 1
-            ],
-            item: item
-          })),
-          itemStyle: {
-            color: '#fde725', // Always yellow for EGFR in highlight series
-            borderColor: '#000',
-            borderWidth: 0.5,
-            opacity: 1
-          },
-          emphasis: {
-            itemStyle: {
-              symbolSize: 10,
-              borderWidth: 2,
-              borderColor: '#fff'
-            }
-          }
-        }
-      ]
-    };
-
-    if (colorBy === 'kinase') {
-      option.visualMap = {
-        type: 'piecewise',
-        categories: kinaseGroups,
-        dimension: 2,
-        show: false, // We use the manual legend
-        inRange: {
-          color: kinaseColors
-        },
-        seriesIndex: [0] // Only apply visualMap to the background series
-      };
-    } else {
-      // EGFR mode
-      option.visualMap = {
-        min: 0,
-        max: 1,
-        dimension: 2,
-        show: false,
-        inRange: {
-          color: ['#440154', '#fde725']
-        },
-        seriesIndex: [0]
-      };
-    }
-
-    return option;
-  };
+  // Removed redundant getOption and constants (now in ChemSpaceChart)
 
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
@@ -213,6 +82,7 @@ const ChemSpace: React.FC = () => {
             value={searchTerm}
             onChange={e => setSearchTerm(e.target.value)}
           />
+          <Button icon={<Box size={16} />} onClick={() => navigate('/chem-space-3d')}>3D View</Button>
           <Button icon={<Download size={16} />}>Export</Button>
         </Space>
       </div>
@@ -225,7 +95,14 @@ const ChemSpace: React.FC = () => {
             styles={{ body: { padding: '20px' } }}
           >
             <Space direction="vertical" style={{ width: '100%' }} size={24}>
-              <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Space><LayoutGrid size={16} /><Text strong>3Chart Mode</Text></Space>
+                <Switch checked={isThreeChartMode} onChange={setIsThreeChartMode} size="small" />
+              </div>
+
+              <Divider style={{ margin: '4px 0' }} />
+
+              <div style={{ opacity: isThreeChartMode ? 0.5 : 1, pointerEvents: isThreeChartMode ? 'none' : 'auto' }}>
                 <Text strong style={{ display: 'block', marginBottom: 8 }}>X-Axis Property</Text>
                 <Select value={xAxis} onChange={setXAxis} style={{ width: '100%' }}>
                   <Option value="molWt">Molecular Weight</Option>
@@ -234,7 +111,7 @@ const ChemSpace: React.FC = () => {
                   <Option value="maxAbsEStateIndex">MaxAbsEStateIndex</Option>
                 </Select>
               </div>
-              <div>
+              <div style={{ opacity: isThreeChartMode ? 0.5 : 1, pointerEvents: isThreeChartMode ? 'none' : 'auto' }}>
                 <Text strong style={{ display: 'block', marginBottom: 8 }}>Y-Axis Property</Text>
                 <Select value={yAxis} onChange={setYAxis} style={{ width: '100%' }}>
                   <Option value="molWt">Molecular Weight</Option>
@@ -263,6 +140,7 @@ const ChemSpace: React.FC = () => {
                     <Space><div style={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: '#06D6A0' }} /> <Text style={{ fontSize: '12px' }}>CK1</Text></Space>
                     <Space><div style={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: '#118AB2' }} /> <Text style={{ fontSize: '12px' }}>AGC</Text></Space>
                     <Space><div style={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: '#073B4C' }} /> <Text style={{ fontSize: '12px' }}>CMGC</Text></Space>
+                    <Space><div style={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: '#A29BFE' }} /> <Text style={{ fontSize: '12px' }}>CAMK</Text></Space>
                     <Space><div style={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: '#8D99AE' }} /> <Text style={{ fontSize: '12px' }}>Other</Text></Space>
                     <Divider style={{ margin: '4px 0' }} />
                     <Space><div style={{ width: 12, height: 12, borderRadius: '50%', backgroundColor: '#fde725', border: '1px solid #000' }} /> <Text style={{ fontSize: '12px', fontWeight: 'bold' }}>EGFR Positive</Text></Space>
@@ -282,7 +160,7 @@ const ChemSpace: React.FC = () => {
           <Card 
             loading={loading}
             style={{ height: '100%', borderRadius: 12, position: 'relative' }}
-            styles={{ body: { height: '100%', padding: '12px' } }}
+            styles={{ body: { height: '100%', padding: isThreeChartMode ? '8px' : '12px' } }}
             extra={
               <Space>
                 <Tooltip title="Information">
@@ -295,25 +173,53 @@ const ChemSpace: React.FC = () => {
             }
           >
             {!loading && (
-              <>
-                <ReactECharts 
-                  option={getOption()} 
-                  style={{ height: '100%', width: '100%' }}
-                  theme={isDarkMode ? 'dark' : ''}
-                />
-                <div style={{ 
-                  position: 'absolute', 
-                  bottom: 24, 
-                  right: 24, 
-                  background: isDarkMode ? 'rgba(0,0,0,0.4)' : 'rgba(255,255,255,0.8)',
-                  padding: '8px 12px',
-                  borderRadius: 8,
-                  backdropFilter: 'blur(4px)',
-                  border: `1px solid ${isDarkMode ? '#333' : '#eee'}`
-                }}>
-                  <Text style={{ fontSize: 12 }}>Showing <b>{filteredData.length}</b> compounds</Text>
-                </div>
-              </>
+              <div style={{ height: '100%', overflowY: isThreeChartMode ? 'auto' : 'hidden', overflowX: 'hidden' }}>
+                {isThreeChartMode ? (
+                  <Row gutter={[12, 12]} style={{ width: '100%', margin: 0 }}>
+                    {chartConfigs.map((config, idx) => (
+                      <Col key={idx} span={idx === 2 ? 24 : 12} style={{ height: 450, marginBottom: 12 }}>
+                        <Card 
+                          size="small" 
+                          title={<Text style={{ fontSize: 13, fontWeight: 600 }}>{config.title}</Text>}
+                          style={{ height: '100%', borderRadius: 8, boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}
+                          styles={{ body: { height: 'calc(100% - 38px)', padding: 8 } }}
+                        >
+                          <ChemSpaceChart 
+                            data={filteredData}
+                            xAxis={config.x}
+                            yAxis={config.y}
+                            colorBy={colorBy as any}
+                            isDarkMode={isDarkMode}
+                          />
+                        </Card>
+                      </Col>
+                    ))}
+                  </Row>
+                ) : (
+                  <div style={{ width: '100%', height: '100%', position: 'relative' }}>
+                    <ChemSpaceChart 
+                      data={filteredData}
+                      xAxis={xAxis}
+                      yAxis={yAxis}
+                      colorBy={colorBy as any}
+                      isDarkMode={isDarkMode}
+                    />
+                    <div style={{ 
+                      position: 'absolute', 
+                      bottom: 12, 
+                      right: 12, 
+                      background: isDarkMode ? 'rgba(0,0,0,0.4)' : 'rgba(255,255,255,0.8)',
+                      padding: '4px 10px',
+                      borderRadius: 6,
+                      backdropFilter: 'blur(4px)',
+                      border: `1px solid ${isDarkMode ? '#333' : '#eee'}`,
+                      zIndex: 100
+                    }}>
+                      <Text style={{ fontSize: 11 }}>Showing <b>{filteredData.length}</b> compounds</Text>
+                    </div>
+                  </div>
+                )}
+              </div>
             )}
           </Card>
         </Col>
@@ -337,10 +243,12 @@ const ChemSpace: React.FC = () => {
             <Button icon={<Minimize2 size={16} />} onClick={() => setIsFullScreen(false)}>Exit</Button>
           </div>
           <div style={{ flex: 1 }}>
-            <ReactECharts 
-              option={getOption()} 
-              style={{ height: '100%', width: '100%' }}
-              theme={isDarkMode ? 'dark' : ''}
+            <ChemSpaceChart 
+              data={filteredData}
+              xAxis={xAxis}
+              yAxis={yAxis}
+              colorBy={colorBy as any}
+              isDarkMode={isDarkMode}
             />
           </div>
         </div>
