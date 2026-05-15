@@ -13,8 +13,12 @@ import {
   Maximize2,
   Minimize2,
   LayoutGrid,
-  Box
+  Box,
+  Rotate3d,
+  Move3d,
+  Layers
 } from 'lucide-react';
+import ChemSpaceChart3D from '../components/charts/ChemSpaceChart3D';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
@@ -31,6 +35,9 @@ const ChemSpace: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [isFullScreen, setIsFullScreen] = useState(false);
   const [isThreeChartMode, setIsThreeChartMode] = useState(false);
+  const [is3DView, setIs3DView] = useState(false);
+  const [zAxis, setZAxis] = useState('q');
+  const [show3DAxes, setShow3DAxes] = useState(true);
 
   const chartConfigs = [
     { x: 'molLogP', y: 'tpsa', title: 'Lipophilicity vs Polar Surface Area' },
@@ -82,7 +89,13 @@ const ChemSpace: React.FC = () => {
             value={searchTerm}
             onChange={e => setSearchTerm(e.target.value)}
           />
-          <Button icon={<Box size={16} />} onClick={() => navigate('/chem-space-3d')}>3D View</Button>
+          <Button 
+            type={is3DView ? "primary" : "default"}
+            icon={is3DView ? <LayoutGrid size={16} /> : <Rotate3d size={16} />} 
+            onClick={() => setIs3DView(!is3DView)}
+          >
+            {is3DView ? '2D View' : '3D View'}
+          </Button>
           <Button icon={<Download size={16} />}>Export</Button>
         </Space>
       </div>
@@ -95,7 +108,7 @@ const ChemSpace: React.FC = () => {
             styles={{ body: { padding: '20px' } }}
           >
             <Space direction="vertical" style={{ width: '100%' }} size={24}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', opacity: is3DView ? 0.5 : 1, pointerEvents: is3DView ? 'none' : 'auto' }}>
                 <Space><LayoutGrid size={16} /><Text strong>3Chart Mode</Text></Space>
                 <Switch checked={isThreeChartMode} onChange={setIsThreeChartMode} size="small" />
               </div>
@@ -120,7 +133,19 @@ const ChemSpace: React.FC = () => {
                   <Option value="maxAbsEStateIndex">MaxAbsEStateIndex</Option>
                 </Select>
               </div>
-              <div>
+              {is3DView && (
+                <div>
+                  <Text strong style={{ display: 'block', marginBottom: 8 }}>Z-Axis Property (Color)</Text>
+                  <Select value={zAxis} onChange={setZAxis} style={{ width: '100%' }}>
+                    <Option value="q">QED</Option>
+                    <Option value="molWt">Molecular Weight</Option>
+                    <Option value="molLogP">MolLogP</Option>
+                    <Option value="tpsa">TPSA</Option>
+                    <Option value="maxAbsEStateIndex">MaxAbsEStateIndex</Option>
+                  </Select>
+                </div>
+              )}
+              <div style={{ opacity: is3DView ? 0.5 : 1, pointerEvents: is3DView ? 'none' : 'auto' }}>
                 <Text strong style={{ display: 'block', marginBottom: 8 }}>Color By</Text>
                 <Select value={colorBy} onChange={setColorBy} style={{ width: '100%' }}>
                   <Option value="kinase">Kinase Group</Option>
@@ -132,7 +157,23 @@ const ChemSpace: React.FC = () => {
               
               <div>
                 <Text strong style={{ display: 'block', marginBottom: 12 }}>Legend</Text>
-                {colorBy === 'kinase' ? (
+                {is3DView ? (
+                  <Space direction="vertical" size={12} style={{ width: '100%' }}>
+                    <div style={{ 
+                      height: 12, 
+                      width: '100%', 
+                      background: 'linear-gradient(to right, #440154, #3b528b, #21918c, #5ec962, #fde725)',
+                      borderRadius: 4
+                    }} />
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <Text style={{ fontSize: 10 }}>Low QED</Text>
+                      <Text style={{ fontSize: 10 }}>High QED</Text>
+                    </div>
+                    <Divider style={{ margin: '4px 0' }} />
+                    <Space><div style={{ width: 12, height: 12, borderRadius: '50%', backgroundColor: '#fde725', border: '1px solid #000' }} /> <Text style={{ fontSize: '12px', fontWeight: 'bold' }}>EGFR Positive</Text></Space>
+                  </Space>
+                ) : (
+                  colorBy === 'kinase' ? (
                   <Space direction="vertical" size={8}>
                     <Space><div style={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: '#F87C63' }} /> <Text style={{ fontSize: '12px' }}>TK</Text></Space>
                     <Space><div style={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: '#4ECDC4' }} /> <Text style={{ fontSize: '12px' }}>TKL</Text></Space>
@@ -150,7 +191,7 @@ const ChemSpace: React.FC = () => {
                     <Space><div style={{ width: 12, height: 12, borderRadius: '50%', backgroundColor: '#fde725', border: '1px solid #000' }} /> <Text style={{ fontSize: '12px', fontWeight: 'bold' }}>EGFR Positive</Text></Space>
                     <Space><div style={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: '#440154' }} /> <Text style={{ fontSize: '12px' }}>EGFR Negative</Text></Space>
                   </Space>
-                )}
+                ))}
               </div>
             </Space>
           </Card>
@@ -162,7 +203,13 @@ const ChemSpace: React.FC = () => {
             style={{ height: '100%', borderRadius: 12, position: 'relative' }}
             styles={{ body: { height: '100%', padding: isThreeChartMode ? '8px' : '12px' } }}
             extra={
-              <Space>
+              <Space size={16}>
+                {is3DView && (
+                  <Space size={8} style={{ marginRight: 8 }}>
+                    <Text style={{ fontSize: 12 }}>Show Axis</Text>
+                    <Switch checked={show3DAxes} onChange={setShow3DAxes} size="small" />
+                  </Space>
+                )}
                 <Tooltip title="Information">
                   <Button type="text" icon={<Info size={16} />} />
                 </Tooltip>
@@ -197,26 +244,39 @@ const ChemSpace: React.FC = () => {
                   </Row>
                 ) : (
                   <div style={{ width: '100%', height: '100%', position: 'relative' }}>
-                    <ChemSpaceChart 
-                      data={filteredData}
-                      xAxis={xAxis}
-                      yAxis={yAxis}
-                      colorBy={colorBy as any}
-                      isDarkMode={isDarkMode}
-                    />
-                    <div style={{ 
-                      position: 'absolute', 
-                      bottom: 12, 
-                      right: 12, 
-                      background: isDarkMode ? 'rgba(0,0,0,0.4)' : 'rgba(255,255,255,0.8)',
-                      padding: '4px 10px',
-                      borderRadius: 6,
-                      backdropFilter: 'blur(4px)',
-                      border: `1px solid ${isDarkMode ? '#333' : '#eee'}`,
-                      zIndex: 100
-                    }}>
-                      <Text style={{ fontSize: 11 }}>Showing <b>{filteredData.length}</b> compounds</Text>
-                    </div>
+                    {is3DView ? (
+                      <ChemSpaceChart3D 
+                        data={filteredData}
+                        xAxis={xAxis}
+                        yAxis={yAxis}
+                        zAxis={zAxis}
+                        isDarkMode={isDarkMode}
+                        showAxes={show3DAxes}
+                      />
+                    ) : (
+                      <>
+                        <ChemSpaceChart 
+                          data={filteredData}
+                          xAxis={xAxis}
+                          yAxis={yAxis}
+                          colorBy={colorBy as any}
+                          isDarkMode={isDarkMode}
+                        />
+                        <div style={{ 
+                          position: 'absolute', 
+                          bottom: 12, 
+                          right: 12, 
+                          background: isDarkMode ? 'rgba(0,0,0,0.4)' : 'rgba(255,255,255,0.8)',
+                          padding: '4px 10px',
+                          borderRadius: 6,
+                          backdropFilter: 'blur(4px)',
+                          border: `1px solid ${isDarkMode ? '#333' : '#eee'}`,
+                          zIndex: 100
+                        }}>
+                          <Text style={{ fontSize: 11 }}>Showing <b>{filteredData.length}</b> compounds</Text>
+                        </div>
+                      </>
+                    )}
                   </div>
                 )}
               </div>
@@ -243,13 +303,24 @@ const ChemSpace: React.FC = () => {
             <Button icon={<Minimize2 size={16} />} onClick={() => setIsFullScreen(false)}>Exit</Button>
           </div>
           <div style={{ flex: 1 }}>
-            <ChemSpaceChart 
-              data={filteredData}
-              xAxis={xAxis}
-              yAxis={yAxis}
-              colorBy={colorBy as any}
-              isDarkMode={isDarkMode}
-            />
+            {is3DView ? (
+              <ChemSpaceChart3D 
+                data={filteredData}
+                xAxis={xAxis}
+                yAxis={yAxis}
+                zAxis={zAxis}
+                isDarkMode={isDarkMode}
+                showAxes={show3DAxes}
+              />
+            ) : (
+              <ChemSpaceChart 
+                data={filteredData}
+                xAxis={xAxis}
+                yAxis={yAxis}
+                colorBy={colorBy as any}
+                isDarkMode={isDarkMode}
+              />
+            )}
           </div>
         </div>
       )}
