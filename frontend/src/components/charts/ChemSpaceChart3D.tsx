@@ -89,7 +89,7 @@ const ChemSpaceChart3D: React.FC<ChemSpaceChart3DProps> = ({ data, xAxis, yAxis,
         show: true,
         name: showAxes ? getAxisName(xAxis) : '',
         type: 'value',
-        nameGap: 25,
+        nameGap: 40,
         nameTextStyle: {
           color: showAxes ? (isDarkMode ? '#aaa' : '#444') : 'transparent',
           fontSize: 20,
@@ -129,7 +129,7 @@ const ChemSpaceChart3D: React.FC<ChemSpaceChart3DProps> = ({ data, xAxis, yAxis,
         show: true,
         name: showAxes ? getAxisName(yAxis) : '',
         type: 'value',
-        nameGap: 25,
+        nameGap: 40,
         nameTextStyle: {
           color: showAxes ? (isDarkMode ? '#aaa' : '#444') : 'transparent',
           fontSize: 20,
@@ -169,7 +169,7 @@ const ChemSpaceChart3D: React.FC<ChemSpaceChart3DProps> = ({ data, xAxis, yAxis,
         show: true,
         name: showAxes ? getAxisName(zAxis) : '',
         type: 'value',
-        nameGap: 25,
+        nameGap: 40,
         nameTextStyle: {
           color: showAxes ? (isDarkMode ? '#aaa' : '#444') : 'transparent',
           fontSize: 20,
@@ -207,11 +207,15 @@ const ChemSpaceChart3D: React.FC<ChemSpaceChart3DProps> = ({ data, xAxis, yAxis,
       },
       grid3D: {
         boxWidth: 100,
-        boxHeight: 80,
+        boxHeight: 70, // Slightly lower height to fit better
         boxDepth: 100,
+        left: 'center',
+        top: 'center',
+        width: '90%',
+        height: '90%',
         viewControl: {
           autoRotate: false,
-          distance: 200,
+          distance: 220, // Increased distance slightly to fit everything
           alpha: 20,
           beta: 40,
           rotateSensitivity: 1,
@@ -264,11 +268,14 @@ const ChemSpaceChart3D: React.FC<ChemSpaceChart3DProps> = ({ data, xAxis, yAxis,
   };
 
   return (
-    <ReactECharts
-      option={getOption()}
-      style={{ height: '100%', width: '100%' }}
-      theme={isDarkMode ? 'dark' : ''}
-    />
+    <div style={{ width: '100%', height: '100%', padding: '24px', boxSizing: 'border-box' }}>
+      <ReactECharts 
+        option={getOption()} 
+        style={{ height: '100%', width: '100%' }}
+        theme={isDarkMode ? 'dark' : ''}
+        notMerge={true}
+      />
+    </div>
   );
 };
 

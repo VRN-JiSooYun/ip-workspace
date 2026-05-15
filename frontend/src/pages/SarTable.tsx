@@ -1,8 +1,8 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  Typography, Row, Col, Card, Table, Button, Input, Checkbox,
-  Space, DatePicker, Segmented, Modal, Divider, Tag, theme
+  Typography, Row, Col, Card, Table, Button, Input, Switch,
+  Space, Modal, Form, Tag, Select, DatePicker, Avatar, Divider, Segmented, theme
 } from 'antd';
 import {
   Search, FlaskConical, ChevronDown, ChevronUp, Beaker,
@@ -254,24 +254,19 @@ const SarTable: React.FC = () => {
     }
   };
 
-  const handleCheckboxChange = (vals: string[], setFn: (v: string[]) => void, originalOptions: string[]) => {
-    const currentlyHasAll = vals.includes('ALL');
-    const previouslyHadAll = (setFn === setSelectedProjects ? selectedProjects :
-      setFn === setSelectedShares ? selectedShares :
-        selectedSources).includes('ALL');
-
-    if (currentlyHasAll && !previouslyHadAll) {
-      setFn(['ALL', ...originalOptions]);
-    } else if (!currentlyHasAll && previouslyHadAll) {
-      setFn([]);
+  const handleToggleChange = (checked: boolean, val: string, setFn: (v: string[]) => void, current: string[], originalOptions: string[]) => {
+    let next: string[];
+    if (val === 'ALL') {
+      next = checked ? ['ALL', ...originalOptions] : [];
     } else {
-      const filtered = vals.filter(v => v !== 'ALL');
-      if (filtered.length === originalOptions.length) {
-        setFn(['ALL', ...originalOptions]);
+      if (checked) {
+        const filtered = [...current.filter(v => v !== 'ALL'), val];
+        next = filtered.length === originalOptions.length ? ['ALL', ...originalOptions] : filtered;
       } else {
-        setFn(filtered);
+        next = current.filter(v => v !== 'ALL' && v !== val);
       }
     }
+    setFn(next);
   };
 
   // Heatmap rendering logic (relative scaling)
@@ -470,27 +465,36 @@ const SarTable: React.FC = () => {
             <Row gutter={[32, 24]}>
               <Col span={10}>
                 <Text strong>Projects</Text><br />
-                <Checkbox.Group
-                  options={['ALL', ...projectList]}
-                  value={selectedProjects}
-                  onChange={(v) => handleCheckboxChange(v as string[], setSelectedProjects, projectList)}
-                />
+                <Space wrap style={{ marginTop: 8 }}>
+                  {['ALL', ...projectList].map(opt => (
+                    <Space key={opt} size={4} style={{ marginRight: 8 }}>
+                      <Switch size="small" checked={selectedProjects.includes(opt)} onChange={(c) => handleToggleChange(c, opt, setSelectedProjects, selectedProjects, projectList)} />
+                      <Text style={{ fontSize: 12 }}>{opt}</Text>
+                    </Space>
+                  ))}
+                </Space>
               </Col>
               <Col span={6}>
                 <Text strong>Share</Text><br />
-                <Checkbox.Group
-                  options={['ALL', ...shareList]}
-                  value={selectedShares}
-                  onChange={(v) => handleCheckboxChange(v as string[], setSelectedShares, shareList)}
-                />
+                <Space wrap style={{ marginTop: 8 }}>
+                  {['ALL', ...shareList].map(opt => (
+                    <Space key={opt} size={4} style={{ marginRight: 8 }}>
+                      <Switch size="small" checked={selectedShares.includes(opt)} onChange={(c) => handleToggleChange(c, opt, setSelectedShares, selectedShares, shareList)} />
+                      <Text style={{ fontSize: 12 }}>{opt}</Text>
+                    </Space>
+                  ))}
+                </Space>
               </Col>
               <Col span={8}>
                 <Text strong>Design Source</Text><br />
-                <Checkbox.Group
-                  options={['ALL', ...sourceList]}
-                  value={selectedSources}
-                  onChange={(v) => handleCheckboxChange(v as string[], setSelectedSources, sourceList)}
-                />
+                <Space wrap style={{ marginTop: 8 }}>
+                  {['ALL', ...sourceList].map(opt => (
+                    <Space key={opt} size={4} style={{ marginRight: 8 }}>
+                      <Switch size="small" checked={selectedSources.includes(opt)} onChange={(c) => handleToggleChange(c, opt, setSelectedSources, selectedSources, sourceList)} />
+                      <Text style={{ fontSize: 12 }}>{opt}</Text>
+                    </Space>
+                  ))}
+                </Space>
               </Col>
               <Col span={24}>
                 <Space size="large">
@@ -712,10 +716,10 @@ const SarTable: React.FC = () => {
                       {item}
                     </Text>
                   </Space>
-                  <Checkbox
+                  <Switch
+                    size="small"
                     checked={activeColumns.includes(item)}
                     onChange={() => toggleColumn(item)}
-                    onClick={(e) => e.stopPropagation()}
                   />
                 </div>
 
@@ -758,7 +762,8 @@ const SarTable: React.FC = () => {
                           <GripVertical size={12} color={token.colorBorder} />
                           <Text style={{ fontSize: 12, color: sub.visible ? token.colorText : token.colorTextTertiary }}>{sub.title}</Text>
                         </Space>
-                        <Checkbox
+                        <Switch
+                          size="small"
                           checked={sub.visible}
                           onChange={() => toggleSubColumn(item, sub.key)}
                         />

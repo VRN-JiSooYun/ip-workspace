@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  Row, Col, Card, Table, Button, Input, Checkbox,
+  Row, Col, Card, Table, Button, Input, Switch,
   Space, Typography, Modal, Form, Tag, List, Select, DatePicker, Avatar, Divider, Upload, Segmented, theme
 } from 'antd';
 import {
@@ -236,25 +236,19 @@ const MyBoard: React.FC = () => {
   const [period, setPeriod] = useState<string>('전체');
   const [keyword, setKeyword] = useState<string>('');
 
-  const handleCheckboxChange = (vals: string[], setFn: (v: string[]) => void, originalOptions: string[]) => {
-    const isMainOptionsSelected = originalOptions.every(opt => vals.includes(opt));
-    const previouslyHadAll = (setFn === setSelectedProjects ? selectedProjects :
-      setFn === setSelectedShares ? selectedShares :
-        selectedSources).includes('ALL');
-    const currentlyHasAll = vals.includes('ALL');
-
-    if (currentlyHasAll && !previouslyHadAll) {
-      setFn(['ALL', ...originalOptions]);
-    } else if (!currentlyHasAll && previouslyHadAll) {
-      setFn([]);
+  const handleToggleChange = (checked: boolean, val: string, setFn: (v: string[]) => void, current: string[], originalOptions: string[]) => {
+    let next: string[];
+    if (val === 'ALL') {
+      next = checked ? ['ALL', ...originalOptions] : [];
     } else {
-      const filteredVals = vals.filter(v => v !== 'ALL');
-      if (filteredVals.length === originalOptions.length) {
-        setFn(['ALL', ...originalOptions]);
+      if (checked) {
+        const filtered = [...current.filter(v => v !== 'ALL'), val];
+        next = filtered.length === originalOptions.length ? ['ALL', ...originalOptions] : filtered;
       } else {
-        setFn(filteredVals);
+        next = current.filter(v => v !== 'ALL' && v !== val);
       }
     }
+    setFn(next);
   };
 
   const filteredCompounds = mockCompounds.filter((compound) => {
@@ -279,7 +273,8 @@ const MyBoard: React.FC = () => {
       key: 'selection',
       width: 40,
       render: (record: any) => (
-        <Checkbox
+        <Switch
+          size="small"
           checked={selectedGroupIds.includes(record.id)}
           onChange={() => {
             setIsLoading(true);
@@ -454,15 +449,36 @@ const MyBoard: React.FC = () => {
             <Row gutter={[32, 24]}>
               <Col span={10}>
                 <Text strong>Projects</Text><br />
-                <Checkbox.Group options={['ALL', ...projectList]} value={selectedProjects} onChange={(v) => handleCheckboxChange(v as string[], setSelectedProjects, projectList)} />
+                <Space wrap style={{ marginTop: 8 }}>
+                  {['ALL', ...projectList].map(opt => (
+                    <Space key={opt} size={4} style={{ marginRight: 8 }}>
+                      <Switch size="small" checked={selectedProjects.includes(opt)} onChange={(c) => handleToggleChange(c, opt, setSelectedProjects, selectedProjects, projectList)} />
+                      <Text style={{ fontSize: 12 }}>{opt}</Text>
+                    </Space>
+                  ))}
+                </Space>
               </Col>
               <Col span={6}>
                 <Text strong>Share</Text><br />
-                <Checkbox.Group options={['ALL', ...shareList]} value={selectedShares} onChange={(v) => handleCheckboxChange(v as string[], setSelectedShares, shareList)} />
+                <Space wrap style={{ marginTop: 8 }}>
+                  {['ALL', ...shareList].map(opt => (
+                    <Space key={opt} size={4} style={{ marginRight: 8 }}>
+                      <Switch size="small" checked={selectedShares.includes(opt)} onChange={(c) => handleToggleChange(c, opt, setSelectedShares, selectedShares, shareList)} />
+                      <Text style={{ fontSize: 12 }}>{opt}</Text>
+                    </Space>
+                  ))}
+                </Space>
               </Col>
               <Col span={8}>
                 <Text strong>Design Source</Text><br />
-                <Checkbox.Group options={['ALL', ...sourceList]} value={selectedSources} onChange={(v) => handleCheckboxChange(v as string[], setSelectedSources, sourceList)} />
+                <Space wrap style={{ marginTop: 8 }}>
+                  {['ALL', ...sourceList].map(opt => (
+                    <Space key={opt} size={4} style={{ marginRight: 8 }}>
+                      <Switch size="small" checked={selectedSources.includes(opt)} onChange={(c) => handleToggleChange(c, opt, setSelectedSources, selectedSources, sourceList)} />
+                      <Text style={{ fontSize: 12 }}>{opt}</Text>
+                    </Space>
+                  ))}
+                </Space>
               </Col>
               <Col span={24}>
                 <Space size="large">
@@ -497,28 +513,32 @@ const MyBoard: React.FC = () => {
                   합성 보드
                 </Button>
                 <div style={{ background: token.colorBgLayout, padding: '4px 8px', borderRadius: 8, display: 'flex', gap: 12, alignItems: 'center' }}>
-                <Checkbox
-                  checked={selectedDataSources.includes('my designs')}
-                  onChange={(e) => {
-                    const next = e.target.checked
-                      ? [...selectedDataSources, 'my designs']
-                      : selectedDataSources.filter(s => s !== 'my designs');
-                    if (next.length > 0) setSelectedDataSources(next);
-                  }}
-                >
+                <Space size={6}>
+                  <Switch
+                    size="small"
+                    checked={selectedDataSources.includes('my designs')}
+                    onChange={(checked) => {
+                      const next = checked
+                        ? [...selectedDataSources, 'my designs']
+                        : selectedDataSources.filter(s => s !== 'my designs');
+                      if (next.length > 0) setSelectedDataSources(next);
+                    }}
+                  />
                   <Text style={{ fontSize: 11 }}>My Designs</Text>
-                </Checkbox>
-                <Checkbox
-                  checked={selectedDataSources.includes('my compounds')}
-                  onChange={(e) => {
-                    const next = e.target.checked
-                      ? [...selectedDataSources, 'my compounds']
-                      : selectedDataSources.filter(s => s !== 'my compounds');
-                    if (next.length > 0) setSelectedDataSources(next);
-                  }}
-                >
+                </Space>
+                <Space size={6}>
+                  <Switch
+                    size="small"
+                    checked={selectedDataSources.includes('my compounds')}
+                    onChange={(checked) => {
+                      const next = checked
+                        ? [...selectedDataSources, 'my compounds']
+                        : selectedDataSources.filter(s => s !== 'my compounds');
+                      if (next.length > 0) setSelectedDataSources(next);
+                    }}
+                  />
                   <Text style={{ fontSize: 11 }}>My Compounds</Text>
-                </Checkbox>
+                </Space>
               </div>
               </Space>
             </div>
@@ -787,18 +807,21 @@ const MyBoard: React.FC = () => {
           <Divider style={{ margin: '24px 0 16px 0' }} />
 
           <Form.Item label={<Text strong><Activity size={14} style={{ marginRight: 6 }} />Calculations (다중 선택)</Text>}>
-            <Checkbox.Group style={{ width: '100%', background: token.colorBgLayout, padding: '16px', borderRadius: 8 }}>
+            <div style={{ width: '100%', background: token.colorBgLayout, padding: '16px', borderRadius: 8 }}>
               <Row gutter={[16, 12]}>
                 {[
                   '3D TPSA QM', 'Solubility QM', 'Solubility DL', 'E-Sol QM',
                   'Permeability MD', '특허성', '합성기능성'
                 ].map(item => (
                   <Col span={8} key={item}>
-                    <Checkbox value={item}>{item}</Checkbox>
+                    <Space size={8}>
+                      <Switch size="small" />
+                      <Text>{item}</Text>
+                    </Space>
                   </Col>
                 ))}
               </Row>
-            </Checkbox.Group>
+            </div>
             <Text type="secondary" style={{ fontSize: '12px', marginTop: 8, display: 'block' }}>
               * 체크된 항목은 API를 통해 계산 결과가 리포트에 포함됩니다.
             </Text>
@@ -880,10 +903,10 @@ const MyBoard: React.FC = () => {
                 <GripVertical size={16} color={token.colorTextTertiary} />
                 <Text strong={draggedItemIndex === index}>{item}</Text>
               </Space>
-              <Checkbox
+              <Switch
+                size="small"
                 checked={activeColumns.includes(item)}
                 onChange={() => toggleColumn(item)}
-                onClick={(e) => e.stopPropagation()}
               />
             </div>
           ))}

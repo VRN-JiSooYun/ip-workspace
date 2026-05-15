@@ -63,26 +63,29 @@ const ChemSpaceChart: React.FC<ChemSpaceChartProps> = ({
         textStyle: { color: isDarkMode ? '#e8e8e8' : '#333' }
       },
       grid: {
-        top: 40,
-        left: 60,
-        right: 40,
-        bottom: 50
+        top: 30,
+        left: 30,
+        right: 30,
+        bottom: 40,
+        containLabel: true
       },
       xAxis: {
-        name: xAxis.toUpperCase(),
+        name: xAxis === 'molWt' ? 'MW' : xAxis.toUpperCase(),
         nameLocation: 'middle',
-        nameGap: 30,
+        nameGap: 35,
         splitLine: { lineStyle: { type: 'dashed', color: isDarkMode ? '#333' : '#eee' } },
-        axisLabel: { color: isDarkMode ? '#888' : '#666', fontSize: 10 },
-        scale: true
+        axisLabel: { color: isDarkMode ? '#888' : '#666', fontSize: 11 },
+        scale: false,
+        min: (xAxis === 'molWt' || xAxis === 'tpsa') ? 0 : undefined
       },
       yAxis: {
-        name: yAxis.toUpperCase(),
+        name: yAxis === 'molWt' ? 'MW' : yAxis.toUpperCase(),
         nameLocation: 'middle',
-        nameGap: 40,
+        nameGap: 45,
         splitLine: { lineStyle: { type: 'dashed', color: isDarkMode ? '#333' : '#eee' } },
-        axisLabel: { color: isDarkMode ? '#888' : '#666', fontSize: 10 },
-        scale: true
+        axisLabel: { color: isDarkMode ? '#888' : '#666', fontSize: 11 },
+        scale: false,
+        min: (yAxis === 'molWt' || yAxis === 'tpsa') ? 0 : undefined
       },
       series: [
         {

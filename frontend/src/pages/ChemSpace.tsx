@@ -41,7 +41,7 @@ const ChemSpace: React.FC = () => {
 
   const chartConfigs = [
     { x: 'molLogP', y: 'tpsa', title: 'Lipophilicity vs Polar Surface Area' },
-    { x: 'molWt', y: 'molLogP', title: 'Size vs Lipophilicity' },
+    { x: 'molWt', y: 'tpsa', title: 'Size vs Lipophilicity' },
     { x: 'maxAbsEStateIndex', y: 'molWt', title: 'Electronic Index vs Size' }
   ];
 
@@ -201,7 +201,7 @@ const ChemSpace: React.FC = () => {
           <Card 
             loading={loading}
             style={{ height: '100%', borderRadius: 12, position: 'relative' }}
-            styles={{ body: { height: '100%', padding: isThreeChartMode ? '8px' : '12px' } }}
+            styles={{ body: { height: 'calc(100% - 56px)', padding: isThreeChartMode ? '8px' : '12px' } }}
             extra={
               <Space size={16}>
                 {is3DView && (
@@ -224,7 +224,7 @@ const ChemSpace: React.FC = () => {
                 {isThreeChartMode ? (
                   <Row gutter={[12, 12]} style={{ width: '100%', margin: 0 }}>
                     {chartConfigs.map((config, idx) => (
-                      <Col key={idx} span={idx === 2 ? 24 : 12} style={{ height: 450, marginBottom: 12 }}>
+                      <Col key={idx} span={idx === 2 ? 24 : 12} style={{ height: 400, marginBottom: 12 }}>
                         <Card 
                           size="small" 
                           title={<Text style={{ fontSize: 13, fontWeight: 600 }}>{config.title}</Text>}

@@ -11,7 +11,7 @@ import {
   Row, 
   Col, 
   theme,
-  Checkbox,
+  Switch,
   Segmented,
   DatePicker
 } from 'antd';
@@ -184,19 +184,27 @@ const PatentAnalysisList: React.FC = () => {
                 <Col span={8}>
                   <Text strong>특허청</Text><br />
                   <div style={{ marginTop: 12 }}>
-                    <Checkbox.Group 
-                      options={['ALL', 'WIPO', 'USPTO', 'KIPO', 'EPO']} 
-                      defaultValue={['ALL', 'WIPO', 'USPTO']} 
-                    />
+                    <Space wrap>
+                      {['ALL', 'WIPO', 'USPTO', 'KIPO', 'EPO'].map(opt => (
+                        <Space key={opt} size={4} style={{ marginRight: 8 }}>
+                          <Switch size="small" defaultChecked={['ALL', 'WIPO', 'USPTO'].includes(opt)} />
+                          <Text style={{ fontSize: 12 }}>{opt}</Text>
+                        </Space>
+                      ))}
+                    </Space>
                   </div>
                 </Col>
                 <Col span={8}>
                   <Text strong>분석 상태</Text><br />
                   <div style={{ marginTop: 12 }}>
-                    <Checkbox.Group 
-                      options={['ALL', '분석중', '완료']} 
-                      defaultValue={['ALL']} 
-                    />
+                    <Space wrap>
+                      {['ALL', '분석중', '완료'].map(opt => (
+                        <Space key={opt} size={4} style={{ marginRight: 8 }}>
+                          <Switch size="small" defaultChecked={opt === 'ALL'} />
+                          <Text style={{ fontSize: 12 }}>{opt}</Text>
+                        </Space>
+                      ))}
+                    </Space>
                   </div>
                 </Col>
                 <Col span={24}>
