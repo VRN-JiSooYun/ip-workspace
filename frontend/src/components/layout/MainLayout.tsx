@@ -73,18 +73,18 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
         width={220}
         style={{
           background: isDarkMode ? '#1a1a1a' : '#f2f4f6',
-          padding: sidebarMode === 'full' ? '24px 12px' : (sidebarMode === 'mini' ? '24px 0' : 0),
+          padding: sidebarMode === 'full' ? '24px 2px' : (sidebarMode === 'mini' ? '24px 0' : 0),
           borderRight: isDarkMode ? '1px solid #303030' : 'none',
           transition: 'all 0.2s',
           overflow: 'hidden'
         }}
       >
-        <div style={{ 
-          display: 'flex', 
-          alignItems: 'center', 
-          gap: '12px', 
-          padding: '0 16px', 
-          marginBottom: 40, 
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '12px',
+          padding: '0 12px',
+          marginBottom: 40,
           position: 'relative',
           opacity: sidebarMode === 'hidden' ? 0 : 1,
           transition: 'opacity 0.2s'
@@ -112,6 +112,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
         <div style={{ overflowY: 'auto', flex: 1, padding: '0 8px', display: sidebarMode === 'hidden' ? 'none' : 'block' }}>
           <Menu
             mode="inline"
+            inlineIndent={12}
             selectedKeys={[getSelectedKey()]}
             style={{ background: 'transparent', borderRight: 0 }}
             items={[
@@ -128,7 +129,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                 children: [
                   { key: 'myboard', label: 'My board', onClick: () => navigate('/myboard') },
                   { key: 'my-tree', label: 'My tree', onClick: () => navigate('/my-tree') },
-                  { key: 'chem-space', label: 'Chem Space', onClick: () => navigate('/chem-space') },
+                  { key: 'chem-space', label: 'Chemical space', onClick: () => navigate('/chem-space') },
                 ],
               },
               {
@@ -198,9 +199,8 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
             <Button
               type="text"
               icon={
-                sidebarMode === 'full' ? <PanelLeftClose size={20} /> :
-                sidebarMode === 'mini' ? <PanelLeftOpen size={20} /> :
-                <MenuIcon size={20} />
+                sidebarMode === 'full' || sidebarMode === 'mini' ? <PanelLeftClose size={20} /> :
+                  <MenuIcon size={20} />
               }
               onClick={() => {
                 if (sidebarMode === 'full') setSidebarMode('mini');
@@ -283,7 +283,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
           display: flex !important;
           align-items: center !important;
         }
-        .ant-menu-inline .ant-menu-sub.ant-menu-inline { background: transparent !important; }
+        .ant-menu-inline .ant-menu-sub.ant-menu-inline { background: transparent !important; margin-left: 22px !important; }
         .ant-menu-submenu-title { border-radius: 12px !important; height: 48px !important; display: flex !important; align-items: center !important; }
         .cursor-pointer { cursor: pointer; }
       `}</style>

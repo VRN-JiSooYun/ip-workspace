@@ -1,6 +1,5 @@
 import React from 'react';
 import ReactECharts from 'echarts-for-react';
-import 'echarts-gl';
 import { Typography, theme } from 'antd';
 
 const { Text } = Typography;

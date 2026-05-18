@@ -8,9 +8,14 @@ declare module 'react-pdf-highlighter-plus' {
 
   export type Highlight = any;
   export type PdfHighlighterUtils = any;
+  export type PdfDocumentSource = string | {
+    url?: string;
+    data?: any;
+    [key: string]: any;
+  };
 
   export const PdfLoader: React.FC<{
-    document: string;
+    document: PdfDocumentSource;
     children: (pdfDocument: any) => React.ReactNode;
   }>;
 
@@ -35,4 +40,3 @@ declare module 'pdfjs-dist' {
     workerSrc: string;
   };
 }
-

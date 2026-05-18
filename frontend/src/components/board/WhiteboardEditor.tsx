@@ -1,11 +1,12 @@
 import React, { useEffect, useRef, useState } from 'react';
 import * as fabric from 'fabric';
-import { Button, Space, Card, Tooltip, Divider, theme } from 'antd';
-import { 
-  Square, Circle, Type, MousePointer2, Trash2, 
-  Image as ImageIcon, Download, Eraser, Move, FlaskConical
+import { App as AntApp, Button, Space, Card, Tooltip, Divider, theme } from 'antd';
+import {
+  Square, Circle, Type, Trash2,
+  Image as ImageIcon, Download, Eraser, ClipboardCopy
 } from 'lucide-react';
-import ChemDrawModal from '../common/ChemDrawModal';
+import ChemDrawModal, { type ChemDrawStructureData } from '../common/ChemDrawModal';
+import BenzeneIcon from '../common/BenzeneIcon';
 
 interface WhiteboardEditorProps {
   height?: number;
@@ -21,10 +22,197 @@ const WhiteboardEditor: React.FC<WhiteboardEditorProps> = ({
   searchKeyword
 }) => {
   const { token } = theme.useToken();
+  const { message, modal } = AntApp.useApp();
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
   const fabricCanvasRef = useRef<any>(null);
-  const [activeTool, setActiveTool] = useState<string>('select');
+  const isChemDrawOpenRef = useRef(false);
   const [isChemDrawOpen, setIsChemDrawOpen] = useState(false);
+  const [chemDrawInitialStructure, setChemDrawInitialStructure] = useState<{
+    cdxml?: string;
+    molblock?: string;
+    smiles?: string;
+  } | null>(null);
+  const [selectedStructureData, setSelectedStructureData] = useState<ChemDrawStructureData | null>(null);
+
+  type ChemicalTextFormat = 'cdxml' | 'mol' | 'smiles';
+
+  useEffect(() => {
+    isChemDrawOpenRef.current = isChemDrawOpen;
+  }, [isChemDrawOpen]);
+
+  const getStructureData = (obj: any): ChemDrawStructureData | null => {
+    return obj?.structureData || null;
+  };
+
+  const getCopyPayload = (data: ChemDrawStructureData) => {
+    const value = data.cdxml || data.molV2000 || data.molfile || data.molV3000 || data.smiles;
+    const format = data.cdxml
+      ? 'CDXML'
+      : data.molV2000 || data.molfile
+        ? 'MOLV2000'
+        : data.molV3000
+          ? 'MOLV3000'
+          : 'SMILES';
+
+    return value ? { value, format } : null;
+  };
+
+  const writeStructureToClipboard = async (data: ChemDrawStructureData) => {
+    const payload = getCopyPayload(data);
+    if (!payload) {
+      message.warning('복사할 구조 데이터가 없습니다.');
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(payload.value);
+      message.success(`${payload.format} 구조 데이터 복사 완료`);
+    } catch (error) {
+      console.error('Failed to copy chemical structure data:', error);
+      message.error('클립보드 복사에 실패했습니다.');
+    }
+  };
+
+  const isWhiteOrTransparentFill = (fill: unknown) => {
+    if (!fill || typeof fill !== 'string') return true;
+    const normalized = fill.replace(/\s+/g, '').toLowerCase();
+    return [
+      'none',
+      'transparent',
+      '#fff',
+      '#ffffff',
+      'white',
+      'rgb(255,255,255)',
+      'rgba(255,255,255,0)',
+      'rgba(255,255,255,1)'
+    ].includes(normalized);
+  };
+
+  const isSvgBackgroundObject = (obj: any, options: any) => {
+    const optionWidth = Number(options?.width) || 0;
+    const optionHeight = Number(options?.height) || 0;
+    const objectWidth = Number(obj?.width) || 0;
+    const objectHeight = Number(obj?.height) || 0;
+    const coversSvg = optionWidth > 0
+      && optionHeight > 0
+      && objectWidth >= optionWidth * 0.9
+      && objectHeight >= optionHeight * 0.9;
+
+    return coversSvg && isWhiteOrTransparentFill(obj?.fill) && !obj?.stroke;
+  };
+
+  const isDarkSvgColor = (color: unknown) => {
+    if (!color || typeof color !== 'string') return false;
+    const normalized = color.replace(/\s+/g, '').toLowerCase();
+
+    if (['#000', '#000000', 'black', 'rgb(0,0,0)', 'rgba(0,0,0,1)'].includes(normalized)) {
+      return true;
+    }
+
+    const hexMatch = normalized.match(/^#([0-9a-f]{6})$/i);
+    if (hexMatch) {
+      const value = hexMatch[1];
+      const red = parseInt(value.slice(0, 2), 16);
+      const green = parseInt(value.slice(2, 4), 16);
+      const blue = parseInt(value.slice(4, 6), 16);
+      return red <= 48 && green <= 48 && blue <= 48;
+    }
+
+    const rgbMatch = normalized.match(/^rgba?\((\d+),(\d+),(\d+)(?:,[\d.]+)?\)$/);
+    if (rgbMatch) {
+      return Number(rgbMatch[1]) <= 48 && Number(rgbMatch[2]) <= 48 && Number(rgbMatch[3]) <= 48;
+    }
+
+    return false;
+  };
+
+  const applyDarkModeSvgColor = (objects: any[]) => {
+    if (!isDarkMode(token)) return objects;
+
+    const lineColor = token.colorText;
+    objects.forEach((obj) => {
+      if (!obj) return;
+
+      if (isDarkSvgColor(obj.stroke)) {
+        obj.set('stroke', lineColor);
+      }
+
+      if (isDarkSvgColor(obj.fill)) {
+        obj.set('fill', lineColor);
+      }
+    });
+
+    return objects;
+  };
+
+  const detectChemicalTextFormat = (text: string): ChemicalTextFormat | null => {
+    const trimmed = text.trim();
+    if (!trimmed) return null;
+
+    if (/<CDXML[\s>]/i.test(trimmed) || /<!DOCTYPE\s+CDXML/i.test(trimmed)) {
+      return 'cdxml';
+    }
+
+    if (/\bV(2000|3000)\b/.test(trimmed) && /(^|\n)M\s+END(\n|$)/.test(trimmed)) {
+      return 'mol';
+    }
+
+    const isSingleLine = !/[\r\n]/.test(trimmed);
+    const hasWhitespace = /\s/.test(trimmed);
+    const hasOnlySmilesChars = /^[BCNOFPSIHKLiNaMgCaAlSiSeBrClbcnops0-9@+\-[\]()=#$\\/%.:]+$/.test(trimmed);
+    const hasAtomToken = /(\[[^\]]+\]|Br|Cl|Si|Se|Na|Li|Mg|Ca|Al|[BCNOFPSIbcnops])/.test(trimmed);
+    const hasNaturalLanguageChars = /[가-힣]|[{}<>]/.test(trimmed);
+
+    if (isSingleLine && !hasWhitespace && !hasNaturalLanguageChars && hasOnlySmilesChars && hasAtomToken && trimmed.length <= 1000) {
+      return 'smiles';
+    }
+
+    return null;
+  };
+
+  const addImageDataUrlToCanvas = (dataUrl: string) => {
+    const canvas = fabricCanvasRef.current;
+    if (!canvas) return;
+
+    fabric.Image.fromURL(dataUrl).then((img: any) => {
+      if (img.width && img.width > 500) {
+        img.scaleToWidth(500);
+      }
+
+      const center = canvas.getVpCenter();
+      img.set({
+        left: center.x - (img.getScaledWidth() / 2),
+        top: center.y - (img.getScaledHeight() / 2),
+      });
+
+      canvas.add(img);
+      canvas.setActiveObject(img);
+      canvas.renderAll();
+    });
+  };
+
+  const addImageFileToCanvas = (file: File) => {
+    if (!file.type.startsWith('image/')) {
+      message.warning('이미지 파일만 추가할 수 있습니다.');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const dataUrl = event.target?.result;
+      if (typeof dataUrl !== 'string') {
+        message.error('이미지 파일을 읽지 못했습니다.');
+        return;
+      }
+
+      addImageDataUrlToCanvas(dataUrl);
+    };
+    reader.onerror = () => {
+      message.error('이미지 파일을 읽지 못했습니다.');
+    };
+    reader.readAsDataURL(file);
+  };
 
   // SVG loading logic
   const loadCompoundsToCanvas = async (canvas: any) => {
@@ -42,7 +230,7 @@ const WhiteboardEditor: React.FC<WhiteboardEditorProps> = ({
       return fabric.loadSVGFromString(svgString).then((result: any) => {
         const { objects, options } = result;
         const filteredObjects = objects.filter((o: any) => o !== null);
-        const obj = fabric.util.groupSVGElements(filteredObjects, options);
+        const obj = fabric.util.groupSVGElements(applyDarkModeSvgColor(filteredObjects), options);
         
         // Resize and position
         const scale = 120 / Math.max(obj.width || 1, obj.height || 1);
@@ -90,30 +278,88 @@ const WhiteboardEditor: React.FC<WhiteboardEditorProps> = ({
     canvas.renderAll();
   };
 
-  const addStructureToCanvas = (data: { smiles: string; svg: string | null }) => {
+  const addStructureToCanvas = (data: ChemDrawStructureData, position?: { left: number; top: number }) => {
     if (!data.svg || !fabricCanvasRef.current) {
       setIsChemDrawOpen(false);
+      setChemDrawInitialStructure(null);
       return;
     }
 
     fabric.loadSVGFromString(data.svg).then((result: any) => {
       const { objects, options } = result;
-      const filteredObjects = objects.filter((o: any) => o !== null);
-      const obj = fabric.util.groupSVGElements(filteredObjects, options);
+      const filteredObjects = objects.filter((o: any) => o !== null && !isSvgBackgroundObject(o, options));
+      if (filteredObjects.length === 0) {
+        message.warning('캔버스에 추가할 구조 SVG가 비어 있습니다.');
+        setIsChemDrawOpen(false);
+        setChemDrawInitialStructure(null);
+        return;
+      }
+
+      const obj = fabric.util.groupSVGElements(applyDarkModeSvgColor(filteredObjects));
       
       const scale = 150 / Math.max(obj.width || 1, obj.height || 1);
       obj.set({
         scaleX: scale,
         scaleY: scale,
-        left: 200,
-        top: 200,
+        left: position?.left ?? 200,
+        top: position?.top ?? 200,
+        selectable: true,
+        hasControls: true,
+        targetFindTolerance: 4,
       });
+      (obj as any).structureData = data;
+      (obj as any).objectType = 'chemical-structure';
 
       fabricCanvasRef.current?.add(obj);
       fabricCanvasRef.current?.setActiveObject(obj);
       fabricCanvasRef.current?.renderAll();
       setIsChemDrawOpen(false);
+      setChemDrawInitialStructure(null);
     });
+  };
+
+  const openBlankChemDraw = () => {
+    setChemDrawInitialStructure(null);
+    setIsChemDrawOpen(true);
+  };
+
+  const openChemDrawWithPastedStructure = (text: string, format: ChemicalTextFormat) => {
+    setChemDrawInitialStructure({
+      cdxml: format === 'cdxml' ? text : undefined,
+      molblock: format === 'mol' ? text : undefined,
+      smiles: format === 'smiles' ? text : undefined,
+    });
+    setIsChemDrawOpen(true);
+  };
+
+  const removeCanvasObjects = (canvas: any, objects: any[]) => {
+    canvas.discardActiveObject();
+    canvas.remove(...objects);
+    canvas.requestRenderAll();
+    setSelectedStructureData(null);
+  };
+
+  const confirmDeleteCanvasObjects = (canvas: any, objects: any[], title: string) => {
+    if (!canvas || objects.length === 0) return;
+
+    modal.confirm({
+      title,
+      content: `${objects.length}개 객체가 캔버스에서 삭제됩니다.`,
+      okText: '확인',
+      cancelText: '취소',
+      okButtonProps: { danger: true },
+      onOk: () => removeCanvasObjects(canvas, objects),
+    });
+  };
+
+  const confirmDeleteSelectedObjects = (canvas: any) => {
+    const activeObjects = canvas?.getActiveObjects?.() || [];
+    confirmDeleteCanvasObjects(canvas, activeObjects, '선택한 객체를 삭제할까요?');
+  };
+
+  const confirmClearCanvasObjects = (canvas: any) => {
+    const allObjects = canvas?.getObjects?.() || [];
+    confirmDeleteCanvasObjects(canvas, allObjects, '캔버스의 모든 객체를 삭제할까요?');
   };
 
   useEffect(() => {
@@ -124,6 +370,7 @@ const WhiteboardEditor: React.FC<WhiteboardEditorProps> = ({
       height: height,
       backgroundColor: token.colorBgLayout,
       preserveObjectStacking: true,
+      targetFindTolerance: 4,
     });
 
     fabricCanvasRef.current = canvas;
@@ -131,43 +378,51 @@ const WhiteboardEditor: React.FC<WhiteboardEditorProps> = ({
     // Initial load
     loadCompoundsToCanvas(canvas);
 
+    const syncSelection = () => {
+      const activeObject = canvas.getActiveObject();
+      setSelectedStructureData(getStructureData(activeObject));
+    };
+    const clearSelection = () => setSelectedStructureData(null);
+
+    canvas.on('selection:created', syncSelection);
+    canvas.on('selection:updated', syncSelection);
+    canvas.on('selection:cleared', clearSelection);
+
     const handlePaste = async (e: ClipboardEvent) => {
+      if (isChemDrawOpenRef.current) {
+        return;
+      }
+
       const items = e.clipboardData?.items;
       if (!items) return;
+
+      const plainText = e.clipboardData?.getData('text/plain') || '';
+      const chemicalFormat = detectChemicalTextFormat(plainText);
+      if (chemicalFormat) {
+        e.preventDefault();
+        openChemDrawWithPastedStructure(plainText, chemicalFormat);
+        message.info('붙여넣은 구조를 ChemDraw에서 확인한 후 캔버스에 추가해 주세요.');
+        return;
+      }
 
       for (let i = 0; i < items.length; i++) {
         // Handle Images
         if (items[i].type.indexOf('image') !== -1) {
           const blob = items[i].getAsFile();
           if (blob) {
-            const reader = new FileReader();
-            reader.onload = (event) => {
-              const data = event.target?.result as string;
-              fabric.Image.fromURL(data).then((img) => {
-                // Resize if too large
-                if (img.width! > 500) {
-                  img.scaleToWidth(500);
-                }
-                
-                // Center in viewport
-                const center = canvas.getVpCenter();
-                img.set({
-                  left: center.x - (img.getScaledWidth() / 2),
-                  top: center.y - (img.getScaledHeight() / 2),
-                });
-                
-                canvas.add(img);
-                canvas.setActiveObject(img);
-                canvas.renderAll();
-              });
-            };
-            reader.readAsDataURL(blob);
+            addImageFileToCanvas(blob);
           }
         }
         // Handle Text
         else if (items[i].type.indexOf('text/plain') !== -1) {
           items[i].getAsString((text) => {
             const center = canvas.getVpCenter();
+
+            if (text.length > 5000) {
+              message.warning('긴 텍스트는 캔버스 텍스트로 붙여넣지 않았습니다.');
+              return;
+            }
+
             const fabricText = new fabric.IText(text, {
               left: center.x,
               top: center.y,
@@ -187,6 +442,34 @@ const WhiteboardEditor: React.FC<WhiteboardEditorProps> = ({
 
     window.addEventListener('paste', handlePaste);
 
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      const isEditableTarget = target?.closest('input, textarea, [contenteditable="true"]');
+      const activeObject = canvas.getActiveObject();
+      const data = getStructureData(activeObject);
+
+      if (isEditableTarget) {
+        return;
+      }
+
+      if (data && (e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'c') {
+        e.preventDefault();
+        writeStructureToClipboard(data);
+        return;
+      }
+
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        if (e.repeat) return;
+        const activeObjects = canvas.getActiveObjects();
+        if (activeObjects.length === 0) return;
+
+        e.preventDefault();
+        confirmDeleteCanvasObjects(canvas, activeObjects, '선택한 객체를 삭제할까요?');
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+
     const handleResize = () => {
       if (canvasRef.current?.parentElement) {
         canvas.setDimensions({
@@ -200,7 +483,11 @@ const WhiteboardEditor: React.FC<WhiteboardEditorProps> = ({
 
     return () => {
       window.removeEventListener('paste', handlePaste);
+      window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('resize', handleResize);
+      canvas.off('selection:created', syncSelection);
+      canvas.off('selection:updated', syncSelection);
+      canvas.off('selection:cleared', clearSelection);
       canvas.dispose();
     };
   }, [height, token, compounds, searchedSvg]);
@@ -243,19 +530,24 @@ const WhiteboardEditor: React.FC<WhiteboardEditorProps> = ({
     fabricCanvasRef.current?.setActiveObject(text);
   };
 
+  const openImageFilePicker = () => {
+    imageInputRef.current?.click();
+  };
+
+  const handleImageFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+
+    addImageFileToCanvas(file);
+  };
+
   const deleteSelected = () => {
-    const activeObjects = fabricCanvasRef.current?.getActiveObjects();
-    if (activeObjects) {
-      fabricCanvasRef.current?.discardActiveObject();
-      fabricCanvasRef.current?.remove(...activeObjects);
-    }
+    confirmDeleteSelectedObjects(fabricCanvasRef.current);
   };
 
   const clearCanvas = () => {
-    fabricCanvasRef.current?.clear();
-    if (fabricCanvasRef.current) {
-      fabricCanvasRef.current.backgroundColor = token.colorBgLayout;
-    }
+    confirmClearCanvasObjects(fabricCanvasRef.current);
   };
 
   const exportAsImage = () => {
@@ -269,6 +561,15 @@ const WhiteboardEditor: React.FC<WhiteboardEditorProps> = ({
     link.download = 'whiteboard-export.png';
     link.href = dataURL;
     link.click();
+  };
+
+  const copySelectedStructure = () => {
+    if (!selectedStructureData) {
+      message.warning('복사할 구조를 선택해 주세요.');
+      return;
+    }
+
+    writeStructureToClipboard(selectedStructureData);
   };
 
   return (
@@ -292,23 +593,6 @@ const WhiteboardEditor: React.FC<WhiteboardEditorProps> = ({
       }}>
         <Space split={<Divider type="vertical" />}>
           <Space>
-            <Tooltip title="선택 모드">
-              <Button 
-                type={activeTool === 'select' ? 'primary' : 'text'}
-                icon={<MousePointer2 size={18} />} 
-                onClick={() => setActiveTool('select')}
-              />
-            </Tooltip>
-            <Tooltip title="이동 모드">
-              <Button 
-                type={activeTool === 'move' ? 'primary' : 'text'}
-                icon={<Move size={18} />} 
-                onClick={() => setActiveTool('move')}
-              />
-            </Tooltip>
-          </Space>
-          
-          <Space>
             <Tooltip title="사각형 추가">
               <Button icon={<Square size={18} />} onClick={addRect} />
             </Tooltip>
@@ -322,12 +606,12 @@ const WhiteboardEditor: React.FC<WhiteboardEditorProps> = ({
 
           <Space>
             <Tooltip title="이미지 삽입">
-              <Button icon={<ImageIcon size={18} />} disabled />
+              <Button icon={<ImageIcon size={18} />} onClick={openImageFilePicker} />
             </Tooltip>
             <Tooltip title="구조 추가 (ChemDraw)">
               <Button 
-                icon={<FlaskConical size={18} />} 
-                onClick={() => setIsChemDrawOpen(true)}
+                icon={<BenzeneIcon size={18} />}
+                onClick={openBlankChemDraw}
                 style={{ color: token.colorPrimary }}
               />
             </Tooltip>
@@ -335,6 +619,13 @@ const WhiteboardEditor: React.FC<WhiteboardEditorProps> = ({
         </Space>
 
         <Space>
+          <Tooltip title="선택 구조 데이터 복사">
+            <Button
+              icon={<ClipboardCopy size={18} />}
+              onClick={copySelectedStructure}
+              disabled={!selectedStructureData}
+            />
+          </Tooltip>
           <Tooltip title="선택 삭제">
             <Button danger icon={<Trash2 size={18} />} onClick={deleteSelected} />
           </Tooltip>
@@ -350,15 +641,28 @@ const WhiteboardEditor: React.FC<WhiteboardEditorProps> = ({
 
       {/* Canvas Area */}
       <div style={{ position: 'relative', width: '100%', height: height }}>
+        <input
+          ref={imageInputRef}
+          type="file"
+          accept="image/*"
+          onChange={handleImageFileChange}
+          style={{ display: 'none' }}
+        />
         <canvas ref={canvasRef} />
       </div>
 
       <ChemDrawModal
         open={isChemDrawOpen}
-        onCancel={() => setIsChemDrawOpen(false)}
+        onCancel={() => {
+          setIsChemDrawOpen(false);
+          setChemDrawInitialStructure(null);
+        }}
         onConfirm={addStructureToCanvas}
         title="화이트보드에 구조 추가"
         confirmText="캔버스에 추가"
+        initialCdxml={chemDrawInitialStructure?.cdxml}
+        initialMolblock={chemDrawInitialStructure?.molblock}
+        initialSmiles={chemDrawInitialStructure?.smiles}
       />
     </Card>
   );

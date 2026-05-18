@@ -11,7 +11,6 @@ import {
   Row, 
   Col, 
   theme,
-  Switch,
   Segmented,
   DatePicker
 } from 'antd';
@@ -29,6 +28,7 @@ import ChemDrawModal from '../components/common/ChemDrawModal';
 import { getPatentAnalysisLayoutPreset } from '../config/patentAnalysisLayout';
 import { useUIStore } from '../store/useUIStore';
 import PageHeaderBreadcrumb from '../components/common/PageHeaderBreadcrumb';
+import ToggleTag from '../components/common/ToggleTag';
 
 const { Text } = Typography;
 
@@ -40,6 +40,8 @@ const PatentAnalysisList: React.FC = () => {
   const [searchText, setSearchText] = useState('');
   const [showFilters, setShowFilters] = useState(false);
   const [selectedProject, setSelectedProject] = useState('EGFR');
+  const [selectedOffices, setSelectedOffices] = useState(['ALL', 'WIPO', 'USPTO']);
+  const [selectedStatuses, setSelectedStatuses] = useState(['ALL']);
   const [period, setPeriod] = useState('전체');
   const [viewportWidth, setViewportWidth] = useState<number>(() => {
     if (typeof window === 'undefined') return 1920;
@@ -188,10 +190,17 @@ const PatentAnalysisList: React.FC = () => {
                   <div style={{ marginTop: 12 }}>
                     <Space wrap>
                       {['ALL', 'WIPO', 'USPTO', 'KIPO', 'EPO'].map(opt => (
-                        <Space key={opt} size={4} style={{ marginRight: 8 }}>
-                          <Switch size="small" defaultChecked={['ALL', 'WIPO', 'USPTO'].includes(opt)} />
-                          <Text style={{ fontSize: 12 }}>{opt}</Text>
-                        </Space>
+                        <ToggleTag
+                          key={opt}
+                          checked={selectedOffices.includes(opt)}
+                          onChange={(checked) => {
+                            setSelectedOffices((prev) => (
+                              checked ? [...prev, opt] : prev.filter(item => item !== opt)
+                            ));
+                          }}
+                        >
+                          {opt}
+                        </ToggleTag>
                       ))}
                     </Space>
                   </div>
@@ -201,10 +210,17 @@ const PatentAnalysisList: React.FC = () => {
                   <div style={{ marginTop: 12 }}>
                     <Space wrap>
                       {['ALL', '분석중', '완료'].map(opt => (
-                        <Space key={opt} size={4} style={{ marginRight: 8 }}>
-                          <Switch size="small" defaultChecked={opt === 'ALL'} />
-                          <Text style={{ fontSize: 12 }}>{opt}</Text>
-                        </Space>
+                        <ToggleTag
+                          key={opt}
+                          checked={selectedStatuses.includes(opt)}
+                          onChange={(checked) => {
+                            setSelectedStatuses((prev) => (
+                              checked ? [...prev, opt] : prev.filter(item => item !== opt)
+                            ));
+                          }}
+                        >
+                          {opt}
+                        </ToggleTag>
                       ))}
                     </Space>
                   </div>

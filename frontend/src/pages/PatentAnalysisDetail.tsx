@@ -32,8 +32,7 @@ import {
   Table as TableIcon,
   Layers,
   FileSpreadsheet,
-  Copy,
-  FlaskConical
+  Copy
 } from 'lucide-react';
 import { mockPatents, mockResidues } from '../mocks/patents';
 import { mockHighlights } from '../mocks/patentHighlights';
@@ -44,6 +43,7 @@ import { useUIStore } from '../store/useUIStore';
 import PageHeaderBreadcrumb from '../components/common/PageHeaderBreadcrumb';
 import DataCardItem from '../components/patent-analysis/DataCardItem';
 import ChemDrawModal from '../components/common/ChemDrawModal';
+import BenzeneIcon from '../components/common/BenzeneIcon';
 import PatentPdfToolbar from '../components/patent-analysis/pdf/PatentPdfToolbar';
 import PatentPdfViewer from '../components/patent-analysis/pdf/PatentPdfViewer';
 import { usePatentPdfViewer } from '../hooks/usePatentPdfViewer';
@@ -446,7 +446,7 @@ const PatentAnalysisDetail: React.FC = () => {
               className="svg-action-btn"
               size="small"
               type="text"
-              icon={<FlaskConical size={sz} />}
+              icon={<BenzeneIcon size={sz} />}
               onClick={(e) => { e.stopPropagation(); setChemDrawSmiles(opts.smiles || ''); setChemDrawMolblock(opts.molblock || ''); setChemDrawTitle(opts.title); setChemDrawOpen(true); }}
               style={{ background: 'rgba(255,255,255,0.8)' }}
             />

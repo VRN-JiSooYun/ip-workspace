@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { App, Button, Card, Tag, Tooltip, Typography, theme } from 'antd';
-import { Search, ChevronLeft, Copy, FlaskConical } from 'lucide-react';
+import { Search, ChevronLeft, Copy } from 'lucide-react';
 import ChemDrawModal from '../common/ChemDrawModal';
+import BenzeneIcon from '../common/BenzeneIcon';
 
 const { Text } = Typography;
 
@@ -220,7 +221,7 @@ const DataCardItem: React.FC<DataCardItemProps> = ({
                   className="svg-action-btn"
                   size="small"
                   type="text"
-                  icon={<FlaskConical size={size === 'small' ? 12 : 14} />}
+                  icon={<BenzeneIcon size={size === 'small' ? 12 : 14} />}
                   onClick={(e) => { e.stopPropagation(); setChemDrawOpen(true); }}
                   style={{ background: 'rgba(255,255,255,0.85)' }}
                 />

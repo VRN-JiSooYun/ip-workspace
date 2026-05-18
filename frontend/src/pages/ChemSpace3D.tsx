@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import { Row, Col, Card, Typography, Select, Space, Button, Input, Divider, Tooltip, Spin, Switch } from 'antd';
+import { Row, Col, Card, Typography, Select, Space, Button, Input, Divider, Tooltip, Spin } from 'antd';
 import { 
   Search, 
   Filter, 
@@ -11,11 +11,11 @@ import {
   Rotate3d
 } from 'lucide-react';
 import ReactECharts from 'echarts-for-react';
-import 'echarts-gl'; // Essential for scatter3D
 import { useUIStore } from '../store/useUIStore';
 import PageHeaderBreadcrumb from '../components/common/PageHeaderBreadcrumb';
 import { useTheme } from '../contexts/ThemeContext';
 import { useNavigate } from 'react-router-dom';
+import ToggleTag from '../components/common/ToggleTag';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
@@ -229,8 +229,9 @@ const ChemSpace3D: React.FC = () => {
         </Space>
         <Space size={12}>
           <Space>
-            <Text style={{ fontSize: 12 }}>Show Axis</Text>
-            <Switch checked={showAxes} onChange={setShowAxes} size="small" />
+            <ToggleTag checked={showAxes} onChange={setShowAxes} style={{ marginInlineEnd: 0, fontSize: 12 }}>
+              Show Axis
+            </ToggleTag>
           </Space>
           <Input 
             prefix={<Search size={16} />} 

@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import { Row, Col, Card, Typography, Select, Space, Button, Input, Divider, Tooltip, Switch } from 'antd';
+import { Row, Col, Card, Typography, Select, Space, Button, Input, Divider, Tooltip } from 'antd';
 import { useUIStore } from '../store/useUIStore';
 import PageHeaderBreadcrumb from '../components/common/PageHeaderBreadcrumb';
 import { useTheme } from '../contexts/ThemeContext';
@@ -19,6 +19,7 @@ import {
   Layers
 } from 'lucide-react';
 import ChemSpaceChart3D from '../components/charts/ChemSpaceChart3D';
+import ToggleTag from '../components/common/ToggleTag';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
@@ -118,7 +119,9 @@ const ChemSpace: React.FC = () => {
                   <LayoutGrid size={16} />
                   <Text strong>3Chart Mode</Text>
                 </Space>
-                <Switch checked={isThreeChartMode} onChange={setIsThreeChartMode} size="small" />
+                <ToggleTag checked={isThreeChartMode} onChange={setIsThreeChartMode} style={{ marginInlineEnd: 0 }}>
+                  {isThreeChartMode ? 'ON' : 'OFF'}
+                </ToggleTag>
               </div>
 
               <Divider style={{ margin: '4px 0' }} />
@@ -216,11 +219,11 @@ const ChemSpace: React.FC = () => {
                 {is3DView && (
                   <Space 
                     size={8} 
-                    style={{ marginRight: 8, cursor: 'pointer', userSelect: 'none' }}
-                    onClick={() => setShow3DAxes(!show3DAxes)}
+                    style={{ marginRight: 8 }}
                   >
-                    <Text style={{ fontSize: 12 }}>Show Axis</Text>
-                    <Switch checked={show3DAxes} onChange={setShow3DAxes} size="small" />
+                    <ToggleTag checked={show3DAxes} onChange={setShow3DAxes} style={{ marginInlineEnd: 0, fontSize: 12 }}>
+                      Show Axis
+                    </ToggleTag>
                   </Space>
                 )}
                 <Tooltip title="Information">

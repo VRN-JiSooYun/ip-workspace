@@ -144,7 +144,7 @@ const Dashboard: React.FC = () => {
         <Col xs={24} sm={12} lg={6}>
           <div className="dashboard-card" style={{ minHeight: 200 }}>
             <div className="dashboard-card-icon"><Book size={18} /></div>
-            <div className="dashboard-card-title" style={{ fontSize: '14px' }}>ELN</div>
+            <div className="dashboard-card-title">ELN</div>
             <div className="dashboard-card-content">
               <Text type="secondary" style={{ fontSize: '12px' }}>최근 작성된 노트가 없습니다.</Text>
             </div>
@@ -154,7 +154,7 @@ const Dashboard: React.FC = () => {
         <Col xs={24} sm={12} lg={6}>
           <div className="dashboard-card" style={{ minHeight: 200 }}>
             <div className="dashboard-card-icon"><Settings size={18} /></div>
-            <div className="dashboard-card-title" style={{ fontSize: '14px' }}>서버 모니터링</div>
+            <div className="dashboard-card-title">서버 모니터링</div>
             <div className="dashboard-card-content" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '6px', fontSize: '11px' }}>
               <div>B200 <span className="status-badge status-warning">의심</span></div>
               <div>A400 <span className="status-badge status-normal">정식</span></div>
@@ -168,7 +168,7 @@ const Dashboard: React.FC = () => {
         <Col xs={24} sm={12} lg={6}>
           <div className="dashboard-card" style={{ minHeight: 200 }}>
             <div className="dashboard-card-icon"><Coffee size={18} /></div>
-            <div className="dashboard-card-title" style={{ fontSize: '14px' }}>1층 식당 메뉴</div>
+            <div className="dashboard-card-title">1층 식당 메뉴</div>
             <div className="dashboard-card-content">
               <div className="dashboard-list-title" style={{ marginTop: 0 }}>점심</div>
               <div style={{ fontSize: '13px' }}>닭 반질 튀김, 장조림, 샐러드</div>
@@ -179,7 +179,7 @@ const Dashboard: React.FC = () => {
         <Col xs={24} sm={12} lg={6}>
           <div className="dashboard-card" style={{ minHeight: 200 }}>
             <div className="dashboard-card-icon"><Volume2 size={18} /></div>
-            <div className="dashboard-card-title" style={{ fontSize: '14px' }}>연구소 소식</div>
+            <div className="dashboard-card-title">연구소 소식</div>
             <div className="dashboard-card-content" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <div style={{ textAlign: 'center' }}>
                 <Text strong style={{ fontSize: '14px' }}>김도현 장가 가다 </Text>

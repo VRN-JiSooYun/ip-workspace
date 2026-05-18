@@ -6,6 +6,8 @@ import type { PdfHighlighterUtils } from 'react-pdf-highlighter-plus';
 import PatentPdfRenderer from './Viewer/PatentPdfRenderer';
 import './patentPdfViewer.css';
 
+const PDFJS_WASM_URL = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@5.7.284/wasm/';
+
 type PatentPdfViewerProps = {
   document: string;
   rotation: number;
@@ -188,6 +190,10 @@ const PatentPdfViewer: React.FC<PatentPdfViewerProps> = ({
 }) => {
   const [highlighterUtils, setLocalHighlighterUtils] = React.useState<PdfHighlighterUtils | null>(null);
   const [pdfDoc, setPdfDoc] = React.useState<any>(null);
+  const pdfDocumentParams = React.useMemo(() => ({
+    url: document,
+    wasmUrl: PDFJS_WASM_URL,
+  }), [document]);
 
   const handleHighlighterUtils = React.useCallback((utils: PdfHighlighterUtils) => {
     setLocalHighlighterUtils(utils);
@@ -243,7 +249,7 @@ const PatentPdfViewer: React.FC<PatentPdfViewerProps> = ({
         </div>
 
         <div style={{ flex: 1, minWidth: 0, position: 'relative', display: 'flex', flexDirection: 'column' }}>
-          <PdfLoader document={document}>
+          <PdfLoader document={pdfDocumentParams}>
             {(pdfDocument: any) => {
               if (pdfDocument !== pdfDoc) {
                 setTimeout(() => setPdfDoc(pdfDocument), 0);

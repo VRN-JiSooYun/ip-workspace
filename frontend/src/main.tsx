@@ -1,8 +1,10 @@
+import './suppressWarnings';
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { ThemeProvider } from './contexts/ThemeContext';
 import App from './App';
 import './index.css';
+import 'echarts-gl'; // Import globally once to prevent component registration warnings
 
 const roots = new Map<Element, any>();
 const originalCreateRoot = ReactDOM.createRoot;
@@ -21,9 +23,7 @@ const rootElement = document.getElementById('root')!;
 const root = ReactDOM.createRoot(rootElement);
 
 root.render(
-  <React.StrictMode>
-    <ThemeProvider>
-      <App />
-    </ThemeProvider>
-  </React.StrictMode>
+  <ThemeProvider>
+    <App />
+  </ThemeProvider>
 );

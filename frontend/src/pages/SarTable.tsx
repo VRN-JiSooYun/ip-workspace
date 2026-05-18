@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  Typography, Row, Col, Card, Table, Button, Input, Switch,
+  Typography, Row, Col, Card, Table, Button, Input,
   Space, Modal, Form, Tag, Select, DatePicker, Avatar, Divider, Segmented, theme
 } from 'antd';
 import {
@@ -17,6 +17,7 @@ import { useUIStore } from '../store/useUIStore';
 import PageHeaderBreadcrumb from '../components/common/PageHeaderBreadcrumb';
 import BenzeneIcon from '../components/common/BenzeneIcon';
 import ChemDrawModal from '../components/common/ChemDrawModal';
+import ToggleTag from '../components/common/ToggleTag';
 
 const { Title, Text } = Typography;
 
@@ -501,15 +502,13 @@ const SarTable: React.FC = () => {
                 <Text strong>Projects</Text><br />
                 <Space wrap style={{ marginTop: 8 }}>
                   {['ALL', ...projectList].map(opt => (
-                    <Space key={opt} size={4} style={{ marginRight: 8 }}>
-                      <Switch size="small" checked={selectedProjects.includes(opt)} onChange={(c) => handleToggleChange(c, opt, setSelectedProjects, selectedProjects, projectList)} />
-                      <Text 
-                        style={{ fontSize: 12, cursor: 'pointer', userSelect: 'none' }}
-                        onClick={() => handleToggleChange(!selectedProjects.includes(opt), opt, setSelectedProjects, selectedProjects, projectList)}
-                      >
-                        {opt}
-                      </Text>
-                    </Space>
+                    <ToggleTag
+                      key={opt}
+                      checked={selectedProjects.includes(opt)}
+                      onChange={(checked) => handleToggleChange(checked, opt, setSelectedProjects, selectedProjects, projectList)}
+                    >
+                      {opt}
+                    </ToggleTag>
                   ))}
                 </Space>
               </Col>
@@ -517,15 +516,13 @@ const SarTable: React.FC = () => {
                 <Text strong>Share</Text><br />
                 <Space wrap style={{ marginTop: 8 }}>
                   {['ALL', ...shareList].map(opt => (
-                    <Space key={opt} size={4} style={{ marginRight: 8 }}>
-                      <Switch size="small" checked={selectedShares.includes(opt)} onChange={(c) => handleToggleChange(c, opt, setSelectedShares, selectedShares, shareList)} />
-                      <Text 
-                        style={{ fontSize: 12, cursor: 'pointer', userSelect: 'none' }}
-                        onClick={() => handleToggleChange(!selectedShares.includes(opt), opt, setSelectedShares, selectedShares, shareList)}
-                      >
-                        {opt}
-                      </Text>
-                    </Space>
+                    <ToggleTag
+                      key={opt}
+                      checked={selectedShares.includes(opt)}
+                      onChange={(checked) => handleToggleChange(checked, opt, setSelectedShares, selectedShares, shareList)}
+                    >
+                      {opt}
+                    </ToggleTag>
                   ))}
                 </Space>
               </Col>
@@ -533,15 +530,13 @@ const SarTable: React.FC = () => {
                 <Text strong>Design Source</Text><br />
                 <Space wrap style={{ marginTop: 8 }}>
                   {['ALL', ...sourceList].map(opt => (
-                    <Space key={opt} size={4} style={{ marginRight: 8 }}>
-                      <Switch size="small" checked={selectedSources.includes(opt)} onChange={(c) => handleToggleChange(c, opt, setSelectedSources, selectedSources, sourceList)} />
-                      <Text 
-                        style={{ fontSize: 12, cursor: 'pointer', userSelect: 'none' }}
-                        onClick={() => handleToggleChange(!selectedSources.includes(opt), opt, setSelectedSources, selectedSources, sourceList)}
-                      >
-                        {opt}
-                      </Text>
-                    </Space>
+                    <ToggleTag
+                      key={opt}
+                      checked={selectedSources.includes(opt)}
+                      onChange={(checked) => handleToggleChange(checked, opt, setSelectedSources, selectedSources, sourceList)}
+                    >
+                      {opt}
+                    </ToggleTag>
                   ))}
                 </Space>
               </Col>
@@ -772,11 +767,13 @@ const SarTable: React.FC = () => {
                       {item}
                     </Text>
                   </Space>
-                  <Switch
-                    size="small"
+                  <ToggleTag
                     checked={activeColumns.includes(item)}
                     onChange={() => toggleColumn(item)}
-                  />
+                    style={{ marginInlineEnd: 0 }}
+                  >
+                    {activeColumns.includes(item) ? 'ON' : 'OFF'}
+                  </ToggleTag>
                 </div>
 
                 {/* Sub-columns (2depth) with Accordion Logic */}
@@ -828,11 +825,13 @@ const SarTable: React.FC = () => {
                             {sub.title}
                           </Text>
                         </Space>
-                        <Switch
-                          size="small"
+                        <ToggleTag
                           checked={sub.visible}
                           onChange={() => toggleSubColumn(item, sub.key)}
-                        />
+                          style={{ marginInlineEnd: 0 }}
+                        >
+                          {sub.visible ? 'ON' : 'OFF'}
+                        </ToggleTag>
                       </div>
                     ))}
                   </div>

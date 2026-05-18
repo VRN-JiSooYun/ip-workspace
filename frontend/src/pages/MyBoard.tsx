@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  Row, Col, Card, Table, Button, Input, Switch,
+  Row, Col, Card, Table, Button, Input,
   Space, Typography, Modal, Form, Tag, List, Select, DatePicker, Avatar, Divider, Upload, Segmented, theme
 } from 'antd';
 import {
@@ -21,6 +21,7 @@ import PageHeaderBreadcrumb from '../components/common/PageHeaderBreadcrumb';
 import WhiteboardEditor from '../components/board/WhiteboardEditor';
 import ChemDrawModal from '../components/common/ChemDrawModal';
 import BenzeneIcon from '../components/common/BenzeneIcon';
+import ToggleTag from '../components/common/ToggleTag';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
@@ -251,6 +252,7 @@ const MyBoard: React.FC = () => {
   const [selectedSources, setSelectedSources] = useState<string[]>(['ALL', ...sourceList]);
   const [period, setPeriod] = useState<string>('전체');
   const [keyword, setKeyword] = useState<string>('');
+  const [selectedCalculations, setSelectedCalculations] = useState<string[]>([]);
 
   const handleToggleChange = (checked: boolean, val: string, setFn: (v: string[]) => void, current: string[], originalOptions: string[]) => {
     let next: string[];
@@ -463,15 +465,13 @@ const MyBoard: React.FC = () => {
                 <Text strong>Projects</Text><br />
                 <Space wrap style={{ marginTop: 8 }}>
                   {['ALL', ...projectList].map(opt => (
-                    <Space key={opt} size={4} style={{ marginRight: 8 }}>
-                      <Switch size="small" checked={selectedProjects.includes(opt)} onChange={(c) => handleToggleChange(c, opt, setSelectedProjects, selectedProjects, projectList)} />
-                      <Text 
-                        style={{ fontSize: 12, cursor: 'pointer', userSelect: 'none' }}
-                        onClick={() => handleToggleChange(!selectedProjects.includes(opt), opt, setSelectedProjects, selectedProjects, projectList)}
-                      >
-                        {opt}
-                      </Text>
-                    </Space>
+                    <ToggleTag
+                      key={opt}
+                      checked={selectedProjects.includes(opt)}
+                      onChange={(checked) => handleToggleChange(checked, opt, setSelectedProjects, selectedProjects, projectList)}
+                    >
+                      {opt}
+                    </ToggleTag>
                   ))}
                 </Space>
               </Col>
@@ -479,15 +479,13 @@ const MyBoard: React.FC = () => {
                 <Text strong>Share</Text><br />
                 <Space wrap style={{ marginTop: 8 }}>
                   {['ALL', ...shareList].map(opt => (
-                    <Space key={opt} size={4} style={{ marginRight: 8 }}>
-                      <Switch size="small" checked={selectedShares.includes(opt)} onChange={(c) => handleToggleChange(c, opt, setSelectedShares, selectedShares, shareList)} />
-                      <Text 
-                        style={{ fontSize: 12, cursor: 'pointer', userSelect: 'none' }}
-                        onClick={() => handleToggleChange(!selectedShares.includes(opt), opt, setSelectedShares, selectedShares, shareList)}
-                      >
-                        {opt}
-                      </Text>
-                    </Space>
+                    <ToggleTag
+                      key={opt}
+                      checked={selectedShares.includes(opt)}
+                      onChange={(checked) => handleToggleChange(checked, opt, setSelectedShares, selectedShares, shareList)}
+                    >
+                      {opt}
+                    </ToggleTag>
                   ))}
                 </Space>
               </Col>
@@ -495,15 +493,13 @@ const MyBoard: React.FC = () => {
                 <Text strong>Design Source</Text><br />
                 <Space wrap style={{ marginTop: 8 }}>
                   {['ALL', ...sourceList].map(opt => (
-                    <Space key={opt} size={4} style={{ marginRight: 8 }}>
-                      <Switch size="small" checked={selectedSources.includes(opt)} onChange={(c) => handleToggleChange(c, opt, setSelectedSources, selectedSources, sourceList)} />
-                      <Text 
-                        style={{ fontSize: 12, cursor: 'pointer', userSelect: 'none' }}
-                        onClick={() => handleToggleChange(!selectedSources.includes(opt), opt, setSelectedSources, selectedSources, sourceList)}
-                      >
-                        {opt}
-                      </Text>
-                    </Space>
+                    <ToggleTag
+                      key={opt}
+                      checked={selectedSources.includes(opt)}
+                      onChange={(checked) => handleToggleChange(checked, opt, setSelectedSources, selectedSources, sourceList)}
+                    >
+                      {opt}
+                    </ToggleTag>
                   ))}
                 </Space>
               </Col>
@@ -530,55 +526,31 @@ const MyBoard: React.FC = () => {
             <div className="v-table-header">
               <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
                 <Text strong style={{ color: token.colorPrimary }}>그룹 리스트</Text>
-                <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-                  <Space size={6}>
-                    <Switch
-                      size="small"
-                      checked={selectedDataSources.includes('my designs')}
-                      onChange={(checked) => {
-                        const next = checked
-                          ? [...selectedDataSources, 'my designs']
-                          : selectedDataSources.filter(s => s !== 'my designs');
-                        if (next.length > 0) setSelectedDataSources(next);
-                      }}
-                    />
-                    <Text 
-                      style={{ fontSize: 11, cursor: 'pointer', userSelect: 'none' }}
-                      onClick={() => {
-                        const checked = !selectedDataSources.includes('my designs');
-                        const next = checked
-                          ? [...selectedDataSources, 'my designs']
-                          : selectedDataSources.filter(s => s !== 'my designs');
-                        if (next.length > 0) setSelectedDataSources(next);
-                      }}
-                    >
-                      My Designs
-                    </Text>
-                  </Space>
-                  <Space size={6}>
-                    <Switch
-                      size="small"
-                      checked={selectedDataSources.includes('my compounds')}
-                      onChange={(checked) => {
-                        const next = checked
-                          ? [...selectedDataSources, 'my compounds']
-                          : selectedDataSources.filter(s => s !== 'my compounds');
-                        if (next.length > 0) setSelectedDataSources(next);
-                      }}
-                    />
-                    <Text 
-                      style={{ fontSize: 11, cursor: 'pointer', userSelect: 'none' }}
-                      onClick={() => {
-                        const checked = !selectedDataSources.includes('my compounds');
-                        const next = checked
-                          ? [...selectedDataSources, 'my compounds']
-                          : selectedDataSources.filter(s => s !== 'my compounds');
-                        if (next.length > 0) setSelectedDataSources(next);
-                      }}
-                    >
-                      My Compounds
-                    </Text>
-                  </Space>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                  <ToggleTag
+                    checked={selectedDataSources.includes('my designs')}
+                    onChange={(checked) => {
+                      const next = checked
+                        ? [...selectedDataSources, 'my designs']
+                        : selectedDataSources.filter(s => s !== 'my designs');
+                      if (next.length > 0) setSelectedDataSources(next);
+                    }}
+                    style={{ fontSize: 11 }}
+                  >
+                    My Designs
+                  </ToggleTag>
+                  <ToggleTag
+                    checked={selectedDataSources.includes('my compounds')}
+                    onChange={(checked) => {
+                      const next = checked
+                        ? [...selectedDataSources, 'my compounds']
+                        : selectedDataSources.filter(s => s !== 'my compounds');
+                      if (next.length > 0) setSelectedDataSources(next);
+                    }}
+                    style={{ fontSize: 11 }}
+                  >
+                    My Compounds
+                  </ToggleTag>
                 </div>
               </div>
               <Button
@@ -879,10 +851,16 @@ const MyBoard: React.FC = () => {
                   'Permeability MD', '특허성', '합성기능성'
                 ].map(item => (
                   <Col span={8} key={item}>
-                    <Space size={8}>
-                      <Switch size="small" />
-                      <Text>{item}</Text>
-                    </Space>
+                    <ToggleTag
+                      checked={selectedCalculations.includes(item)}
+                      onChange={(checked) => {
+                        setSelectedCalculations((prev) => (
+                          checked ? [...prev, item] : prev.filter(value => value !== item)
+                        ));
+                      }}
+                    >
+                      {item}
+                    </ToggleTag>
                   </Col>
                 ))}
               </Row>
@@ -968,11 +946,13 @@ const MyBoard: React.FC = () => {
                 <GripVertical size={16} color={token.colorTextTertiary} />
                 <Text strong={draggedItemIndex === index}>{item}</Text>
               </Space>
-              <Switch
-                size="small"
+              <ToggleTag
                 checked={activeColumns.includes(item)}
                 onChange={() => toggleColumn(item)}
-              />
+                style={{ marginInlineEnd: 0 }}
+              >
+                {activeColumns.includes(item) ? 'ON' : 'OFF'}
+              </ToggleTag>
             </div>
           ))}
         </div>

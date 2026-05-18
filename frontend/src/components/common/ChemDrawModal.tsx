@@ -5,12 +5,63 @@ import { CHEMDRAW_CONFIG } from '../../config/chemdraw';
 
 const { Text } = Typography;
 
+let canvasContextPatchUsers = 0;
+let restoreCanvasContextPatch: (() => void) | null = null;
+
+const installCanvasReadbackPatch = () => {
+  if (typeof window === 'undefined') {
+    return () => {};
+  }
+
+  canvasContextPatchUsers += 1;
+  if (!restoreCanvasContextPatch) {
+    const originalGetContext = HTMLCanvasElement.prototype.getContext;
+
+    HTMLCanvasElement.prototype.getContext = function patchedGetContext(
+      this: HTMLCanvasElement,
+      contextId: string,
+      options?: any
+    ) {
+      if (contextId === '2d') {
+        return originalGetContext.call(this, contextId, {
+          ...(options || {}),
+          willReadFrequently: true,
+        });
+      }
+
+      return originalGetContext.call(this, contextId as any, options);
+    } as typeof HTMLCanvasElement.prototype.getContext;
+
+    restoreCanvasContextPatch = () => {
+      HTMLCanvasElement.prototype.getContext = originalGetContext;
+      restoreCanvasContextPatch = null;
+    };
+  }
+
+  return () => {
+    canvasContextPatchUsers = Math.max(0, canvasContextPatchUsers - 1);
+    if (canvasContextPatchUsers === 0) {
+      restoreCanvasContextPatch?.();
+    }
+  };
+};
+
+export interface ChemDrawStructureData {
+  smiles: string;
+  svg: string | null;
+  cdxml?: string;
+  molfile?: string;
+  molV2000?: string;
+  molV3000?: string;
+}
+
 interface ChemDrawModalProps {
   open: boolean;
   onCancel: () => void;
-  onConfirm: (data: { smiles: string; svg: string | null }) => void;
+  onConfirm: (data: ChemDrawStructureData) => void;
   title?: string;
   confirmText?: string;
+  initialCdxml?: string;
   initialSmiles?: string;
   initialMolblock?: string;
 }
@@ -21,6 +72,7 @@ const ChemDrawModal: React.FC<ChemDrawModalProps> = ({
   onConfirm,
   title = "구조 편집 (ChemDraw JS)",
   confirmText = "확인",
+  initialCdxml,
   initialSmiles,
   initialMolblock
 }) => {
@@ -29,114 +81,187 @@ const ChemDrawModal: React.FC<ChemDrawModalProps> = ({
   const [containerId] = useState(`chemdraw-${Math.random().toString(36).substr(2, 9)}`);
 
   useEffect(() => {
-    if (open) {
-      const loadChemDraw = () => {
-        if ((window as any).perkinelmer && (window as any).perkinelmer.ChemdrawWebManager) {
-          initializeEditor();
-          return;
-        }
-
-        const script = document.createElement('script');
-        script.src = CHEMDRAW_CONFIG.SCRIPT_PATH;
-        script.async = true;
-        script.onload = () => {
-          initializeEditor();
-        };
-        document.body.appendChild(script);
-      };
-
-      const initializeEditor = async () => {
-        try {
-          const manager = (window as any).perkinelmer.ChemdrawWebManager;
-          if (!manager) return;
-
-          // Short delay to ensure DOM is ready
-          setTimeout(() => {
-            const container = document.getElementById(containerId);
-            if (!container) return;
-
-            manager.attach({
-              id: containerId,
-              license: CHEMDRAW_CONFIG.LICENSE_XML,
-              viewOnly: false,
-              callback: (editor: any) => {
-                setCdjsInstance(editor);
-                // initialMolblock 또는 initialSmiles를 에디터에 로드
-                const loadStructure = () => {
-                  if (!editor) return;
-                  try {
-                    if (initialMolblock) {
-                      // ChemDraw JS: MOL V2000 로드
-                      if (editor.loadMOL) {
-                        editor.loadMOL(initialMolblock);
-                      } else if (editor.setData) {
-                        // 가능한 format key들 시도
-                        const formats = (window as any).perkinelmer?.DataFormats;
-                        const molFormat = formats?.MOLV2000 || formats?.MOL || formats?.mol || 'chemical/x-mdl-molfile';
-                        editor.setData(molFormat, initialMolblock);
-                      } else if (editor.setMolecule) {
-                        editor.setMolecule(initialMolblock);
-                      }
-                    } else if (initialSmiles) {
-                      if (editor.loadSMILES) {
-                        editor.loadSMILES(initialSmiles);
-                      } else if (editor.setData) {
-                        const formats = (window as any).perkinelmer?.DataFormats;
-                        editor.setData(formats?.SMILES || 'chemical/x-daylight-smiles', initialSmiles);
-                      } else if (editor.setMolecule) {
-                        editor.setMolecule(initialSmiles);
-                      }
-                    }
-                  } catch (e) {
-                    console.warn('Failed to load structure into editor:', e);
-                  }
-                };
-                // 에디터 초기화 직후에는 준비 안 될 수 있으므로 약간의 딜레이
-                setTimeout(loadStructure, 500);
-              }
-            });
-          }, 300);
-        } catch (error) {
-          console.error('Failed to initialize ChemDraw JS:', error);
-        }
-      };
-
-      loadChemDraw();
+    if (!open) {
+      setCdjsInstance(null);
+      return;
     }
+
+    const restoreReadbackPatch = installCanvasReadbackPatch();
+    let isDisposed = false;
+
+    const loadChemDraw = () => {
+      if ((window as any).perkinelmer && (window as any).perkinelmer.ChemdrawWebManager) {
+        initializeEditor();
+        return;
+      }
+
+      const script = document.createElement('script');
+      script.src = CHEMDRAW_CONFIG.SCRIPT_PATH;
+      script.async = true;
+      script.onload = () => {
+        if (isDisposed) return;
+        initializeEditor();
+      };
+      document.body.appendChild(script);
+    };
+
+    const initializeEditor = async () => {
+      try {
+        const manager = (window as any).perkinelmer.ChemdrawWebManager;
+        if (!manager) return;
+
+        // Short delay to ensure DOM is ready
+        setTimeout(() => {
+          if (isDisposed) return;
+          const container = document.getElementById(containerId);
+          if (!container) return;
+
+          manager.attach({
+            id: containerId,
+            license: CHEMDRAW_CONFIG.LICENSE_XML,
+            viewOnly: false,
+            callback: (editor: any) => {
+              setCdjsInstance(editor);
+              // initialCdxml, initialMolblock 또는 initialSmiles를 에디터에 로드
+              const loadStructure = () => {
+                if (!editor) return;
+                try {
+                  const formats = (window as any).perkinelmer?.DataFormats;
+                  if (initialCdxml) {
+                    if (editor.loadCDXML) {
+                      editor.loadCDXML(initialCdxml);
+                    } else if (editor.setData) {
+                      editor.setData(formats?.CDXML || 'CDXML', initialCdxml);
+                    } else if (editor.setMolecule) {
+                      editor.setMolecule(initialCdxml);
+                    }
+                  } else if (initialMolblock) {
+                    // ChemDraw JS: MOL V2000 로드
+                    if (editor.loadMOL) {
+                      editor.loadMOL(initialMolblock);
+                    } else if (editor.setData) {
+                      // 가능한 format key들 시도
+                      const molFormat = formats?.MOLV2000 || formats?.MOLFILE || 'chemical/x-mdl-molfile';
+                      editor.setData(molFormat, initialMolblock);
+                    } else if (editor.setMolecule) {
+                      editor.setMolecule(initialMolblock);
+                    }
+                  } else if (initialSmiles) {
+                    if (editor.loadSMILES) {
+                      editor.loadSMILES(initialSmiles);
+                    } else if (editor.setData) {
+                      const formats = (window as any).perkinelmer?.DataFormats;
+                      editor.setData(formats?.SMILES || 'chemical/x-daylight-smiles', initialSmiles);
+                    } else if (editor.setMolecule) {
+                      editor.setMolecule(initialSmiles);
+                    }
+                  }
+                } catch (e) {
+                  console.warn('Failed to load structure into editor:', e);
+                }
+              };
+              // 에디터 초기화 직후에는 준비 안 될 수 있으므로 약간의 딜레이
+              setTimeout(loadStructure, 500);
+            }
+          });
+        }, 300);
+      } catch (error) {
+        console.error('Failed to initialize ChemDraw JS:', error);
+      }
+    };
+
+    loadChemDraw();
 
     return () => {
       // Cleanup: ChemDraw JS doesn't always have a public destroy() method, 
       // but we reset the state to trigger re-init next time.
-      if (!open) {
-        setCdjsInstance(null);
-      }
+      isDisposed = true;
+      setCdjsInstance(null);
+      restoreReadbackPatch();
     };
-  }, [open, containerId, initialSmiles, initialMolblock]);
+  }, [open, containerId, initialCdxml, initialSmiles, initialMolblock]);
 
   const handleCancel = () => {
     setCdjsInstance(null);
     onCancel();
   };
 
-  const handleConfirm = () => {
+  const handleConfirm = async () => {
     if (cdjsInstance) {
-      const formats = (window as any).perkinelmer.DataFormats;
-      let smiles = '';
-      let svg = null;
+      const formats = (window as any).perkinelmer?.DataFormats;
+      const data: ChemDrawStructureData = {
+        smiles: '',
+        svg: null,
+      };
+
+      const getFormatData = (format: string | undefined) => {
+        if (!format || !cdjsInstance.getData) return '';
+        try {
+          return cdjsInstance.getData(format) || '';
+        } catch {
+          return '';
+        }
+      };
+
+      const getStringMethodData = (methodName: string) => {
+        const method = cdjsInstance[methodName];
+        if (typeof method !== 'function') return '';
+        try {
+          const result = method.call(cdjsInstance);
+          return typeof result === 'string' ? result : '';
+        } catch {
+          return '';
+        }
+      };
+
+      const getCallbackMethodData = (methodName: string) => {
+        const method = cdjsInstance[methodName];
+        if (typeof method !== 'function') return Promise.resolve('');
+
+        return new Promise<string>((resolve) => {
+          let resolved = false;
+          const finish = (value: string) => {
+            if (resolved) return;
+            resolved = true;
+            resolve(value || '');
+          };
+
+          try {
+            const result = method.call(cdjsInstance, (value: string | undefined, error: unknown) => {
+              finish(error ? '' : value || '');
+            });
+
+            if (typeof result === 'string') {
+              finish(result);
+            }
+          } catch {
+            finish('');
+          }
+
+          window.setTimeout(() => finish(''), 1000);
+        });
+      };
 
       try {
         if (cdjsInstance.getData) {
-          smiles = cdjsInstance.getData(formats.SMILES);
-          svg = cdjsInstance.getData(formats.SVG);
-        } else {
-          smiles = cdjsInstance.getSmiles?.() || '';
-          svg = cdjsInstance.getSVG?.() || null;
+          data.smiles = getFormatData(formats?.SMILES);
+          data.svg = getFormatData(formats?.SVG) || null;
+          data.cdxml = getFormatData(formats?.CDXML);
+          data.molfile = getFormatData(formats?.MOLFILE);
+          data.molV2000 = getFormatData(formats?.MOLV2000);
+          data.molV3000 = getFormatData(formats?.MOLV3000);
         }
+
+        data.cdxml = data.cdxml || getStringMethodData('getCDXML');
+        data.svg = data.svg || getStringMethodData('getSVG') || null;
+        data.molV2000 = data.molV2000 || await getCallbackMethodData('getMOL');
+        data.molV3000 = data.molV3000 || await getCallbackMethodData('getMOLV3000');
+        data.smiles = data.smiles || await getCallbackMethodData('getSMILES');
       } catch (e) {
         console.error('Error extracting data:', e);
       }
 
-      onConfirm({ smiles, svg });
+      onConfirm(data);
       setCdjsInstance(null); // Reset after confirm
     }
   };
