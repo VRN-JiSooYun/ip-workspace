@@ -1,0 +1,737 @@
+{
+  "info": {
+    "_postman_id": "6d46f8c0-f488-4a36-9c6d-b4f2d298ab71",
+    "name": "Patent Analysis External API",
+    "description": "Draft Postman collection for sample/patent_analysis_helper_api. Main RPC server uses POST /api with multipart/form-data and operation-based routing.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "main_base_url",
+      "value": "http://172.16.1.210:10130"
+    },
+    {
+      "key": "upload_base_url",
+      "value": "http://172.16.1.210:8000"
+    },
+    {
+      "key": "owner_id",
+      "value": "171"
+    },
+    {
+      "key": "publication_number",
+      "value": "WO2026090333A1"
+    },
+    {
+      "key": "publication_number_wo_body",
+      "value": "2026090333"
+    },
+    {
+      "key": "compound_id",
+      "value": "12345"
+    },
+    {
+      "key": "patent_compound_id",
+      "value": "1001"
+    },
+    {
+      "key": "folder_id",
+      "value": "1"
+    },
+    {
+      "key": "target_name",
+      "value": "EGFR"
+    },
+    {
+      "key": "email",
+      "value": "test@example.com"
+    },
+    {
+      "key": "smiles",
+      "value": "C1=CC=CC=C1"
+    },
+    {
+      "key": "sim",
+      "value": "70"
+    },
+    {
+      "key": "page_no",
+      "value": "1"
+    },
+    {
+      "key": "page_size",
+      "value": "10"
+    },
+    {
+      "key": "protein_target",
+      "value": "EGFR,HER2"
+    },
+    {
+      "key": "publication_date",
+      "value": "08.05.2025"
+    },
+    {
+      "key": "filling_date",
+      "value": "01.11.2024"
+    },
+    {
+      "key": "filling_language",
+      "value": "EN"
+    },
+    {
+      "key": "applicant",
+      "value": "Sample Applicant"
+    },
+    {
+      "key": "title",
+      "value": "Sample Patent Title"
+    },
+    {
+      "key": "abstract",
+      "value": "Sample abstract text"
+    },
+    {
+      "key": "kind_code",
+      "value": "A1"
+    },
+    {
+      "key": "patent_office_code",
+      "value": "WO"
+    },
+    {
+      "key": "patent_office",
+      "value": "WIPO"
+    },
+    {
+      "key": "sample_pdf_path",
+      "value": "/raid/inbox/sample.pdf"
+    },
+    {
+      "key": "sample_file_path",
+      "value": "/raid/patent_hot/WO/2025-05/WO2026090333A1/WO2026090333A1.pdf"
+    }
+  ],
+  "item": [
+    {
+      "name": "Core Queries",
+      "item": [
+        {
+          "name": "GET-PATENT-LIST",
+          "request": {
+            "method": "POST",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "operation", "value": "GET-PATENT-LIST", "type": "text" },
+                { "key": "owner_id", "value": "{{owner_id}}", "type": "text" },
+                { "key": "filter_dict", "value": "{}", "type": "text" },
+                { "key": "order_dict", "value": "[]", "type": "text" },
+                { "key": "filter_group_conjunction_list", "value": "[]", "type": "text" },
+                { "key": "num-rows-per-page", "value": "{{page_size}}", "type": "text" },
+                { "key": "page-no", "value": "{{page_no}}", "type": "text" },
+                { "key": "whose", "value": "my", "type": "text" },
+                { "key": "folder_id", "value": "", "type": "text" }
+              ]
+            },
+            "url": {
+              "raw": "{{main_base_url}}/api",
+              "host": ["{{main_base_url}}"],
+              "path": ["api"]
+            },
+            "description": "Patent list query with empty filter defaults."
+          }
+        },
+        {
+          "name": "GET-PATENT-DATA",
+          "request": {
+            "method": "POST",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "operation", "value": "GET-PATENT-DATA", "type": "text" },
+                { "key": "publication_number", "value": "{{publication_number}}", "type": "text" },
+                { "key": "owner_id", "value": "{{owner_id}}", "type": "text" }
+              ]
+            },
+            "url": {
+              "raw": "{{main_base_url}}/api",
+              "host": ["{{main_base_url}}"],
+              "path": ["api"]
+            }
+          }
+        },
+        {
+          "name": "GET-EMBODIMENT-LIST",
+          "request": {
+            "method": "POST",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "operation", "value": "GET-EMBODIMENT-LIST", "type": "text" },
+                { "key": "actionType", "value": "GET-EMBODIMENT-LIST", "type": "text" },
+                { "key": "publication_number", "value": "{{publication_number}}", "type": "text" },
+                { "key": "owner_id", "value": "{{owner_id}}", "type": "text" },
+                { "key": "filter_dict", "value": "{}", "type": "text" },
+                { "key": "ligand_filter_dict", "value": "[]", "type": "text" },
+                { "key": "order_dict", "value": "[]", "type": "text" },
+                { "key": "filter_group_conjunction_list", "value": "[]", "type": "text" },
+                { "key": "num-rows-per-page", "value": "{{page_size}}", "type": "text" },
+                { "key": "page-no", "value": "{{page_no}}", "type": "text" },
+                { "key": "whose", "value": "my", "type": "text" }
+              ]
+            },
+            "url": {
+              "raw": "{{main_base_url}}/api",
+              "host": ["{{main_base_url}}"],
+              "path": ["api"]
+            }
+          }
+        },
+        {
+          "name": "GET-PATENT-LIST-BY-COMPOUND-ID",
+          "request": {
+            "method": "POST",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "operation", "value": "GET-PATENT-LIST-BY-COMPOUND-ID", "type": "text" },
+                { "key": "compound_id", "value": "{{compound_id}}", "type": "text" }
+              ]
+            },
+            "url": {
+              "raw": "{{main_base_url}}/api",
+              "host": ["{{main_base_url}}"],
+              "path": ["api"]
+            }
+          }
+        },
+        {
+          "name": "GET-COMPOUND-SEARCH-HISTORY",
+          "request": {
+            "method": "POST",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "operation", "value": "GET-COMPOUND-SEARCH-HISTORY", "type": "text" },
+                { "key": "owner_id", "value": "{{owner_id}}", "type": "text" }
+              ]
+            },
+            "url": {
+              "raw": "{{main_base_url}}/api",
+              "host": ["{{main_base_url}}"],
+              "path": ["api"]
+            }
+          }
+        },
+        {
+          "name": "GET-TARGET-LIST",
+          "request": {
+            "method": "POST",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "operation", "value": "GET-TARGET-LIST", "type": "text" },
+                { "key": "owner_id", "value": "{{owner_id}}", "type": "text" }
+              ]
+            },
+            "url": {
+              "raw": "{{main_base_url}}/api",
+              "host": ["{{main_base_url}}"],
+              "path": ["api"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Compound Search",
+      "item": [
+        {
+          "name": "GET-ELASTIC-COMPOUND-LIST",
+          "request": {
+            "method": "POST",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "operation", "value": "GET-ELASTIC-COMPOUND-LIST", "type": "text" },
+                { "key": "owner_id", "value": "{{owner_id}}", "type": "text" },
+                { "key": "smiles", "value": "{{smiles}}", "type": "text" },
+                { "key": "type", "value": "substructure", "type": "text" },
+                { "key": "sim", "value": "{{sim}}", "type": "text" },
+                { "key": "page", "value": "{{page_no}}", "type": "text" },
+                { "key": "size", "value": "{{page_size}}", "type": "text" },
+                { "key": "order_by", "value": "molecular_weight#desc", "type": "text" }
+              ]
+            },
+            "url": {
+              "raw": "{{main_base_url}}/api",
+              "host": ["{{main_base_url}}"],
+              "path": ["api"]
+            }
+          }
+        },
+        {
+          "name": "GET-ELASTIC-COMPOUND-LIST-BY-PAGE",
+          "request": {
+            "method": "POST",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "operation", "value": "GET-ELASTIC-COMPOUND-LIST-BY-PAGE", "type": "text" },
+                { "key": "owner_id", "value": "{{owner_id}}", "type": "text" },
+                { "key": "smiles", "value": "{{smiles}}", "type": "text" },
+                { "key": "type", "value": "similarity", "type": "text" },
+                { "key": "sim", "value": "{{sim}}", "type": "text" },
+                { "key": "page", "value": "2", "type": "text" },
+                { "key": "size", "value": "{{page_size}}", "type": "text" },
+                { "key": "order_by", "value": "molecular_weight#desc", "type": "text" }
+              ]
+            },
+            "url": {
+              "raw": "{{main_base_url}}/api",
+              "host": ["{{main_base_url}}"],
+              "path": ["api"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Mutations and Actions",
+      "item": [
+        {
+          "name": "MODIFY-PATENT-DATA",
+          "request": {
+            "method": "POST",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "operation", "value": "MODIFY-PATENT-DATA", "type": "text" },
+                { "key": "owner_id", "value": "{{owner_id}}", "type": "text" },
+                { "key": "publication_number", "value": "{{publication_number}}", "type": "text" },
+                { "key": "publication_date", "value": "{{publication_date}}", "type": "text" },
+                { "key": "protein_target", "value": "{{protein_target}}", "type": "text" },
+                { "key": "applicant", "value": "{{applicant}}", "type": "text" },
+                { "key": "status", "value": "complete", "type": "text" },
+                { "key": "comment", "value": "checked by postman", "type": "text" }
+              ]
+            },
+            "url": {
+              "raw": "{{main_base_url}}/api",
+              "host": ["{{main_base_url}}"],
+              "path": ["api"]
+            }
+          }
+        },
+        {
+          "name": "REQUEST-MODIFY-ALL-BIOACTIVITY",
+          "request": {
+            "method": "POST",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "operation", "value": "REQUEST-MODIFY-ALL-BIOACTIVITY", "type": "text" },
+                { "key": "owner_id", "value": "{{owner_id}}", "type": "text" },
+                { "key": "quality", "value": "5", "type": "text" },
+                { "key": "publication_number", "value": "{{publication_number}}", "type": "text" }
+              ]
+            },
+            "url": {
+              "raw": "{{main_base_url}}/api",
+              "host": ["{{main_base_url}}"],
+              "path": ["api"]
+            }
+          }
+        },
+        {
+          "name": "GET-HUMAN-KEY-COMPOUND-CONDITION",
+          "request": {
+            "method": "POST",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "operation", "value": "GET-HUMAN-KEY-COMPOUND-CONDITION", "type": "text" },
+                { "key": "patent_compound_id", "value": "{{patent_compound_id}}", "type": "text" }
+              ]
+            },
+            "url": {
+              "raw": "{{main_base_url}}/api",
+              "host": ["{{main_base_url}}"],
+              "path": ["api"]
+            }
+          }
+        },
+        {
+          "name": "DESIGNATE-KEY-COMPOUND",
+          "request": {
+            "method": "POST",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "operation", "value": "DESIGNATE-KEY-COMPOUND", "type": "text" },
+                { "key": "patent_compound_id", "value": "{{patent_compound_id}}", "type": "text" },
+                { "key": "owner_id", "value": "{{owner_id}}", "type": "text" },
+                { "key": "bioactive", "value": "true", "type": "text" },
+                { "key": "common_struct", "value": "", "type": "text" },
+                { "key": "prodrug", "value": "", "type": "text" },
+                { "key": "public_struct", "value": "", "type": "text" },
+                { "key": "other", "value": "", "type": "text" }
+              ]
+            },
+            "url": {
+              "raw": "{{main_base_url}}/api",
+              "host": ["{{main_base_url}}"],
+              "path": ["api"]
+            },
+            "description": "Send empty string instead of false for unchecked flags due to bool parsing in server code."
+          }
+        },
+        {
+          "name": "ADD-FAVORITE (Patent)",
+          "request": {
+            "method": "POST",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "operation", "value": "ADD-FAVORITE", "type": "text" },
+                { "key": "owner_id", "value": "{{owner_id}}", "type": "text" },
+                { "key": "table", "value": "patent_user", "type": "text" },
+                { "key": "target_list", "value": "[\"{{publication_number}}\"]", "type": "text" }
+              ]
+            },
+            "url": {
+              "raw": "{{main_base_url}}/api",
+              "host": ["{{main_base_url}}"],
+              "path": ["api"]
+            }
+          }
+        },
+        {
+          "name": "ADD-FAVORITE (Embodiment)",
+          "request": {
+            "method": "POST",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "operation", "value": "ADD-FAVORITE", "type": "text" },
+                { "key": "owner_id", "value": "{{owner_id}}", "type": "text" },
+                { "key": "table", "value": "embodiment_user", "type": "text" },
+                { "key": "target_list", "value": "[{{patent_compound_id}}]", "type": "text" }
+              ]
+            },
+            "url": {
+              "raw": "{{main_base_url}}/api",
+              "host": ["{{main_base_url}}"],
+              "path": ["api"]
+            }
+          }
+        },
+        {
+          "name": "REMOVE-FAVORITE (Patent)",
+          "request": {
+            "method": "POST",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "operation", "value": "REMOVE-FAVORITE", "type": "text" },
+                { "key": "owner_id", "value": "{{owner_id}}", "type": "text" },
+                { "key": "table", "value": "patent_user", "type": "text" },
+                { "key": "target_list", "value": "[\"{{publication_number}}\"]", "type": "text" }
+              ]
+            },
+            "url": {
+              "raw": "{{main_base_url}}/api",
+              "host": ["{{main_base_url}}"],
+              "path": ["api"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Folder and Target Management",
+      "item": [
+        {
+          "name": "ADD-FOLDER",
+          "request": {
+            "method": "POST",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "operation", "value": "ADD-FOLDER", "type": "text" },
+                { "key": "actionType", "value": "ADD-FOLDER", "type": "text" },
+                { "key": "owner_id", "value": "{{owner_id}}", "type": "text" },
+                { "key": "folder_name", "value": "Important Patents", "type": "text" },
+                { "key": "parent_id", "value": "-1", "type": "text" }
+              ]
+            },
+            "url": {
+              "raw": "{{main_base_url}}/api",
+              "host": ["{{main_base_url}}"],
+              "path": ["api"]
+            }
+          }
+        },
+        {
+          "name": "ADD-PATENTS-TO-FOLDER",
+          "request": {
+            "method": "POST",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "operation", "value": "ADD-PATENTS-TO-FOLDER", "type": "text" },
+                { "key": "actionType", "value": "ADD-PATENTS-TO-FOLDER", "type": "text" },
+                { "key": "owner_id", "value": "{{owner_id}}", "type": "text" },
+                { "key": "folder_id", "value": "{{folder_id}}", "type": "text" },
+                { "key": "selected_patent_list", "value": "[\"{{publication_number}}\"]", "type": "text" }
+              ]
+            },
+            "url": {
+              "raw": "{{main_base_url}}/api",
+              "host": ["{{main_base_url}}"],
+              "path": ["api"]
+            }
+          }
+        },
+        {
+          "name": "ENABLE-EMAIL-ALARM",
+          "request": {
+            "method": "POST",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "operation", "value": "ENABLE-EMAIL-ALARM", "type": "text" },
+                { "key": "owner_id", "value": "{{owner_id}}", "type": "text" },
+                { "key": "email", "value": "{{email}}", "type": "text" }
+              ]
+            },
+            "url": {
+              "raw": "{{main_base_url}}/api",
+              "host": ["{{main_base_url}}"],
+              "path": ["api"]
+            }
+          }
+        },
+        {
+          "name": "ADD-NEW-TARGET",
+          "request": {
+            "method": "POST",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "operation", "value": "ADD-NEW-TARGET", "type": "text" },
+                { "key": "actionType", "value": "ADD-NEW-TARGET", "type": "text" },
+                { "key": "owner_id", "value": "{{owner_id}}", "type": "text" },
+                { "key": "email", "value": "{{email}}", "type": "text" },
+                { "key": "origin_target_name", "value": "{{target_name}}", "type": "text" }
+              ]
+            },
+            "url": {
+              "raw": "{{main_base_url}}/api",
+              "host": ["{{main_base_url}}"],
+              "path": ["api"]
+            }
+          }
+        },
+        {
+          "name": "CONFIRM-NEW-TARGET",
+          "request": {
+            "method": "POST",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "operation", "value": "CONFIRM-NEW-TARGET", "type": "text" },
+                { "key": "actionType", "value": "CONFIRM-NEW-TARGET", "type": "text" },
+                { "key": "owner_id", "value": "{{owner_id}}", "type": "text" },
+                { "key": "origin_target_name", "value": "{{target_name}}", "type": "text" },
+                { "key": "new_target_name", "value": "{{target_name}}", "type": "text" },
+                { "key": "keyword", "value": "epidermal growth factor receptor,erbb1", "type": "text" }
+              ]
+            },
+            "url": {
+              "raw": "{{main_base_url}}/api",
+              "host": ["{{main_base_url}}"],
+              "path": ["api"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "File Upload and Download",
+      "item": [
+        {
+          "name": "GET-META-DATA",
+          "request": {
+            "method": "POST",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "operation", "value": "GET-META-DATA", "type": "text" },
+                { "key": "file", "type": "file", "src": "" }
+              ]
+            },
+            "url": {
+              "raw": "{{main_base_url}}/api",
+              "host": ["{{main_base_url}}"],
+              "path": ["api"]
+            }
+          }
+        },
+        {
+          "name": "UPLOAD-PATENT-FILE",
+          "request": {
+            "method": "POST",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "operation", "value": "UPLOAD-PATENT-FILE", "type": "text" },
+                { "key": "protein_target", "value": "{{target_name}}", "type": "text" },
+                { "key": "publication_number", "value": "{{publication_number_wo_body}}", "type": "text" },
+                { "key": "publication_date", "value": "{{publication_date}}", "type": "text" },
+                { "key": "filling_date", "value": "{{filling_date}}", "type": "text" },
+                { "key": "filling_language", "value": "{{filling_language}}", "type": "text" },
+                { "key": "applicant", "value": "{{applicant}}", "type": "text" },
+                { "key": "title", "value": "{{title}}", "type": "text" },
+                { "key": "abstract", "value": "{{abstract}}", "type": "text" },
+                { "key": "kind_code", "value": "{{kind_code}}", "type": "text" },
+                { "key": "patent_office_code", "value": "{{patent_office_code}}", "type": "text" },
+                { "key": "patent_office", "value": "{{patent_office}}", "type": "text" },
+                { "key": "file", "type": "file", "src": "" }
+              ]
+            },
+            "url": {
+              "raw": "{{main_base_url}}/api",
+              "host": ["{{main_base_url}}"],
+              "path": ["api"]
+            }
+          }
+        },
+        {
+          "name": "UPLOAD-BIOACTIVITY-FILE",
+          "request": {
+            "method": "POST",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "operation", "value": "UPLOAD-BIOACTIVITY-FILE", "type": "text" },
+                { "key": "publication_number", "value": "{{publication_number}}", "type": "text" },
+                { "key": "file", "type": "file", "src": "" }
+              ]
+            },
+            "url": {
+              "raw": "{{main_base_url}}/api",
+              "host": ["{{main_base_url}}"],
+              "path": ["api"]
+            }
+          }
+        },
+        {
+          "name": "DOWNLOAD-FILE",
+          "request": {
+            "method": "POST",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "operation", "value": "DOWNLOAD-FILE", "type": "text" },
+                { "key": "file_path", "value": "{{sample_file_path}}", "type": "text" }
+              ]
+            },
+            "url": {
+              "raw": "{{main_base_url}}/api",
+              "host": ["{{main_base_url}}"],
+              "path": ["api"]
+            }
+          }
+        },
+        {
+          "name": "DOWNLOAD-PDF-FILES",
+          "request": {
+            "method": "POST",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "operation", "value": "DOWNLOAD-PDF-FILES", "type": "text" },
+                { "key": "selected_patent_list", "value": "[\"{{publication_number}}\"]", "type": "text" }
+              ]
+            },
+            "url": {
+              "raw": "{{main_base_url}}/api",
+              "host": ["{{main_base_url}}"],
+              "path": ["api"]
+            }
+          }
+        },
+        {
+          "name": "DOWNLOAD-EMBODIMENTS-EXCEL",
+          "request": {
+            "method": "POST",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "operation", "value": "DOWNLOAD-EMBODIMENTS-EXCEL", "type": "text" },
+                { "key": "publication_number", "value": "{{publication_number}}", "type": "text" },
+                { "key": "owner_id", "value": "{{owner_id}}", "type": "text" },
+                { "key": "bioactivity_type", "value": "bioactivity", "type": "text" },
+                { "key": "filter_dict", "value": "{}", "type": "text" },
+                { "key": "ligand_filter_dict", "value": "[]", "type": "text" },
+                { "key": "order_dict", "value": "[]", "type": "text" },
+                { "key": "filter_group_conjunction_list", "value": "[]", "type": "text" }
+              ]
+            },
+            "url": {
+              "raw": "{{main_base_url}}/api",
+              "host": ["{{main_base_url}}"],
+              "path": ["api"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Port 8000 Upload Service",
+      "item": [
+        {
+          "name": "POST /upload_pdf/",
+          "request": {
+            "method": "POST",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "file", "type": "file", "src": "" }
+              ]
+            },
+            "url": {
+              "raw": "{{upload_base_url}}/upload_pdf/",
+              "host": ["{{upload_base_url}}"],
+              "path": ["upload_pdf", ""]
+            }
+          }
+        },
+        {
+          "name": "POST /upload_new_patent/",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"source_path\": \"{{sample_pdf_path}}\",\n  \"target\": \"{{target_name}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{upload_base_url}}/upload_new_patent/",
+              "host": ["{{upload_base_url}}"],
+              "path": ["upload_new_patent", ""]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

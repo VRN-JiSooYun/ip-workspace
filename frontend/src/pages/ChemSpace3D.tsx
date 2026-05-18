@@ -163,6 +163,9 @@ const ChemSpace3D: React.FC = () => {
         boxWidth: 100,
         boxHeight: 80,
         boxDepth: 100,
+        axisPointer: {
+          show: false
+        },
         viewControl: {
           autoRotate: false,
           distance: 200,

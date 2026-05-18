@@ -180,10 +180,10 @@ const Dashboard: React.FC = () => {
           <div className="dashboard-card" style={{ minHeight: 200 }}>
             <div className="dashboard-card-icon"><Volume2 size={18} /></div>
             <div className="dashboard-card-title">연구소 소식</div>
-            <div className="dashboard-card-content" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <div style={{ textAlign: 'center' }}>
+            <div className="dashboard-card-content" style={{ display: 'flex', alignItems: 'stretch', justifyContent: 'flex-start' }}>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, flexWrap: 'wrap' }}>
                 <Text strong style={{ fontSize: '14px' }}>김도현 장가 가다 </Text>
-                <Button type="link" size="small" style={{ color: '#3366cc', display: 'block', margin: '0 auto', fontSize: '12px' }}>[웹 화보]</Button>
+                <Button type="link" size="small" style={{ color: '#3366cc', padding: 0, height: 'auto', fontSize: '12px' }}>[웹 화보]</Button>
               </div>
             </div>
           </div>

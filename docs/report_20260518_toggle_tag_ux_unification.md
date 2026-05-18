@@ -16,4 +16,5 @@
 ## 구현 메모
 - 필터 옵션, 데이터 소스 선택, 컬럼 표시 여부, 3D 축 표시 여부 등 기존 `Switch`가 있던 UI를 `ToggleTag`로 교체했습니다.
 - `Recent Projects`와 동일한 pill/tag 클릭 UX를 사용하며, 기존 선택 상태와 토글 로직은 유지했습니다.
+- `ToggleTag`의 체크 해제 상태는 비어있는 outline UX로 표시되도록 공통 스타일을 적용했습니다.
 - `rg` 기준으로 `frontend/src/pages` 및 `frontend/src/components` 안의 `Switch` 사용은 제거되었습니다.

@@ -11,6 +11,7 @@ import ChemSpace from './pages/ChemSpace';
 import ChemSpace3D from './pages/ChemSpace3D';
 import PatentAnalysisList from './pages/PatentAnalysisList';
 import PatentAnalysisDetail from './pages/PatentAnalysisDetail';
+import DevelopmentStatus from './pages/DevelopmentStatus';
 import EmptyPage from './pages/EmptyPage';
 
 const App: React.FC = () => {
@@ -83,7 +84,7 @@ const App: React.FC = () => {
               <Route path="/conferences" element={<EmptyPage title="Conferences" breadcrumb={[{ label: 'Documents' }, { label: 'Conferences' }]} />} />
               <Route path="/pdbs" element={<EmptyPage title="PDBs" breadcrumb={[{ label: 'PDBs' }]} />} />
               <Route path="/universal-search" element={<EmptyPage title="통합검색" breadcrumb={[{ label: '통합검색' }]} />} />
-              <Route path="/development-status" element={<EmptyPage title="수리응용2팀 서비스 개발 진행 현황" breadcrumb={[{ label: '수리응용2팀 서비스 개발 진행 현황' }]} />} />
+              <Route path="/development-status" element={<DevelopmentStatus />} />
               <Route path="/contact" element={<EmptyPage title="문의하기" breadcrumb={[{ label: '문의하기' }]} />} />
               <Route path="*" element={<Navigate to="/dashboard" replace />} />
             </Routes>

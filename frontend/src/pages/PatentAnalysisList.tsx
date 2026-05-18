@@ -47,6 +47,10 @@ const PatentAnalysisList: React.FC = () => {
     if (typeof window === 'undefined') return 1920;
     return window.innerWidth;
   });
+  const [viewportHeight, setViewportHeight] = useState<number>(() => {
+    if (typeof window === 'undefined') return 1080;
+    return window.innerHeight;
+  });
   const { setHeaderContent } = useUIStore();
   const layoutPreset = React.useMemo(() => getPatentAnalysisLayoutPreset(viewportWidth), [viewportWidth]);
 
@@ -64,10 +68,35 @@ const PatentAnalysisList: React.FC = () => {
   }, [setHeaderContent]);
 
   useEffect(() => {
-    const onResize = () => setViewportWidth(window.innerWidth);
+    const onResize = () => {
+      setViewportWidth(window.innerWidth);
+      setViewportHeight(window.innerHeight);
+    };
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
   }, []);
+
+  const filteredPatents = React.useMemo(() => {
+    const normalizedSearchText = searchText.trim().toLowerCase();
+    if (!normalizedSearchText) {
+      return mockPatents;
+    }
+    return mockPatents.filter((patent) =>
+      patent.title.toLowerCase().includes(normalizedSearchText) ||
+      patent.patentNumber.includes(normalizedSearchText)
+    );
+  }, [searchText]);
+
+  const patentListTableScrollY = React.useMemo(() => {
+    return Math.max(280, viewportHeight - 420);
+  }, [viewportHeight]);
+
+  const patentListTableScroll = React.useMemo(() => {
+    const estimatedRowHeight = 64;
+    return filteredPatents.length * estimatedRowHeight > patentListTableScrollY
+      ? { y: patentListTableScrollY }
+      : undefined;
+  }, [filteredPatents.length, patentListTableScrollY]);
 
   const columns = [
     {
@@ -261,14 +290,14 @@ const PatentAnalysisList: React.FC = () => {
         <div className="v-table-card" style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
           <Table
             columns={columns}
-            dataSource={mockPatents.filter(p => p.title.toLowerCase().includes(searchText.toLowerCase()) || p.patentNumber.includes(searchText))}
+            dataSource={filteredPatents}
             rowKey="id"
             onRow={(record) => ({
               onClick: () => navigate(`/patents/analysis/${record.id}`),
               style: { cursor: 'pointer' }
             })}
             pagination={{ pageSize: 10, position: ['bottomCenter'], style: { margin: '16px 0' } }}
-            scroll={{ y: 'calc(100vh - 420px)' }}
+            scroll={patentListTableScroll}
             style={{ flex: 1 }}
           />
         </div>

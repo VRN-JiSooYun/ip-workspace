@@ -1,5 +1,5 @@
 import React from 'react';
-import { Tag } from 'antd';
+import { Tag, theme } from 'antd';
 
 interface ToggleTagProps {
   checked: boolean;
@@ -18,6 +18,8 @@ const ToggleTag: React.FC<ToggleTagProps> = ({
   className,
   style,
 }) => {
+  const { token } = theme.useToken();
+
   return (
     <Tag.CheckableTag
       checked={checked}
@@ -29,6 +31,9 @@ const ToggleTag: React.FC<ToggleTagProps> = ({
       className={className || 'v-project-tag'}
       style={{
         marginInlineEnd: 0,
+        border: `1px solid ${checked ? token.colorPrimary : token.colorBorder}`,
+        background: checked ? token.colorPrimaryBg : 'transparent',
+        color: checked ? token.colorPrimary : token.colorTextSecondary,
         cursor: disabled ? 'not-allowed' : 'pointer',
         opacity: disabled ? 0.5 : 1,
         userSelect: 'none',

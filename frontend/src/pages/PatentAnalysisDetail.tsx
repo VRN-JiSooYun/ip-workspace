@@ -138,6 +138,13 @@ const PatentAnalysisDetail: React.FC = () => {
     const calculated = Math.floor(rawDataTableScrollY / estimatedRowHeight);
     return Math.min(40, Math.max(10, calculated));
   }, [rawDataTableScrollY]);
+  const getRawDataTableScroll = React.useCallback((rowCount: number) => {
+    const estimatedRowHeight = 160;
+    const needsVerticalScroll = rowCount * estimatedRowHeight > rawDataTableScrollY;
+    return needsVerticalScroll
+      ? { x: 'max-content' as const, y: rawDataTableScrollY }
+      : { x: 'max-content' as const };
+  }, [rawDataTableScrollY]);
 
   useEffect(() => {
     const onResize = () => {
@@ -998,7 +1005,7 @@ const PatentAnalysisDetail: React.FC = () => {
                                   dataSource={rawPc}
                                   size="small"
                                   rowKey={(record: any) => `${record.id}-${record.__rowIdx}`}
-                                  scroll={{ x: 'max-content', y: rawDataTableScrollY }}
+                                  scroll={getRawDataTableScroll(rawPc.length)}
                                   columns={columns}
                                   rowClassName={(record: any) => activeCompId === String(record.id) ? 'raw-data-row-active' : ''}
                                   onRow={(record: any) => ({
@@ -1365,7 +1372,7 @@ const PatentAnalysisDetail: React.FC = () => {
                                   dataSource={cleanRows}
                                   size="small"
                                   rowKey={(record: any) => record.__rowKey}
-                                  scroll={{ x: 'max-content', y: rawDataTableScrollY }}
+                                  scroll={getRawDataTableScroll(cleanRows.length)}
                                   columns={columns as any}
                                   rowClassName={(record: any) => activeCompId === `clean-${record.__rowKey ?? record.id}` ? 'raw-data-row-active' : ''}
                                   onRow={(record: any) => ({

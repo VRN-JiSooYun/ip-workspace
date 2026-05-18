@@ -213,6 +213,9 @@ const ChemSpaceChart3D: React.FC<ChemSpaceChart3DProps> = ({ data, xAxis, yAxis,
         top: 'center',
         width: '90%',
         height: '90%',
+        axisPointer: {
+          show: false
+        },
         viewControl: {
           autoRotate: false,
           distance: 220, // Increased distance slightly to fit everything
