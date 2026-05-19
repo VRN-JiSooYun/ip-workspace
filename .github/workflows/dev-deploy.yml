@@ -14,12 +14,8 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
+          token: ${{ secrets.RDKIT_SUBMODULE_TOKEN }}
           submodules: recursive
-
-      - name: Update submodules
-        run: |
-          git submodule sync --recursive
-          git submodule update --init --recursive
 
       - name: Build and Run Docker Containers
         run: |
