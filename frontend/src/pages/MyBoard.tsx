@@ -2,24 +2,24 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Row, Col, Card, Table, Button, Input,
-  Space, Typography, Modal, Form, Tag, List, Select, DatePicker, Avatar, Divider, Upload, Segmented, theme
+  Space, Typography, Modal, Form, Tag, List, Select, DatePicker, Avatar, Divider, Upload, Segmented, theme, Tooltip
 } from 'antd';
 import {
   Search, Plus, Filter, Settings, List as ListIcon,
-  Image as ImageIcon, GitBranch, FlaskConical, Info, ChevronDown, ChevronUp, Beaker,
-  Activity, XCircle, Share2, GripVertical, Palette, Upload as UploadIcon, FileText
+  Image as ImageIcon, GitBranch, Info, ChevronDown, ChevronUp, Beaker,
+  Activity, XCircle, Share2, GripVertical, Upload as UploadIcon, FileText
 } from 'lucide-react';
 import { useBoardStore } from '../store/useBoardStore';
 import { mockCompounds, mockGroups } from '../mocks/compounds';
 import RadarChart from '../components/charts/RadarChart';
 import dayjs from 'dayjs';
 import { useTheme } from '../contexts/ThemeContext';
-import { CHEMDRAW_CONFIG } from '../config/chemdraw';
 import { getPatentAnalysisLayoutPreset } from '../config/patentAnalysisLayout';
 import { useUIStore } from '../store/useUIStore';
 import PageHeaderBreadcrumb from '../components/common/PageHeaderBreadcrumb';
 import WhiteboardEditor from '../components/board/WhiteboardEditor';
 import ChemDrawModal from '../components/common/ChemDrawModal';
+import ChemDrawEditor from '../components/common/ChemDrawEditor';
 import BenzeneIcon from '../components/common/BenzeneIcon';
 import ToggleTag from '../components/common/ToggleTag';
 
@@ -41,7 +41,9 @@ const MyBoard: React.FC = () => {
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [isStructureModalOpen, setIsStructureModalOpen] = useState(false);
   const [cdjsInstance, setCdjsInstance] = useState<any>(null);
+  const [designSmiles, setDesignSmiles] = useState('');
   const [searchedSvg, setSearchedSvg] = useState<string | null>(null);
+  const [structurePreview, setStructurePreview] = useState<{ title: string; svg: string } | null>(null);
   const [showFilters, setShowFilters] = useState(false);
   const [viewMode, setViewMode] = useState<'table' | 'draw' | 'tree'>('table');
   const [assignedGroupIds, setAssignedGroupIds] = useState<string[]>([]);
@@ -87,7 +89,7 @@ const MyBoard: React.FC = () => {
     setHeaderContent(
       <PageHeaderBreadcrumb 
         items={[
-          { label: 'Workspace' },
+          { label: 'Compounds' },
           { label: 'My Board' }
         ]} 
       />
@@ -247,12 +249,17 @@ const MyBoard: React.FC = () => {
   const projectList = ['FGFR', 'C797S DM', 'cMET', 'VRK1', 'HER2', 'WRN', 'WEE1'];
   const shareList = ['내 물질', '공유함', '공유받음'];
   const sourceList = ['내 머리', '동료 머리', 'Patent', 'Paper', 'FBDD', 'ELN'];
+  const calculationOptions = [
+    '3D TPSA QM', 'Solubility QM', 'Solubility DL', 'E-Sol QM',
+    'Permeability MD', '특허성', '합성기능성'
+  ];
   const [selectedProjects, setSelectedProjects] = useState<string[]>(['ALL', ...projectList]);
   const [selectedShares, setSelectedShares] = useState<string[]>(['ALL', ...shareList]);
   const [selectedSources, setSelectedSources] = useState<string[]>(['ALL', ...sourceList]);
   const [period, setPeriod] = useState<string>('전체');
   const [keyword, setKeyword] = useState<string>('');
   const [selectedCalculations, setSelectedCalculations] = useState<string[]>([]);
+  const areAllCalculationsSelected = selectedCalculations.length === calculationOptions.length;
 
   const handleToggleChange = (checked: boolean, val: string, setFn: (v: string[]) => void, current: string[], originalOptions: string[]) => {
     let next: string[];
@@ -318,33 +325,61 @@ const MyBoard: React.FC = () => {
     'Compound': { title: 'Compound', dataIndex: 'compoundId', key: 'compoundId', width: 100, render: (id: string) => <Text strong color={token.colorPrimary}>{id}</Text> },
     'Structure': {
       title: 'Structure',
-      dataIndex: 'smiles',
+      dataIndex: 'structureSvg',
       key: 'structure',
       width: 120,
-      render: (smiles: string) => (
-        <div
-          style={{
-            width: 100,
-            height: 60,
-            background: token.colorBgLayout,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            borderRadius: 4,
-            border: `1px solid ${token.colorBorderSecondary}`,
-            overflow: 'hidden'
-          }}
-        >
-          {searchedSvg && (keyword === smiles || keyword === 'Structure Search Result') ? (
-            <div
-              style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-              dangerouslySetInnerHTML={{ __html: searchedSvg }}
-            />
-          ) : (
-            <BenzeneIcon size={20} color={token.colorTextTertiary} />
-          )}
-        </div>
-      )
+      render: (structureSvg: string | undefined, record: any) => {
+        const displaySvg = searchedSvg && (keyword === record.smiles || keyword === 'Structure Search Result')
+          ? searchedSvg
+          : structureSvg;
+
+        return (
+          <div
+            style={{
+              width: 100,
+              height: 60,
+              background: token.colorBgLayout,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              borderRadius: 4,
+              border: `1px solid ${token.colorBorderSecondary}`,
+              overflow: 'hidden',
+              position: 'relative',
+            }}
+          >
+            {displaySvg ? (
+              <>
+                <div
+                  className="my-board-structure-svg"
+                  style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                  dangerouslySetInnerHTML={{ __html: displaySvg }}
+                />
+                <Tooltip title="크게 보기">
+                  <Button
+                    className="svg-action-btn my-board-structure-preview-button"
+                    size="small"
+                    type="text"
+                    icon={<Search size={14} />}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      setStructurePreview({
+                        title: record.compoundId || record.name || 'Structure',
+                        svg: displaySvg,
+                      });
+                    }}
+                    style={{
+                      background: 'rgba(255,255,255,0.8)'
+                    }}
+                  />
+                </Tooltip>
+              </>
+            ) : (
+              <BenzeneIcon size={20} color={token.colorTextTertiary} />
+            )}
+          </div>
+        );
+      }
     },
     'Name': { title: 'Name', dataIndex: 'name', key: 'name', ellipsis: true },
     'Source': { title: 'Source', dataIndex: 'designSource', key: 'designSource', width: 100 },
@@ -557,7 +592,7 @@ const MyBoard: React.FC = () => {
                   size="small"
                   icon={<BenzeneIcon size={14} />}
                   onClick={() => {
-                    navigate('/synthesis-board');
+                    navigate('/myboard/synthesis-board');
                   }}
               >
                 합성 보드
@@ -638,7 +673,7 @@ const MyBoard: React.FC = () => {
                     style={{ background: token.colorPrimary, borderColor: token.colorPrimary }}
                     onClick={() => {
                       setSelectedSarCompoundIds(filteredCompounds.map((compound) => compound.id));
-                      navigate('/sar-table');
+                      navigate('/myboard/sar-table');
                     }}
                   >
                     SAR Table로 보기 ({sarTargetCount})
@@ -775,16 +810,24 @@ const MyBoard: React.FC = () => {
       <Modal
         title="디자인 등록 (Create Design)"
         open={isDesignModalOpen}
-        onCancel={() => setIsDesignModalOpen(false)}
-        onOk={() => setIsDesignModalOpen(false)}
+        onCancel={() => {
+          setIsDesignModalOpen(false);
+          setCdjsInstance(null);
+        }}
+        onOk={() => {
+          setIsDesignModalOpen(false);
+          setCdjsInstance(null);
+        }}
+        okButtonProps={{ disabled: !cdjsInstance }}
         okText="등록"
         cancelText="취소"
-        width={800}
+        width={1200}
         style={{ top: 40 }}
+        destroyOnHidden
       >
         <Form layout="vertical" style={{ marginTop: 16 }}>
           <Row gutter={24}>
-            <Col span={12}>
+            <Col span={8}>
               <Form.Item label="Group" tooltip="선택된 그룹이 자동 지정됩니다.">
                 <Select
                   mode="multiple"
@@ -797,73 +840,95 @@ const MyBoard: React.FC = () => {
                   {mockGroups.map(g => <Option key={g.id} value={g.id}>{g.name}</Option>)}
                 </Select>
               </Form.Item>
-              <Form.Item label="Name" required rules={[{ required: true, message: '이름을 입력해주세요' }]}>
-                <Input placeholder="디자인 이름을 입력하세요 (예: VNA-12345)" />
-              </Form.Item>
+            </Col>
+            <Col span={8}>
               <Form.Item label="Source" required rules={[{ required: true, message: '출처를 선택하거나 입력해주세요' }]}>
                 <Select placeholder="출처 선택" showSearch allowClear>
                   {sourceList.map(s => <Option key={s} value={s}>{s}</Option>)}
                 </Select>
               </Form.Item>
+            </Col>
+            <Col span={8}>
+              <Form.Item label="Name" required rules={[{ required: true, message: '이름을 입력해주세요' }]}>
+                <Input placeholder="디자인 이름을 입력하세요 (예: VNA-12345)" />
+              </Form.Item>
+            </Col>
+            <Col span={24}>
               <Form.Item label="SMILES" required rules={[{ required: true, message: 'SMILES 상식을 입력해주세요' }]}>
                 <Input.TextArea
-                  rows={3}
+                  rows={2}
                   placeholder="SMILES 문자열을 입력하세요"
-                  onChange={(e) => {
-                    // SMILES 입력 시 Draw 영역 시뮬레이션
-                    console.log('SMILES change:', e.target.value);
-                  }}
+                  value={designSmiles}
+                  onChange={(e) => setDesignSmiles(e.target.value)}
                 />
               </Form.Item>
             </Col>
-            <Col span={12}>
-              <Form.Item label="Draw (Structure)" required style={{ marginBottom: 0 }}>
-                <div style={{
-                  height: 250,
-                  background: '#fcfcfc',
-                  borderRadius: 8,
-                  border: `1px solid ${token.colorBorderSecondary}`,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  position: 'relative',
-                  overflow: 'hidden'
-                }}>
-                  <div style={{ position: 'absolute', top: 8, right: 8 }}>
-                    <Button size="small" icon={<Palette size={14} />}>Editor 열기</Button>
-                  </div>
-                  <FlaskConical size={64} color={token.colorPrimary} style={{ opacity: 0.2 }} />
-                  <Text type="secondary" style={{ marginTop: 12 }}>ChemDraw Editor 연동 예정</Text>
-                  <Text style={{ color: token.colorTextTertiary, fontSize: '11px' }}>SMILES 입력 시 구조가 자동 생성됩니다.</Text>
-                </div>
+            <Col span={24}>
+              <Form.Item label="Draw (Structure)" required style={{ marginBottom: 0, marginTop: 4 }}>
+                <ChemDrawEditor
+                  active={isDesignModalOpen}
+                  height={420}
+                  smilesValue={designSmiles}
+                  onSmilesChange={setDesignSmiles}
+                  onReady={setCdjsInstance}
+                />
               </Form.Item>
             </Col>
           </Row>
 
           <Divider style={{ margin: '24px 0 16px 0' }} />
 
-          <Form.Item label={<Text strong><Activity size={14} style={{ marginRight: 6 }} />Calculations (다중 선택)</Text>}>
-            <div style={{ width: '100%', background: token.colorBgLayout, padding: '16px', borderRadius: 8 }}>
-              <Row gutter={[16, 12]}>
-                {[
-                  '3D TPSA QM', 'Solubility QM', 'Solubility DL', 'E-Sol QM',
-                  'Permeability MD', '특허성', '합성기능성'
-                ].map(item => (
-                  <Col span={8} key={item}>
-                    <ToggleTag
-                      checked={selectedCalculations.includes(item)}
-                      onChange={(checked) => {
-                        setSelectedCalculations((prev) => (
-                          checked ? [...prev, item] : prev.filter(value => value !== item)
-                        ));
-                      }}
-                    >
-                      {item}
-                    </ToggleTag>
-                  </Col>
+          <Form.Item
+            label={(
+              <Space size={8}>
+                <Text strong><Activity size={14} style={{ marginRight: 6 }} />Calculations (다중 선택)</Text>
+                <ToggleTag
+                  checked={areAllCalculationsSelected}
+                  onChange={(checked) => {
+                    setSelectedCalculations(checked ? [...calculationOptions] : []);
+                  }}
+                  style={{ minHeight: 24, padding: '2px 10px', fontSize: 11, marginInlineEnd: 0 }}
+                >
+                  All
+                </ToggleTag>
+              </Space>
+            )}
+          >
+            <div
+              style={{
+                width: '100%',
+                boxSizing: 'border-box',
+                background: token.colorBgLayout,
+                padding: 16,
+                borderRadius: 8,
+                overflow: 'hidden',
+              }}
+            >
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 8 }}>
+                {calculationOptions.map(item => (
+                  <ToggleTag
+                    key={item}
+                    checked={selectedCalculations.includes(item)}
+                    onChange={(checked) => {
+                      setSelectedCalculations((prev) => (
+                        checked ? [...prev, item] : prev.filter(value => value !== item)
+                      ));
+                    }}
+                    style={{
+                      width: '100%',
+                      minHeight: 30,
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      textAlign: 'center',
+                      whiteSpace: 'normal',
+                      lineHeight: 1.25,
+                    }}
+                  >
+                    {item}
+                  </ToggleTag>
                 ))}
-              </Row>
+              </div>
             </div>
             <Text type="secondary" style={{ fontSize: '12px', marginTop: 8, display: 'block' }}>
               * 체크된 항목은 API를 통해 계산 결과가 리포트에 포함됩니다.
@@ -972,11 +1037,57 @@ const MyBoard: React.FC = () => {
         title="구조 검색"
         confirmText="이 구조로 검색"
       />
+
+      <Modal
+        title={structurePreview?.title || 'Structure'}
+        open={!!structurePreview}
+        onCancel={() => setStructurePreview(null)}
+        footer={null}
+        width={900}
+      >
+        {structurePreview ? (
+          <div
+            className="my-board-structure-preview"
+            style={{
+              width: '100%',
+              height: 560,
+              background: token.colorBgContainer,
+              borderRadius: 8,
+              border: `1px solid ${token.colorBorderSecondary}`,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              overflow: 'hidden',
+            }}
+            dangerouslySetInnerHTML={{ __html: structurePreview.svg }}
+          />
+        ) : null}
+      </Modal>
       <style>{`
         .ant-table-thead > tr > th { background: ${isDarkMode ? '#1f1f1f' : '#f8f9fa'} !important; font-weight: 700; font-size: 13px; }
         .ant-table-tbody > tr > td { font-size: 13px; }
         .canvas-card:hover { border-color: ${token.colorPrimary} !important; transform: translateY(-4px); box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
         .cdd-clipboard-icon-container, .CDW_Logo, .cdd-logo { display: none !important; }
+        .my-board-structure-svg svg {
+          max-width: 92px !important;
+          max-height: 54px !important;
+          width: auto;
+          height: auto;
+          display: block;
+        }
+        .my-board-structure-preview svg {
+          max-width: 100% !important;
+          max-height: 100% !important;
+          width: auto;
+          height: auto;
+          display: block;
+        }
+        .my-board-structure-preview-button {
+          position: absolute;
+          top: 4px;
+          right: 4px;
+          z-index: 2;
+        }
       `}</style>
     </div>
   );

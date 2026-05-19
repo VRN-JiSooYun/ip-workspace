@@ -254,6 +254,23 @@ const PatentAnalysisDetail: React.FC = () => {
     setSplitRatio(clampSplitRatio(layoutPreset.defaultSplit));
   }, [clampSplitRatio, layoutPreset.defaultSplit]);
 
+  const handlePdfDownload = React.useCallback(() => {
+    const pdfUrl = selectedMockDataset.pdfDocument;
+    if (!pdfUrl) {
+      message.error('다운로드할 PDF 파일이 없습니다.');
+      return;
+    }
+
+    const filenameBase = selectedPatent?.patentNumber || selectedMockDataset.publicationNumber || 'patent-document';
+    const filename = `${filenameBase.replace(/[^A-Za-z0-9_-]/g, '_')}.pdf`;
+    const link = document.createElement('a');
+    link.href = pdfUrl;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }, [message, selectedMockDataset.pdfDocument, selectedMockDataset.publicationNumber, selectedPatent?.patentNumber]);
+
   useEffect(() => {
     if (selectedPatent) {
       setHeaderContent(
@@ -555,6 +572,7 @@ const PatentAnalysisDetail: React.FC = () => {
               onMoveSearchMatch={(dir) => dir > 0 ? pdfViewer.findNext() : pdfViewer.findPrevious()}
               onRotateLeft={() => pdfViewer.setPdfRotation(r => (r - 90 + 360) % 360)}
               onRotateRight={() => pdfViewer.setPdfRotation(r => (r + 90) % 360)}
+              onDownloadPdf={handlePdfDownload}
               onGoToPage={(page) => handleGoToPdf(page)}
               onPageStep={(step) => {
                 if (!pdfViewer.pdfTotalPages) return;

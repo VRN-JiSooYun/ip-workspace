@@ -23,6 +23,8 @@ import ToggleTag from '../components/common/ToggleTag';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
+const CHEM_SPACE_CHART_WIDTH = 1080;
+const CHEM_SPACE_THREE_CHART_WIDTH = 1120;
 
 const ChemSpace: React.FC = () => {
   const { setHeaderContent } = useUIStore();
@@ -236,9 +238,9 @@ const ChemSpace: React.FC = () => {
             }
           >
             {!loading && (
-              <div style={{ height: '100%', overflowY: isThreeChartMode ? 'auto' : 'hidden', overflowX: 'hidden' }}>
+              <div style={{ height: '100%', overflowY: isThreeChartMode ? 'auto' : 'hidden', overflowX: 'auto' }}>
                 {isThreeChartMode ? (
-                  <Row gutter={[12, 12]} style={{ width: '100%', margin: 0 }}>
+                  <Row gutter={[12, 12]} style={{ width: CHEM_SPACE_THREE_CHART_WIDTH, minWidth: CHEM_SPACE_THREE_CHART_WIDTH, margin: 0 }}>
                     {chartConfigs.map((config, idx) => (
                       <Col key={idx} span={idx === 2 ? 24 : 12} style={{ height: 400, marginBottom: 12 }}>
                         <Card 
@@ -259,7 +261,14 @@ const ChemSpace: React.FC = () => {
                     ))}
                   </Row>
                 ) : (
-                  <div style={{ width: '100%', height: '100%', position: 'relative' }}>
+                  <div
+                    style={{
+                      width: CHEM_SPACE_CHART_WIDTH,
+                      minWidth: CHEM_SPACE_CHART_WIDTH,
+                      height: '100%',
+                      position: 'relative'
+                    }}
+                  >
                     {is3DView ? (
                       <ChemSpaceChart3D 
                         data={filteredData}
@@ -315,9 +324,16 @@ const ChemSpace: React.FC = () => {
           flexDirection: 'column'
         }}>
           <div className="v-table-card" style={{ flex: 1, display: 'flex', flexDirection: 'column', borderRadius: 12, padding: 24 }}>
-           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 20 }}>
+           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
             <Title level={3} style={{ margin: 0 }}>Fullscreen View</Title>
-            <Button icon={<Minimize2 size={16} />} onClick={() => setIsFullScreen(false)} className="v-action-btn">Exit</Button>
+            <Space size={12}>
+              {is3DView && (
+                <ToggleTag checked={show3DAxes} onChange={setShow3DAxes} style={{ marginInlineEnd: 0, fontSize: 12 }}>
+                  Show Axis
+                </ToggleTag>
+              )}
+              <Button icon={<Minimize2 size={16} />} onClick={() => setIsFullScreen(false)} className="v-action-btn">Exit</Button>
+            </Space>
           </div>
           <div style={{ flex: 1 }}>
             {is3DView ? (

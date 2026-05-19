@@ -5,7 +5,7 @@ import {
   Space, Modal, Form, Tag, Select, DatePicker, Avatar, Divider, Segmented, theme
 } from 'antd';
 import {
-  Search, FlaskConical, ChevronDown, ChevronUp, Beaker,
+  Search, ChevronDown, ChevronUp, Beaker,
   Settings, Download, Share2, Info, GripVertical, CheckCircle2, XCircle, ArrowLeft
 } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
@@ -64,6 +64,7 @@ const SarTable: React.FC = () => {
   const [showFilters, setShowFilters] = useState(true);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [isStructureModalOpen, setIsStructureModalOpen] = useState(false);
+  const [structurePreview, setStructurePreview] = useState<{ title: string; svg: string } | null>(null);
   const [searchedSvg, setSearchedSvg] = useState<string | null>(null);
   const [activePreset, setActivePreset] = useState<number>(1);
   const [viewportWidth, setViewportWidth] = useState<number>(() => {
@@ -328,6 +329,16 @@ const SarTable: React.FC = () => {
     );
   };
 
+  const renderStructureSvg = (structureSvg?: string) => (
+    <div className="sar-structure-svg">
+      {structureSvg ? (
+        <div dangerouslySetInnerHTML={{ __html: structureSvg }} />
+      ) : (
+        <BenzeneIcon size={48} color={token.colorTextTertiary} />
+      )}
+    </div>
+  );
+
   const allColumnsMap: Record<string, any> = {
     'Compound': {
       title: 'Compound',
@@ -446,7 +457,7 @@ const SarTable: React.FC = () => {
         }
         return col;
       });
-  }, [columnOrder, activeColumns, subColumnConfig, isColorActive]);
+  }, [columnOrder, activeColumns, subColumnConfig, isColorActive, isDarkMode, token]);
 
   return (
     <div
@@ -490,7 +501,6 @@ const SarTable: React.FC = () => {
           </Col>
           <Col>
             <Space>
-              <Button type="primary" className="v-action-btn" style={{ background: '#003a8c', borderColor: '#003a8c' }}>추가하기</Button>
               <Button icon={<ArrowLeft size={18} />} className="v-action-btn" onClick={() => navigate(-1)}>돌아가기</Button>
             </Space>
           </Col>
@@ -594,10 +604,24 @@ const SarTable: React.FC = () => {
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
+                position: 'relative',
                 marginBottom: 12,
                 border: `1px solid ${token.colorBorderSecondary}`
               }}>
-                <FlaskConical size={48} color={selectedRowKey === item.id ? token.colorPrimary : token.colorTextTertiary} strokeWidth={1} />
+                {renderStructureSvg(item.structureSvg)}
+                {item.structureSvg ? (
+                  <Button
+                    className="svg-action-btn sar-structure-preview-button"
+                    size="small"
+                    type="text"
+                    icon={<Search size={14} />}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      setStructurePreview({ title: item.name, svg: item.structureSvg || '' });
+                    }}
+                    style={{ background: 'rgba(255,255,255,0.8)' }}
+                  />
+                ) : null}
               </div>
               <Text strong style={{ fontSize: 13 }}>{item.name}</Text>
             </div>
@@ -848,7 +872,70 @@ const SarTable: React.FC = () => {
         onConfirm={handleStructureSearchConfirm}
       />
 
+      <Modal
+        title={structurePreview?.title || 'Structure'}
+        open={!!structurePreview}
+        onCancel={() => setStructurePreview(null)}
+        footer={null}
+        width={900}
+        centered
+      >
+        {structurePreview ? (
+          <div
+            className="sar-structure-preview"
+            style={{
+              height: 560,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              background: token.colorBgContainer,
+              border: `1px solid ${token.colorBorderSecondary}`,
+              borderRadius: 8,
+              overflow: 'hidden'
+            }}
+            dangerouslySetInnerHTML={{ __html: structurePreview.svg }}
+          />
+        ) : null}
+      </Modal>
+
       <style>{`
+        .sar-structure-svg {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          overflow: hidden;
+        }
+        .sar-structure-svg > div {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          width: 100%;
+          height: 100%;
+        }
+        .sar-structure-svg svg {
+          display: block;
+          max-width: 100%;
+          max-height: 100%;
+          width: auto;
+          height: auto;
+        }
+        .sar-structure-svg {
+          width: 148px;
+          height: 92px;
+        }
+        .sar-structure-preview-button {
+          position: absolute;
+          top: 8px;
+          right: 8px;
+          z-index: 2;
+        }
+        .sar-structure-preview svg {
+          display: block;
+          max-width: 100%;
+          max-height: 100%;
+          width: auto;
+          height: auto;
+        }
         .sar-row-selected {
           background-color: ${isDarkMode ? '#2a1f1d' : '#fff7f6'} !important;
         }

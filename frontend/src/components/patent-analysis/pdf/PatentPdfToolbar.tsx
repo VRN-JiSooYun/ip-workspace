@@ -1,6 +1,6 @@
 import React from 'react';
 import { Button, Input, InputNumber, Space, Typography } from 'antd';
-import { Maximize2, Minimize2, RotateCcw, RotateCw, PanelLeftClose, PanelLeftOpen, ChevronLeft, ChevronRight, ChevronUp, ChevronDown } from 'lucide-react';
+import { Maximize2, Minimize2, RotateCcw, RotateCw, PanelLeftClose, PanelLeftOpen, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Download } from 'lucide-react';
 
 const { Text } = Typography;
 
@@ -25,6 +25,7 @@ type PatentPdfToolbarProps = {
   onRotateRight: () => void;
   onGoToPage?: (page: number) => void;
   onPageStep?: (step: number) => void;
+  onDownloadPdf?: () => void;
   thumbnailCollapsed?: boolean;
   onToggleThumbnail?: () => void;
 };
@@ -50,6 +51,7 @@ const PatentPdfToolbar: React.FC<PatentPdfToolbarProps> = ({
   onRotateRight,
   onGoToPage,
   onPageStep,
+  onDownloadPdf,
   thumbnailCollapsed,
   onToggleThumbnail,
 }) => {
@@ -126,6 +128,7 @@ const PatentPdfToolbar: React.FC<PatentPdfToolbarProps> = ({
         <Button size="small" icon={<ChevronDown size={14} />} onClick={() => onPageStep?.(1)} disabled={!totalPages} title="다음 페이지" />
         <Button size="small" icon={<RotateCcw size={14} />} onClick={onRotateLeft} title="좌측으로 회전" />
         <Button size="small" icon={<RotateCw size={14} />} onClick={onRotateRight} title="우측으로 회전" />
+        <Button size="small" icon={<Download size={14} />} onClick={onDownloadPdf} disabled={!onDownloadPdf} title="PDF 다운로드" />
         <InputNumber
           size="small"
           min={1}

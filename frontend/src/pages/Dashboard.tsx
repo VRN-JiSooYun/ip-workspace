@@ -170,7 +170,7 @@ const Dashboard: React.FC = () => {
             <div className="dashboard-card-icon"><Coffee size={18} /></div>
             <div className="dashboard-card-title">1층 식당 메뉴</div>
             <div className="dashboard-card-content">
-              <div className="dashboard-list-title" style={{ marginTop: 0 }}>점심</div>
+              <div className="dashboard-list-title">점심</div>
               <div style={{ fontSize: '13px' }}>닭 반질 튀김, 장조림, 샐러드</div>
             </div>
           </div>

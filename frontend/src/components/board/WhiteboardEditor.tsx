@@ -33,6 +33,7 @@ const WhiteboardEditor: React.FC<WhiteboardEditorProps> = ({
     molblock?: string;
     smiles?: string;
   } | null>(null);
+  const [editingStructureObject, setEditingStructureObject] = useState<any>(null);
   const [selectedStructureData, setSelectedStructureData] = useState<ChemDrawStructureData | null>(null);
 
   type ChemicalTextFormat = 'cdxml' | 'mol' | 'smiles';
@@ -279,9 +280,11 @@ const WhiteboardEditor: React.FC<WhiteboardEditorProps> = ({
   };
 
   const addStructureToCanvas = (data: ChemDrawStructureData, position?: { left: number; top: number }) => {
-    if (!data.svg || !fabricCanvasRef.current) {
+    const canvas = fabricCanvasRef.current;
+    if (!data.svg || !canvas) {
       setIsChemDrawOpen(false);
       setChemDrawInitialStructure(null);
+      setEditingStructureObject(null);
       return;
     }
 
@@ -292,17 +295,24 @@ const WhiteboardEditor: React.FC<WhiteboardEditorProps> = ({
         message.warning('캔버스에 추가할 구조 SVG가 비어 있습니다.');
         setIsChemDrawOpen(false);
         setChemDrawInitialStructure(null);
+        setEditingStructureObject(null);
         return;
       }
 
       const obj = fabric.util.groupSVGElements(applyDarkModeSvgColor(filteredObjects));
-      
-      const scale = 150 / Math.max(obj.width || 1, obj.height || 1);
+      const editTarget = editingStructureObject;
+      const targetWidth = editTarget?.getScaledWidth?.() || 150;
+      const targetHeight = editTarget?.getScaledHeight?.() || 150;
+      const scale = editTarget
+        ? Math.min(targetWidth / Math.max(obj.width || 1, 1), targetHeight / Math.max(obj.height || 1, 1))
+        : 150 / Math.max(obj.width || 1, obj.height || 1);
+
       obj.set({
         scaleX: scale,
         scaleY: scale,
-        left: position?.left ?? 200,
-        top: position?.top ?? 200,
+        left: position?.left ?? editTarget?.left ?? 200,
+        top: position?.top ?? editTarget?.top ?? 200,
+        angle: editTarget?.angle ?? 0,
         selectable: true,
         hasControls: true,
         targetFindTolerance: 4,
@@ -310,24 +320,48 @@ const WhiteboardEditor: React.FC<WhiteboardEditorProps> = ({
       (obj as any).structureData = data;
       (obj as any).objectType = 'chemical-structure';
 
-      fabricCanvasRef.current?.add(obj);
-      fabricCanvasRef.current?.setActiveObject(obj);
-      fabricCanvasRef.current?.renderAll();
+      if (editTarget) {
+        const objects = canvas.getObjects();
+        const insertIndex = Math.max(objects.indexOf(editTarget), 0);
+        canvas.remove(editTarget);
+        canvas.insertAt(insertIndex, obj);
+      } else {
+        canvas.add(obj);
+      }
+
+      canvas.setActiveObject(obj);
+      canvas.renderAll();
       setIsChemDrawOpen(false);
       setChemDrawInitialStructure(null);
+      setEditingStructureObject(null);
     });
   };
 
   const openBlankChemDraw = () => {
     setChemDrawInitialStructure(null);
+    setEditingStructureObject(null);
     setIsChemDrawOpen(true);
   };
 
   const openChemDrawWithPastedStructure = (text: string, format: ChemicalTextFormat) => {
+    setEditingStructureObject(null);
     setChemDrawInitialStructure({
       cdxml: format === 'cdxml' ? text : undefined,
       molblock: format === 'mol' ? text : undefined,
       smiles: format === 'smiles' ? text : undefined,
+    });
+    setIsChemDrawOpen(true);
+  };
+
+  const openChemDrawForCanvasStructure = (obj: any) => {
+    const data = getStructureData(obj);
+    if (!data) return;
+
+    setEditingStructureObject(obj);
+    setChemDrawInitialStructure({
+      cdxml: data.cdxml,
+      molblock: data.molV2000 || data.molfile || data.molV3000,
+      smiles: data.smiles,
     });
     setIsChemDrawOpen(true);
   };
@@ -387,6 +421,13 @@ const WhiteboardEditor: React.FC<WhiteboardEditorProps> = ({
     canvas.on('selection:created', syncSelection);
     canvas.on('selection:updated', syncSelection);
     canvas.on('selection:cleared', clearSelection);
+    canvas.on('mouse:dblclick', (event: any) => {
+      const target = event.target;
+      if (!getStructureData(target)) return;
+
+      canvas.setActiveObject(target);
+      openChemDrawForCanvasStructure(target);
+    });
 
     const handlePaste = async (e: ClipboardEvent) => {
       if (isChemDrawOpenRef.current) {
@@ -488,6 +529,7 @@ const WhiteboardEditor: React.FC<WhiteboardEditorProps> = ({
       canvas.off('selection:created', syncSelection);
       canvas.off('selection:updated', syncSelection);
       canvas.off('selection:cleared', clearSelection);
+      canvas.off('mouse:dblclick');
       canvas.dispose();
     };
   }, [height, token, compounds, searchedSvg]);
@@ -656,10 +698,11 @@ const WhiteboardEditor: React.FC<WhiteboardEditorProps> = ({
         onCancel={() => {
           setIsChemDrawOpen(false);
           setChemDrawInitialStructure(null);
+          setEditingStructureObject(null);
         }}
         onConfirm={addStructureToCanvas}
-        title="화이트보드에 구조 추가"
-        confirmText="캔버스에 추가"
+        title={editingStructureObject ? '화이트보드 구조 수정' : '화이트보드에 구조 추가'}
+        confirmText={editingStructureObject ? '수정 적용' : '캔버스에 추가'}
         initialCdxml={chemDrawInitialStructure?.cdxml}
         initialMolblock={chemDrawInitialStructure?.molblock}
         initialSmiles={chemDrawInitialStructure?.smiles}

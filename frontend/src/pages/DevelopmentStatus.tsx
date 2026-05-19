@@ -92,7 +92,7 @@ const projects: DevelopmentProject[] = [
   },
   {
     id: 'synthesis-board',
-    name: 'Synthesis Board',
+    name: '합성 보드',
     owner: '합성 관리',
     category: 'Operations',
     targetDate: '2026.06.14',

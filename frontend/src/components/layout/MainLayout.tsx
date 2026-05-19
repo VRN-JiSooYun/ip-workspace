@@ -48,6 +48,8 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
     const path = location.pathname;
     if (path === '/dashboard') return 'dashboard';
     if (path === '/myboard') return 'myboard';
+    if (path === '/myboard/sar-table' || path === '/sar-table') return 'myboard';
+    if (path === '/myboard/synthesis-board' || path === '/synthesis-board') return 'myboard';
     if (path === '/my-tree') return 'my-tree';
     if (path === '/chem-space') return 'chem-space';
     if (path === '/patents/write') return 'patent-write';

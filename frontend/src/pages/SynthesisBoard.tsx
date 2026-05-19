@@ -15,6 +15,10 @@ import BenzeneIcon from '../components/common/BenzeneIcon';
 import { getPatentAnalysisLayoutPreset } from '../config/patentAnalysisLayout';
 import ToggleTag from '../components/common/ToggleTag';
 import dayjs from 'dayjs';
+import exampleCompound1Svg from '../assets/mol_svg/example_compound1.svg?raw';
+import exampleCompound2Svg from '../assets/mol_svg/example_compound2.svg?raw';
+import exampleCompound3Svg from '../assets/mol_svg/example_compound3.svg?raw';
+import exampleCompound4Svg from '../assets/mol_svg/example_compound4.svg?raw';
 
 const { Title, Text } = Typography;
 const { RangePicker } = DatePicker;
@@ -26,6 +30,7 @@ interface SynthesisDetail {
   compoundId: string;
   name: string;
   smiles: string;
+  structureSvg?: string;
   assignee: string | null;
   requestDate: string;
   completeDate: string | null;
@@ -84,6 +89,7 @@ const SynthesisBoard: React.FC = () => {
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>('sg1');
   const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState<SynthesisDetail | null>(null);
+  const [structurePreview, setStructurePreview] = useState<{ title: string; svg: string } | null>(null);
   const [viewMode, setViewMode] = useState<'table' | 'draw' | 'tree'>('table');
   const [viewportWidth, setViewportWidth] = useState<number>(() => {
     if (typeof window === 'undefined') return 1920;
@@ -134,13 +140,14 @@ const SynthesisBoard: React.FC = () => {
     setHeaderContent(
       <PageHeaderBreadcrumb 
         items={[
-          { label: 'Workspace' },
-          { label: 'Synthesis Board' }
+          { label: 'Compounds' },
+          { label: 'My board', onClick: () => navigate('/myboard') },
+          { label: '합성 보드' }
         ]} 
       />
     );
     return () => setHeaderContent(null);
-  }, [setHeaderContent]);
+  }, [setHeaderContent, navigate]);
 
   React.useEffect(() => {
     const onResize = () => setViewportWidth(window.innerWidth);
@@ -198,14 +205,14 @@ const SynthesisBoard: React.FC = () => {
 
   const mockSynthesisDetails: SynthesisDetail[] = [
     // Designs items
-    { id: 'sd1', groupId: 'sg1', groupNum: 1, compoundId: 'VRA-001', name: 'VRA-001', smiles: 'CC1=CC=C(C=C1)S', assignee: '담당자1', requestDate: '2026.04.10', completeDate: null },
-    { id: 'sd2', groupId: 'sg1', groupNum: 2, compoundId: 'VRA-002', name: 'VRA-002', smiles: 'CNC1=NC=NC=C1', assignee: '담당자2', requestDate: '2026.04.11', completeDate: null },
-    { id: 'sd_new1', groupId: 'sg1', groupNum: 3, compoundId: 'VRA-003', name: 'VRA-003 (미배정)', smiles: 'CC(=O)C1=CC=CC=C1', assignee: null, requestDate: '2026.04.12', completeDate: null },
-    { id: 'sd3', groupId: 'sg2', groupNum: 1, compoundId: 'VRA-004', name: 'VRA-004', smiles: 'C1=CC=C(C=C1)N', assignee: '담당자1', requestDate: '2026.04.12', completeDate: '2026.04.20' },
+    { id: 'sd1', groupId: 'sg1', groupNum: 1, compoundId: 'VRA-001', name: 'VRA-001', smiles: 'CC1=CC=C(C=C1)S', structureSvg: exampleCompound1Svg, assignee: '담당자1', requestDate: '2026.04.10', completeDate: null },
+    { id: 'sd2', groupId: 'sg1', groupNum: 2, compoundId: 'VRA-002', name: 'VRA-002', smiles: 'CNC1=NC=NC=C1', structureSvg: exampleCompound2Svg, assignee: '담당자2', requestDate: '2026.04.11', completeDate: null },
+    { id: 'sd_new1', groupId: 'sg1', groupNum: 3, compoundId: 'VRA-003', name: 'VRA-003 (미배정)', smiles: 'CC(=O)C1=CC=CC=C1', structureSvg: exampleCompound3Svg, assignee: null, requestDate: '2026.04.12', completeDate: null },
+    { id: 'sd3', groupId: 'sg2', groupNum: 1, compoundId: 'VRA-004', name: 'VRA-004', smiles: 'C1=CC=C(C=C1)N', structureSvg: exampleCompound4Svg, assignee: '담당자1', requestDate: '2026.04.12', completeDate: '2026.04.20' },
     // Compounds items
-    { id: 'sd4', groupId: 'cg1', groupNum: 1, compoundId: 'VRA-101', name: 'VRA-101', smiles: 'CC(=O)NC1=CC=CC=C1', assignee: '담당자1', requestDate: '2026.04.15', completeDate: null },
-    { id: 'sd5', groupId: 'cg2', groupNum: 1, compoundId: 'VRA-102', name: 'VRA-102', smiles: 'CC(C)C1=CC=CC=C1', assignee: '담당자2', requestDate: '2026.04.16', completeDate: '2026.04.21' },
-    { id: 'sd_new2', groupId: 'cg2', groupNum: 2, compoundId: 'VRA-103', name: 'VRA-103 (미배정)', smiles: 'C1=CC=CC=C1O', assignee: null, requestDate: '2026.04.22', completeDate: null },
+    { id: 'sd4', groupId: 'cg1', groupNum: 1, compoundId: 'VRA-101', name: 'VRA-101', smiles: 'CC(=O)NC1=CC=CC=C1', structureSvg: exampleCompound1Svg, assignee: '담당자1', requestDate: '2026.04.15', completeDate: null },
+    { id: 'sd5', groupId: 'cg2', groupNum: 1, compoundId: 'VRA-102', name: 'VRA-102', smiles: 'CC(C)C1=CC=CC=C1', structureSvg: exampleCompound2Svg, assignee: '담당자2', requestDate: '2026.04.16', completeDate: '2026.04.21' },
+    { id: 'sd_new2', groupId: 'cg2', groupNum: 2, compoundId: 'VRA-103', name: 'VRA-103 (미배정)', smiles: 'C1=CC=CC=C1O', structureSvg: exampleCompound3Svg, assignee: null, requestDate: '2026.04.22', completeDate: null },
   ];
 
   const filteredDetails = useMemo(() => {
@@ -317,13 +324,33 @@ const SynthesisBoard: React.FC = () => {
     { title: 'Compound', dataIndex: 'compoundId', key: 'compound', width: 100 },
     {
       title: 'Structure',
-      dataIndex: 'smiles',
+      dataIndex: 'structureSvg',
       key: 'structure',
       width: 100,
       align: 'center' as const,
-      render: () => (
-        <div style={{ width: 80, height: 50, background: token.colorBgLayout, borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', border: `1px solid ${token.colorBorderSecondary}` }}>
-          <BenzeneIcon size={18} color={token.colorBorder} />
+      render: (structureSvg: string | undefined, record: SynthesisDetail) => (
+        <div style={{ width: 80, height: 50, background: token.colorBgLayout, borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', border: `1px solid ${token.colorBorderSecondary}`, position: 'relative', overflow: 'hidden' }}>
+          {structureSvg ? (
+            <>
+              <div
+                className="synthesis-structure-svg synthesis-structure-svg-table"
+                dangerouslySetInnerHTML={{ __html: structureSvg }}
+              />
+              <Button
+                className="svg-action-btn synthesis-structure-preview-button"
+                size="small"
+                type="text"
+                icon={<Search size={14} />}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setStructurePreview({ title: record.compoundId || record.name, svg: structureSvg });
+                }}
+                style={{ background: 'rgba(255,255,255,0.8)' }}
+              />
+            </>
+          ) : (
+            <BenzeneIcon size={18} color={token.colorBorder} />
+          )}
         </div>
       )
     },
@@ -597,8 +624,28 @@ const SynthesisBoard: React.FC = () => {
                           <Text strong style={{ color: token.colorPrimary, fontSize: 11 }}>{d.compoundId}</Text>
                           {d.assignee && <Tag color="orange" style={{ fontSize: 10, margin: 0, padding: '0 4px' }}>{d.assignee}</Tag>}
                         </div>
-                        <div style={{ height: 80, display: 'flex', alignItems: 'center', justifyContent: 'center', background: token.colorBgContainer }}>
-                          <FlaskConical size={24} color={token.colorBorder} />
+                        <div style={{ height: 80, display: 'flex', alignItems: 'center', justifyContent: 'center', background: token.colorBgContainer, position: 'relative' }}>
+                          {d.structureSvg ? (
+                            <>
+                              <div
+                                className="synthesis-structure-svg synthesis-structure-svg-card"
+                                dangerouslySetInnerHTML={{ __html: d.structureSvg }}
+                              />
+                              <Button
+                                className="svg-action-btn synthesis-structure-preview-button synthesis-structure-preview-button-card"
+                                size="small"
+                                type="text"
+                                icon={<Search size={14} />}
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  setStructurePreview({ title: d.compoundId || d.name, svg: d.structureSvg || '' });
+                                }}
+                                style={{ background: 'rgba(255,255,255,0.8)' }}
+                              />
+                            </>
+                          ) : (
+                            <FlaskConical size={24} color={token.colorBorder} />
+                          )}
                         </div>
                       </div>
                     </Col>
@@ -661,6 +708,32 @@ const SynthesisBoard: React.FC = () => {
         </div>
       </Modal>
 
+      <Modal
+        title={structurePreview?.title || 'Structure'}
+        open={!!structurePreview}
+        onCancel={() => setStructurePreview(null)}
+        footer={null}
+        width={900}
+        centered
+      >
+        {structurePreview ? (
+          <div
+            className="synthesis-structure-preview"
+            style={{
+              height: 560,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              background: token.colorBgContainer,
+              border: `1px solid ${token.colorBorderSecondary}`,
+              borderRadius: 8,
+              overflow: 'hidden'
+            }}
+            dangerouslySetInnerHTML={{ __html: structurePreview.svg }}
+          />
+        ) : null}
+      </Modal>
+
       <style>{`
         .row-selected {
           background-color: ${isDarkMode ? '#2a1f1d' : '#fff7f6'} !important;
@@ -676,6 +749,50 @@ const SynthesisBoard: React.FC = () => {
         }
         .ant-table-tbody > tr > td {
           font-size: 12px;
+        }
+        .synthesis-structure-svg {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          width: 100%;
+          height: 100%;
+          overflow: hidden;
+        }
+        .synthesis-structure-svg svg {
+          display: block;
+          max-width: 100%;
+          max-height: 100%;
+          width: auto;
+          height: auto;
+        }
+        .synthesis-structure-svg-table svg {
+          max-width: 72px;
+          max-height: 44px;
+        }
+        .synthesis-structure-svg-card {
+          padding: 8px;
+          box-sizing: border-box;
+        }
+        .synthesis-structure-svg-card svg {
+          max-width: 130px;
+          max-height: 64px;
+        }
+        .synthesis-structure-preview-button {
+          position: absolute;
+          top: 3px;
+          right: 3px;
+          z-index: 2;
+        }
+        .synthesis-structure-preview-button-card {
+          top: 6px;
+          right: 6px;
+        }
+        .synthesis-structure-preview svg {
+          display: block;
+          max-width: 100%;
+          max-height: 100%;
+          width: auto;
+          height: auto;
         }
         .canvas-card:hover {
           border-color: #F87C63 !important;
