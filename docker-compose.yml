@@ -11,6 +11,21 @@ services:
       - /app/node_modules
     environment:
       - VITE_API_URL=http://localhost:3000
+      - VITE_RDKIT_API_URL=/rdkit-api
+    depends_on:
+      - local-myworkspace-rdkit-api
+    networks:
+      - myworkspace-net
+
+  local-myworkspace-rdkit-api:
+    container_name: local-myworkspace-rdkit-api
+    build:
+      context: .
+      dockerfile: docker/rdkit-api.Dockerfile
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./rdkit:/app
     networks:
       - myworkspace-net
 

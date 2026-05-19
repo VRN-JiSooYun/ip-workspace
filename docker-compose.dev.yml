@@ -7,6 +7,23 @@ services:
     restart: always
     ports:
       - "18080:80"
+    environment:
+      - VITE_RDKIT_API_URL=/rdkit-api
+    depends_on:
+      - dev-myworkspace-rdkit-api
+    networks:
+      - dev-myworkspace-net
+
+  dev-myworkspace-rdkit-api:
+    container_name: dev-myworkspace-rdkit-api
+    build:
+      context: .
+      dockerfile: docker/rdkit-api.Dockerfile
+    restart: always
+    ports:
+      - "18081:8000"
+    volumes:
+      - ./rdkit:/app
     networks:
       - dev-myworkspace-net
 

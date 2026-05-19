@@ -72,6 +72,7 @@ const SarTable: React.FC = () => {
     return window.innerWidth;
   });
   const layoutPreset = useMemo(() => getPatentAnalysisLayoutPreset(viewportWidth), [viewportWidth]);
+  const isResponsiveToolbar = viewportWidth <= 1100;
 
   useEffect(() => {
     if (sarCompounds.length === 0) {
@@ -472,13 +473,25 @@ const SarTable: React.FC = () => {
       {/* Search & Filter Header (MyBoard Layout) */}
       <Card variant="borderless" className="c-card" style={{ marginBottom: 20 }}>
         <Row gutter={[16, 16]} align="middle">
-          <Col flex="auto">
-            <Space size="middle">
+          <Col flex="auto" style={{ minWidth: 0 }}>
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 12,
+                flexWrap: 'wrap',
+                minWidth: 0,
+              }}
+            >
               <Input
                 prefix={<Search size={18} color={token.colorTextTertiary} />}
                 placeholder="검색어 입력 (이름, SMILES 등)"
                 className="v-search-input"
-                style={{ width: 350 }}
+                style={{
+                  flex: '1 1 260px',
+                  minWidth: 180,
+                  maxWidth: isResponsiveToolbar ? '100%' : 350,
+                }}
                 value={keyword}
                 onChange={(e) => setKeyword(e.target.value)}
               />
@@ -497,12 +510,17 @@ const SarTable: React.FC = () => {
                 구조 검색
               </Button>
               <Button icon={<Download size={18} />} className="v-action-btn">Export</Button>
-            </Space>
+            </div>
           </Col>
-          <Col>
-            <Space>
-              <Button icon={<ArrowLeft size={18} />} className="v-action-btn" onClick={() => navigate(-1)}>돌아가기</Button>
-            </Space>
+          <Col flex={isResponsiveToolbar ? '1 1 100%' : 'none'}>
+            <Button
+              icon={<ArrowLeft size={18} />}
+              className="v-action-btn"
+              onClick={() => navigate(-1)}
+              style={{ width: isResponsiveToolbar ? '100%' : undefined }}
+            >
+              돌아가기
+            </Button>
           </Col>
         </Row>
         {showFilters && (

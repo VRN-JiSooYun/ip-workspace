@@ -60,6 +60,23 @@ export interface Compound {
   properties1?: number[];
   properties2?: number[];
   requiredCalcs?: string[];
+  designNo?: string;
+  designMemo?: string;
+  requiredAmountMg?: number;
+  assayPurpose?: string;
+  expectedEffect?: string;
+  requestDate?: string;
+  synthesisExpansionLevel?: string;
+  requestMemo?: string;
+  synthesisOwner?: string;
+  synthesisAcceptedDate?: string;
+  synthesisTargetDate?: string;
+  progressMemo?: string;
+  isCompleted?: boolean;
+  registeredDate?: string;
+  researchNote?: string;
+  reportData?: string;
+  synthesisEndReason?: string;
   sar?: SARData;
 }
 
@@ -84,7 +101,24 @@ export const mockCompounds: Compound[] = [
     },
     properties1: [100, 20, 40, 50],
     properties2: [80, 40, 60, 30],
-    requiredCalcs: ['3D TPSA QM', 'Solubility QM']
+    requiredCalcs: ['3D TPSA QM', 'Solubility QM'],
+    designNo: 'D-cMET-001',
+    designMemo: 'Tepotinib hinge binder 변형안',
+    requiredAmountMg: 20,
+    assayPurpose: 'cMET wt 활성 개선',
+    expectedEffect: '세포 활성 2배 개선',
+    requestDate: '2026.05.02',
+    synthesisExpansionLevel: '중',
+    requestMemo: '우선 합성 후보',
+    synthesisOwner: '문태훈',
+    synthesisAcceptedDate: '2026.05.03',
+    synthesisTargetDate: '2026.05.24',
+    progressMemo: '중간체 확보',
+    isCompleted: false,
+    registeredDate: '2026.05.03',
+    researchNote: 'ELN-2026-051',
+    reportData: 'LCMS 확인',
+    synthesisEndReason: '-'
   },
   {
     id: 'c2', groupId: 'g3', compoundId: 'VNA240138', name: 'VNA240138', source: 'Manual', smiles: 'CN(C)C(=O)C1=CC=CC=C1', creDate: '2025.03.21', project: 'cMET', shareStatus: '공유함', designSource: 'Patent',
@@ -100,7 +134,24 @@ export const mockCompounds: Compound[] = [
     },
     properties1: [60, 80, 30, 90],
     properties2: [40, 60, 80, 50],
-    requiredCalcs: ['Solubility DL', 'E-Sol QM']
+    requiredCalcs: ['Solubility DL', 'E-Sol QM'],
+    designNo: 'D-cMET-002',
+    designMemo: '특허 예시 구조 기반 극성 조정',
+    requiredAmountMg: 15,
+    assayPurpose: '용해도 개선 후 활성 유지',
+    expectedEffect: 'Solubility risk 감소',
+    requestDate: '2026.05.04',
+    synthesisExpansionLevel: '하',
+    requestMemo: '소량 스크리닝',
+    synthesisOwner: '윤지수',
+    synthesisAcceptedDate: '2026.05.05',
+    synthesisTargetDate: '2026.05.21',
+    progressMemo: 'route 검토 중',
+    isCompleted: false,
+    registeredDate: '2026.05.05',
+    researchNote: 'ELN-2026-052',
+    reportData: '예상 MS 등록',
+    synthesisEndReason: '-'
   },
   {
     id: 'c3', groupId: 'g3', compoundId: 'VNA240139', name: 'VNA240139', source: 'Manual', smiles: 'C1=CC=C(C=C1)S(=O)(=O)N', creDate: '2024.12.15', project: 'cMET', shareStatus: '공유받음', designSource: 'Paper',
@@ -116,7 +167,24 @@ export const mockCompounds: Compound[] = [
     },
     properties1: [90, 30, 70, 40],
     properties2: [70, 50, 90, 60],
-    requiredCalcs: ['Permeability MD', '특허성']
+    requiredCalcs: ['Permeability MD', '특허성'],
+    designNo: 'D-cMET-003',
+    designMemo: 'sulfonamide linker SAR 확인',
+    requiredAmountMg: 30,
+    assayPurpose: 'selectivity profile 확인',
+    expectedEffect: 'off-target 감소',
+    requestDate: '2026.05.06',
+    synthesisExpansionLevel: '상',
+    requestMemo: '유도체 확장 가능성 확인',
+    synthesisOwner: '문태훈',
+    synthesisAcceptedDate: '2026.05.07',
+    synthesisTargetDate: '2026.05.29',
+    progressMemo: '1단계 반응 완료',
+    isCompleted: false,
+    registeredDate: '2026.05.07',
+    researchNote: 'ELN-2026-053',
+    reportData: 'NMR 예정',
+    synthesisEndReason: '-'
   },
   {
     id: 'c4', groupId: 'g3', compoundId: 'VNA240140', name: 'VNA240140', source: 'Manual', smiles: 'CC1=CC=C(C=C1)C(=O)N', creDate: '2025.01.28', project: 'cMET', shareStatus: '내 물질', designSource: 'FBDD',
@@ -132,6 +200,23 @@ export const mockCompounds: Compound[] = [
     },
     properties1: [75, 55, 65, 45],
     properties2: [68, 58, 72, 52],
-    requiredCalcs: ['3D TPSA QM', '합성기능성']
+    requiredCalcs: ['3D TPSA QM', '합성기능성'],
+    designNo: 'D-cMET-004',
+    designMemo: 'fragment merge 후보',
+    requiredAmountMg: 10,
+    assayPurpose: 'early FBDD hit validation',
+    expectedEffect: 'binding efficiency 개선',
+    requestDate: '2026.05.08',
+    synthesisExpansionLevel: '중',
+    requestMemo: '후속 docking 결과 대기',
+    synthesisOwner: '윤지수',
+    synthesisAcceptedDate: '2026.05.09',
+    synthesisTargetDate: '2026.05.23',
+    progressMemo: '합성 완료, 정제 중',
+    isCompleted: true,
+    registeredDate: '2026.05.09',
+    researchNote: 'ELN-2026-054',
+    reportData: 'HPLC purity 97%',
+    synthesisEndReason: '목표 물질 확보'
   }
 ];

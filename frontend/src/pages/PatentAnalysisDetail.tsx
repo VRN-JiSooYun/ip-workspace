@@ -130,6 +130,7 @@ const PatentAnalysisDetail: React.FC = () => {
   const splitRafRef = React.useRef<number | null>(null);
   const splitStorageKey = React.useMemo(() => `patent-analysis-split:${id ?? 'default'}`, [id]);
   const layoutPreset = React.useMemo(() => getPatentAnalysisLayoutPreset(viewportWidth), [viewportWidth]);
+  const isStackedSplitLayout = viewportWidth <= 1100;
   const rawDataTableScrollY = React.useMemo(() => {
     return Math.max(300, viewportHeight - 470);
   }, [viewportHeight]);
@@ -524,30 +525,41 @@ const PatentAnalysisDetail: React.FC = () => {
   }, [splitRatio, debugLog]);
 
   return (
-    <div style={{ maxWidth: layoutPreset.maxWidth, margin: '0 auto', padding: `0 ${layoutPreset.sidePadding}px`, flex: 1, width: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', animation: 'fadeIn 0.3s ease-out', paddingBottom: 8 }}>
+    <div style={{ maxWidth: layoutPreset.maxWidth, margin: '0 auto', padding: `0 ${layoutPreset.sidePadding}px`, flex: 1, width: '100%', display: 'flex', flexDirection: 'column', overflow: isStackedSplitLayout ? 'auto' : 'hidden' }}>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: isStackedSplitLayout ? 'visible' : 'hidden', animation: 'fadeIn 0.3s ease-out', paddingBottom: isStackedSplitLayout ? 24 : 8 }}>
         
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, padding: '0 4px', flexShrink: 0 }}>
-          <Space size={16}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 16, padding: '0 4px', flexShrink: 0 }}>
+          <Space size={16} style={{ minWidth: 0 }}>
             <Button 
               icon={<ChevronLeft size={20} />} 
               onClick={() => navigate('/patents/analysis')}
               style={{ borderRadius: '10px' }}
             />
-            <div>
-              <Title level={4} style={{ margin: 0, lineHeight: '1.2' }}>{selectedPatent.title}</Title>
-              <Text type="secondary" style={{ fontSize: '13px' }}>{selectedPatent.patentNumber} | {selectedPatent.applicant} | {selectedPatent.publicationDate}</Text>
+            <div style={{ minWidth: 0 }}>
+              <Title level={4} style={{ margin: 0, lineHeight: '1.2', wordBreak: 'keep-all' }}>{selectedPatent.title}</Title>
+              <Text type="secondary" style={{ fontSize: '13px', display: 'block' }}>{selectedPatent.patentNumber} | {selectedPatent.applicant} | {selectedPatent.publicationDate}</Text>
             </div>
           </Space>
         </div>
 
-        <div ref={splitContainerRef} style={{ flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex' }}>
+        <div
+          ref={splitContainerRef}
+          style={{
+            flex: 1,
+            minHeight: 0,
+            overflow: isStackedSplitLayout ? 'visible' : 'hidden',
+            display: 'flex',
+            flexDirection: isStackedSplitLayout ? 'column' : 'row',
+            gap: isStackedSplitLayout ? 16 : 0,
+          }}
+        >
           {/* 좌측: PDF 뷰어 영역 */}
           <div
             style={{
-              width: `calc(${splitRatio}% - 6px)`,
+              width: isStackedSplitLayout ? '100%' : `calc(${splitRatio}% - 6px)`,
               minWidth: 0,
-              height: '100%',
+              height: isStackedSplitLayout ? 'min(72vh, 760px)' : '100%',
+              minHeight: isStackedSplitLayout ? 520 : 0,
               display: 'flex',
               flexDirection: 'column',
               overflow: 'hidden'
@@ -623,7 +635,7 @@ const PatentAnalysisDetail: React.FC = () => {
               width: 12,
               flexShrink: 0,
               cursor: 'col-resize',
-              display: 'flex',
+              display: isStackedSplitLayout ? 'none' : 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               outline: 'none'
@@ -643,14 +655,15 @@ const PatentAnalysisDetail: React.FC = () => {
           {/* 우측: 데이터 분석 영역 */}
           <div
             style={{
-              width: `calc(${100 - splitRatio}% - 6px)`,
+              width: isStackedSplitLayout ? '100%' : `calc(${100 - splitRatio}% - 6px)`,
               minWidth: 0,
-              height: '100%',
+              height: isStackedSplitLayout ? 'auto' : '100%',
+              minHeight: isStackedSplitLayout ? 640 : 0,
               display: 'flex',
               flexDirection: 'column'
             }}
           >
-            <div className="v-table-card" style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+            <div className="v-table-card" style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: isStackedSplitLayout ? 640 : 0 }}>
               <Tabs
                 activeKey={activeTab}
                 onChange={(key) => {
@@ -658,7 +671,7 @@ const PatentAnalysisDetail: React.FC = () => {
                   if (key !== 'raw-data') setRGroupFilter(null);
                 }}
                 destroyOnHidden
-                style={{ height: '100%', display: 'flex', flexDirection: 'column' }}
+                style={{ height: isStackedSplitLayout ? 'auto' : '100%', display: 'flex', flexDirection: 'column' }}
                 tabBarStyle={{ padding: '0 24px', margin: 0, height: 50, flexShrink: 0 }}
                 items={[
                   {

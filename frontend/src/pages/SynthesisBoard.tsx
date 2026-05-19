@@ -22,6 +22,9 @@ import exampleCompound4Svg from '../assets/mol_svg/example_compound4.svg?raw';
 
 const { Title, Text } = Typography;
 const { RangePicker } = DatePicker;
+const SYNTHESIS_SPLIT_MIN_PERCENT = 35;
+const SYNTHESIS_SPLIT_MAX_PERCENT = 75;
+const SYNTHESIS_SPLIT_DEFAULT_PERCENT = 58;
 
 interface SynthesisDetail {
   id: string;
@@ -96,6 +99,16 @@ const SynthesisBoard: React.FC = () => {
     return window.innerWidth;
   });
   const layoutPreset = React.useMemo(() => getPatentAnalysisLayoutPreset(viewportWidth), [viewportWidth]);
+  const isResponsiveToolbar = viewportWidth <= 1100;
+  const [splitRatio, setSplitRatio] = useState<number>(SYNTHESIS_SPLIT_DEFAULT_PERCENT);
+  const [isResizingSplit, setIsResizingSplit] = useState(false);
+  const splitContainerRef = React.useRef<HTMLDivElement | null>(null);
+  const splitRafRef = React.useRef<number | null>(null);
+  const splitStorageKey = 'synthesis-board-split:group-detail';
+
+  const clampSplitRatio = React.useCallback((value: number) => {
+    return Math.min(Math.max(value, SYNTHESIS_SPLIT_MIN_PERCENT), SYNTHESIS_SPLIT_MAX_PERCENT);
+  }, []);
 
   const getViewToggleButtonStyle = (mode: 'table' | 'draw' | 'tree'): React.CSSProperties => {
     const isActive = viewMode === mode;
@@ -153,6 +166,106 @@ const SynthesisBoard: React.FC = () => {
     const onResize = () => setViewportWidth(window.innerWidth);
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
+  }, []);
+
+  React.useEffect(() => {
+    const raw = window.localStorage.getItem(splitStorageKey);
+    if (!raw) {
+      setSplitRatio(SYNTHESIS_SPLIT_DEFAULT_PERCENT);
+      return;
+    }
+
+    const parsed = Number(raw);
+    if (Number.isFinite(parsed)) {
+      setSplitRatio(clampSplitRatio(parsed));
+    }
+  }, [clampSplitRatio]);
+
+  React.useEffect(() => {
+    window.localStorage.setItem(splitStorageKey, String(splitRatio));
+  }, [splitRatio]);
+
+  const updateSplitRatioFromClientX = React.useCallback((clientX: number) => {
+    const container = splitContainerRef.current;
+    if (!container) return;
+    const rect = container.getBoundingClientRect();
+    if (rect.width <= 0) return;
+    const nextRatio = ((clientX - rect.left) / rect.width) * 100;
+    setSplitRatio(clampSplitRatio(nextRatio));
+  }, [clampSplitRatio]);
+
+  const stopSplitResize = React.useCallback(() => {
+    setIsResizingSplit(false);
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
+  }, []);
+
+  React.useEffect(() => {
+    if (!isResizingSplit) return;
+
+    const onMouseMove = (event: MouseEvent) => {
+      if (splitRafRef.current) {
+        window.cancelAnimationFrame(splitRafRef.current);
+      }
+      splitRafRef.current = window.requestAnimationFrame(() => {
+        updateSplitRatioFromClientX(event.clientX);
+      });
+    };
+
+    const onMouseUp = () => {
+      stopSplitResize();
+    };
+
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+
+    return () => {
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+      if (splitRafRef.current) {
+        window.cancelAnimationFrame(splitRafRef.current);
+        splitRafRef.current = null;
+      }
+    };
+  }, [isResizingSplit, stopSplitResize, updateSplitRatioFromClientX]);
+
+  const handleSplitMouseDown = React.useCallback((event: React.MouseEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    setIsResizingSplit(true);
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+  }, []);
+
+  const handleSplitKeyDown = React.useCallback((event: React.KeyboardEvent<HTMLDivElement>) => {
+    const step = 2;
+    if (event.key === 'ArrowLeft') {
+      event.preventDefault();
+      setSplitRatio(prev => clampSplitRatio(prev - step));
+      return;
+    }
+    if (event.key === 'ArrowRight') {
+      event.preventDefault();
+      setSplitRatio(prev => clampSplitRatio(prev + step));
+      return;
+    }
+    if (event.key === 'Home') {
+      event.preventDefault();
+      setSplitRatio(SYNTHESIS_SPLIT_MIN_PERCENT);
+      return;
+    }
+    if (event.key === 'End') {
+      event.preventDefault();
+      setSplitRatio(SYNTHESIS_SPLIT_MAX_PERCENT);
+      return;
+    }
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      setSplitRatio(SYNTHESIS_SPLIT_DEFAULT_PERCENT);
+    }
+  }, [clampSplitRatio]);
+
+  const resetSplitRatio = React.useCallback(() => {
+    setSplitRatio(SYNTHESIS_SPLIT_DEFAULT_PERCENT);
   }, []);
 
   // Mock Data for Designs
@@ -403,19 +516,34 @@ const SynthesisBoard: React.FC = () => {
         maxWidth: layoutPreset.maxWidth,
         margin: '0 auto',
         padding: `0 ${layoutPreset.sidePadding}px`,
-        width: '100%'
+        width: '100%',
+        height: '100%',
+        overflowY: isResponsiveToolbar ? 'auto' : 'visible',
+        overflowX: 'hidden'
       }}
     >
       {/* Top Search Header - Removed Source Toggle from here */}
       <Card variant="borderless" className="c-card" style={{ marginBottom: 20 }}>
         <Row gutter={[16, 16]} align="middle">
-          <Col flex="auto">
-            <Space size="middle">
+          <Col flex="auto" style={{ minWidth: 0 }}>
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 12,
+                flexWrap: 'wrap',
+                minWidth: 0,
+              }}
+            >
               <Input
                 prefix={<Search size={18} color={token.colorTextTertiary} />}
                 placeholder="그룹 또는 화합물 ID 검색"
                 className="v-search-input"
-                style={{ width: 350 }}
+                style={{
+                  flex: '1 1 260px',
+                  minWidth: 180,
+                  maxWidth: isResponsiveToolbar ? '100%' : 350,
+                }}
                 value={keyword}
                 onChange={(e) => setKeyword(e.target.value)}
               />
@@ -426,14 +554,21 @@ const SynthesisBoard: React.FC = () => {
               >
                 상세 필터 {showFilters ? '닫기' : '열기'}
               </Button>
-            </Space>
+            </div>
           </Col>
-          <Col>
-            <Space>
-              <Button type="primary" icon={<Plus size={18} />} className="v-action-btn" style={{ background: token.colorPrimary, borderColor: token.colorPrimary }}>New Group</Button>
-              <Button icon={<ClipboardList size={18} />} className="v-action-btn">합성 관리</Button>
-              <Button icon={<ArrowLeft size={18} />} className="v-action-btn" onClick={() => navigate(-1)}>돌아가기</Button>
-            </Space>
+          <Col flex={isResponsiveToolbar ? '1 1 100%' : 'none'}>
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: isResponsiveToolbar ? 'stretch' : 'flex-end',
+                gap: 8,
+                flexWrap: 'wrap',
+              }}
+            >
+              <Button type="primary" icon={<Plus size={18} />} className="v-action-btn" style={{ background: token.colorPrimary, borderColor: token.colorPrimary, flex: isResponsiveToolbar ? '1 1 140px' : undefined }}>New Group</Button>
+              <Button icon={<ClipboardList size={18} />} className="v-action-btn" style={{ flex: isResponsiveToolbar ? '1 1 140px' : undefined }}>합성 관리</Button>
+              <Button icon={<ArrowLeft size={18} />} className="v-action-btn" onClick={() => navigate(-1)} style={{ flex: isResponsiveToolbar ? '1 1 140px' : undefined }}>돌아가기</Button>
+            </div>
           </Col>
         </Row>
         {showFilters && (
@@ -502,9 +637,18 @@ const SynthesisBoard: React.FC = () => {
         )}
       </Card>
 
-      <Row gutter={[20, 20]}>
+      <div
+        ref={splitContainerRef}
+        style={{
+          display: 'flex',
+          flexDirection: isResponsiveToolbar ? 'column' : 'row',
+          gap: isResponsiveToolbar ? 20 : 0,
+          minHeight: 0,
+          paddingBottom: isResponsiveToolbar ? 24 : 0
+        }}
+      >
         {/* Left: Group List (Single Select) - Increased width for many columns */}
-        <Col span={14}>
+        <div style={{ width: isResponsiveToolbar ? '100%' : `calc(${splitRatio}% - 6px)`, minWidth: 0 }}>
           <div className="v-table-card">
             <div className="v-table-header">
               <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
@@ -543,7 +687,7 @@ const SynthesisBoard: React.FC = () => {
               pagination={false}
               size="small"
               rowKey="id"
-              scroll={{ x: 1200, y: currentGroups.length > 10 ? 'calc(100vh - 350px)' : undefined }}
+              scroll={{ x: 1200, y: !isResponsiveToolbar && currentGroups.length > 10 ? 'calc(100vh - 350px)' : undefined }}
               onRow={(record) => ({
                 onClick: () => setSelectedGroupId(record.id),
                 style: { cursor: 'pointer' }
@@ -551,10 +695,42 @@ const SynthesisBoard: React.FC = () => {
               rowClassName={(record) => selectedGroupId === record.id ? 'row-selected' : ''}
             />
           </div>
-        </Col>
+        </div>
+
+        <div
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="Synthesis Board 패널 너비 조절"
+          aria-valuemin={SYNTHESIS_SPLIT_MIN_PERCENT}
+          aria-valuemax={SYNTHESIS_SPLIT_MAX_PERCENT}
+          aria-valuenow={Math.round(splitRatio)}
+          tabIndex={0}
+          onMouseDown={handleSplitMouseDown}
+          onDoubleClick={resetSplitRatio}
+          onKeyDown={handleSplitKeyDown}
+          style={{
+            width: 12,
+            flexShrink: 0,
+            cursor: 'col-resize',
+            display: isResponsiveToolbar ? 'none' : 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            outline: 'none'
+          }}
+        >
+          <div
+            style={{
+              width: 4,
+              height: 72,
+              borderRadius: 999,
+              background: isResizingSplit ? token.colorPrimary : token.colorBorder,
+              transition: 'background-color 0.2s ease'
+            }}
+          />
+        </div>
 
         {/* Right: Synthesis Details */}
-        <Col span={10}>
+        <div style={{ flex: isResponsiveToolbar ? '0 0 auto' : 1, minWidth: 0, width: isResponsiveToolbar ? '100%' : undefined }}>
           <div className="v-table-card">
             <div className="v-table-header">
               <Text strong style={{ color: token.colorPrimary }}>합성 상세 목록</Text>
@@ -603,10 +779,10 @@ const SynthesisBoard: React.FC = () => {
                 size="small"
                 pagination={{ pageSize: 20 }}
                 rowKey="id"
-                scroll={{ y: filteredDetails.length > 10 ? 'calc(100vh - 350px)' : undefined }}
+                scroll={{ x: 'max-content', y: !isResponsiveToolbar && filteredDetails.length > 10 ? 'calc(100vh - 350px)' : undefined }}
               />
             ) : viewMode === 'draw' ? (
-              <div style={{ padding: 20, overflowY: 'auto', height: 'calc(100vh - 350px)' }}>
+              <div style={{ padding: 20, overflowY: 'auto', height: isResponsiveToolbar ? 'auto' : 'calc(100vh - 350px)' }}>
                 <Row gutter={[12, 12]}>
                   {filteredDetails.map(d => (
                     <Col span={12} key={d.id}>
@@ -656,8 +832,8 @@ const SynthesisBoard: React.FC = () => {
               <div style={{ padding: 40, textAlign: 'center', color: token.colorTextTertiary }}>Tree View 준비 중...</div>
             )}
           </div>
-        </Col>
-      </Row>
+        </div>
+      </div>
 
       {/* Assign Manager Modal */}
       <Modal

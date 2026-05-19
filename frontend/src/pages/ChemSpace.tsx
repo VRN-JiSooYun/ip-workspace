@@ -79,17 +79,27 @@ const ChemSpace: React.FC = () => {
 
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-      <div style={{ marginBottom: 20, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
-        <div>
+      <div style={{ marginBottom: 20, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', gap: 16, flexWrap: 'wrap' }}>
+        <div style={{ minWidth: 0 }}>
           <Title level={3} style={{ margin: 0, fontWeight: 700 }}>Chemical Space Analysis</Title>
           <Text type="secondary">Explore structural diversity and property distribution across target space.</Text>
         </div>
-        <Space size={12}>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'flex-end',
+            gap: 12,
+            flex: '1 1 360px',
+            flexWrap: 'wrap',
+            minWidth: 0,
+          }}
+        >
           <Input 
             prefix={<Search size={16} />} 
             placeholder="Search SMILES or Target..." 
             className="v-search-input"
-            style={{ width: 300 }}
+            style={{ flex: '1 1 240px', minWidth: 180, maxWidth: 300 }}
             value={searchTerm}
             onChange={e => setSearchTerm(e.target.value)}
           />
@@ -102,7 +112,7 @@ const ChemSpace: React.FC = () => {
             {is3DView ? '2D View' : '3D View'}
           </Button>
           <Button icon={<Download size={16} />} className="v-action-btn">Export</Button>
-        </Space>
+        </div>
       </div>
 
       <Row gutter={[20, 20]} style={{ flex: 1, minHeight: 0 }}>

@@ -49,6 +49,8 @@ const installCanvasReadbackPatch = () => {
 export interface ChemDrawStructureData {
   smiles: string;
   svg: string | null;
+  sourceSvg?: string | null;
+  rdkitSvg?: string | null;
   cdxml?: string;
   molfile?: string;
   molV2000?: string;

@@ -1,31 +1,25 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Layout, Menu, Button, theme, Input, Avatar, Badge, Space } from 'antd';
+import { Layout, Menu, Button, theme, Input, Avatar, Space, Select, Tag } from 'antd';
 import { useTheme } from '../../contexts/ThemeContext';
 import {
   LayoutDashboard,
   FlaskConical,
-  Beaker,
-  Table as TableIcon,
   Search,
   Bell,
   Moon,
   Sun,
-  LogOut,
-  Plus,
   Palette,
   Activity,
-  PlusSquare,
   Microscope,
+  Box,
   Menu as MenuIcon,
   PanelLeftClose,
-  PanelLeftOpen,
   FileText,
-  BookOpen,
-  Users as UsersIcon,
   HelpCircle
 } from 'lucide-react';
 import BenzeneIcon from '../common/BenzeneIcon';
+import { useUserStore } from '../../store/useUserStore';
 
 const { Header, Sider, Content } = Layout;
 
@@ -37,11 +31,24 @@ import { useUIStore } from '../../store/useUIStore';
 
 const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
   const [sidebarMode, setSidebarMode] = useState<'full' | 'mini' | 'hidden'>('full');
+  const [viewportWidth, setViewportWidth] = useState<number>(() => {
+    if (typeof window === 'undefined') return 1920;
+    return window.innerWidth;
+  });
   const { token } = theme.useToken();
   const { isDarkMode, toggleTheme } = useTheme();
   const { headerContent } = useUIStore();
+  const { users, currentUserId, currentUser, setCurrentUserId } = useUserStore();
   const navigate = useNavigate();
   const location = useLocation();
+  const isStackedHeader = viewportWidth <= 900;
+  const headerHeight = isStackedHeader ? 128 : 80;
+
+  React.useEffect(() => {
+    const onResize = () => setViewportWidth(window.innerWidth);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
 
   // URL 경로에서 메뉴 키 추출 (예: /dashboard -> dashboard, /patents/write -> patent-write)
   const getSelectedKey = () => {
@@ -52,6 +59,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
     if (path === '/myboard/synthesis-board' || path === '/synthesis-board') return 'myboard';
     if (path === '/my-tree') return 'my-tree';
     if (path === '/chem-space') return 'chem-space';
+    if (path === '/vora') return 'vora';
     if (path === '/patents/write') return 'patent-write';
     if (path === '/patents/analysis') return 'patent-analysis';
     if (path === '/patents/manage') return 'patent-manage';
@@ -67,6 +75,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
   return (
     <Layout style={{ minHeight: '100vh' }}>
       <Sider
+        className="app-sidebar"
         trigger={null}
         collapsible
         collapsed={sidebarMode !== 'full'}
@@ -78,7 +87,10 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
           padding: sidebarMode === 'full' ? '24px 2px' : (sidebarMode === 'mini' ? '24px 0' : 0),
           borderRight: isDarkMode ? '1px solid #303030' : 'none',
           transition: 'all 0.2s',
-          overflow: 'hidden'
+          overflow: 'hidden',
+          display: 'flex',
+          flexDirection: 'column',
+          height: '100vh'
         }}
       >
         <div style={{
@@ -111,7 +123,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
           )}
         </div>
 
-        <div style={{ overflowY: 'auto', flex: 1, padding: '0 8px', display: sidebarMode === 'hidden' ? 'none' : 'block' }}>
+        <div style={{ overflowY: 'auto', flex: '1 1 auto', minHeight: 0, padding: '0 8px', display: sidebarMode === 'hidden' ? 'none' : 'block' }}>
           <Menu
             mode="inline"
             inlineIndent={12}
@@ -133,6 +145,12 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                   { key: 'my-tree', label: 'My tree', onClick: () => navigate('/my-tree') },
                   { key: 'chem-space', label: 'Chemical space', onClick: () => navigate('/chem-space') },
                 ],
+              },
+              {
+                key: 'vora',
+                icon: <Box size={22} />,
+                label: <span style={{ fontWeight: 600 }}>VORA</span>,
+                onClick: () => navigate('/vora')
               },
               {
                 key: 'documents',
@@ -170,6 +188,17 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                 label: <span style={{ fontWeight: 600 }}>통합검색</span>,
                 onClick: () => navigate('/universal-search')
               },
+            ]}
+          />
+        </div>
+
+        <div style={{ marginTop: 'auto', padding: '12px 8px 0', flexShrink: 0, display: sidebarMode === 'hidden' ? 'none' : 'block' }}>
+          <Menu
+            mode="inline"
+            inlineIndent={12}
+            selectedKeys={[getSelectedKey()]}
+            style={{ background: 'transparent', borderRight: 0 }}
+            items={[
               {
                 key: 'development-status',
                 icon: <Activity size={22} />,
@@ -189,15 +218,17 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
 
       <Layout>
         <Header style={{
-          padding: '0 32px',
+          padding: isStackedHeader ? '12px 20px' : '0 32px',
           background: token.colorBgLayout,
           display: 'flex',
-          alignItems: 'center',
+          flexDirection: isStackedHeader ? 'column' : 'row',
+          alignItems: isStackedHeader ? 'stretch' : 'center',
           justifyContent: 'space-between',
-          height: 80,
+          gap: isStackedHeader ? 10 : 0,
+          height: headerHeight,
           borderBottom: 'none'
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', flex: 1, gap: 16 }}>
+          <div style={{ display: 'flex', alignItems: 'center', flex: isStackedHeader ? '0 0 auto' : '1 1 auto', minWidth: 0, width: isStackedHeader ? '100%' : undefined, gap: 16, overflow: isStackedHeader ? 'visible' : 'hidden' }}>
             <Button
               type="text"
               icon={
@@ -221,14 +252,17 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
               }}
             />
             {headerContent ? (
-              headerContent
+              <div style={{ minWidth: 0, flex: '1 1 auto', overflowX: isStackedHeader ? 'auto' : 'hidden', overflowY: 'hidden', whiteSpace: 'nowrap' }}>
+                {headerContent}
+              </div>
             ) : (
-              <div style={{ position: 'relative' }}>
+              <div style={{ position: 'relative', minWidth: 0, flex: '1 1 180px', maxWidth: 256 }}>
                 <Input
                   prefix={<Search size={18} color={token.colorTextPlaceholder} />}
                   placeholder="Search workspace..."
                   style={{
-                    width: 256,
+                    width: '100%',
+                    minWidth: 0,
                     border: 'none',
                     background: isDarkMode ? '#2b2b2b' : '#f2f4f6',
                     borderRadius: '12px',
@@ -241,27 +275,53 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
             )}
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
-            <Space size={16}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: isStackedHeader ? 'flex-end' : 'flex-start', gap: isStackedHeader ? 12 : 24, flexShrink: 0, width: isStackedHeader ? '100%' : undefined, minWidth: 0 }}>
+            <Space size={isStackedHeader ? 8 : 16}>
               <Button type="text" icon={<Bell size={20} color={token.colorTextSecondary} />} />
               <Button type="text" onClick={toggleTheme} icon={
                 isDarkMode ? <Sun size={20} color={token.colorTextSecondary} /> : <Moon size={20} color={token.colorTextSecondary} />
               } />
               <Button type="text" icon={<Palette size={20} color={token.colorTextSecondary} />} />
             </Space>
+            <Select
+              value={currentUserId}
+              onChange={setCurrentUserId}
+              style={{ width: isStackedHeader ? 168 : 188 }}
+              popupMatchSelectWidth={240}
+              optionLabelProp="label"
+              options={users.map((user) => ({
+                value: user.id,
+                label: `${user.name} · ${user.team}`,
+              }))}
+              optionRender={(option) => {
+                const user = users.find((item) => item.id === option.value);
+                if (!user) return option.label;
+
+                return (
+                  <Space size={8}>
+                    <Avatar size={24}>{user.name.slice(0, 1)}</Avatar>
+                    <span>{user.name}</span>
+                    <Tag color={user.role === 'design' ? 'orange' : 'blue'} style={{ margin: 0 }}>
+                      {user.team}
+                    </Tag>
+                  </Space>
+                );
+              }}
+            />
             <Avatar
               size={40}
-              style={{ border: '2px solid #fff', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}
-              src="https://lh3.googleusercontent.com/aida-public/AB6AXuBxWmRUEECaG6CTx1WD3R6_8tUqDHhik8dPVS9z33QnH2x1bZtxqt1emWmHOe6YQhE0Tdxp0BfK-IHXkmDk80y_bQdUI5-L55LwZgvDpwTRZwliugh2EnhkA3G3LJFkpA-ssVst9nIo4rq7NQuh5-pKHFOCJmkWJm5RAotHti-bhlBgsoCQ9s5wdtPOBTxJYx5Btz5wsJUbTNvKM-9kUYAPXUWMygQZKaQ10jfVrjbmx_ehGPDkYzwz1WxONu-0c0eXnBoEppPlsOgB"
-            />
+              style={{ border: '2px solid #fff', boxShadow: '0 2px 4px rgba(0,0,0,0.05)', background: token.colorPrimary }}
+            >
+              {currentUser.name.slice(0, 1)}
+            </Avatar>
           </div>
         </Header>
         <Content style={{
-          padding: '0 32px 24px 32px',
+          padding: '0 12px 24px 12px',
           overflow: 'hidden', // 전체 스크롤 방지를 위해 hidden으로 변경
           boxSizing: 'border-box',
-          height: 'calc(100vh - 80px)',
-          maxHeight: 'calc(100vh - 80px)', // 높이 팽창 방지
+          height: `calc(100vh - ${headerHeight}px)`,
+          maxHeight: `calc(100vh - ${headerHeight}px)`, // 높이 팽창 방지
           backgroundColor: token.colorBgLayout,
           display: 'flex',
           flexDirection: 'column'
@@ -288,6 +348,12 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
         .ant-menu-inline .ant-menu-sub.ant-menu-inline { background: transparent !important; margin-left: 22px !important; }
         .ant-menu-submenu-title { border-radius: 12px !important; height: 48px !important; display: flex !important; align-items: center !important; }
         .cursor-pointer { cursor: pointer; }
+        .app-sidebar .ant-layout-sider-children {
+          height: 100%;
+          min-height: 0;
+          display: flex;
+          flex-direction: column;
+        }
       `}</style>
       <style>{`
         html, body, #root {

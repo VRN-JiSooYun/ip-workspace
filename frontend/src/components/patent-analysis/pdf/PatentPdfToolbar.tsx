@@ -105,7 +105,7 @@ const PatentPdfToolbar: React.FC<PatentPdfToolbarProps> = ({
         onChange={(event) => onSearchQueryChange(event.target.value)}
         onPressEnter={onRunSearch}
         placeholder="PDF 텍스트 조회"
-        style={{ width: 220 }}
+        style={{ flex: '1 1 180px', minWidth: 160, maxWidth: 260 }}
         size="small"
       />
 

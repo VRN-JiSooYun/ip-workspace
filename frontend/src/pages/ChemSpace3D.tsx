@@ -222,28 +222,38 @@ const ChemSpace3D: React.FC = () => {
 
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-      <div style={{ marginBottom: 20, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
-        <Space size={16}>
+      <div style={{ marginBottom: 20, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', gap: 16, flexWrap: 'wrap' }}>
+        <Space size={16} style={{ minWidth: 0 }}>
           <Button icon={<ArrowLeft size={16} />} onClick={() => navigate('/chem-space')}>Back to 2D</Button>
-          <div>
+          <div style={{ minWidth: 0 }}>
             <Title level={3} style={{ margin: 0, fontWeight: 700 }}>3D Chemical Space Explorer</Title>
             <Text type="secondary">Z-Axis: QED (Quantitative Estimate of Drug-likeness)</Text>
           </div>
         </Space>
-        <Space size={12}>
-          <Space>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'flex-end',
+            gap: 12,
+            flex: '1 1 320px',
+            flexWrap: 'wrap',
+            minWidth: 0,
+          }}
+        >
+          <div>
             <ToggleTag checked={showAxes} onChange={setShowAxes} style={{ marginInlineEnd: 0, fontSize: 12 }}>
               Show Axis
             </ToggleTag>
-          </Space>
+          </div>
           <Input 
             prefix={<Search size={16} />} 
             placeholder="Search SMILES or Target..." 
-            style={{ width: 300, borderRadius: 8 }}
+            style={{ flex: '1 1 240px', minWidth: 180, maxWidth: 300, borderRadius: 8 }}
             value={searchTerm}
             onChange={e => setSearchTerm(e.target.value)}
           />
-        </Space>
+        </div>
       </div>
 
       <Card 

@@ -53,6 +53,7 @@ const PatentAnalysisList: React.FC = () => {
   });
   const { setHeaderContent } = useUIStore();
   const layoutPreset = React.useMemo(() => getPatentAnalysisLayoutPreset(viewportWidth), [viewportWidth]);
+  const isResponsiveToolbar = viewportWidth <= 1100;
 
   useEffect(() => {
     setHeaderContent(
@@ -174,15 +175,27 @@ const PatentAnalysisList: React.FC = () => {
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', animation: 'fadeIn 0.3s ease-out' }}>
         <Card variant="borderless" style={{ marginBottom: 16, flexShrink: 0 }}>
           <Row gutter={[16, 16]} align="middle">
-            <Col flex="auto">
-              <Space size="middle">
+            <Col flex="auto" style={{ minWidth: 0 }}>
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 12,
+                  flexWrap: 'wrap',
+                  minWidth: 0,
+                }}
+              >
                 <Input
                   prefix={<Search size={18} color={token.colorTextTertiary} />}
                   placeholder="특허 제목, 번호, 초록 검색..."
                   value={searchText}
                   onChange={e => setSearchText(e.target.value)}
                   className="v-search-input"
-                  style={{ width: 350 }}
+                  style={{
+                    flex: '1 1 260px',
+                    minWidth: 180,
+                    maxWidth: isResponsiveToolbar ? '100%' : 350,
+                  }}
                 />
                 <Button
                   icon={showFilters ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
@@ -198,14 +211,18 @@ const PatentAnalysisList: React.FC = () => {
                 >
                   구조 검색
                 </Button>
-              </Space>
+              </div>
             </Col>
-            <Col>
+            <Col flex={isResponsiveToolbar ? '1 1 100%' : 'none'}>
               <Button 
                 type="primary" 
                 icon={<Plus size={18} />} 
                 className="v-action-btn"
-                style={{ background: '#F87C63', borderColor: '#F87C63' }}
+                style={{
+                  background: '#F87C63',
+                  borderColor: '#F87C63',
+                  width: isResponsiveToolbar ? '100%' : undefined,
+                }}
               >
                 신규 특허 등록
               </Button>
