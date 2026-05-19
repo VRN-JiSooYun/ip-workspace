@@ -16,6 +16,7 @@ import PageHeaderBreadcrumb from '../components/common/PageHeaderBreadcrumb';
 import { useTheme } from '../contexts/ThemeContext';
 import { useNavigate } from 'react-router-dom';
 import ToggleTag from '../components/common/ToggleTag';
+import { getPatentAnalysisLayoutPreset } from '../config/patentAnalysisLayout';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
@@ -28,6 +29,10 @@ const ChemSpace3D: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [showAxes, setShowAxes] = useState(true);
+  const [viewportWidth, setViewportWidth] = useState(
+    typeof window === 'undefined' ? 1600 : window.innerWidth
+  );
+  const layoutPreset = useMemo(() => getPatentAnalysisLayoutPreset(viewportWidth), [viewportWidth]);
 
   useEffect(() => {
     setHeaderContent(<PageHeaderBreadcrumb items={[{ label: 'Compounds' }, { label: 'Chemical Space 3D' }]} />);
@@ -45,6 +50,15 @@ const ChemSpace3D: React.FC = () => {
 
     return () => setHeaderContent(null);
   }, [setHeaderContent]);
+
+  useEffect(() => {
+    const handleResize = () => setViewportWidth(window.innerWidth);
+
+    handleResize();
+    window.addEventListener('resize', handleResize);
+
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   const filteredData = useMemo(() => {
     if (!searchTerm) return data;
@@ -221,7 +235,19 @@ const ChemSpace3D: React.FC = () => {
   };
 
   return (
-    <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+    <div
+      style={{
+        maxWidth: layoutPreset.maxWidth,
+        margin: '0 auto',
+        padding: `0 ${layoutPreset.sidePadding}px`,
+        width: '100%',
+        height: '100%',
+        display: 'flex',
+        flexDirection: 'column',
+        boxSizing: 'border-box',
+        overflow: 'hidden'
+      }}
+    >
       <div style={{ marginBottom: 20, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', gap: 16, flexWrap: 'wrap' }}>
         <Space size={16} style={{ minWidth: 0 }}>
           <Button icon={<ArrowLeft size={16} />} onClick={() => navigate('/chem-space')}>Back to 2D</Button>

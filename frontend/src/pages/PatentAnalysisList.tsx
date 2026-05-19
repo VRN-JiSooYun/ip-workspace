@@ -173,7 +173,7 @@ const PatentAnalysisList: React.FC = () => {
   return (
     <div style={{ maxWidth: layoutPreset.maxWidth, margin: '0 auto', padding: `0 ${layoutPreset.sidePadding}px`, height: '100%', width: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', animation: 'fadeIn 0.3s ease-out' }}>
-        <Card variant="borderless" style={{ marginBottom: 16, flexShrink: 0 }}>
+        <Card variant="borderless" className="c-card" style={{ marginBottom: 24, flexShrink: 0 }}>
           <Row gutter={[16, 16]} align="middle">
             <Col flex="auto" style={{ minWidth: 0 }}>
               <div

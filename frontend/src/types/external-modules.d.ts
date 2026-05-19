@@ -47,6 +47,7 @@ declare module '*.svg?raw' {
 }
 
 interface ImportMetaEnv {
+  readonly PROD: boolean;
   readonly VITE_RDKIT_API_URL?: string;
 }
 

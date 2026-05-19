@@ -43,6 +43,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
   const location = useLocation();
   const isStackedHeader = viewportWidth <= 900;
   const headerHeight = isStackedHeader ? 128 : 80;
+  const voraExternalUrl = 'https://voronoi.app/vora/';
 
   React.useEffect(() => {
     const onResize = () => setViewportWidth(window.innerWidth);
@@ -59,7 +60,6 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
     if (path === '/myboard/synthesis-board' || path === '/synthesis-board') return 'myboard';
     if (path === '/my-tree') return 'my-tree';
     if (path === '/chem-space') return 'chem-space';
-    if (path === '/vora') return 'vora';
     if (path === '/patents/write') return 'patent-write';
     if (path === '/patents/analysis') return 'patent-analysis';
     if (path === '/patents/manage') return 'patent-manage';
@@ -124,6 +124,25 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
         </div>
 
         <div style={{ overflowY: 'auto', flex: '1 1 auto', minHeight: 0, padding: '0 8px', display: sidebarMode === 'hidden' ? 'none' : 'block' }}>
+          <Button
+            block
+            icon={<Box size={18} />}
+            onClick={() => window.open(voraExternalUrl, '_blank', 'noopener,noreferrer')}
+            style={{
+              height: 44,
+              marginBottom: 30,
+              justifyContent: sidebarMode === 'full' ? 'flex-start' : 'center',
+              paddingInline: sidebarMode === 'full' ? 16 : 0,
+              background: isDarkMode ? '#242424' : '#ffffff',
+              borderColor: isDarkMode ? token.colorBorder : '#d8dbe0',
+              color: token.colorText,
+              fontWeight: 600,
+              borderRadius: 12,
+              boxShadow: isDarkMode ? 'none' : '0 1px 2px rgba(15, 23, 42, 0.06)',
+            }}
+          >
+            {sidebarMode === 'full' ? 'VORA' : null}
+          </Button>
           <Menu
             mode="inline"
             inlineIndent={12}
@@ -145,12 +164,6 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                   { key: 'my-tree', label: 'My tree', onClick: () => navigate('/my-tree') },
                   { key: 'chem-space', label: 'Chemical space', onClick: () => navigate('/chem-space') },
                 ],
-              },
-              {
-                key: 'vora',
-                icon: <Box size={22} />,
-                label: <span style={{ fontWeight: 600 }}>VORA</span>,
-                onClick: () => navigate('/vora')
               },
               {
                 key: 'documents',

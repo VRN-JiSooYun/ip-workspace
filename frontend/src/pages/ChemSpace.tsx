@@ -5,6 +5,7 @@ import PageHeaderBreadcrumb from '../components/common/PageHeaderBreadcrumb';
 import { useTheme } from '../contexts/ThemeContext';
 import ChemSpaceChart from '../components/charts/ChemSpaceChart';
 import { useNavigate } from 'react-router-dom';
+import { getPatentAnalysisLayoutPreset } from '../config/patentAnalysisLayout';
 import { 
   Search, 
   Filter, 
@@ -41,6 +42,10 @@ const ChemSpace: React.FC = () => {
   const [is3DView, setIs3DView] = useState(false);
   const [zAxis, setZAxis] = useState('q');
   const [show3DAxes, setShow3DAxes] = useState(true);
+  const [viewportWidth, setViewportWidth] = useState(
+    typeof window === 'undefined' ? 1600 : window.innerWidth
+  );
+  const layoutPreset = useMemo(() => getPatentAnalysisLayoutPreset(viewportWidth), [viewportWidth]);
 
   const chartConfigs = [
     { x: 'molLogP', y: 'tpsa', title: 'Lipophilicity vs Polar Surface Area' },
@@ -66,6 +71,15 @@ const ChemSpace: React.FC = () => {
     return () => setHeaderContent(null);
   }, [setHeaderContent]);
 
+  useEffect(() => {
+    const handleResize = () => setViewportWidth(window.innerWidth);
+
+    handleResize();
+    window.addEventListener('resize', handleResize);
+
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
   const filteredData = useMemo(() => {
     if (!searchTerm) return data;
     const term = searchTerm.toLowerCase();
@@ -78,42 +92,19 @@ const ChemSpace: React.FC = () => {
   // Removed redundant getOption and constants (now in ChemSpaceChart)
 
   return (
-    <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-      <div style={{ marginBottom: 20, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', gap: 16, flexWrap: 'wrap' }}>
-        <div style={{ minWidth: 0 }}>
-          <Title level={3} style={{ margin: 0, fontWeight: 700 }}>Chemical Space Analysis</Title>
-          <Text type="secondary">Explore structural diversity and property distribution across target space.</Text>
-        </div>
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'flex-end',
-            gap: 12,
-            flex: '1 1 360px',
-            flexWrap: 'wrap',
-            minWidth: 0,
-          }}
-        >
-          <Input 
-            prefix={<Search size={16} />} 
-            placeholder="Search SMILES or Target..." 
-            className="v-search-input"
-            style={{ flex: '1 1 240px', minWidth: 180, maxWidth: 300 }}
-            value={searchTerm}
-            onChange={e => setSearchTerm(e.target.value)}
-          />
-          <Button 
-            type={is3DView ? "primary" : "default"}
-            icon={is3DView ? <LayoutGrid size={16} /> : <Rotate3d size={16} />} 
-            className="v-action-btn"
-            onClick={() => setIs3DView(!is3DView)}
-          >
-            {is3DView ? '2D View' : '3D View'}
-          </Button>
-          <Button icon={<Download size={16} />} className="v-action-btn">Export</Button>
-        </div>
-      </div>
+    <div
+      style={{
+        maxWidth: layoutPreset.maxWidth,
+        margin: '0 auto',
+        padding: `0 ${layoutPreset.sidePadding}px`,
+        width: '100%',
+        height: '100%',
+        display: 'flex',
+        flexDirection: 'column',
+        boxSizing: 'border-box',
+        overflow: 'hidden'
+      }}
+    >
 
       <Row gutter={[20, 20]} style={{ flex: 1, minHeight: 0 }}>
         <Col span={6}>

@@ -6,7 +6,9 @@ import type { PdfHighlighterUtils } from 'react-pdf-highlighter-plus';
 import PatentPdfRenderer from './Viewer/PatentPdfRenderer';
 import './patentPdfViewer.css';
 
-const PDFJS_WASM_URL = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@5.7.284/wasm/';
+const PDFJS_WASM_URL = import.meta.env.PROD
+  ? '/pdfjs/wasm/'
+  : 'https://cdn.jsdelivr.net/npm/pdfjs-dist@5.7.284/wasm/';
 
 type PatentPdfViewerProps = {
   document: string;

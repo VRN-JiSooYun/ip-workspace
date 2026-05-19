@@ -14,6 +14,8 @@ RUN bun run build
 FROM nginx:stable-alpine
 # 빌드된 파일 복사
 COPY --from=build /app/dist /usr/share/nginx/html
+# PDF.js 렌더링용 wasm을 외부 CDN 대신 dev 서버에서 제공
+COPY --from=build /app/node_modules/pdfjs-dist/wasm /usr/share/nginx/html/pdfjs/wasm
 # Nginx 템플릿 복사 (런타임에 envsubst로 치환)
 COPY nginx.conf /etc/nginx/templates/default.conf.template
 # Runtime env 템플릿 및 치환 스크립트
