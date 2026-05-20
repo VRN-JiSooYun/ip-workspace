@@ -12,7 +12,6 @@ import {
   Palette,
   Activity,
   Microscope,
-  Box,
   Menu as MenuIcon,
   PanelLeftClose,
   FileText,
@@ -125,24 +124,47 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
 
         <div style={{ overflowY: 'auto', flex: '1 1 auto', minHeight: 0, padding: '0 8px', display: sidebarMode === 'hidden' ? 'none' : 'block' }}>
           <Button
-            block
-            icon={<Box size={18} />}
+            className="vora-link-button"
             onClick={() => window.open(voraExternalUrl, '_blank', 'noopener,noreferrer')}
             style={{
               height: 44,
-              marginBottom: 30,
-              justifyContent: sidebarMode === 'full' ? 'flex-start' : 'center',
+              width: sidebarMode === 'full' ? 'calc(100% - 24px)' : 40,
+              marginLeft: sidebarMode === 'full' ? 12 : 'auto',
+              marginRight: sidebarMode === 'full' ? 0 : 'auto',
+              marginBottom: 8,
+              justifyContent: 'center',
               paddingInline: sidebarMode === 'full' ? 16 : 0,
-              background: isDarkMode ? '#242424' : '#ffffff',
-              borderColor: isDarkMode ? token.colorBorder : '#d8dbe0',
-              color: token.colorText,
               fontWeight: 600,
               borderRadius: 12,
-              boxShadow: isDarkMode ? 'none' : '0 1px 2px rgba(15, 23, 42, 0.06)',
+              boxShadow: 'none',
             }}
           >
-            {sidebarMode === 'full' ? 'VORA' : null}
+            {sidebarMode === 'full' ? 'VORA' : 'V'}
           </Button>
+          <Button
+            className="medichem-eln-link-button"
+            style={{
+              height: 44,
+              width: sidebarMode === 'full' ? 'calc(100% - 24px)' : 40,
+              marginLeft: sidebarMode === 'full' ? 12 : 'auto',
+              marginRight: sidebarMode === 'full' ? 0 : 'auto',
+              marginBottom: 30,
+              justifyContent: 'center',
+              paddingInline: sidebarMode === 'full' ? 16 : 0,
+              fontWeight: 600,
+              borderRadius: 12,
+              boxShadow: 'none',
+            }}
+          >
+            {sidebarMode === 'full' ? 'Medichem ELN' : 'M'}
+          </Button>
+          <div
+            style={{
+              height: 1,
+              margin: sidebarMode === 'full' ? '0 4px 22px 12px' : '0 8px 22px',
+              background: isDarkMode ? '#303030' : '#d8dbe0',
+            }}
+          />
           <Menu
             mode="inline"
             inlineIndent={12}
@@ -360,6 +382,28 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
         }
         .ant-menu-inline .ant-menu-sub.ant-menu-inline { background: transparent !important; margin-left: 22px !important; }
         .ant-menu-submenu-title { border-radius: 12px !important; height: 48px !important; display: flex !important; align-items: center !important; }
+        .vora-link-button {
+          background: ${isDarkMode ? '#302747' : '#f3efff'} !important;
+          border-color: ${isDarkMode ? '#5b4788' : '#d8ccff'} !important;
+          color: ${isDarkMode ? '#d8ccff' : '#6f45c9'} !important;
+        }
+        .vora-link-button:hover,
+        .vora-link-button:focus {
+          background: ${isDarkMode ? '#3a2f55' : '#ebe3ff'} !important;
+          border-color: ${isDarkMode ? '#7560a8' : '#c8b6ff'} !important;
+          color: ${isDarkMode ? '#eee7ff' : '#5e35b1'} !important;
+        }
+        .medichem-eln-link-button {
+          background: ${isDarkMode ? '#3a271f' : '#fff1e8'} !important;
+          border-color: ${isDarkMode ? '#8a5a3c' : '#ffd3ba'} !important;
+          color: ${isDarkMode ? '#ffd5bd' : '#c45a1c'} !important;
+        }
+        .medichem-eln-link-button:hover,
+        .medichem-eln-link-button:focus {
+          background: ${isDarkMode ? '#4a3328' : '#ffe8d8'} !important;
+          border-color: ${isDarkMode ? '#a66f4a' : '#ffc19e'} !important;
+          color: ${isDarkMode ? '#ffe6d8' : '#a94712'} !important;
+        }
         .cursor-pointer { cursor: pointer; }
         .app-sidebar .ant-layout-sider-children {
           height: 100%;
