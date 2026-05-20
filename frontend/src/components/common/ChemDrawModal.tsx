@@ -72,7 +72,7 @@ const ChemDrawModal: React.FC<ChemDrawModalProps> = ({
   open, 
   onCancel, 
   onConfirm,
-  title = "구조 편집 (ChemDraw JS)",
+  title = "구조 검색",
   confirmText = "확인",
   initialCdxml,
   initialSmiles,

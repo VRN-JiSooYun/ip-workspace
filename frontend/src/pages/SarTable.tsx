@@ -5,7 +5,7 @@ import {
   Space, Modal, Form, Tag, Select, DatePicker, Avatar, Divider, Segmented, theme
 } from 'antd';
 import {
-  Search, ChevronDown, ChevronUp, Beaker,
+  Search, ChevronDown, ChevronUp,
   Settings, Download, Share2, Info, GripVertical, CheckCircle2, XCircle, ArrowLeft
 } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
@@ -61,12 +61,13 @@ const SarTable: React.FC = () => {
   const [isColorActive, setIsColorActive] = useState(false);
   const [selectedRowKey, setSelectedRowKey] = useState<string | null>(null);
   const [hoveredRowKey, setHoveredRowKey] = useState<string | null>(null);
-  const [showFilters, setShowFilters] = useState(true);
+  const [showFilters, setShowFilters] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [isStructureModalOpen, setIsStructureModalOpen] = useState(false);
   const [structurePreview, setStructurePreview] = useState<{ title: string; svg: string } | null>(null);
   const [searchedSvg, setSearchedSvg] = useState<string | null>(null);
   const [activePreset, setActivePreset] = useState<number>(1);
+  const [compoundCardViewMode, setCompoundCardViewMode] = useState<'single' | 'twoRows'>('single');
   const [viewportWidth, setViewportWidth] = useState<number>(() => {
     if (typeof window === 'undefined') return 1920;
     return window.innerWidth;
@@ -91,6 +92,95 @@ const SarTable: React.FC = () => {
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
   }, []);
+
+  const selectCompoundByKeyboard = (key: string) => {
+    if (sarCompounds.length === 0) return false;
+
+    const currentIndex = Math.max(0, sarCompounds.findIndex((compound) => compound.id === selectedRowKey));
+    let nextIndex = currentIndex;
+
+    if (compoundCardViewMode === 'twoRows') {
+      const columnCount = Math.ceil(sarCompounds.length / 2);
+
+      if (key === 'ArrowRight') {
+        nextIndex = Math.min(sarCompounds.length - 1, currentIndex + 1);
+      } else if (key === 'ArrowLeft') {
+        nextIndex = Math.max(0, currentIndex - 1);
+      } else if (key === 'ArrowDown') {
+        nextIndex = currentIndex + columnCount < sarCompounds.length ? currentIndex + columnCount : currentIndex;
+      } else if (key === 'ArrowUp') {
+        nextIndex = currentIndex - columnCount >= 0 ? currentIndex - columnCount : currentIndex;
+      } else if (key === 'Home') {
+        nextIndex = 0;
+      } else if (key === 'End') {
+        nextIndex = sarCompounds.length - 1;
+      } else {
+        return false;
+      }
+    } else if (key === 'ArrowRight' || key === 'ArrowDown') {
+      nextIndex = Math.min(sarCompounds.length - 1, currentIndex + 1);
+    } else if (key === 'ArrowLeft' || key === 'ArrowUp') {
+      nextIndex = Math.max(0, currentIndex - 1);
+    } else if (key === 'Home') {
+      nextIndex = 0;
+    } else if (key === 'End') {
+      nextIndex = sarCompounds.length - 1;
+    } else {
+      return false;
+    }
+
+    const nextCompound = sarCompounds[nextIndex];
+    if (nextCompound) {
+      setSelectedRowKey(nextCompound.id);
+      setHoveredRowKey(nextCompound.id);
+      document.getElementById(`sar-compound-card-${nextCompound.id}`)?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'nearest',
+        inline: 'nearest',
+      });
+    }
+    return true;
+  };
+
+  const handleCompoundCardKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (selectCompoundByKeyboard(event.key)) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+  };
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (!selectedRowKey || event.metaKey || event.ctrlKey || event.altKey) return;
+      if (isSettingsModalOpen || isStructureModalOpen || structurePreview) return;
+
+      const activeElement = document.activeElement as HTMLElement | null;
+      const activeTag = activeElement?.tagName.toLowerCase();
+      const isCompoundCardListFocused = !!activeElement?.closest('.sar-compound-card-list');
+      const isEditing =
+        activeTag === 'input' ||
+        activeTag === 'textarea' ||
+        activeElement?.isContentEditable ||
+        !!activeElement?.closest('.ant-select, .ant-picker, .ant-segmented');
+
+      if (isCompoundCardListFocused) return;
+      if (isEditing) return;
+
+      if (selectCompoundByKeyboard(event.key)) {
+        event.preventDefault();
+      }
+    };
+
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [
+    compoundCardViewMode,
+    isSettingsModalOpen,
+    isStructureModalOpen,
+    sarCompounds,
+    selectedRowKey,
+    structurePreview,
+  ]);
 
   // Default states for columns
   const defaultOrder = ['Compound', 'Enzyme', 'Cell', 'MS', 'PPB', 'CYP', 'hERG', 'PK'];
@@ -466,8 +556,12 @@ const SarTable: React.FC = () => {
       style={{
         maxWidth: layoutPreset.maxWidth,
         margin: '0 auto',
-        padding: `0 ${layoutPreset.sidePadding}px`,
+        padding: `0 ${layoutPreset.sidePadding}px 24px`,
         width: '100%',
+        height: '100%',
+        minHeight: 0,
+        overflowY: 'auto',
+        overflowX: 'hidden',
         boxSizing: 'border-box'
       }}
     >
@@ -503,8 +597,8 @@ const SarTable: React.FC = () => {
               >
                 상세 필터 {showFilters ? '닫기' : '열기'}
               </Button>
-              <Button 
-                icon={<BenzeneIcon size={18} />} 
+              <Button
+                icon={<BenzeneIcon size={18} />}
                 className="v-action-btn"
                 onClick={() => setIsStructureModalOpen(true)}
               >
@@ -593,38 +687,79 @@ const SarTable: React.FC = () => {
 
       {/* Compound Cards Slider (Prototype Style) */}
       <div style={{
-        padding: '24px 16px',
+        padding: '16px',
         background: token.colorBgContainer,
         borderRadius: 12,
         marginBottom: 20,
-        overflowX: 'auto',
-        whiteSpace: 'nowrap'
+        overflow: 'hidden',
       }}>
-        <div style={{ display: 'inline-flex', gap: 24 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginBottom: 14, flexWrap: 'wrap' }}>
+          <Space size={8}>
+            <BenzeneIcon size={16} color={token.colorPrimary} />
+            <Text strong>화합물</Text>
+            <Text type="secondary" style={{ fontSize: 12 }}>{sarCompounds.length} compounds</Text>
+          </Space>
+          <Segmented
+            size="small"
+            value={compoundCardViewMode}
+            onChange={(value) => setCompoundCardViewMode(value as 'single' | 'twoRows')}
+            options={[
+              { label: '기본', value: 'single' },
+              { label: '2줄', value: 'twoRows' },
+            ]}
+          />
+        </div>
+        <div
+          className="sar-compound-card-list"
+          style={{
+            overflowX: 'auto',
+            overflowY: 'hidden',
+            padding: '2px 2px 8px',
+          }}
+          tabIndex={0}
+          onKeyDown={handleCompoundCardKeyDown}
+          aria-label="SAR compound card list"
+        >
+        <div style={compoundCardViewMode === 'twoRows' ? {
+          display: 'grid',
+          gridAutoFlow: 'row',
+          gridTemplateColumns: `repeat(${Math.ceil(sarCompounds.length / 2)}, 184px)`,
+          gridTemplateRows: 'repeat(2, minmax(0, 1fr))',
+          gridAutoRows: 'auto',
+          gap: 14,
+          width: 'max-content',
+        } : {
+          display: 'inline-flex',
+          gap: 24,
+        }}>
           {sarCompounds.map((item) => (
             <div
+              id={`sar-compound-card-${item.id}`}
               key={item.id}
               onClick={() => setSelectedRowKey(item.id)}
-              className={`v-item-card ${selectedRowKey === item.id ? 'selected' : ''} ${hoveredRowKey === item.id ? 'hovered' : ''}`}
+              role="option"
+              aria-selected={selectedRowKey === item.id}
+              className={`v-item-card sar-compound-card ${selectedRowKey === item.id ? 'selected' : ''} ${hoveredRowKey === item.id ? 'hovered' : ''}`}
               onMouseEnter={() => setHoveredRowKey(item.id)}
               onMouseLeave={() => setHoveredRowKey(null)}
               style={{
-                width: 200,
-                padding: '16px',
+                width: compoundCardViewMode === 'twoRows' ? 184 : 200,
+                padding: compoundCardViewMode === 'twoRows' ? '8px' : '10px',
                 textAlign: 'center',
                 cursor: 'pointer',
                 background: selectedRowKey === item.id || hoveredRowKey === item.id ? (isDarkMode ? '#111d2c' : '#e6f7ff') : token.colorBgContainer,
+                boxSizing: 'border-box',
               }}
             >
               <div style={{
-                height: 120,
+                height: compoundCardViewMode === 'twoRows' ? 116 : 148,
                 background: token.colorBgContainer,
-                borderRadius: 12,
+                borderRadius: 10,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 position: 'relative',
-                marginBottom: 12,
+                marginBottom: compoundCardViewMode === 'twoRows' ? 4 : 6,
                 border: `1px solid ${token.colorBorderSecondary}`
               }}>
                 {renderStructureSvg(item.structureSvg)}
@@ -642,14 +777,17 @@ const SarTable: React.FC = () => {
                   />
                 ) : null}
               </div>
-              <Text strong style={{ fontSize: 13 }}>{item.name}</Text>
+              <Text strong style={{ fontSize: 12, lineHeight: '16px', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={item.name}>
+                {item.name}
+              </Text>
             </div>
           ))}
+        </div>
         </div>
       </div>
 
       {/* Main SAR Table (Multi-level Header) */}
-      <div className="v-table-card">
+      <div className="v-table-card sar-table-card">
         <div className="v-table-header">
           <Space>
             <div
@@ -939,8 +1077,10 @@ const SarTable: React.FC = () => {
           height: auto;
         }
         .sar-structure-svg {
-          width: 148px;
-          height: 92px;
+          width: 260px;
+          height: 168px;
+          max-width: 100%;
+          max-height: 100%;
         }
         .sar-structure-preview-button {
           position: absolute;
@@ -1016,6 +1156,21 @@ const SarTable: React.FC = () => {
           background-color: ${isDarkMode ? '#111d2c' : '#e6f7ff'} !important;
           transform: translateY(-2px);
           box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        .sar-compound-card-list:focus,
+        .sar-compound-card-list:focus-visible,
+        .sar-compound-card:focus,
+        .sar-compound-card:focus-visible {
+          outline: none !important;
+          box-shadow: none;
+        }
+        .sar-table-card {
+          margin-bottom: 24px;
+        }
+        .sar-table-card .ant-table-body {
+          padding-bottom: 18px;
+          box-sizing: border-box;
+          scrollbar-gutter: stable;
         }
       `}</style>
     </div>

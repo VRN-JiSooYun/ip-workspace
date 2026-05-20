@@ -51,7 +51,7 @@ const MyBoard: React.FC = () => {
   const [viewMode, setViewMode] = useState<'table' | 'draw' | 'tree'>('table');
   const [assignedGroupIds, setAssignedGroupIds] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [isGroupListCollapsed, setIsGroupListCollapsed] = useState(false);
+  const [groupListMode, setGroupListMode] = useState<'full' | 'structure' | 'hidden'>('full');
   const [selectedDataSources, setSelectedDataSources] = useState<string[]>(['my designs']);
   const [viewportWidth, setViewportWidth] = useState<number>(() => {
     if (typeof window === 'undefined') return 1920;
@@ -59,6 +59,9 @@ const MyBoard: React.FC = () => {
   });
   const layoutPreset = React.useMemo(() => getPatentAnalysisLayoutPreset(viewportWidth), [viewportWidth]);
   const isStackedSplitLayout = viewportWidth <= 1100;
+  const isGroupListFull = groupListMode === 'full';
+  const isGroupListStructureOnly = groupListMode === 'structure';
+  const isGroupListHidden = groupListMode === 'hidden';
   const [splitRatio, setSplitRatio] = useState<number>(MYBOARD_SPLIT_DEFAULT_PERCENT);
   const [isResizingSplit, setIsResizingSplit] = useState(false);
   const splitContainerRef = React.useRef<HTMLDivElement | null>(null);
@@ -342,6 +345,68 @@ const MyBoard: React.FC = () => {
 
   const sarTargetCount = selectedGroupIds.length > 0 ? filteredCompounds.length : 0;
 
+  const firstCompoundByGroupId = React.useMemo(() => {
+    return mockCompounds.reduce<Record<string, typeof mockCompounds[number]>>((acc, compound) => {
+      if (!acc[compound.groupId]) {
+        acc[compound.groupId] = compound;
+      }
+      return acc;
+    }, {});
+  }, []);
+
+  const renderRepresentativeStructure = (_: any, record: any) => {
+    const representativeCompound = firstCompoundByGroupId[record.id];
+    const structureSvg = representativeCompound?.structureSvg;
+
+    return (
+      <div
+        style={{
+          width: 86,
+          height: 52,
+          margin: '0 auto',
+          background: token.colorBgLayout,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          borderRadius: 4,
+          border: `1px solid ${token.colorBorderSecondary}`,
+          overflow: 'hidden',
+          position: 'relative',
+        }}
+      >
+        {structureSvg ? (
+          <>
+            <div
+              className="my-board-structure-svg"
+              style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+              dangerouslySetInnerHTML={{ __html: structureSvg }}
+            />
+            <Tooltip title="크게 보기">
+              <Button
+                className="svg-action-btn my-board-structure-preview-button"
+                size="small"
+                type="text"
+                icon={<Search size={14} />}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setStructurePreview({
+                    title: representativeCompound?.compoundId || representativeCompound?.name || 'Structure',
+                    svg: structureSvg,
+                  });
+                }}
+                style={{
+                  background: 'rgba(255,255,255,0.8)'
+                }}
+              />
+            </Tooltip>
+          </>
+        ) : (
+          <BenzeneIcon size={20} color={token.colorTextTertiary} />
+        )}
+      </div>
+    );
+  };
+
   const groupColumns = [
     { title: 'Date', dataIndex: 'creDate', key: 'creDate', width: 100 },
     { 
@@ -357,6 +422,13 @@ const MyBoard: React.FC = () => {
       )
     },
     { title: 'Target', dataIndex: 'target', key: 'target', width: 80, render: (t: string) => <Tag color="blue">{t}</Tag> },
+    {
+      title: '화합물 구조',
+      key: 'representativeStructure',
+      width: 110,
+      align: 'center' as const,
+      render: renderRepresentativeStructure
+    },
     { title: 'Title', dataIndex: 'name', key: 'name' },
     { title: '개수', dataIndex: 'count', key: 'count', align: 'right' as const, width: 60 },
     {
@@ -366,6 +438,16 @@ const MyBoard: React.FC = () => {
       render: (status: string) => (
         status === '공유함' ? <Button size="small" type="text" danger icon={<XCircle size={14} />}>공유취소</Button> : null
       )
+    }
+  ];
+
+  const structureOnlyGroupColumns = [
+    {
+      title: <Text style={{ fontSize: 13, fontWeight: 600 }}>화합물 구조</Text>,
+      key: 'representativeStructure',
+      width: 110,
+      align: 'center' as const,
+      render: renderRepresentativeStructure
     }
   ];
 
@@ -670,22 +752,56 @@ const MyBoard: React.FC = () => {
         style={{
           display: 'flex',
           flexDirection: isStackedSplitLayout ? 'column' : 'row',
-          gap: isStackedSplitLayout ? 16 : 0,
+          gap: isStackedSplitLayout ? 16 : isGroupListStructureOnly ? 12 : 0,
           minHeight: 0,
           paddingBottom: isStackedSplitLayout ? 24 : 0
         }}
       >
-        {!isGroupListCollapsed && (
-        <div style={{ width: isStackedSplitLayout ? '100%' : `calc(${splitRatio}% - 6px)`, minWidth: 0 }}>
+        {!isGroupListHidden && (
+        <div
+          style={{
+            width: isStackedSplitLayout
+              ? '100%'
+              : isGroupListStructureOnly
+                ? 128
+                : `calc(${splitRatio}% - 6px)`,
+            flex: isGroupListStructureOnly && !isStackedSplitLayout ? '0 0 128px' : undefined,
+            minWidth: 0,
+            transition: isResizingSplit ? 'none' : 'width 0.2s ease, flex-basis 0.2s ease'
+          }}
+        >
           <div className="v-table-card">
-            <div className="v-table-header">
+            <div className="v-table-header" style={{ padding: isGroupListStructureOnly ? '8px' : undefined, justifyContent: isGroupListStructureOnly ? 'center' : 'space-between' }}>
+              {isGroupListStructureOnly ? (
+                <Space size={10}>
+                  <Tooltip title="그룹 리스트 완전 접기">
+                    <Button
+                      size="small"
+                      type="text"
+                      icon={<PanelLeftClose size={14} />}
+                      onClick={() => setGroupListMode('hidden')}
+                      style={{ width: 30, height: 28 }}
+                    />
+                  </Tooltip>
+                  <Tooltip title="그룹 리스트 펼치기">
+                    <Button
+                      size="small"
+                      type="text"
+                      icon={<PanelLeftOpen size={14} />}
+                      onClick={() => setGroupListMode('full')}
+                      style={{ width: 30, height: 28 }}
+                    />
+                  </Tooltip>
+                </Space>
+              ) : (
+              <>
               <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-                <Tooltip title="그룹 리스트 접기">
+                <Tooltip title="화합물 구조만 보기">
                   <Button
                     size="small"
                     type="text"
                     icon={<PanelLeftClose size={14} />}
-                    onClick={() => setIsGroupListCollapsed(true)}
+                    onClick={() => setGroupListMode('structure')}
                   />
                 </Tooltip>
                 <Text strong style={{ color: token.colorPrimary }}>그룹 리스트</Text>
@@ -727,14 +843,16 @@ const MyBoard: React.FC = () => {
                   합성 보드
                 </Button>
               </Space>
+              </>
+              )}
             </div>
             <Table
               dataSource={mockGroups.filter(g => selectedDataSources.includes(g.type))}
-              columns={groupColumns}
+              columns={isGroupListStructureOnly ? structureOnlyGroupColumns : groupColumns}
               pagination={false}
               size="small"
               rowKey="id"
-              scroll={{ x: 'max-content' }}
+              scroll={isGroupListStructureOnly ? undefined : { x: 'max-content' }}
               onRow={(record) => ({
                 onClick: () => {
                   setIsLoading(true);
@@ -764,7 +882,7 @@ const MyBoard: React.FC = () => {
             width: 12,
             flexShrink: 0,
             cursor: 'col-resize',
-            display: isStackedSplitLayout || isGroupListCollapsed ? 'none' : 'flex',
+            display: isStackedSplitLayout || !isGroupListFull ? 'none' : 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             outline: 'none'
@@ -781,17 +899,17 @@ const MyBoard: React.FC = () => {
           />
         </div>
 
-        <div style={{ flex: isStackedSplitLayout ? '0 0 auto' : 1, minWidth: 0, width: isStackedSplitLayout || isGroupListCollapsed ? '100%' : undefined }}>
+        <div style={{ flex: isStackedSplitLayout ? '0 0 auto' : 1, minWidth: 0, width: isStackedSplitLayout || isGroupListHidden ? '100%' : undefined }}>
           <div className="v-table-card">
             <div className="v-table-header" style={{ flexWrap: 'wrap', gap: '12px', alignItems: 'center' }}>
               <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
-                {isGroupListCollapsed && (
+                {isGroupListHidden && (
                   <Tooltip title="그룹 리스트 펼치기">
                     <Button
                       size="small"
                       type="text"
                       icon={<PanelLeftOpen size={14} />}
-                      onClick={() => setIsGroupListCollapsed(false)}
+                      onClick={() => setGroupListMode('full')}
                     />
                   </Tooltip>
                 )}
@@ -906,7 +1024,7 @@ const MyBoard: React.FC = () => {
                 columns={dynamicCompoundColumns}
                 size="small"
                 rowKey="id"
-                pagination={{ pageSize: 8 }}
+                pagination={{ pageSize: 10 }}
                 loading={isLoading}
                 scroll={{ x: 'max-content' }}
                 locale={{ emptyText: selectedGroupIds.length === 0 ? '왼쪽 그룹 리스트에서 그룹을 선택해 주세요.' : '검색 결과가 없습니다.' }}

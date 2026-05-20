@@ -33,6 +33,7 @@ const ChemSpace: React.FC = () => {
   const [colorBy, setColorBy] = useState('kinase');
   const [searchTerm, setSearchTerm] = useState('');
   const [isFullScreen, setIsFullScreen] = useState(false);
+  const [isTwoChartMode, setIsTwoChartMode] = useState(false);
   const [isThreeChartMode, setIsThreeChartMode] = useState(false);
   const [is3DView, setIs3DView] = useState(false);
   const [zAxis, setZAxis] = useState('q');
@@ -47,6 +48,8 @@ const ChemSpace: React.FC = () => {
     { x: 'molWt', y: 'tpsa', title: 'Size vs Lipophilicity' },
     { x: 'maxAbsEStateIndex', y: 'molWt', title: 'Electronic Index vs Size' }
   ];
+  const visibleChartConfigs = isTwoChartMode ? chartConfigs.slice(0, 2) : chartConfigs;
+  const isMultiChartMode = isTwoChartMode || isThreeChartMode;
 
   useEffect(() => {
     setHeaderContent(<PageHeaderBreadcrumb items={[{ label: 'Compounds' }, { label: 'Chemical Space' }]} />);
@@ -110,24 +113,77 @@ const ChemSpace: React.FC = () => {
             <div style={{ padding: '20px' }}>
             <Space direction="vertical" style={{ width: '100%' }} size={24}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', opacity: is3DView ? 0.5 : 1, pointerEvents: is3DView ? 'none' : 'auto' }}>
+                <Space
+                  style={{ cursor: 'pointer', userSelect: 'none' }}
+                  onClick={() => {
+                    setIsTwoChartMode((prev) => {
+                      const next = !prev;
+                      if (next) {
+                        setIsThreeChartMode(false);
+                        setIs3DView(false);
+                      }
+                      return next;
+                    });
+                  }}
+                >
+                  <LayoutGrid size={16} />
+                  <Text strong>2Chart Mode</Text>
+                </Space>
+                <ToggleTag
+                  checked={isTwoChartMode}
+                  onChange={(checked) => {
+                    setIsTwoChartMode(checked);
+                    if (checked) {
+                      setIsThreeChartMode(false);
+                      setIs3DView(false);
+                    }
+                  }}
+                  style={{ marginInlineEnd: 0 }}
+                >
+                  {isTwoChartMode ? 'ON' : 'OFF'}
+                </ToggleTag>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', opacity: is3DView ? 0.5 : 1, pointerEvents: is3DView ? 'none' : 'auto' }}>
                 <Space 
                   style={{ cursor: 'pointer', userSelect: 'none' }}
-                  onClick={() => setIsThreeChartMode(!isThreeChartMode)}
+                  onClick={() => {
+                    setIsThreeChartMode((prev) => {
+                      const next = !prev;
+                      if (next) {
+                        setIsTwoChartMode(false);
+                        setIs3DView(false);
+                      }
+                      return next;
+                    });
+                  }}
                 >
                   <LayoutGrid size={16} />
                   <Text strong>3Chart Mode</Text>
                 </Space>
-                <ToggleTag checked={isThreeChartMode} onChange={setIsThreeChartMode} style={{ marginInlineEnd: 0 }}>
+                <ToggleTag
+                  checked={isThreeChartMode}
+                  onChange={(checked) => {
+                    setIsThreeChartMode(checked);
+                    if (checked) {
+                      setIsTwoChartMode(false);
+                      setIs3DView(false);
+                    }
+                  }}
+                  style={{ marginInlineEnd: 0 }}
+                >
                   {isThreeChartMode ? 'ON' : 'OFF'}
                 </ToggleTag>
               </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', opacity: isThreeChartMode ? 0.5 : 1, pointerEvents: isThreeChartMode ? 'none' : 'auto' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', opacity: isMultiChartMode ? 0.5 : 1, pointerEvents: isMultiChartMode ? 'none' : 'auto' }}>
                 <Space
                   style={{ cursor: 'pointer', userSelect: 'none' }}
                   onClick={() => {
                     setIs3DView((prev) => {
                       const next = !prev;
-                      if (next) setIsThreeChartMode(false);
+                      if (next) {
+                        setIsTwoChartMode(false);
+                        setIsThreeChartMode(false);
+                      }
                       return next;
                     });
                   }}
@@ -139,7 +195,10 @@ const ChemSpace: React.FC = () => {
                   checked={is3DView}
                   onChange={(checked) => {
                     setIs3DView(checked);
-                    if (checked) setIsThreeChartMode(false);
+                    if (checked) {
+                      setIsTwoChartMode(false);
+                      setIsThreeChartMode(false);
+                    }
                   }}
                   style={{ marginInlineEnd: 0 }}
                 >
@@ -149,7 +208,7 @@ const ChemSpace: React.FC = () => {
 
               <Divider style={{ margin: '4px 0' }} />
 
-              <div style={{ opacity: isThreeChartMode ? 0.5 : 1, pointerEvents: isThreeChartMode ? 'none' : 'auto' }}>
+              <div style={{ opacity: isMultiChartMode ? 0.5 : 1, pointerEvents: isMultiChartMode ? 'none' : 'auto' }}>
                 <Text strong style={{ display: 'block', marginBottom: 8 }}>X-Axis Property</Text>
                 <Select value={xAxis} onChange={setXAxis} style={{ width: '100%' }}>
                   <Option value="molWt">Molecular Weight</Option>
@@ -158,7 +217,7 @@ const ChemSpace: React.FC = () => {
                   <Option value="maxAbsEStateIndex">MaxAbsEStateIndex</Option>
                 </Select>
               </div>
-              <div style={{ opacity: isThreeChartMode ? 0.5 : 1, pointerEvents: isThreeChartMode ? 'none' : 'auto' }}>
+              <div style={{ opacity: isMultiChartMode ? 0.5 : 1, pointerEvents: isMultiChartMode ? 'none' : 'auto' }}>
                 <Text strong style={{ display: 'block', marginBottom: 8 }}>Y-Axis Property</Text>
                 <Select value={yAxis} onChange={setYAxis} style={{ width: '100%' }}>
                   <Option value="molWt">Molecular Weight</Option>
@@ -236,7 +295,7 @@ const ChemSpace: React.FC = () => {
           <Card 
             loading={loading}
             style={{ height: '100%', position: 'relative' }}
-            styles={{ body: { height: 'calc(100% - 56px)', padding: isThreeChartMode ? '8px' : '12px' } }}
+            styles={{ body: { height: 'calc(100% - 56px)', padding: isMultiChartMode ? '8px' : '12px' } }}
             extra={
               <Space size={16}>
                 {is3DView && (
@@ -259,11 +318,11 @@ const ChemSpace: React.FC = () => {
             }
           >
             {!loading && (
-              <div style={{ height: '100%', overflowY: isThreeChartMode ? 'auto' : 'hidden', overflowX: 'auto' }}>
-                {isThreeChartMode ? (
+              <div style={{ height: '100%', overflowY: isMultiChartMode ? 'auto' : 'hidden', overflowX: 'auto' }}>
+                {isMultiChartMode ? (
                   <Row gutter={[12, 12]} style={{ width: CHEM_SPACE_THREE_CHART_WIDTH, minWidth: CHEM_SPACE_THREE_CHART_WIDTH, margin: 0 }}>
-                    {chartConfigs.map((config, idx) => (
-                      <Col key={idx} span={idx === 2 ? 24 : 12} style={{ height: 400, marginBottom: 12 }}>
+                    {visibleChartConfigs.map((config, idx) => (
+                      <Col key={idx} span={isThreeChartMode && idx === 2 ? 24 : 12} style={{ height: isTwoChartMode ? 520 : 400, marginBottom: 12 }}>
                         <Card 
                           size="small" 
                           title={<Text style={{ fontSize: 13, fontWeight: 600 }}>{config.title}</Text>}
@@ -356,21 +415,21 @@ const ChemSpace: React.FC = () => {
               <Button icon={<Minimize2 size={16} />} onClick={() => setIsFullScreen(false)} className="v-action-btn">Exit</Button>
             </Space>
           </div>
-          <div style={{ flex: 1, minHeight: 0, overflowY: isThreeChartMode ? 'auto' : 'hidden', overflowX: 'hidden' }}>
-            {isThreeChartMode ? (
+          <div style={{ flex: 1, minHeight: 0, overflowY: isMultiChartMode ? 'auto' : 'hidden', overflowX: 'hidden' }}>
+            {isMultiChartMode ? (
               <div
                 style={{
                   height: '100%',
                   minHeight: 0,
                   display: 'grid',
                   gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)',
-                  gridTemplateRows: 'minmax(300px, 1fr) minmax(300px, 1fr)',
+                  gridTemplateRows: isTwoChartMode ? 'minmax(300px, 1fr)' : 'minmax(300px, 1fr) minmax(300px, 1fr)',
                   gap: 16,
                   overflowX: 'hidden',
                   boxSizing: 'border-box',
                 }}
               >
-                {chartConfigs.map((config, idx) => (
+                {visibleChartConfigs.map((config, idx) => (
                   <Card
                     key={idx}
                     size="small"
@@ -378,7 +437,7 @@ const ChemSpace: React.FC = () => {
                     style={{
                       height: '100%',
                       minWidth: 0,
-                      gridColumn: idx === 2 ? '1 / -1' : undefined,
+                      gridColumn: isThreeChartMode && idx === 2 ? '1 / -1' : undefined,
                     }}
                     styles={{ body: { height: 'calc(100% - 38px)', padding: 8, minWidth: 0 } }}
                   >
