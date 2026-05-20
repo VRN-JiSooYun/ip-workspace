@@ -5,10 +5,10 @@ export type PatentAnalysisLayoutPreset = {
 };
 
 export const PATENT_ANALYSIS_LAYOUT_PRESETS: PatentAnalysisLayoutPreset[] = [
-  { maxWidth: 9999, sidePadding: 24, defaultSplit: 58 },  // 3200+ — 사실상 제한 없음
-  { maxWidth: 9999, sidePadding: 20, defaultSplit: 56 },  // 2560+
-  { maxWidth: 9999, sidePadding: 16, defaultSplit: 52 },  // 1920+
-  { maxWidth: 1600, sidePadding: 16, defaultSplit: 50 }   // ~1920
+  { maxWidth: 9999, sidePadding: 16, defaultSplit: 58 },  // 3200+ — 폭 제한 없이 기본 여백 유지
+  { maxWidth: 9999, sidePadding: 16, defaultSplit: 56 },  // 2560+ — 폭 제한 없이 기본 여백 유지
+  { maxWidth: 9999, sidePadding: 16, defaultSplit: 52 },  // 1920+ — 폭 제한 없이 기본 여백 유지
+  { maxWidth: 9999, sidePadding: 16, defaultSplit: 50 }   // ~1920 — 폭 제한 없이 기본 여백 유지
 ];
 
 export const getPatentAnalysisLayoutPreset = (viewportWidth: number): PatentAnalysisLayoutPreset => {
@@ -17,4 +17,3 @@ export const getPatentAnalysisLayoutPreset = (viewportWidth: number): PatentAnal
   if (viewportWidth >= 1920) return PATENT_ANALYSIS_LAYOUT_PRESETS[2];
   return PATENT_ANALYSIS_LAYOUT_PRESETS[3];
 };
-

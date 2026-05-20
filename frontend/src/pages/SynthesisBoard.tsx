@@ -517,6 +517,7 @@ const SynthesisBoard: React.FC = () => {
         margin: '0 auto',
         padding: `0 ${layoutPreset.sidePadding}px`,
         width: '100%',
+        boxSizing: 'border-box',
         height: '100%',
         overflowY: isResponsiveToolbar ? 'auto' : 'visible',
         overflowX: 'hidden'
@@ -912,10 +913,17 @@ const SynthesisBoard: React.FC = () => {
 
       <style>{`
         .row-selected {
-          background-color: ${isDarkMode ? '#2a1f1d' : '#fff7f6'} !important;
+          background-color: var(--table-row-selected-bg) !important;
         }
         .row-selected td {
-          background-color: ${isDarkMode ? '#2a1f1d' : '#fff7f6'} !important;
+          background-color: var(--table-row-selected-bg) !important;
+        }
+        .ant-table-tbody > tr:hover > td {
+          background-color: var(--table-row-hover-bg) !important;
+          cursor: pointer;
+        }
+        .ant-table-tbody > tr.row-selected:hover > td {
+          background-color: var(--table-row-selected-hover-bg) !important;
         }
         .ant-table-thead > tr > th {
           background: ${isDarkMode ? '#1f1f1f' : '#fafafa'} !important;

@@ -467,7 +467,8 @@ const SarTable: React.FC = () => {
         maxWidth: layoutPreset.maxWidth,
         margin: '0 auto',
         padding: `0 ${layoutPreset.sidePadding}px`,
-        width: '100%'
+        width: '100%',
+        boxSizing: 'border-box'
       }}
     >
       {/* Search & Filter Header (MyBoard Layout) */}
@@ -955,18 +956,18 @@ const SarTable: React.FC = () => {
           height: auto;
         }
         .sar-row-selected {
-          background-color: ${isDarkMode ? '#2a1f1d' : '#fff7f6'} !important;
+          background-color: var(--table-row-selected-bg) !important;
         }
         .sar-row-selected td {
-          background-color: ${isDarkMode ? '#2a1f1d' : '#fff7f6'} !important;
+          background-color: var(--table-row-selected-bg) !important;
           border-bottom: 1px solid ${isDarkMode ? '#F87C6333' : '#F87C6322'} !important;
         }
         .sar-row-hovered td {
-          background-color: ${isDarkMode ? '#1a1a1a' : '#fafafa'} !important;
+          background-color: var(--table-row-hover-bg) !important;
           cursor: pointer;
         }
         .sar-row-selected.sar-row-hovered td {
-          background-color: ${isDarkMode ? '#322522' : '#fff0ee'} !important;
+          background-color: var(--table-row-selected-hover-bg) !important;
         }
         .ant-table-thead > tr > th {
           background: ${isDarkMode ? '#1f1f1f' : '#fafafa'} !important;
@@ -991,11 +992,11 @@ const SarTable: React.FC = () => {
           border-color: ${isDarkMode ? '#303030' : '#f0f0f0'} !important;
         }
         .ant-table-tbody > tr:hover > td {
-          background-color: ${isDarkMode ? '#1a1a1a' : '#fafafa'} !important;
+          background-color: var(--table-row-hover-bg) !important;
           cursor: pointer;
         }
         .ant-table-tbody > tr.sar-row-selected:hover > td {
-          background-color: ${isDarkMode ? '#322522' : '#fff0ee'} !important;
+          background-color: var(--table-row-selected-hover-bg) !important;
         }
         .sar-compound-card:hover {
           border-color: ${token.colorPrimary} !important;

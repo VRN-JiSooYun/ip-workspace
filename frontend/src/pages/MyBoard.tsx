@@ -208,7 +208,7 @@ const MyBoard: React.FC = () => {
   }, []);
 
   const alwaysColumnKeys = React.useMemo(() => [
-    '순번', '그룹', '프로젝트', '물질 번호 (VRN)', '화합물 구조', '출처', '디자인 비고', 'Mol.Properties1', 'Mol.Properties2'
+    '순번', '그룹 번호', '그룹', '프로젝트', '물질 번호 (VRN)', '화합물 구조', '출처', '디자인 비고', 'Mol.Properties1', 'Mol.Properties2'
   ], []);
   const designColumnKeys = React.useMemo(() => [
     '디자인 번호', '필요량 (mg)', '목적 (개선하고자 하는 assay)', '기대 개선 효과', '의뢰일자', '합성 확장 필요 정도', '의뢰 비고'
@@ -309,19 +309,36 @@ const MyBoard: React.FC = () => {
     setFn(next);
   };
 
-  const filteredCompounds = mockCompounds.filter((compound) => {
-    // If it's a structure search results mode, don't filter out by the keyword string
-    const matchesKeyword = keyword === 'Structure Search Result' ||
-      compound.name.toLowerCase().includes(keyword.toLowerCase()) ||
-      compound.smiles.toLowerCase().includes(keyword.toLowerCase());
+  const selectedGroupOrderMap = React.useMemo(() => {
+    return selectedGroupIds.reduce<Record<string, number>>((acc, groupId, index) => {
+      acc[groupId] = index + 1;
+      return acc;
+    }, {});
+  }, [selectedGroupIds]);
 
-    if (selectedGroupIds.length > 0 && !selectedGroupIds.includes(compound.groupId)) return false;
-    if (!selectedProjects.includes('ALL') && compound.project && !selectedProjects.includes(compound.project)) return false;
-    if (!selectedShares.includes('ALL') && compound.shareStatus && !selectedShares.includes(compound.shareStatus)) return false;
-    if (!selectedSources.includes('ALL') && compound.designSource && !selectedSources.includes(compound.designSource)) return false;
-    if (keyword && !matchesKeyword) return false;
-    return true;
-  });
+  const filteredCompounds = React.useMemo(() => {
+    return mockCompounds
+      .filter((compound) => {
+        // If it's a structure search results mode, don't filter out by the keyword string
+        const matchesKeyword = keyword === 'Structure Search Result' ||
+          compound.name.toLowerCase().includes(keyword.toLowerCase()) ||
+          compound.smiles.toLowerCase().includes(keyword.toLowerCase());
+
+        if (selectedGroupIds.length > 0 && !selectedGroupIds.includes(compound.groupId)) return false;
+        if (!selectedProjects.includes('ALL') && compound.project && !selectedProjects.includes(compound.project)) return false;
+        if (!selectedShares.includes('ALL') && compound.shareStatus && !selectedShares.includes(compound.shareStatus)) return false;
+        if (!selectedSources.includes('ALL') && compound.designSource && !selectedSources.includes(compound.designSource)) return false;
+        if (keyword && !matchesKeyword) return false;
+        return true;
+      })
+      .sort((a, b) => {
+        const aGroupOrder = selectedGroupOrderMap[a.groupId] ?? Number.MAX_SAFE_INTEGER;
+        const bGroupOrder = selectedGroupOrderMap[b.groupId] ?? Number.MAX_SAFE_INTEGER;
+
+        if (aGroupOrder !== bGroupOrder) return aGroupOrder - bGroupOrder;
+        return mockCompounds.indexOf(a) - mockCompounds.indexOf(b);
+      });
+  }, [keyword, selectedGroupIds, selectedGroupOrderMap, selectedProjects, selectedShares, selectedSources]);
 
   const sarTargetCount = selectedGroupIds.length > 0 ? filteredCompounds.length : 0;
 
@@ -361,6 +378,14 @@ const MyBoard: React.FC = () => {
 
   const allColumnsMap: Record<string, any> = {
     '순번': { title: '순번', key: 'num', render: (_: any, __: any, index: number) => index + 1, width: 60 },
+    '그룹 번호': {
+      title: '그룹 번호',
+      dataIndex: 'groupId',
+      key: 'groupOrder',
+      width: 90,
+      align: 'center' as const,
+      render: (groupId: string) => selectedGroupOrderMap[groupId] ? `G${selectedGroupOrderMap[groupId]}` : '-'
+    },
     '그룹': {
       title: '그룹',
       dataIndex: 'groupId',
@@ -521,6 +546,7 @@ const MyBoard: React.FC = () => {
         margin: '0 auto',
         padding: `0 ${layoutPreset.sidePadding}px`,
         width: '100%',
+        boxSizing: 'border-box',
         height: '100%',
         overflowY: isStackedSplitLayout ? 'auto' : 'visible',
         overflowX: 'hidden'
@@ -1192,11 +1218,15 @@ const MyBoard: React.FC = () => {
       <style>{`
         .ant-table-thead > tr > th { background: ${isDarkMode ? '#1f1f1f' : '#f8f9fa'} !important; font-weight: 700; font-size: 13px; }
         .ant-table-tbody > tr > td { font-size: 13px; }
+        .ant-table-tbody > tr:hover > td {
+          background-color: var(--table-row-hover-bg) !important;
+          cursor: pointer;
+        }
         .my-board-group-row-selected > td {
-          background-color: ${isDarkMode ? 'rgba(248, 124, 99, 0.34)' : 'rgba(248, 124, 99, 0.22)'} !important;
+          background-color: var(--table-row-selected-bg) !important;
         }
         .my-board-group-row-selected:hover > td {
-          background-color: ${isDarkMode ? 'rgba(248, 124, 99, 0.42)' : 'rgba(248, 124, 99, 0.3)'} !important;
+          background-color: var(--table-row-selected-hover-bg) !important;
         }
         .canvas-card:hover { border-color: ${token.colorPrimary} !important; transform: translateY(-4px); box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
         .cdd-clipboard-icon-container, .CDW_Logo, .cdd-logo { display: none !important; }

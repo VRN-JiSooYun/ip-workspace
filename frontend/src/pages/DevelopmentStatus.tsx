@@ -186,6 +186,7 @@ const DevelopmentStatus: React.FC = () => {
         margin: '0 auto',
         padding: `0 ${layoutPreset.sidePadding}px`,
         width: '100%',
+        boxSizing: 'border-box',
       }}
     >
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>

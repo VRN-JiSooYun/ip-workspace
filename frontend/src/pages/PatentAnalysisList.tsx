@@ -171,7 +171,7 @@ const PatentAnalysisList: React.FC = () => {
   ];
 
   return (
-    <div style={{ maxWidth: layoutPreset.maxWidth, margin: '0 auto', padding: `0 ${layoutPreset.sidePadding}px`, height: '100%', width: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+    <div style={{ maxWidth: layoutPreset.maxWidth, margin: '0 auto', padding: `0 ${layoutPreset.sidePadding}px`, height: '100%', width: '100%', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', animation: 'fadeIn 0.3s ease-out' }}>
         <Card variant="borderless" className="c-card" style={{ marginBottom: 24, flexShrink: 0 }}>
           <Row gutter={[16, 16]} align="middle">
@@ -339,8 +339,8 @@ const PatentAnalysisList: React.FC = () => {
           background: transparent !important;
           border-bottom: 1px solid ${token.colorBorderSecondary} !important;
         }
-        .ant-table-row:hover \u003e td {
-          background: ${token.colorFillAlter} !important;
+        .ant-table-row:hover > td {
+          background: var(--table-row-hover-bg) !important;
         }
         .cursor-pointer { cursor: pointer; }
       `}</style>

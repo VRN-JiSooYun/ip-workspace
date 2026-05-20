@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import { Row, Col, Card, Typography, Select, Space, Button, Input, Divider, Tooltip } from 'antd';
+import { Row, Col, Card, Typography, Select, Space, Button, Divider, Tooltip } from 'antd';
 import { useUIStore } from '../store/useUIStore';
 import PageHeaderBreadcrumb from '../components/common/PageHeaderBreadcrumb';
 import { useTheme } from '../contexts/ThemeContext';
@@ -7,17 +7,12 @@ import ChemSpaceChart from '../components/charts/ChemSpaceChart';
 import { useNavigate } from 'react-router-dom';
 import { getPatentAnalysisLayoutPreset } from '../config/patentAnalysisLayout';
 import { 
-  Search, 
   Filter, 
-  Download, 
   Info,
   Maximize2,
   Minimize2,
   LayoutGrid,
-  Box,
   Rotate3d,
-  Move3d,
-  Layers
 } from 'lucide-react';
 import ChemSpaceChart3D from '../components/charts/ChemSpaceChart3D';
 import ToggleTag from '../components/common/ToggleTag';
@@ -124,6 +119,31 @@ const ChemSpace: React.FC = () => {
                 </Space>
                 <ToggleTag checked={isThreeChartMode} onChange={setIsThreeChartMode} style={{ marginInlineEnd: 0 }}>
                   {isThreeChartMode ? 'ON' : 'OFF'}
+                </ToggleTag>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', opacity: isThreeChartMode ? 0.5 : 1, pointerEvents: isThreeChartMode ? 'none' : 'auto' }}>
+                <Space
+                  style={{ cursor: 'pointer', userSelect: 'none' }}
+                  onClick={() => {
+                    setIs3DView((prev) => {
+                      const next = !prev;
+                      if (next) setIsThreeChartMode(false);
+                      return next;
+                    });
+                  }}
+                >
+                  <Rotate3d size={16} />
+                  <Text strong>3D Mode</Text>
+                </Space>
+                <ToggleTag
+                  checked={is3DView}
+                  onChange={(checked) => {
+                    setIs3DView(checked);
+                    if (checked) setIsThreeChartMode(false);
+                  }}
+                  style={{ marginInlineEnd: 0 }}
+                >
+                  {is3DView ? 'ON' : 'OFF'}
                 </ToggleTag>
               </div>
 
@@ -336,8 +356,43 @@ const ChemSpace: React.FC = () => {
               <Button icon={<Minimize2 size={16} />} onClick={() => setIsFullScreen(false)} className="v-action-btn">Exit</Button>
             </Space>
           </div>
-          <div style={{ flex: 1 }}>
-            {is3DView ? (
+          <div style={{ flex: 1, minHeight: 0, overflowY: isThreeChartMode ? 'auto' : 'hidden', overflowX: 'hidden' }}>
+            {isThreeChartMode ? (
+              <div
+                style={{
+                  height: '100%',
+                  minHeight: 0,
+                  display: 'grid',
+                  gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)',
+                  gridTemplateRows: 'minmax(300px, 1fr) minmax(300px, 1fr)',
+                  gap: 16,
+                  overflowX: 'hidden',
+                  boxSizing: 'border-box',
+                }}
+              >
+                {chartConfigs.map((config, idx) => (
+                  <Card
+                    key={idx}
+                    size="small"
+                    title={<Text style={{ fontSize: 13, fontWeight: 600 }}>{config.title}</Text>}
+                    style={{
+                      height: '100%',
+                      minWidth: 0,
+                      gridColumn: idx === 2 ? '1 / -1' : undefined,
+                    }}
+                    styles={{ body: { height: 'calc(100% - 38px)', padding: 8, minWidth: 0 } }}
+                  >
+                    <ChemSpaceChart
+                      data={filteredData}
+                      xAxis={config.x}
+                      yAxis={config.y}
+                      colorBy={colorBy as any}
+                      isDarkMode={isDarkMode}
+                    />
+                  </Card>
+                ))}
+              </div>
+            ) : is3DView ? (
               <ChemSpaceChart3D 
                 data={filteredData}
                 xAxis={xAxis}

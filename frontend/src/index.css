@@ -8,6 +8,9 @@
   --text-primary: #4f5d73;
   --text-secondary: #868e96;
   --border-color: #f0f0f0;
+  --table-row-hover-bg: rgba(248, 124, 99, 0.12);
+  --table-row-selected-bg: rgba(248, 124, 99, 0.22);
+  --table-row-selected-hover-bg: rgba(248, 124, 99, 0.34);
 }
 
 [data-theme='dark'] {
@@ -18,6 +21,9 @@
   --text-primary: rgba(255, 255, 255, 0.85);
   --text-secondary: rgba(255, 255, 255, 0.45);
   --border-color: #303030;
+  --table-row-hover-bg: rgba(248, 124, 99, 0.18);
+  --table-row-selected-bg: rgba(248, 124, 99, 0.34);
+  --table-row-selected-hover-bg: rgba(248, 124, 99, 0.46);
 }
 
 body {
@@ -96,10 +102,39 @@ body {
 
 /* Table Row Selection */
 .row-selected {
-  background-color: rgba(248, 124, 99, 0.08) !important;
+  background-color: var(--table-row-selected-bg) !important;
 }
 [data-theme='dark'] .row-selected {
-  background-color: rgba(248, 124, 99, 0.15) !important;
+  background-color: var(--table-row-selected-bg) !important;
+}
+
+.row-selected > td,
+.ant-table-tbody > tr.row-selected > td,
+.ant-table-row.row-selected > td,
+.ant-table-tbody > tr.sar-row-selected > td,
+.ant-table-row.sar-row-selected > td,
+.ant-table-tbody > tr.my-board-group-row-selected > td,
+.ant-table-row.my-board-group-row-selected > td,
+.ant-table-tbody > tr.raw-data-row-active > td,
+.ant-table-row.raw-data-row-active > td {
+  background-color: var(--table-row-selected-bg) !important;
+}
+
+.ant-table-tbody > tr:hover > td,
+.ant-table-row:hover > td {
+  background-color: var(--table-row-hover-bg) !important;
+  cursor: pointer;
+}
+
+.ant-table-tbody > tr.row-selected:hover > td,
+.ant-table-row.row-selected:hover > td,
+.ant-table-tbody > tr.sar-row-selected:hover > td,
+.ant-table-row.sar-row-selected:hover > td,
+.ant-table-tbody > tr.my-board-group-row-selected:hover > td,
+.ant-table-row.my-board-group-row-selected:hover > td,
+.ant-table-tbody > tr.raw-data-row-active:hover > td,
+.ant-table-row.raw-data-row-active:hover > td {
+  background-color: var(--table-row-selected-hover-bg) !important;
 }
 
 /* Standardized Inputs/Buttons */

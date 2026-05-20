@@ -45,6 +45,7 @@ const Dashboard: React.FC = () => {
         padding: `0 ${layoutPreset.sidePadding}px`,
         height: 'auto',
         width: '100%',
+        boxSizing: 'border-box',
         display: 'block'
       }}
     >

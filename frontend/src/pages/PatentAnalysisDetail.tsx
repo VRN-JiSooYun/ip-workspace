@@ -525,7 +525,7 @@ const PatentAnalysisDetail: React.FC = () => {
   }, [splitRatio, debugLog]);
 
   return (
-    <div style={{ maxWidth: layoutPreset.maxWidth, margin: '0 auto', padding: `0 ${layoutPreset.sidePadding}px`, flex: 1, width: '100%', display: 'flex', flexDirection: 'column', overflow: isStackedSplitLayout ? 'auto' : 'hidden' }}>
+    <div style={{ maxWidth: layoutPreset.maxWidth, margin: '0 auto', padding: `0 ${layoutPreset.sidePadding}px`, flex: 1, width: '100%', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', overflow: isStackedSplitLayout ? 'auto' : 'hidden' }}>
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: isStackedSplitLayout ? 'visible' : 'hidden', animation: 'fadeIn 0.3s ease-out', paddingBottom: isStackedSplitLayout ? 24 : 8 }}>
         
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 16, padding: '0 4px', flexShrink: 0 }}>
@@ -1700,10 +1700,13 @@ const PatentAnalysisDetail: React.FC = () => {
           transition: background-color 0.2s ease;
         }
         .raw-data-tab-content .raw-data-embodiment-table .raw-data-row-active > td {
-          background: ${token.colorPrimaryBg} !important;
+          background: var(--table-row-selected-bg) !important;
         }
         .raw-data-tab-content .raw-data-embodiment-table .ant-table-row:hover > td {
-          background: ${token.colorFillAlter} !important;
+          background: var(--table-row-hover-bg) !important;
+        }
+        .raw-data-tab-content .raw-data-embodiment-table .raw-data-row-active:hover > td {
+          background: var(--table-row-selected-hover-bg) !important;
         }
       `}</style>
 

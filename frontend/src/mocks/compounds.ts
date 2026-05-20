@@ -86,7 +86,107 @@ export const mockGroups: CompoundGroup[] = [
   { id: 'g3', name: 'cMET Tepotinib 변형', type: 'my designs', count: 7, creDate: '2026.04.15', target: 'cMET', shareStatus: '공유함' },
 ];
 
+const structureSvgs = [exampleCompound1Svg, exampleCompound2Svg, exampleCompound3Svg, exampleCompound4Svg];
+const designSources = ['내 머리', '동료 머리', 'Patent', 'Paper', 'FBDD', 'ELN'];
+const synthesisOwners = ['문태훈', '윤지수', '김서연', '박도현'];
+
+const createSarData = (seed: number): SARData => ({
+  enzyme: {
+    wt: Number((0.04 + (seed % 7) * 0.13).toFixed(2)),
+    d1228n: Number((0.07 + (seed % 5) * 0.16).toFixed(2)),
+    f1250k: Number((0.03 + (seed % 6) * 0.05).toFixed(2)),
+    wt_f1250k: Number((0.4 + (seed % 8) * 2.7).toFixed(1)),
+  },
+  cell: {
+    naive: Number((2.5 + (seed % 6) * 1.4).toFixed(2)),
+    fgfr3: Number((0.01 + (seed % 9) * 0.08).toFixed(3)),
+    fgfr3_v555m: Number((0.03 + (seed % 7) * 0.09).toFixed(2)),
+    rt112: Number((0.18 + (seed % 5) * 0.14).toFixed(2)),
+    mkn45: Number((0.05 + (seed % 6) * 0.11).toFixed(2)),
+  },
+  ms: { h: 70 + (seed % 8) * 3, m: 42 + (seed % 7) * 6 },
+  ppb: { h: 96 + (seed % 4), m: 88 + (seed % 10) },
+  cyp: {
+    '1a2': 75 + (seed % 20),
+    '2c9': 80 + (seed % 18),
+    '2c19': 65 + (seed % 30),
+    '2d6': 58 + (seed % 35),
+    '3a4': 70 + (seed % 25),
+  },
+  herg: Number((2 + (seed % 10) * 2.8).toFixed(1)),
+  pk: {
+    dose: 10,
+    plasma_1h: 520 + seed * 37,
+    plasma_4h: 260 + seed * 24,
+    lung_1h: 410 + seed * 31,
+    lung_4h: 180 + seed * 19,
+    brain_1h: 120 + seed * 16,
+    brain_4h: 90 + seed * 13,
+  },
+});
+
+const createMockCompound = (
+  seed: number,
+  groupId: string,
+  project: string,
+  designNoPrefix: string,
+  memoBase: string,
+): Compound => {
+  const dateDay = String((seed % 24) + 1).padStart(2, '0');
+  const source = designSources[seed % designSources.length];
+  const isCompleted = seed % 5 === 0;
+
+  return {
+    id: `c${seed}`,
+    groupId,
+    compoundId: `VNA240${String(140 + seed).padStart(3, '0')}`,
+    name: `VNA240${String(140 + seed).padStart(3, '0')}`,
+    source: 'Manual',
+    smiles: [
+      'CCN(CC)C(=O)C1=CC=CC=C1',
+      'COC1=CC=C(NC(=O)C2CC2)C=C1',
+      'CC1=NC=C(C=C1)C(=O)N2CCOCC2',
+      'CN1CCN(CC1)C2=NC=CC=N2',
+      'CCOC(=O)N1CCC(CC1)C2=CC=CC=C2',
+    ][seed % 5],
+    structureSvg: structureSvgs[seed % structureSvgs.length],
+    creDate: `2026.04.${dateDay}`,
+    manager: synthesisOwners[seed % synthesisOwners.length],
+    status: isCompleted ? '합성완료' : seed % 3 === 0 ? '합성중' : '디자인',
+    project,
+    shareStatus: seed % 4 === 0 ? '공유받음' : seed % 3 === 0 ? '공유함' : '내 물질',
+    designSource: source,
+    properties1: [45 + (seed % 5) * 8, 35 + (seed % 7) * 7, 50 + (seed % 6) * 6, 42 + (seed % 8) * 5],
+    properties2: [52 + (seed % 6) * 6, 40 + (seed % 5) * 9, 48 + (seed % 7) * 6, 38 + (seed % 6) * 7],
+    requiredCalcs: seed % 2 === 0 ? ['3D TPSA QM', 'Solubility QM'] : ['Permeability MD', '특허성'],
+    designNo: `${designNoPrefix}-${String(seed).padStart(3, '0')}`,
+    designMemo: `${memoBase} - ${source} 기반 ${seed % 2 === 0 ? '극성 조정' : '치환기 확장'} 후보`,
+    requiredAmountMg: 10 + (seed % 5) * 5,
+    assayPurpose: `${project} 활성 및 ADME profile 확인`,
+    expectedEffect: seed % 2 === 0 ? '세포 활성 유지 및 용해도 개선' : 'selectivity 개선 및 hERG risk 감소',
+    requestDate: `2026.05.${String((seed % 18) + 1).padStart(2, '0')}`,
+    synthesisExpansionLevel: seed % 3 === 0 ? '상' : seed % 3 === 1 ? '중' : '하',
+    requestMemo: seed % 2 === 0 ? '우선 합성 후보' : '후속 SAR 확인용',
+    synthesisOwner: synthesisOwners[seed % synthesisOwners.length],
+    synthesisAcceptedDate: `2026.05.${String((seed % 18) + 2).padStart(2, '0')}`,
+    synthesisTargetDate: `2026.06.${String((seed % 20) + 1).padStart(2, '0')}`,
+    progressMemo: isCompleted ? '합성 완료, 분석 등록' : seed % 3 === 0 ? '중간체 확보' : 'route 검토 중',
+    isCompleted,
+    registeredDate: `2026.05.${String((seed % 18) + 2).padStart(2, '0')}`,
+    researchNote: `ELN-2026-${String(60 + seed).padStart(3, '0')}`,
+    reportData: isCompleted ? 'HPLC/NMR 확인' : '예상 MS 등록',
+    synthesisEndReason: isCompleted ? '목표 물질 확보' : '-',
+    sar: createSarData(seed),
+  };
+};
+
 export const mockCompounds: Compound[] = [
+  ...Array.from({ length: 11 }, (_, index) =>
+    createMockCompound(index + 5, 'g1', 'FGFR', 'D-FGFR', 'FGFR hinge binder SAR')
+  ),
+  ...Array.from({ length: 17 }, (_, index) =>
+    createMockCompound(index + 16, 'g2', 'HER2', 'D-HER2', 'HER2 활성 증가 scaffold')
+  ),
   {
     id: 'c1', groupId: 'g3', compoundId: 'VNA240137', name: 'VNA240137', source: 'Manual', smiles: 'CC(C)CC(C(=O)O)N', creDate: '2025.04.10', project: 'cMET', shareStatus: '내 물질', designSource: '내 머리',
     structureSvg: exampleCompound1Svg,
@@ -218,5 +318,8 @@ export const mockCompounds: Compound[] = [
     researchNote: 'ELN-2026-054',
     reportData: 'HPLC purity 97%',
     synthesisEndReason: '목표 물질 확보'
-  }
+  },
+  ...Array.from({ length: 3 }, (_, index) =>
+    createMockCompound(index + 33, 'g3', 'cMET', 'D-cMET', 'Tepotinib 변형 SAR')
+  ),
 ];

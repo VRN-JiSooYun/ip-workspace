@@ -37,6 +37,7 @@ const App: React.FC = () => {
           },
           Table: {
             borderRadius: 12,
+            rowHoverBg: isDarkMode ? 'rgba(248, 124, 99, 0.18)' : 'rgba(248, 124, 99, 0.12)',
           },
           Input: {
             borderRadius: 12,
