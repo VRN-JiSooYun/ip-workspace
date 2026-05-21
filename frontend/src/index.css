@@ -11,6 +11,7 @@
   --table-row-hover-bg: rgba(248, 124, 99, 0.12);
   --table-row-selected-bg: rgba(248, 124, 99, 0.22);
   --table-row-selected-hover-bg: rgba(248, 124, 99, 0.34);
+  --table-header-bg: #edf0f3;
 }
 
 [data-theme='dark'] {
@@ -24,6 +25,7 @@
   --table-row-hover-bg: rgba(248, 124, 99, 0.18);
   --table-row-selected-bg: rgba(248, 124, 99, 0.34);
   --table-row-selected-hover-bg: rgba(248, 124, 99, 0.46);
+  --table-header-bg: #2a2a2a;
 }
 
 body {
@@ -45,6 +47,17 @@ body {
   background-color: var(--card-bg) !important;
 }
 
+.compact-filter-card .ant-card-body {
+  padding: 12px 16px !important;
+}
+
+.compact-filter-panel {
+  margin-top: 12px;
+  padding: 12px 14px;
+  background: var(--bg-color);
+  border-radius: 10px;
+}
+
 /* Standardized Table Container */
 .v-table-card {
   background-color: var(--card-bg);
@@ -60,6 +73,49 @@ body {
   display: flex;
   justify-content: space-between;
   align-items: center;
+}
+
+/* Standardized Ant Design Table */
+.ant-table-wrapper .ant-table-thead > tr > th,
+.ant-table-wrapper .ant-table-thead > tr > td {
+  background: var(--table-header-bg) !important;
+  font-weight: 700 !important;
+  font-size: 13px !important;
+  text-align: center !important;
+  vertical-align: middle !important;
+}
+
+.ant-table-wrapper .ant-table-thead > tr > th .ant-table-cell-content,
+.ant-table-wrapper .ant-table-thead > tr > th .ant-table-column-title {
+  display: block;
+  width: 100%;
+  text-align: center;
+}
+
+.ant-table-wrapper .ant-table-tbody > tr > td {
+  font-size: 13px;
+  vertical-align: middle;
+}
+
+.responsive-text-column,
+.my-board-responsive-text-column {
+  min-width: 180px;
+  max-width: 360px;
+}
+
+.responsive-text-column .ant-typography,
+.responsive-text-column .ant-table-cell-content,
+.my-board-responsive-text-column .ant-typography,
+.my-board-responsive-text-column .ant-table-cell-content {
+  max-width: 100%;
+}
+
+.table-center-column {
+  text-align: center !important;
+}
+
+.table-center-column .ant-tag {
+  margin-inline-end: 0;
 }
 
 /* Responsive Overrides */

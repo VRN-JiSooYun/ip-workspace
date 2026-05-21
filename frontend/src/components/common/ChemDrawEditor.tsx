@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Typography, theme } from 'antd';
 import { Info } from 'lucide-react';
 import { CHEMDRAW_CONFIG } from '../../config/chemdraw';
+import { installChemDrawKoreanKeyboardBridge } from '../../utils/chemdrawKeyboard';
 
 const { Text } = Typography;
 
@@ -253,6 +254,15 @@ const ChemDrawEditor: React.FC<ChemDrawEditorProps> = ({
 
     return () => window.clearTimeout(timeoutId);
   }, [active, editorInstance, smilesValue]);
+
+  useEffect(() => {
+    if (!active || !editorInstance) return;
+
+    const container = document.getElementById(containerId);
+    if (!container) return;
+
+    return installChemDrawKoreanKeyboardBridge(container);
+  }, [active, editorInstance, containerId]);
 
   return (
     <>

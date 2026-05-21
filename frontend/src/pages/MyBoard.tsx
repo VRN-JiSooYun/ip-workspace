@@ -2,20 +2,20 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Row, Col, Card, Table, Button, Input,
-  Space, Typography, Modal, Form, Tag, List, Select, DatePicker, Avatar, Divider, Upload, Segmented, theme, Tooltip
+  Space, Typography, Modal, Form, Tag, List, Select, DatePicker, Avatar, Divider, Upload, Segmented, theme, Tooltip, Dropdown
 } from 'antd';
+import type { MenuProps } from 'antd';
 import {
   Search, Plus, Filter, Settings, List as ListIcon,
   Image as ImageIcon, GitBranch, Info, ChevronDown, ChevronUp, Beaker,
-  Activity, XCircle, Share2, GripVertical, Upload as UploadIcon, FileText,
-  PanelLeftClose, PanelLeftOpen
+  Activity, Share2, GripVertical, Upload as UploadIcon, FileText,
+  PanelLeftClose, PanelLeftOpen, Copy, Trash2, Edit3
 } from 'lucide-react';
 import { useBoardStore } from '../store/useBoardStore';
 import { mockCompounds, mockGroups } from '../mocks/compounds';
 import { useUserStore } from '../store/useUserStore';
 import RadarChart from '../components/charts/RadarChart';
 import dayjs from 'dayjs';
-import { useTheme } from '../contexts/ThemeContext';
 import { getPatentAnalysisLayoutPreset } from '../config/patentAnalysisLayout';
 import { useUIStore } from '../store/useUIStore';
 import PageHeaderBreadcrumb from '../components/common/PageHeaderBreadcrumb';
@@ -24,6 +24,8 @@ import ChemDrawModal from '../components/common/ChemDrawModal';
 import ChemDrawEditor from '../components/common/ChemDrawEditor';
 import BenzeneIcon from '../components/common/BenzeneIcon';
 import ToggleTag from '../components/common/ToggleTag';
+import shareForwardIconRaw from '../assets/svg/share-forward-fill.svg?raw';
+import shareIconRaw from '../assets/svg/share.svg?raw';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
@@ -31,10 +33,62 @@ const { RangePicker } = DatePicker;
 const MYBOARD_SPLIT_MIN_PERCENT = 30;
 const MYBOARD_SPLIT_MAX_PERCENT = 70;
 const MYBOARD_SPLIT_DEFAULT_PERCENT = 50;
+const MYBOARD_SHARE_STATUS_COLORS = {
+  '공유 하는중': '#F87C63',
+  '공유 받는중': '#1677ff',
+} as const;
+const createSvgMaskUrl = (svg: string) => `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+const shareForwardIconMaskUrl = createSvgMaskUrl(shareForwardIconRaw);
+const shareIconMaskUrl = createSvgMaskUrl(shareIconRaw);
+const MYBOARD_RESPONSIVE_TEXT_COLUMN_KEYS = new Set([
+  'designMemo',
+  'assayPurpose',
+  'expectedEffect',
+  'requestMemo',
+  'progressMemo',
+  'reportData',
+  'synthesisEndReason',
+]);
+const MYBOARD_RESPONSIVE_TEXT_COLUMN_MIN_WIDTH = 220;
+const MYBOARD_RESPONSIVE_TEXT_COLUMN_MAX_WIDTH = 420;
+const MYBOARD_GROUP_TITLE_MIN_WIDTH = 120;
+const MYBOARD_GROUP_FIXED_COLUMN_WIDTH = 100 + 60 + 80 + 110 + 60 + 88 + 96;
+const estimateGroupTitleTextWidth = (text: string) => {
+  const textWidth = Array.from(text).reduce((sum, char) => {
+    if (char === ' ') return sum + 4;
+    if (/[\u3131-\uD79D]/.test(char)) return sum + 13;
+    return sum + 7.5;
+  }, 0);
+  return Math.ceil(textWidth + 28);
+};
+const MYBOARD_CENTER_COLUMN_KEYS = new Set([
+  'creDate',
+  'type',
+  'target',
+  'representativeStructure',
+  'count',
+  'shareStatus',
+  'num',
+  'groupOrder',
+  'project',
+  'compoundId',
+  'structure',
+  'designSource',
+  'props1',
+  'props2',
+  'designNo',
+  'requestDate',
+  'synthesisExpansionLevel',
+  'synthesisOwner',
+  'synthesisAcceptedDate',
+  'synthesisTargetDate',
+  'isCompleted',
+  'registeredDate',
+  'researchNote',
+]);
 
 const MyBoard: React.FC = () => {
   const navigate = useNavigate();
-  const { isDarkMode } = useTheme();
   const { token } = theme.useToken();
   const { setHeaderContent } = useUIStore();
   const { selectedGroupIds, toggleGroupSelection, setSelectedSarCompoundIds } = useBoardStore();
@@ -51,6 +105,12 @@ const MyBoard: React.FC = () => {
   const [viewMode, setViewMode] = useState<'table' | 'draw' | 'tree'>('table');
   const [assignedGroupIds, setAssignedGroupIds] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [groupContextMenu, setGroupContextMenu] = useState<{
+    open: boolean;
+    x: number;
+    y: number;
+    groupId: string;
+  } | null>(null);
   const [groupListMode, setGroupListMode] = useState<'full' | 'structure' | 'hidden'>('full');
   const [selectedDataSources, setSelectedDataSources] = useState<string[]>(['my designs']);
   const [viewportWidth, setViewportWidth] = useState<number>(() => {
@@ -67,6 +127,33 @@ const MyBoard: React.FC = () => {
   const splitContainerRef = React.useRef<HTMLDivElement | null>(null);
   const splitRafRef = React.useRef<number | null>(null);
   const splitStorageKey = 'my-board-split:group-detail';
+  const visibleGroupRows = React.useMemo(
+    () => mockGroups.filter(g => selectedDataSources.includes(g.type)),
+    [selectedDataSources]
+  );
+  const contentFitGroupTitleWidth = React.useMemo(() => {
+    const longestTitleWidth = visibleGroupRows.reduce(
+      (max, group) => Math.max(max, estimateGroupTitleTextWidth(group.name)),
+      0
+    );
+    return Math.max(longestTitleWidth, MYBOARD_GROUP_TITLE_MIN_WIDTH);
+  }, [visibleGroupRows]);
+  const detailTableEstimatedWidth = React.useMemo(() => {
+    if (isStackedSplitLayout || isGroupListHidden) {
+      return Math.max(viewportWidth - layoutPreset.sidePadding * 2 - 24, 320);
+    }
+
+    const availableWidth = Math.max(viewportWidth - layoutPreset.sidePadding * 2 - 12, 320);
+    return Math.max(availableWidth * ((100 - splitRatio) / 100), 320);
+  }, [isGroupListHidden, isStackedSplitLayout, layoutPreset.sidePadding, splitRatio, viewportWidth]);
+  const groupTableTitleWidth = React.useMemo(() => {
+    const containerWidth = isStackedSplitLayout
+      ? Math.max(viewportWidth - layoutPreset.sidePadding * 2 - 24, 320)
+      : Math.max((viewportWidth - layoutPreset.sidePadding * 2 - 12) * (splitRatio / 100), 260);
+    const availableTitleWidth = Math.max(containerWidth - MYBOARD_GROUP_FIXED_COLUMN_WIDTH, MYBOARD_GROUP_TITLE_MIN_WIDTH);
+
+    return Math.round(Math.min(contentFitGroupTitleWidth, availableTitleWidth));
+  }, [contentFitGroupTitleWidth, isStackedSplitLayout, layoutPreset.sidePadding, splitRatio, viewportWidth]);
 
   const clampSplitRatio = React.useCallback((value: number) => {
     return Math.min(Math.max(value, MYBOARD_SPLIT_MIN_PERCENT), MYBOARD_SPLIT_MAX_PERCENT);
@@ -206,12 +293,27 @@ const MyBoard: React.FC = () => {
     }
   }, [clampSplitRatio]);
 
-  const resetSplitRatio = React.useCallback(() => {
-    setSplitRatio(MYBOARD_SPLIT_DEFAULT_PERCENT);
-  }, []);
+  const autoFitGroupTableWidth = React.useMemo(() => {
+    return MYBOARD_GROUP_FIXED_COLUMN_WIDTH + contentFitGroupTitleWidth + 24;
+  }, [contentFitGroupTitleWidth]);
+
+  const fitGroupListToTableData = React.useCallback((event?: React.MouseEvent<HTMLDivElement>) => {
+    event?.preventDefault();
+    event?.stopPropagation();
+    stopSplitResize();
+
+    const container = splitContainerRef.current;
+    if (!container || isStackedSplitLayout || !isGroupListFull) return;
+
+    const containerWidth = container.getBoundingClientRect().width;
+    if (containerWidth <= 0) return;
+
+    const nextRatio = ((autoFitGroupTableWidth + 6) / containerWidth) * 100;
+    setSplitRatio(clampSplitRatio(nextRatio));
+  }, [autoFitGroupTableWidth, clampSplitRatio, isGroupListFull, isStackedSplitLayout, stopSplitResize]);
 
   const alwaysColumnKeys = React.useMemo(() => [
-    '순번', '그룹 번호', '그룹', '프로젝트', '물질 번호 (VRN)', '화합물 구조', '출처', '디자인 비고', 'Mol.Properties1', 'Mol.Properties2'
+    '순번', '그룹 번호', '프로젝트', '물질 번호 (VRN)', '화합물 구조', '출처', '디자인 비고', 'Mol.Properties1', 'Mol.Properties2'
   ], []);
   const designColumnKeys = React.useMemo(() => [
     '디자인 번호', '필요량 (mg)', '목적 (개선하고자 하는 assay)', '기대 개선 효과', '의뢰일자', '합성 확장 필요 정도', '의뢰 비고'
@@ -429,21 +531,76 @@ const MyBoard: React.FC = () => {
       align: 'center' as const,
       render: renderRepresentativeStructure
     },
-    { title: 'Title', dataIndex: 'name', key: 'name' },
+    { title: 'Title', dataIndex: 'name', key: 'name', width: groupTableTitleWidth, ellipsis: true },
     { title: '개수', dataIndex: 'count', key: 'count', align: 'right' as const, width: 60 },
+    {
+      title: '그룹 번호',
+      dataIndex: 'id',
+      key: 'groupOrder',
+      width: 88,
+      align: 'center' as const,
+      render: (groupId: string) => selectedGroupOrderMap[groupId] ? `G${selectedGroupOrderMap[groupId]}` : '-'
+    },
     {
       title: '공유',
       dataIndex: 'shareStatus',
       key: 'shareStatus',
-      render: (status: string) => (
-        status === '공유함' ? <Button size="small" type="text" danger icon={<XCircle size={14} />}>공유취소</Button> : null
-      )
+      width: 96,
+      render: (status: string) => {
+        const iconUrl = status === '공유 하는중'
+          ? shareForwardIconMaskUrl
+          : status === '공유 받는중'
+            ? shareIconMaskUrl
+            : null;
+
+        if (!iconUrl) return null;
+
+        return (
+          <Tooltip title={status}>
+            <span
+              aria-label={status}
+              role="img"
+              style={{
+                display: 'inline-block',
+                width: 18,
+                height: 18,
+                backgroundColor: MYBOARD_SHARE_STATUS_COLORS[status as keyof typeof MYBOARD_SHARE_STATUS_COLORS],
+                WebkitMask: `url(${iconUrl}) center / contain no-repeat`,
+                mask: `url(${iconUrl}) center / contain no-repeat`,
+                verticalAlign: 'middle',
+              }}
+            />
+          </Tooltip>
+        );
+      }
     }
+  ];
+
+  const groupContextMenuItems: MenuProps['items'] = [
+    {
+      key: 'copy',
+      icon: <Copy size={14} />,
+      label: '그룹 복사',
+    },
+    {
+      key: 'rename',
+      icon: <Edit3 size={14} />,
+      label: '그룹명 변경',
+    },
+    {
+      type: 'divider',
+    },
+    {
+      key: 'delete',
+      icon: <Trash2 size={14} />,
+      label: '삭제',
+      danger: true,
+    },
   ];
 
   const structureOnlyGroupColumns = [
     {
-      title: <Text style={{ fontSize: 13, fontWeight: 600 }}>화합물 구조</Text>,
+      title: '화합물 구조',
       key: 'representativeStructure',
       width: 110,
       align: 'center' as const,
@@ -451,38 +608,23 @@ const MyBoard: React.FC = () => {
     }
   ];
 
-  const groupNameMap = React.useMemo(() => {
-    return mockGroups.reduce<Record<string, string>>((acc, group) => {
-      acc[group.id] = group.name;
-      return acc;
-    }, {});
-  }, []);
-
   const allColumnsMap: Record<string, any> = {
     '순번': { title: '순번', key: 'num', render: (_: any, __: any, index: number) => index + 1, width: 60 },
     '그룹 번호': {
-      title: '그룹 번호',
+      title: '그룹',
       dataIndex: 'groupId',
       key: 'groupOrder',
-      width: 90,
+      width: 104,
       align: 'center' as const,
       render: (groupId: string) => selectedGroupOrderMap[groupId] ? `G${selectedGroupOrderMap[groupId]}` : '-'
     },
-    '그룹': {
-      title: '그룹',
-      dataIndex: 'groupId',
-      key: 'groupId',
-      width: 140,
-      ellipsis: true,
-      render: (groupId: string) => groupNameMap[groupId] || groupId
-    },
     '프로젝트': { title: '프로젝트', dataIndex: 'project', key: 'project', width: 90, render: (project: string) => <Tag color="blue">{project}</Tag> },
-    '물질 번호 (VRN)': { title: '물질 번호 (VRN)', dataIndex: 'compoundId', key: 'compoundId', width: 130, render: (id: string) => <Text strong color={token.colorPrimary}>{id}</Text> },
+    '물질 번호 (VRN)': { title: '물질 번호 (VRN)', dataIndex: 'compoundId', key: 'compoundId', width: 158, render: (id: string) => <Text strong color={token.colorPrimary}>{id}</Text> },
     '화합물 구조': {
       title: '화합물 구조',
       dataIndex: 'structureSvg',
       key: 'structure',
-      width: 120,
+      width: 240,
       render: (structureSvg: string | undefined, record: any) => {
         const displaySvg = searchedSvg && (keyword === record.smiles || keyword === 'Structure Search Result')
           ? searchedSvg
@@ -491,8 +633,8 @@ const MyBoard: React.FC = () => {
         return (
           <div
             style={{
-              width: 100,
-              height: 60,
+              width: 200,
+              height: 120,
               background: token.colorBgLayout,
               display: 'flex',
               alignItems: 'center',
@@ -530,56 +672,122 @@ const MyBoard: React.FC = () => {
                 </Tooltip>
               </>
             ) : (
-              <BenzeneIcon size={20} color={token.colorTextTertiary} />
+              <BenzeneIcon size={40} color={token.colorTextTertiary} />
             )}
           </div>
         );
       }
     },
     '출처': { title: '출처', dataIndex: 'designSource', key: 'designSource', width: 100 },
-    '디자인 비고': { title: '디자인 비고', dataIndex: 'designMemo', key: 'designMemo', ellipsis: true, width: 200 },
+    '디자인 비고': { title: '디자인 비고', dataIndex: 'designMemo', key: 'designMemo', ellipsis: true, width: 220 },
     'Mol.Properties1': {
       title: 'Mol.Properties1',
       dataIndex: 'properties1',
       key: 'props1',
-      width: 100,
+      width: 136,
       render: (props: number[]) => props ? <RadarChart data={props} size={60} /> : '-'
     },
     'Mol.Properties2': {
       title: 'Mol.Properties2',
       dataIndex: 'properties2',
       key: 'props2',
-      width: 100,
+      width: 136,
       render: (props: number[]) => props ? <RadarChart data={props} size={60} color="#5856d6" /> : '-'
     },
-    '디자인 번호': { title: '디자인 번호', dataIndex: 'designNo', key: 'designNo', width: 120 },
-    '필요량 (mg)': { title: '필요량 (mg)', dataIndex: 'requiredAmountMg', key: 'requiredAmountMg', width: 110, align: 'right' as const },
-    '목적 (개선하고자 하는 assay)': { title: '목적 (개선하고자 하는 assay)', dataIndex: 'assayPurpose', key: 'assayPurpose', width: 190, ellipsis: true },
-    '기대 개선 효과': { title: '기대 개선 효과', dataIndex: 'expectedEffect', key: 'expectedEffect', width: 150, ellipsis: true },
+    '디자인 번호': { title: '디자인 번호', dataIndex: 'designNo', key: 'designNo', width: 132 },
+    '필요량 (mg)': { title: '필요량 (mg)', dataIndex: 'requiredAmountMg', key: 'requiredAmountMg', width: 132, align: 'right' as const },
+    '목적 (개선하고자 하는 assay)': { title: '목적 (개선하고자 하는 assay)', dataIndex: 'assayPurpose', key: 'assayPurpose', width: 260, ellipsis: true },
+    '기대 개선 효과': { title: '기대 개선 효과', dataIndex: 'expectedEffect', key: 'expectedEffect', width: 180, ellipsis: true },
     '의뢰일자': { title: '의뢰일자', dataIndex: 'requestDate', key: 'requestDate', width: 110 },
-    '합성 확장 필요 정도': { title: '합성 확장 필요 정도', dataIndex: 'synthesisExpansionLevel', key: 'synthesisExpansionLevel', width: 140 },
-    '의뢰 비고': { title: '의뢰 비고', dataIndex: 'requestMemo', key: 'requestMemo', width: 160, ellipsis: true },
-    '합성 담당자': { title: '합성 담당자', dataIndex: 'synthesisOwner', key: 'synthesisOwner', width: 110 },
-    '합성 스터디 그룹 수락일자': { title: '합성 스터디 그룹 수락일자', dataIndex: 'synthesisAcceptedDate', key: 'synthesisAcceptedDate', width: 170 },
-    '합성 목표일': { title: '합성 목표일', dataIndex: 'synthesisTargetDate', key: 'synthesisTargetDate', width: 120 },
-    '진행사항 비고': { title: '진행사항 비고', dataIndex: 'progressMemo', key: 'progressMemo', width: 160, ellipsis: true },
+    '합성 확장 필요 정도': { title: '합성 확장 필요 정도', dataIndex: 'synthesisExpansionLevel', key: 'synthesisExpansionLevel', width: 180 },
+    '의뢰 비고': { title: '의뢰 비고', dataIndex: 'requestMemo', key: 'requestMemo', width: 180, ellipsis: true },
+    '합성 담당자': { title: '합성 담당자', dataIndex: 'synthesisOwner', key: 'synthesisOwner', width: 126 },
+    '합성 스터디 그룹 수락일자': { title: '합성 스터디 그룹 수락일자', dataIndex: 'synthesisAcceptedDate', key: 'synthesisAcceptedDate', width: 218 },
+    '합성 목표일': { title: '합성 목표일', dataIndex: 'synthesisTargetDate', key: 'synthesisTargetDate', width: 132 },
+    '진행사항 비고': { title: '진행사항 비고', dataIndex: 'progressMemo', key: 'progressMemo', width: 180, ellipsis: true },
     '완료 여부': {
       title: '완료 여부',
       dataIndex: 'isCompleted',
       key: 'isCompleted',
-      width: 100,
+      width: 108,
       render: (isCompleted: boolean) => <Tag color={isCompleted ? 'green' : 'gold'}>{isCompleted ? '완료' : '진행중'}</Tag>
     },
     '등록일': { title: '등록일', dataIndex: 'registeredDate', key: 'registeredDate', width: 110 },
-    '연구노트': { title: '연구노트', dataIndex: 'researchNote', key: 'researchNote', width: 130 },
-    '리포트 자료': { title: '리포트 자료', dataIndex: 'reportData', key: 'reportData', width: 140, ellipsis: true },
-    '합성 종료 이유': { title: '합성 종료 이유', dataIndex: 'synthesisEndReason', key: 'synthesisEndReason', width: 140, ellipsis: true }
+    '연구노트': { title: '연구노트', dataIndex: 'researchNote', key: 'researchNote', width: 132 },
+    '리포트 자료': { title: '리포트 자료', dataIndex: 'reportData', key: 'reportData', width: 156, ellipsis: true },
+    '합성 종료 이유': { title: '합성 종료 이유', dataIndex: 'synthesisEndReason', key: 'synthesisEndReason', width: 164, ellipsis: true }
   };
+
+  const responsiveTextColumnWidth = React.useMemo(() => {
+    const selectedColumns = columnOrder
+      .filter(key => activeColumns.includes(key))
+      .map(key => allColumnsMap[key])
+      .filter(Boolean);
+    const visibleLongColumnCount = selectedColumns.filter(column => MYBOARD_RESPONSIVE_TEXT_COLUMN_KEYS.has(column.key)).length;
+
+    if (visibleLongColumnCount === 0) return 180;
+
+    const fixedWidth = selectedColumns.reduce((sum, column) => (
+      MYBOARD_RESPONSIVE_TEXT_COLUMN_KEYS.has(column.key)
+        ? sum
+        : sum + (typeof column.width === 'number' ? column.width : 120)
+    ), 0);
+    const availableWidth = Math.max(
+      detailTableEstimatedWidth - fixedWidth - 48,
+      MYBOARD_RESPONSIVE_TEXT_COLUMN_MIN_WIDTH * visibleLongColumnCount
+    );
+
+    return Math.round(Math.min(
+      Math.max(availableWidth / visibleLongColumnCount, MYBOARD_RESPONSIVE_TEXT_COLUMN_MIN_WIDTH),
+      MYBOARD_RESPONSIVE_TEXT_COLUMN_MAX_WIDTH
+    ));
+  }, [activeColumns, columnOrder, detailTableEstimatedWidth]);
+
+  const withMyBoardHeaderCell = React.useCallback((columns: any[]) => (
+    columns.map((column) => ({
+      ...column,
+      align: MYBOARD_CENTER_COLUMN_KEYS.has(column.key) ? 'center' as const : column.align,
+      width: MYBOARD_RESPONSIVE_TEXT_COLUMN_KEYS.has(column.key)
+        ? Math.max(responsiveTextColumnWidth, typeof column.width === 'number' ? column.width : 0)
+        : column.width,
+      className: [
+        column.className,
+        MYBOARD_CENTER_COLUMN_KEYS.has(column.key) ? 'table-center-column' : undefined,
+        MYBOARD_RESPONSIVE_TEXT_COLUMN_KEYS.has(column.key) ? 'my-board-responsive-text-column' : undefined,
+      ].filter(Boolean).join(' ') || undefined,
+      onHeaderCell: () => ({
+        className: 'my-board-table-header-cell',
+      }),
+    }))
+  ), [responsiveTextColumnWidth]);
+
+  const styledGroupColumns = React.useMemo(() => withMyBoardHeaderCell(groupColumns), [groupColumns, withMyBoardHeaderCell]);
+  const styledStructureOnlyGroupColumns = React.useMemo(() => withMyBoardHeaderCell(structureOnlyGroupColumns), [structureOnlyGroupColumns, withMyBoardHeaderCell]);
 
   const dynamicCompoundColumns = columnOrder
     .filter(key => activeColumns.includes(key))
     .map(key => allColumnsMap[key])
     .filter(Boolean);
+  const styledDynamicCompoundColumns = React.useMemo(
+    () => withMyBoardHeaderCell(dynamicCompoundColumns),
+    [dynamicCompoundColumns, withMyBoardHeaderCell]
+  );
+  const getTableScrollWidth = React.useCallback((columns: any[]) => (
+    columns.reduce((sum, column) => {
+      if (Array.isArray(column.children) && column.children.length > 0) {
+        return sum + getTableScrollWidth(column.children);
+      }
+      return sum + (typeof column.width === 'number' ? column.width : 120);
+    }, 0)
+  ), []);
+  const groupTableScrollX = React.useMemo(
+    () => getTableScrollWidth(isGroupListStructureOnly ? styledStructureOnlyGroupColumns : styledGroupColumns),
+    [getTableScrollWidth, isGroupListStructureOnly, styledGroupColumns, styledStructureOnlyGroupColumns]
+  );
+  const detailTableScrollX = React.useMemo(
+    () => getTableScrollWidth(styledDynamicCompoundColumns),
+    [getTableScrollWidth, styledDynamicCompoundColumns]
+  );
 
   // DRAG AND DROP LOGIC
   const [draggedItemIndex, setDraggedItemIndex] = useState<number | null>(null);
@@ -635,8 +843,8 @@ const MyBoard: React.FC = () => {
       }}
     >
       {/* Local Filter Card (Condensed) */}
-      <Card variant="borderless" className="c-card" style={{ marginBottom: 24 }}>
-        <Row gutter={[16, 16]} align="middle">
+      <Card variant="borderless" className="c-card compact-filter-card" style={{ marginBottom: 12 }}>
+        <Row gutter={[12, 8]} align="middle">
           <Col flex="auto" style={{ minWidth: 0 }}>
             <div
               style={{
@@ -686,11 +894,11 @@ const MyBoard: React.FC = () => {
           </Col>
         </Row>
         {showFilters && (
-          <div style={{ marginTop: 24, padding: 20, background: token.colorBgLayout, borderRadius: 12 }}>
-            <Row gutter={[32, 24]}>
+          <div className="compact-filter-panel">
+            <Row gutter={[24, 12]}>
               <Col span={10}>
                 <Text strong>Projects</Text><br />
-                <Space wrap style={{ marginTop: 8 }}>
+                <Space wrap style={{ marginTop: 4 }}>
                   {['ALL', ...projectList].map(opt => (
                     <ToggleTag
                       key={opt}
@@ -704,7 +912,7 @@ const MyBoard: React.FC = () => {
               </Col>
               <Col span={6}>
                 <Text strong>Share</Text><br />
-                <Space wrap style={{ marginTop: 8 }}>
+                <Space wrap style={{ marginTop: 4 }}>
                   {['ALL', ...shareList].map(opt => (
                     <ToggleTag
                       key={opt}
@@ -718,7 +926,7 @@ const MyBoard: React.FC = () => {
               </Col>
               <Col span={8}>
                 <Text strong>Design Source</Text><br />
-                <Space wrap style={{ marginTop: 8 }}>
+                <Space wrap style={{ marginTop: 4 }}>
                   {['ALL', ...sourceList].map(opt => (
                     <ToggleTag
                       key={opt}
@@ -846,18 +1054,59 @@ const MyBoard: React.FC = () => {
               </>
               )}
             </div>
+            <Dropdown
+              open={Boolean(groupContextMenu?.open)}
+              trigger={['click']}
+              placement="bottomLeft"
+              menu={{
+                items: groupContextMenuItems,
+                onClick: () => setGroupContextMenu(null),
+              }}
+              onOpenChange={(open) => {
+                if (!open) setGroupContextMenu(null);
+              }}
+            >
+              <span
+                style={{
+                  display: 'block',
+                  position: 'fixed',
+                  left: groupContextMenu?.x ?? 0,
+                  top: groupContextMenu?.y ?? 0,
+                  width: 1,
+                  height: 1,
+                  zIndex: 9999,
+                  pointerEvents: 'auto',
+                }}
+              />
+            </Dropdown>
             <Table
-              dataSource={mockGroups.filter(g => selectedDataSources.includes(g.type))}
-              columns={isGroupListStructureOnly ? structureOnlyGroupColumns : groupColumns}
+              className="my-board-table my-board-group-table"
+              dataSource={visibleGroupRows}
+              columns={isGroupListStructureOnly ? styledStructureOnlyGroupColumns : styledGroupColumns}
               pagination={false}
               size="small"
               rowKey="id"
-              scroll={isGroupListStructureOnly ? undefined : { x: 'max-content' }}
+              scroll={isGroupListStructureOnly ? undefined : { x: groupTableScrollX }}
+              tableLayout="fixed"
               onRow={(record) => ({
                 onClick: () => {
                   setIsLoading(true);
                   toggleGroupSelection(record.id);
                   setTimeout(() => setIsLoading(false), 500);
+                },
+                onContextMenu: (event) => {
+                  event.stopPropagation();
+                  if (record.shareStatus !== '공유 안함') {
+                    setGroupContextMenu(null);
+                    return;
+                  }
+                  event.preventDefault();
+                  setGroupContextMenu({
+                    open: true,
+                    x: event.clientX,
+                    y: event.clientY,
+                    groupId: record.id,
+                  });
                 },
                 style: { cursor: 'pointer' }
               })}
@@ -876,7 +1125,7 @@ const MyBoard: React.FC = () => {
           aria-valuenow={Math.round(splitRatio)}
           tabIndex={0}
           onMouseDown={handleSplitMouseDown}
-          onDoubleClick={resetSplitRatio}
+          onDoubleClick={fitGroupListToTableData}
           onKeyDown={handleSplitKeyDown}
           style={{
             width: 12,
@@ -1020,13 +1269,15 @@ const MyBoard: React.FC = () => {
             </div>
             {viewMode === 'table' ? (
               <Table
+                className="my-board-table my-board-detail-table"
                 dataSource={selectedGroupIds.length > 0 ? filteredCompounds : []}
-                columns={dynamicCompoundColumns}
+                columns={styledDynamicCompoundColumns}
                 size="small"
                 rowKey="id"
                 pagination={{ pageSize: 10 }}
                 loading={isLoading}
-                scroll={{ x: 'max-content' }}
+                scroll={{ x: detailTableScrollX }}
+                tableLayout="fixed"
                 locale={{ emptyText: selectedGroupIds.length === 0 ? '왼쪽 그룹 리스트에서 그룹을 선택해 주세요.' : '검색 결과가 없습니다.' }}
               />
             ) : viewMode === 'draw' ? (
@@ -1334,8 +1585,6 @@ const MyBoard: React.FC = () => {
         ) : null}
       </Modal>
       <style>{`
-        .ant-table-thead > tr > th { background: ${isDarkMode ? '#1f1f1f' : '#f8f9fa'} !important; font-weight: 700; font-size: 13px; }
-        .ant-table-tbody > tr > td { font-size: 13px; }
         .ant-table-tbody > tr:hover > td {
           background-color: var(--table-row-hover-bg) !important;
           cursor: pointer;
@@ -1349,10 +1598,10 @@ const MyBoard: React.FC = () => {
         .canvas-card:hover { border-color: ${token.colorPrimary} !important; transform: translateY(-4px); box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
         .cdd-clipboard-icon-container, .CDW_Logo, .cdd-logo { display: none !important; }
         .my-board-structure-svg svg {
-          max-width: 92px !important;
-          max-height: 54px !important;
-          width: auto;
-          height: auto;
+          max-width: 100% !important;
+          max-height: 100% !important;
+          width: 100% !important;
+          height: 100% !important;
           display: block;
         }
         .my-board-structure-preview svg {

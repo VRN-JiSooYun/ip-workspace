@@ -54,6 +54,7 @@ const ENABLE_HIGHLIGHT_DEBUG_LOG = false;
 const SPLIT_MIN_PERCENT = 20;
 const SPLIT_MAX_PERCENT = 70;
 const SPLIT_DEFAULT_PERCENT = 50;
+const DETAIL_STACK_BREAKPOINT = 1280;
 
 // SVG 렌더링 컴포넌트
 const SvgRenderer: React.FC<{ svg: string; height?: number | string }> = ({ svg, height = '100%' }) => (
@@ -126,11 +127,16 @@ const PatentAnalysisDetail: React.FC = () => {
     if (typeof window === 'undefined') return 1080;
     return window.innerHeight;
   });
+  const [splitContainerWidth, setSplitContainerWidth] = React.useState<number>(() => {
+    if (typeof window === 'undefined') return 1920;
+    return window.innerWidth;
+  });
   const splitContainerRef = React.useRef<HTMLDivElement | null>(null);
   const splitRafRef = React.useRef<number | null>(null);
   const splitStorageKey = React.useMemo(() => `patent-analysis-split:${id ?? 'default'}`, [id]);
   const layoutPreset = React.useMemo(() => getPatentAnalysisLayoutPreset(viewportWidth), [viewportWidth]);
-  const isStackedSplitLayout = viewportWidth <= 1100;
+  const effectiveSplitWidth = splitContainerWidth || viewportWidth;
+  const isStackedSplitLayout = effectiveSplitWidth <= DETAIL_STACK_BREAKPOINT;
   const rawDataTableScrollY = React.useMemo(() => {
     return Math.max(300, viewportHeight - 470);
   }, [viewportHeight]);
@@ -154,6 +160,19 @@ const PatentAnalysisDetail: React.FC = () => {
     };
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
+  }, []);
+
+  useEffect(() => {
+    const container = splitContainerRef.current;
+    if (!container || typeof ResizeObserver === 'undefined') return;
+
+    const resizeObserver = new ResizeObserver(([entry]) => {
+      setSplitContainerWidth(entry.contentRect.width);
+    });
+    resizeObserver.observe(container);
+    setSplitContainerWidth(container.getBoundingClientRect().width);
+
+    return () => resizeObserver.disconnect();
   }, []);
 
   useEffect(() => {
@@ -544,6 +563,7 @@ const PatentAnalysisDetail: React.FC = () => {
 
         <div
           ref={splitContainerRef}
+          className={isStackedSplitLayout ? 'patent-detail-split patent-detail-split-stacked' : 'patent-detail-split'}
           style={{
             flex: 1,
             minHeight: 0,
@@ -558,7 +578,7 @@ const PatentAnalysisDetail: React.FC = () => {
             style={{
               width: isStackedSplitLayout ? '100%' : `calc(${splitRatio}% - 6px)`,
               minWidth: 0,
-              height: isStackedSplitLayout ? 'min(72vh, 760px)' : '100%',
+              height: isStackedSplitLayout ? 'clamp(520px, 72vh, 760px)' : '100%',
               minHeight: isStackedSplitLayout ? 520 : 0,
               display: 'flex',
               flexDirection: 'column',
@@ -929,9 +949,13 @@ const PatentAnalysisDetail: React.FC = () => {
                                 key: 'pin',
                                 width: 56,
                                 fixed: 'left' as const,
+                                align: 'center' as const,
+                                className: 'table-center-column',
                                 render: () => <Pin size={14} style={{ cursor: 'pointer', color: '#bfbfbf' }} />
                               },
                               { title: 'Rank', dataIndex: 'ranking', key: 'ranking', width: 90, fixed: 'left' as const,
+                                align: 'center' as const,
+                                className: 'table-center-column',
                                 sorter: (a: any, b: any) => (a.ranking ?? 999) - (b.ranking ?? 999),
                                 render: (ranking: any, _: any, index: number) => {
                                   // 같은 ranking 값이 여러 개인지 확인 (동률)
@@ -946,12 +970,14 @@ const PatentAnalysisDetail: React.FC = () => {
                                   );
                                 }
                               },
-                              { title: 'Scaffold Rank', dataIndex: 'scaffold_ranking', key: 'scaffold_ranking', width: 120, render: (v: any) => v ?? '-' },
-                              { title: 'Example No.', dataIndex: 'compound_id', key: 'compound_id', width: 130, fixed: 'left' as const },
+                              { title: 'Scaffold Rank', dataIndex: 'scaffold_ranking', key: 'scaffold_ranking', width: 120, align: 'center' as const, className: 'table-center-column', render: (v: any) => v ?? '-' },
+                              { title: 'Example No.', dataIndex: 'compound_id', key: 'compound_id', width: 130, fixed: 'left' as const, align: 'center' as const, className: 'table-center-column' },
                               {
                                 title: 'Structure',
                                 key: 'structure',
                                 width: 240,
+                                align: 'center' as const,
+                                className: 'table-center-column',
                                 render: (_: any, record: any) => {
                                   const compKey = String(record.id);
                                   const pageArr: number[] = Array.isArray(record.page) ? record.page : [];
@@ -982,6 +1008,8 @@ const PatentAnalysisDetail: React.FC = () => {
                                 title: 'Scaffold',
                                 key: 'scaffold',
                                 width: 220,
+                                align: 'center' as const,
+                                className: 'table-center-column',
                                 render: (_: any, record: any) => record.scaffold_svg ? (
                                   <div
                                     className="raw-data-svg-frame"
@@ -1300,6 +1328,8 @@ const PatentAnalysisDetail: React.FC = () => {
                                 key: 'select',
                                 width: 56,
                                 fixed: 'left' as const,
+                                align: 'center' as const,
+                                className: 'table-center-column',
                                 render: () => <input type="checkbox" />
                               },
                               {
@@ -1307,6 +1337,8 @@ const PatentAnalysisDetail: React.FC = () => {
                                 key: 'pin',
                                 width: 56,
                                 fixed: 'left' as const,
+                                align: 'center' as const,
+                                className: 'table-center-column',
                                 render: () => <Pin size={14} style={{ cursor: 'pointer', color: '#bfbfbf' }} />
                               },
                               {
@@ -1315,14 +1347,18 @@ const PatentAnalysisDetail: React.FC = () => {
                                 key: 'ranking',
                                 width: 90,
                                 fixed: 'left' as const,
+                                align: 'center' as const,
+                                className: 'table-center-column',
                                 render: (ranking: any) => <Text style={{ fontSize: 12 }}>{ranking ?? '-'}</Text>
                               },
-                              { title: 'Scaffold Group', dataIndex: 'scaffold_ranking', key: 'scaffold_ranking', width: 140, render: (v: any) => v ?? '-' },
-                              { title: 'Example Number', key: 'example_number', width: 150, render: (_: any, record: any) => formatExampleNumber(record.example_number) },
+                              { title: 'Scaffold Group', dataIndex: 'scaffold_ranking', key: 'scaffold_ranking', width: 140, align: 'center' as const, className: 'table-center-column', render: (v: any) => v ?? '-' },
+                              { title: 'Example Number', key: 'example_number', width: 150, align: 'center' as const, className: 'table-center-column', render: (_: any, record: any) => formatExampleNumber(record.example_number) },
                               {
                                 title: 'Structure',
                                 key: 'structure',
                                 width: 240,
+                                align: 'center' as const,
+                                className: 'table-center-column',
                                 render: (_: any, record: any) => {
                                   const compKey = `clean-${record.__rowKey ?? record.id}`;
                                   const pageArr: number[] = Array.isArray(record.page) ? record.page : [];
@@ -1353,6 +1389,8 @@ const PatentAnalysisDetail: React.FC = () => {
                                 title: 'Scaffold',
                                 key: 'scaffold',
                                 width: 220,
+                                align: 'center' as const,
+                                className: 'table-center-column',
                                 render: (_: any, record: any) => record.scaffold_svg ? (
                                   <div
                                     className="raw-data-svg-frame"
@@ -1376,6 +1414,8 @@ const PatentAnalysisDetail: React.FC = () => {
                                 title: '관리',
                                 key: 'manage',
                                 width: 90,
+                                align: 'center' as const,
+                                className: 'table-center-column',
                                 render: () => (
                                   <Button type="link" size="small" style={{ padding: 0 }}>
                                     수정
@@ -1688,7 +1728,7 @@ const PatentAnalysisDetail: React.FC = () => {
           background: transparent;
         }
         .raw-data-tab-content .raw-data-embodiment-table .ant-table-thead > tr > th {
-          background: transparent !important;
+          background: var(--table-header-bg) !important;
           border-bottom: 2px solid ${token.colorBorderSecondary} !important;
           padding: 14px 12px;
           font-size: 13px;

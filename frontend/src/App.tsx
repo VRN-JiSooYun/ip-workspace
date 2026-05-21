@@ -37,6 +37,8 @@ const App: React.FC = () => {
           },
           Table: {
             borderRadius: 12,
+            headerBg: isDarkMode ? '#2a2a2a' : '#edf0f3',
+            headerColor: isDarkMode ? 'rgba(255,255,255,0.85)' : '#495057',
             rowHoverBg: isDarkMode ? 'rgba(248, 124, 99, 0.18)' : 'rgba(248, 124, 99, 0.12)',
           },
           Input: {

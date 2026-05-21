@@ -10,7 +10,7 @@ export interface CompoundGroup {
   count: number;
   creDate: string;
   target?: string;
-  shareStatus?: '공유함' | '공유안함';
+  shareStatus?: '공유 하는중' | '공유 받는중' | '공유 안함';
 }
 
 export interface SARData {
@@ -81,9 +81,9 @@ export interface Compound {
 }
 
 export const mockGroups: CompoundGroup[] = [
-  { id: 'g1', name: 'FGFR 나의 디자인', type: 'my designs', count: 11, creDate: '2026.04.20', target: 'FGFR', shareStatus: '공유함' },
-  { id: 'g2', name: 'HER2 활성 증가', type: 'my designs', count: 17, creDate: '2026.04.18', target: 'HER2', shareStatus: '공유안함' },
-  { id: 'g3', name: 'cMET Tepotinib 변형', type: 'my designs', count: 7, creDate: '2026.04.15', target: 'cMET', shareStatus: '공유함' },
+  { id: 'g1', name: 'FGFR 나의 디자인', type: 'my designs', count: 11, creDate: '2026.04.20', target: 'FGFR', shareStatus: '공유 하는중' },
+  { id: 'g2', name: 'HER2 활성 증가', type: 'my designs', count: 17, creDate: '2026.04.18', target: 'HER2', shareStatus: '공유 안함' },
+  { id: 'g3', name: 'cMET Tepotinib 변형', type: 'my designs', count: 7, creDate: '2026.04.15', target: 'cMET', shareStatus: '공유 받는중' },
 ];
 
 const structureSvgs = [exampleCompound1Svg, exampleCompound2Svg, exampleCompound3Svg, exampleCompound4Svg];

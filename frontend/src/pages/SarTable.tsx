@@ -21,6 +21,10 @@ import ToggleTag from '../components/common/ToggleTag';
 
 const { Title, Text } = Typography;
 
+const SAR_COMPOUND_CARD_GAP = 6;
+const SAR_COMPOUND_CARD_GRID_COLUMN_GAP = 4;
+const SAR_COMPOUND_CARD_GRID_ROW_GAP = 6;
+
 const SarTable: React.FC = () => {
   const navigate = useNavigate();
   const { token } = theme.useToken();
@@ -517,10 +521,17 @@ const SarTable: React.FC = () => {
   };
 
   const dynamicColumns = useMemo(() => {
+    const centerColumn = (column: any): any => ({
+      ...column,
+      align: 'center' as const,
+      className: [column.className, 'table-center-column'].filter(Boolean).join(' '),
+      children: column.children?.map(centerColumn),
+    });
+
     return columnOrder
       .filter(key => activeColumns.includes(key))
       .map(key => {
-        const col = { ...allColumnsMap[key] };
+        const col = centerColumn({ ...allColumnsMap[key] });
         // If it has children, filter and reorder them based on subColumnConfig
         if (col.children && subColumnConfig[key]) {
           const config = subColumnConfig[key];
@@ -541,7 +552,7 @@ const SarTable: React.FC = () => {
                 }
               };
               const childDef = findChild(col.children);
-              if (childDef) orderedChildren.push(childDef);
+              if (childDef) orderedChildren.push(centerColumn(childDef));
             }
           });
           col.children = orderedChildren;
@@ -566,8 +577,8 @@ const SarTable: React.FC = () => {
       }}
     >
       {/* Search & Filter Header (MyBoard Layout) */}
-      <Card variant="borderless" className="c-card" style={{ marginBottom: 20 }}>
-        <Row gutter={[16, 16]} align="middle">
+      <Card variant="borderless" className="c-card compact-filter-card" style={{ marginBottom: 12 }}>
+        <Row gutter={[12, 8]} align="middle">
           <Col flex="auto" style={{ minWidth: 0 }}>
             <div
               style={{
@@ -619,11 +630,11 @@ const SarTable: React.FC = () => {
           </Col>
         </Row>
         {showFilters && (
-          <div style={{ marginTop: 24, padding: 20, background: token.colorBgLayout, borderRadius: 12 }}>
-            <Row gutter={[32, 24]}>
+          <div className="compact-filter-panel">
+            <Row gutter={[24, 12]}>
               <Col span={10}>
                 <Text strong>Projects</Text><br />
-                <Space wrap style={{ marginTop: 8 }}>
+                <Space wrap style={{ marginTop: 4 }}>
                   {['ALL', ...projectList].map(opt => (
                     <ToggleTag
                       key={opt}
@@ -637,7 +648,7 @@ const SarTable: React.FC = () => {
               </Col>
               <Col span={6}>
                 <Text strong>Share</Text><br />
-                <Space wrap style={{ marginTop: 8 }}>
+                <Space wrap style={{ marginTop: 4 }}>
                   {['ALL', ...shareList].map(opt => (
                     <ToggleTag
                       key={opt}
@@ -651,7 +662,7 @@ const SarTable: React.FC = () => {
               </Col>
               <Col span={8}>
                 <Text strong>Design Source</Text><br />
-                <Space wrap style={{ marginTop: 8 }}>
+                <Space wrap style={{ marginTop: 4 }}>
                   {['ALL', ...sourceList].map(opt => (
                     <ToggleTag
                       key={opt}
@@ -726,11 +737,12 @@ const SarTable: React.FC = () => {
           gridTemplateColumns: `repeat(${Math.ceil(sarCompounds.length / 2)}, 184px)`,
           gridTemplateRows: 'repeat(2, minmax(0, 1fr))',
           gridAutoRows: 'auto',
-          gap: 14,
+          columnGap: SAR_COMPOUND_CARD_GRID_COLUMN_GAP,
+          rowGap: SAR_COMPOUND_CARD_GRID_ROW_GAP,
           width: 'max-content',
         } : {
           display: 'inline-flex',
-          gap: 24,
+          gap: SAR_COMPOUND_CARD_GAP,
         }}>
           {sarCompounds.map((item) => (
             <div
@@ -1110,7 +1122,7 @@ const SarTable: React.FC = () => {
           background-color: var(--table-row-selected-hover-bg) !important;
         }
         .ant-table-thead > tr > th {
-          background: ${isDarkMode ? '#1f1f1f' : '#fafafa'} !important;
+          background: var(--table-header-bg) !important;
           color: ${isDarkMode ? 'rgba(255,255,255,0.85)' : '#495057'} !important;
           text-align: center !important;
           border-color: ${isDarkMode ? '#303030' : '#f0f0f0'} !important;

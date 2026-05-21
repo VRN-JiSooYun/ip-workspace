@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Layout, Menu, Button, theme, Input, Avatar, Space, Select, Tag } from 'antd';
+import { Layout, Menu, Button, theme, Input, Avatar, Space, Select, Tag, Dropdown, Tooltip } from 'antd';
+import type { MenuProps } from 'antd';
 import { useTheme } from '../../contexts/ThemeContext';
 import {
   LayoutDashboard,
@@ -24,6 +25,15 @@ const { Header, Sider, Content } = Layout;
 
 interface MainLayoutProps {
   children: React.ReactNode;
+}
+
+interface MiniMenuItem {
+  key: string;
+  label: string;
+  icon: React.ReactNode;
+  onClick?: () => void;
+  menu?: MenuProps;
+  activeKeys?: string[];
 }
 
 import { useUIStore } from '../../store/useUIStore';
@@ -50,6 +60,109 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
     return () => window.removeEventListener('resize', onResize);
   }, []);
 
+  const renderSidebarIcon = (icon: React.ReactNode) => (
+    <span className="sidebar-menu-icon">{icon}</span>
+  );
+
+  const renderMiniDropdownLabel = (label: string) => (
+    <span className="mini-dropdown-label" title="">{label}</span>
+  );
+
+  const miniMenuButtonStyle = (selected: boolean): React.CSSProperties => ({
+    width: 40,
+    height: 40,
+    margin: '0 auto 2px',
+    padding: 0,
+    border: 'none',
+    borderRadius: 10,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    color: selected ? '#F87C63' : token.colorText,
+    background: selected ? (isDarkMode ? '#2b2b2b' : '#ffffff') : 'transparent',
+    boxShadow: selected && !isDarkMode ? '0 4px 6px -1px rgb(0 0 0 / 0.1)' : 'none',
+  });
+
+  const mainMiniMenuItems: MiniMenuItem[] = [
+    {
+      key: 'dashboard',
+      label: 'Dashboard',
+      icon: <LayoutDashboard size={22} />,
+      onClick: () => navigate('/dashboard'),
+    },
+    {
+      key: 'compounds',
+      label: 'Compounds',
+      icon: <BenzeneIcon size={22} />,
+      activeKeys: ['compounds', 'myboard', 'my-tree', 'chem-space'],
+      menu: {
+        items: [
+          { key: 'myboard', label: renderMiniDropdownLabel('My board'), title: '', onClick: () => navigate('/myboard') },
+          { key: 'my-tree', label: renderMiniDropdownLabel('My tree'), title: '', onClick: () => navigate('/my-tree') },
+          { key: 'chem-space', label: renderMiniDropdownLabel('Chemical space'), title: '', onClick: () => navigate('/chem-space') },
+        ],
+      },
+    },
+    {
+      key: 'documents',
+      label: 'Documents',
+      icon: <FileText size={22} />,
+      activeKeys: ['documents', 'patents', 'patent-write', 'patent-analysis', 'patent-manage', 'papers', 'paper-manage', 'conferences'],
+      menu: {
+        items: [
+          {
+            key: 'patents',
+            label: renderMiniDropdownLabel('Patents'),
+            title: '',
+            popupClassName: 'app-sidebar-popup-menu',
+            children: [
+              { key: 'patent-write', label: renderMiniDropdownLabel('My 특허 쓰기'), title: '', onClick: () => navigate('/patents/write') },
+              { key: 'patent-analysis', label: renderMiniDropdownLabel('My 특허 분석'), title: '', onClick: () => navigate('/patents/analysis') },
+              { key: 'patent-manage', label: renderMiniDropdownLabel('My 특허 관리'), title: '', onClick: () => navigate('/patents/manage') },
+            ],
+          },
+          {
+            key: 'papers',
+            label: renderMiniDropdownLabel('Papers'),
+            title: '',
+            popupClassName: 'app-sidebar-popup-menu',
+            children: [
+              { key: 'paper-manage', label: renderMiniDropdownLabel('My 논문 관리'), title: '', onClick: () => navigate('/papers/manage') },
+            ],
+          },
+          { key: 'conferences', label: renderMiniDropdownLabel('Conferences'), title: '', onClick: () => navigate('/conferences') },
+        ],
+      },
+    },
+    {
+      key: 'pdbs',
+      label: 'PDBs',
+      icon: <Microscope size={22} />,
+      onClick: () => navigate('/pdbs'),
+    },
+    {
+      key: 'universal-search',
+      label: '통합검색',
+      icon: <Search size={22} />,
+      onClick: () => navigate('/universal-search'),
+    },
+  ];
+
+  const bottomMiniMenuItems: MiniMenuItem[] = [
+    {
+      key: 'development-status',
+      label: '수리응용2팀 서비스 개발 진행 현황',
+      icon: <Activity size={22} />,
+      onClick: () => navigate('/development-status'),
+    },
+    {
+      key: 'contact',
+      label: '문의하기',
+      icon: <HelpCircle size={22} />,
+      onClick: () => navigate('/contact'),
+    },
+  ];
+
   // URL 경로에서 메뉴 키 추출 (예: /dashboard -> dashboard, /patents/write -> patent-write)
   const getSelectedKey = () => {
     const path = location.pathname;
@@ -71,10 +184,26 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
     return 'dashboard';
   };
 
+  const isMiniItemSelected = (item: MiniMenuItem) => {
+    const selectedKey = getSelectedKey();
+    return item.key === selectedKey || item.activeKeys?.includes(selectedKey) === true;
+  };
+
+  const getMiniDropdownMenu = (item: MiniMenuItem): MenuProps => ({
+    ...item.menu,
+    className: 'app-sidebar-dropdown-menu',
+    style: { minWidth: 200 },
+    items: [
+      { key: `${item.key}-title`, label: renderMiniDropdownLabel(item.label), title: '', disabled: true, className: 'mini-menu-popup-title' },
+      { type: 'divider' },
+      ...(item.menu?.items ?? []),
+    ],
+  });
+
   return (
     <Layout style={{ minHeight: '100vh' }}>
       <Sider
-        className="app-sidebar"
+        className={`app-sidebar app-sidebar-${sidebarMode}`}
         trigger={null}
         collapsible
         collapsed={sidebarMode !== 'full'}
@@ -83,7 +212,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
         width={220}
         style={{
           background: isDarkMode ? '#1a1a1a' : '#f2f4f6',
-          padding: sidebarMode === 'full' ? '24px 2px' : (sidebarMode === 'mini' ? '24px 0' : 0),
+          padding: sidebarMode === 'full' ? '18px 2px' : (sidebarMode === 'mini' ? '18px 0' : 0),
           borderRight: isDarkMode ? '1px solid #303030' : 'none',
           transition: 'all 0.2s',
           overflow: 'hidden',
@@ -97,7 +226,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
           alignItems: 'center',
           gap: '12px',
           padding: '0 12px',
-          marginBottom: 40,
+          marginBottom: 28,
           position: 'relative',
           opacity: sidebarMode === 'hidden' ? 0 : 1,
           transition: 'opacity 0.2s'
@@ -123,64 +252,110 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
         </div>
 
         <div style={{ overflowY: 'auto', flex: '1 1 auto', minHeight: 0, padding: '0 8px', display: sidebarMode === 'hidden' ? 'none' : 'block' }}>
-          <Button
-            className="vora-link-button"
-            onClick={() => window.open(voraExternalUrl, '_blank', 'noopener,noreferrer')}
-            style={{
-              height: 44,
-              width: sidebarMode === 'full' ? 'calc(100% - 24px)' : 40,
-              marginLeft: sidebarMode === 'full' ? 12 : 'auto',
-              marginRight: sidebarMode === 'full' ? 0 : 'auto',
-              marginBottom: 8,
-              justifyContent: 'center',
-              paddingInline: sidebarMode === 'full' ? 16 : 0,
-              fontWeight: 600,
-              borderRadius: 12,
-              boxShadow: 'none',
-            }}
-          >
-            {sidebarMode === 'full' ? 'VORA' : 'V'}
-          </Button>
-          <Button
-            className="medichem-eln-link-button"
-            style={{
-              height: 44,
-              width: sidebarMode === 'full' ? 'calc(100% - 24px)' : 40,
-              marginLeft: sidebarMode === 'full' ? 12 : 'auto',
-              marginRight: sidebarMode === 'full' ? 0 : 'auto',
-              marginBottom: 30,
-              justifyContent: 'center',
-              paddingInline: sidebarMode === 'full' ? 16 : 0,
-              fontWeight: 600,
-              borderRadius: 12,
-              boxShadow: 'none',
-            }}
-          >
-            {sidebarMode === 'full' ? 'Medichem ELN' : 'M'}
-          </Button>
+          <Tooltip title={sidebarMode === 'mini' ? 'VORA' : ''} placement="right">
+            <Button
+              className="vora-link-button"
+              onClick={() => window.open(voraExternalUrl, '_blank', 'noopener,noreferrer')}
+              style={{
+                height: 40,
+                width: sidebarMode === 'full' ? 'calc(100% - 24px)' : 40,
+                marginLeft: sidebarMode === 'full' ? 12 : 'auto',
+                marginRight: sidebarMode === 'full' ? 0 : 'auto',
+                marginBottom: 6,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                paddingInline: sidebarMode === 'full' ? 16 : 0,
+                fontWeight: 600,
+                borderRadius: 10,
+                boxShadow: 'none',
+              }}
+            >
+              {sidebarMode === 'full' ? 'VORA' : 'V'}
+            </Button>
+          </Tooltip>
+          <Tooltip title={sidebarMode === 'mini' ? 'Medichem ELN' : ''} placement="right">
+            <Button
+              className="medichem-eln-link-button"
+              style={{
+                height: 40,
+                width: sidebarMode === 'full' ? 'calc(100% - 24px)' : 40,
+                marginLeft: sidebarMode === 'full' ? 12 : 'auto',
+                marginRight: sidebarMode === 'full' ? 0 : 'auto',
+                marginBottom: 18,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                paddingInline: sidebarMode === 'full' ? 16 : 0,
+                fontWeight: 600,
+                borderRadius: 10,
+                boxShadow: 'none',
+              }}
+            >
+              {sidebarMode === 'full' ? 'Medichem ELN' : 'M'}
+            </Button>
+          </Tooltip>
           <div
             style={{
               height: 1,
-              margin: sidebarMode === 'full' ? '0 4px 22px 12px' : '0 8px 22px',
+              margin: sidebarMode === 'full' ? '0 4px 14px 12px' : '0 8px 14px',
               background: isDarkMode ? '#303030' : '#d8dbe0',
             }}
           />
-          <Menu
-            mode="inline"
-            inlineIndent={12}
-            selectedKeys={[getSelectedKey()]}
-            style={{ background: 'transparent', borderRight: 0 }}
-            items={[
+          {sidebarMode === 'mini' ? (
+            <div className="mini-menu-rail">
+              {mainMiniMenuItems.map((item) => {
+                const button = (
+                  <Button
+                    key={item.key}
+                    type="text"
+                    aria-label={item.label}
+                    style={miniMenuButtonStyle(isMiniItemSelected(item))}
+                    onClick={item.onClick}
+                  >
+                    {item.icon}
+                  </Button>
+                );
+
+                if (!item.menu) {
+                  return (
+                    <Tooltip key={item.key} title={item.label} placement="right">
+                      {button}
+                    </Tooltip>
+                  );
+                }
+
+                return (
+                  <Dropdown
+                    key={item.key}
+                    menu={getMiniDropdownMenu(item)}
+                    placement="topLeft"
+                    trigger={['hover']}
+                    overlayClassName="app-sidebar-popup-menu"
+                  >
+                    {button}
+                  </Dropdown>
+                );
+              })}
+            </div>
+          ) : (
+            <Menu
+              mode="inline"
+              inlineIndent={8}
+              selectedKeys={[getSelectedKey()]}
+              style={{ background: 'transparent', borderRight: 0 }}
+              items={[
               {
                 key: 'dashboard',
-                icon: <LayoutDashboard size={22} />,
+                icon: renderSidebarIcon(<LayoutDashboard size={22} />),
                 label: <span style={{ fontWeight: 600 }}>Dashboard</span>,
                 onClick: () => navigate('/dashboard')
               },
               {
                 key: 'compounds',
-                icon: <BenzeneIcon size={22} />,
+                icon: renderSidebarIcon(<BenzeneIcon size={22} />),
                 label: <span style={{ fontWeight: 600 }}>Compounds</span>,
+                popupClassName: 'app-sidebar-popup-menu',
                 children: [
                   { key: 'myboard', label: 'My board', onClick: () => navigate('/myboard') },
                   { key: 'my-tree', label: 'My tree', onClick: () => navigate('/my-tree') },
@@ -189,12 +364,14 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
               },
               {
                 key: 'documents',
-                icon: <FileText size={22} />,
+                icon: renderSidebarIcon(<FileText size={22} />),
                 label: <span style={{ fontWeight: 600 }}>Documents</span>,
+                popupClassName: 'app-sidebar-popup-menu',
                 children: [
                   {
                     key: 'patents',
                     label: 'Patents',
+                    popupClassName: 'app-sidebar-popup-menu',
                     children: [
                       { key: 'patent-write', label: 'My 특허 쓰기', onClick: () => navigate('/patents/write') },
                       { key: 'patent-analysis', label: 'My 특허 분석', onClick: () => navigate('/patents/analysis') },
@@ -204,6 +381,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                   {
                     key: 'papers',
                     label: 'Papers',
+                    popupClassName: 'app-sidebar-popup-menu',
                     children: [
                       { key: 'paper-manage', label: 'My 논문 관리', onClick: () => navigate('/papers/manage') },
                     ]
@@ -213,41 +391,59 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
               },
               {
                 key: 'pdbs',
-                icon: <Microscope size={22} />,
+                icon: renderSidebarIcon(<Microscope size={22} />),
                 label: <span style={{ fontWeight: 600 }}>PDBs</span>,
                 onClick: () => navigate('/pdbs')
               },
               {
                 key: 'universal-search',
-                icon: <Search size={22} />,
+                icon: renderSidebarIcon(<Search size={22} />),
                 label: <span style={{ fontWeight: 600 }}>통합검색</span>,
                 onClick: () => navigate('/universal-search')
               },
-            ]}
-          />
+              ]}
+            />
+          )}
         </div>
 
         <div style={{ marginTop: 'auto', padding: '12px 8px 0', flexShrink: 0, display: sidebarMode === 'hidden' ? 'none' : 'block' }}>
-          <Menu
-            mode="inline"
-            inlineIndent={12}
-            selectedKeys={[getSelectedKey()]}
-            style={{ background: 'transparent', borderRight: 0 }}
-            items={[
+          {sidebarMode === 'mini' ? (
+            <div className="mini-menu-rail">
+              {bottomMiniMenuItems.map((item) => (
+                <Tooltip key={item.key} title={item.label} placement="right">
+                  <Button
+                    type="text"
+                    aria-label={item.label}
+                    style={miniMenuButtonStyle(isMiniItemSelected(item))}
+                    onClick={item.onClick}
+                  >
+                    {item.icon}
+                  </Button>
+                </Tooltip>
+              ))}
+            </div>
+          ) : (
+            <Menu
+              mode="inline"
+              inlineIndent={8}
+              selectedKeys={[getSelectedKey()]}
+              style={{ background: 'transparent', borderRight: 0 }}
+              items={[
               {
                 key: 'development-status',
-                icon: <Activity size={22} />,
+                icon: renderSidebarIcon(<Activity size={22} />),
                 label: <span style={{ fontWeight: 600 }}>수리응용2팀 서비스 개발 진행 현황</span>,
                 onClick: () => navigate('/development-status')
               },
               {
                 key: 'contact',
-                icon: <HelpCircle size={22} />,
+                icon: renderSidebarIcon(<HelpCircle size={22} />),
                 label: <span style={{ fontWeight: 600 }}>문의하기</span>,
                 onClick: () => navigate('/contact')
               },
-            ]}
-          />
+              ]}
+            />
+          )}
         </div>
       </Sider>
 
@@ -367,21 +563,124 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
         </Content>
       </Layout>
       <style>{`
-        .ant-menu-item-selected { 
+        .app-sidebar .ant-menu-item-selected { 
           background-color: ${isDarkMode ? '#2b2b2b' : '#ffffff'} !important; 
           color: #F87C63 !important; 
-          border-radius: 12px !important;
+          border-radius: 10px !important;
           box-shadow: ${isDarkMode ? 'none' : '0 4px 6px -1px rgb(0 0 0 / 0.1)'} !important;
         }
-        .ant-menu-item { 
-          border-radius: 12px !important; 
-          margin-bottom: 4px !important; 
-          height: 48px !important;
+        .app-sidebar .ant-menu-item { 
+          border-radius: 10px !important; 
+          margin-bottom: 2px !important; 
+          height: 42px !important;
+          line-height: 42px !important;
           display: flex !important;
           align-items: center !important;
         }
-        .ant-menu-inline .ant-menu-sub.ant-menu-inline { background: transparent !important; margin-left: 22px !important; }
-        .ant-menu-submenu-title { border-radius: 12px !important; height: 48px !important; display: flex !important; align-items: center !important; }
+        .app-sidebar .ant-menu-inline .ant-menu-sub.ant-menu-inline { background: transparent !important; margin-left: 8px !important; }
+        .app-sidebar .ant-menu-submenu-title {
+          border-radius: 10px !important;
+          height: 42px !important;
+          line-height: 42px !important;
+          margin-bottom: 2px !important;
+          display: flex !important;
+          align-items: center !important;
+        }
+        .app-sidebar .sidebar-menu-icon {
+          display: inline-flex !important;
+          align-items: center !important;
+          justify-content: center !important;
+          width: 22px !important;
+          height: 22px !important;
+          min-width: 22px !important;
+          margin-inline-end: 0 !important;
+          color: currentColor !important;
+          opacity: 1 !important;
+          visibility: visible !important;
+        }
+        .app-sidebar .sidebar-menu-icon svg {
+          display: block !important;
+          width: 22px !important;
+          height: 22px !important;
+          min-width: 22px !important;
+          color: currentColor !important;
+          stroke: currentColor !important;
+        }
+        .mini-menu-rail {
+          width: 40px;
+          margin: 0 auto;
+          overflow: visible;
+        }
+        .mini-menu-rail .ant-btn {
+          flex: 0 0 40px;
+        }
+        .mini-menu-rail .ant-btn svg {
+          width: 22px;
+          height: 22px;
+          color: currentColor;
+          stroke: currentColor;
+        }
+        .app-sidebar-popup-menu {
+          z-index: 1200 !important;
+          width: max-content !important;
+          min-width: 200px !important;
+        }
+        .app-sidebar-popup-menu .ant-dropdown-menu,
+        .app-sidebar-popup-menu .app-sidebar-dropdown-menu {
+          width: max-content !important;
+          min-width: 200px !important;
+          overflow: visible !important;
+        }
+        .app-sidebar-popup-menu .ant-dropdown-menu-item,
+        .app-sidebar-popup-menu .ant-dropdown-menu-submenu-title {
+          width: auto !important;
+          min-width: 200px !important;
+          height: 40px !important;
+          line-height: 40px !important;
+          display: flex !important;
+          align-items: center !important;
+          padding-inline: 20px 16px !important;
+          overflow: visible !important;
+        }
+        .app-sidebar-popup-menu .ant-dropdown-menu-title-content {
+          display: inline-flex !important;
+          flex: 1 0 max-content !important;
+          width: auto !important;
+          min-width: max-content !important;
+          max-width: none !important;
+          overflow: visible !important;
+          text-overflow: clip !important;
+          white-space: nowrap !important;
+          opacity: 1 !important;
+          visibility: visible !important;
+        }
+        .app-sidebar-popup-menu .mini-dropdown-label {
+          display: inline-block !important;
+          width: max-content !important;
+          min-width: max-content !important;
+          max-width: none !important;
+          overflow: visible !important;
+          text-overflow: clip !important;
+          white-space: nowrap !important;
+        }
+        .app-sidebar-popup-menu .ant-dropdown-menu-submenu-expand-icon,
+        .app-sidebar-popup-menu .ant-dropdown-menu-submenu-arrow {
+          display: block !important;
+          opacity: 1 !important;
+          visibility: visible !important;
+        }
+        .app-sidebar-popup-menu .mini-menu-popup-title {
+          color: ${isDarkMode ? '#cfcfcf' : '#4b5563'} !important;
+          cursor: default !important;
+          font-weight: 700 !important;
+          opacity: 1 !important;
+        }
+        .app-sidebar-popup-menu .mini-menu-popup-title .ant-menu-title-content {
+          font-weight: 700 !important;
+        }
+        .app-sidebar-popup-menu .mini-menu-popup-title .ant-dropdown-menu-title-content {
+          font-weight: 700 !important;
+        }
         .vora-link-button {
           background: ${isDarkMode ? '#302747' : '#f3efff'} !important;
           border-color: ${isDarkMode ? '#5b4788' : '#d8ccff'} !important;

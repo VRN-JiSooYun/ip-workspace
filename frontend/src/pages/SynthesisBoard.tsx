@@ -337,7 +337,7 @@ const SynthesisBoard: React.FC = () => {
 
   const groupColumns = [
     { title: 'Num', dataIndex: 'num', key: 'num', width: 50, align: 'center' as const },
-    { title: 'Date', dataIndex: 'date', key: 'date', width: 90, render: (date: string) => <Text style={{ fontSize: 11 }}>{date}</Text> },
+    { title: 'Date', dataIndex: 'date', key: 'date', width: 90, align: 'center' as const, className: 'table-center-column', render: (date: string) => <Text style={{ fontSize: 11 }}>{date}</Text> },
     { 
       title: 'Type', 
       dataIndex: 'type', 
@@ -350,9 +350,9 @@ const SynthesisBoard: React.FC = () => {
         </Tag>
       )
     },
-    { title: 'Target', dataIndex: 'target', key: 'target', width: 80, render: (text: string) => <Tag color="blue" style={{ fontSize: 11 }}>{text}</Tag> },
+    { title: 'Target', dataIndex: 'target', key: 'target', width: 80, align: 'center' as const, className: 'table-center-column', render: (text: string) => <Tag color="blue" style={{ fontSize: 11 }}>{text}</Tag> },
     { title: 'Title', dataIndex: 'title', key: 'title', ellipsis: true, render: (text: string) => <Text strong style={{ fontSize: 12 }}>{text}</Text> },
-    { title: '공유', dataIndex: 'share', key: 'share', width: 70, render: (text: string) => <Text type="secondary" style={{ fontSize: 11 }}>{text}</Text> },
+    { title: '공유', dataIndex: 'share', key: 'share', width: 70, align: 'center' as const, className: 'table-center-column', render: (text: string) => <Text type="secondary" style={{ fontSize: 11 }}>{text}</Text> },
     {
       title: '합성중',
       dataIndex: 'ing',
@@ -434,7 +434,7 @@ const SynthesisBoard: React.FC = () => {
   const detailColumns = [
     { title: 'Num', key: 'num', width: 50, align: 'center' as const, render: (_: any, __: any, index: number) => index + 1 },
     { title: 'Grp.', dataIndex: 'groupNum', key: 'grp', width: 60, align: 'center' as const, render: (num: number) => <Text strong style={{ color: token.colorPrimary }}>{num}</Text> },
-    { title: 'Compound', dataIndex: 'compoundId', key: 'compound', width: 100 },
+    { title: 'Compound', dataIndex: 'compoundId', key: 'compound', width: 100, align: 'center' as const, className: 'table-center-column' },
     {
       title: 'Structure',
       dataIndex: 'structureSvg',
@@ -473,6 +473,8 @@ const SynthesisBoard: React.FC = () => {
       dataIndex: 'assignee',
       key: 'assignee',
       width: 130,
+      align: 'center' as const,
+      className: 'table-center-column',
       render: (assignee: string | null, record: SynthesisDetail) => (
         assignee ? (
           <div
@@ -505,8 +507,8 @@ const SynthesisBoard: React.FC = () => {
         )
       )
     },
-    { title: '합성 요청 일자', dataIndex: 'requestDate', key: 'requestDate', width: 120, render: (date: string) => <Text style={{ fontSize: 12 }}>{date}</Text> },
-    { title: '합성 완료 일자', dataIndex: 'completeDate', key: 'completeDate', width: 120, render: (date: string | null) => <Text style={{ fontSize: 12 }}>{date || '-'}</Text> }
+    { title: '합성 요청 일자', dataIndex: 'requestDate', key: 'requestDate', width: 120, align: 'center' as const, className: 'table-center-column', render: (date: string) => <Text style={{ fontSize: 12 }}>{date}</Text> },
+    { title: '합성 완료 일자', dataIndex: 'completeDate', key: 'completeDate', width: 120, align: 'center' as const, className: 'table-center-column', render: (date: string | null) => <Text style={{ fontSize: 12 }}>{date || '-'}</Text> }
   ];
 
   return (
@@ -524,8 +526,8 @@ const SynthesisBoard: React.FC = () => {
       }}
     >
       {/* Top Search Header - Removed Source Toggle from here */}
-      <Card variant="borderless" className="c-card" style={{ marginBottom: 20 }}>
-        <Row gutter={[16, 16]} align="middle">
+      <Card variant="borderless" className="c-card compact-filter-card" style={{ marginBottom: 12 }}>
+        <Row gutter={[12, 8]} align="middle">
           <Col flex="auto" style={{ minWidth: 0 }}>
             <div
               style={{
@@ -573,11 +575,11 @@ const SynthesisBoard: React.FC = () => {
           </Col>
         </Row>
         {showFilters && (
-          <div style={{ marginTop: 24, padding: 20, background: token.colorBgLayout, borderRadius: 12 }}>
-            <Row gutter={[32, 24]}>
+          <div className="compact-filter-panel">
+            <Row gutter={[24, 12]}>
               <Col span={10}>
                 <Text strong>Projects</Text><br />
-                <Space wrap style={{ marginTop: 8 }}>
+                <Space wrap style={{ marginTop: 4 }}>
                   {['ALL', ...projectList].map(opt => (
                     <ToggleTag
                       key={opt}
@@ -591,7 +593,7 @@ const SynthesisBoard: React.FC = () => {
               </Col>
               <Col span={6}>
                 <Text strong>Share</Text><br />
-                <Space wrap style={{ marginTop: 8 }}>
+                <Space wrap style={{ marginTop: 4 }}>
                   {['ALL', ...shareList].map(opt => (
                     <ToggleTag
                       key={opt}
@@ -605,7 +607,7 @@ const SynthesisBoard: React.FC = () => {
               </Col>
               <Col span={8}>
                 <Text strong>Design Source</Text><br />
-                <Space wrap style={{ marginTop: 8 }}>
+                <Space wrap style={{ marginTop: 4 }}>
                   {['ALL', ...sourceList].map(opt => (
                     <ToggleTag
                       key={opt}
@@ -926,7 +928,7 @@ const SynthesisBoard: React.FC = () => {
           background-color: var(--table-row-selected-hover-bg) !important;
         }
         .ant-table-thead > tr > th {
-          background: ${isDarkMode ? '#1f1f1f' : '#fafafa'} !important;
+          background: var(--table-header-bg) !important;
           color: ${isDarkMode ? 'rgba(255,255,255,0.85)' : '#495057'} !important;
           font-size: 12px;
           font-weight: 600;

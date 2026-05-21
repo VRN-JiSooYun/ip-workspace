@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Modal, Button, Typography, theme } from 'antd';
 import { Info } from 'lucide-react';
 import { CHEMDRAW_CONFIG } from '../../config/chemdraw';
+import { installChemDrawKoreanKeyboardBridge } from '../../utils/chemdrawKeyboard';
 
 const { Text } = Typography;
 
@@ -182,6 +183,15 @@ const ChemDrawModal: React.FC<ChemDrawModalProps> = ({
       restoreReadbackPatch();
     };
   }, [open, containerId, initialCdxml, initialSmiles, initialMolblock]);
+
+  useEffect(() => {
+    if (!open || !cdjsInstance) return;
+
+    const container = document.getElementById(containerId);
+    if (!container) return;
+
+    return installChemDrawKoreanKeyboardBridge(container);
+  }, [open, cdjsInstance, containerId]);
 
   const handleCancel = () => {
     setCdjsInstance(null);

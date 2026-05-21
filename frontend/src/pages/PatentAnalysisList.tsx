@@ -32,6 +32,9 @@ import ToggleTag from '../components/common/ToggleTag';
 
 const { Text } = Typography;
 
+const PATENT_LIST_TITLE_COLUMN_WIDTH = 480;
+const PATENT_LIST_TABLE_SCROLL_X = 1370;
+
 const PatentAnalysisList: React.FC = () => {
   const { token } = theme.useToken();
   const navigate = useNavigate();
@@ -94,9 +97,10 @@ const PatentAnalysisList: React.FC = () => {
 
   const patentListTableScroll = React.useMemo(() => {
     const estimatedRowHeight = 64;
-    return filteredPatents.length * estimatedRowHeight > patentListTableScrollY
-      ? { y: patentListTableScrollY }
-      : undefined;
+    const needsVerticalScroll = filteredPatents.length * estimatedRowHeight > patentListTableScrollY;
+    return needsVerticalScroll
+      ? { x: PATENT_LIST_TABLE_SCROLL_X, y: patentListTableScrollY }
+      : { x: PATENT_LIST_TABLE_SCROLL_X };
   }, [filteredPatents.length, patentListTableScrollY]);
 
   const columns = [
@@ -105,6 +109,8 @@ const PatentAnalysisList: React.FC = () => {
       dataIndex: 'isFavorite',
       key: 'favorite',
       width: 50,
+      align: 'center' as const,
+      className: 'table-center-column',
       render: (fav: boolean) => (
         <Star size={18} fill={fav ? "#F87C63" : "none"} color={fav ? "#F87C63" : token.colorTextDescription} />
       ),
@@ -113,13 +119,17 @@ const PatentAnalysisList: React.FC = () => {
       title: '특허 번호',
       dataIndex: 'patentNumber',
       key: 'patentNumber',
-      width: 180,
+      width: 270,
+      align: 'center' as const,
+      className: 'table-center-column',
       render: (text: string) => <Text strong>{text}</Text>,
     },
     {
       title: '제목',
       dataIndex: 'title',
       key: 'title',
+      width: PATENT_LIST_TITLE_COLUMN_WIDTH,
+      className: 'responsive-text-column',
       ellipsis: true,
     },
     {
@@ -133,12 +143,16 @@ const PatentAnalysisList: React.FC = () => {
       dataIndex: 'publicationDate',
       key: 'publicationDate',
       width: 120,
+      align: 'center' as const,
+      className: 'table-center-column',
     },
     {
       title: '타겟',
       dataIndex: 'target',
       key: 'target',
       width: 100,
+      align: 'center' as const,
+      className: 'table-center-column',
       render: (text: string) => <Tag color="blue">{text}</Tag>,
     },
     {
@@ -146,6 +160,8 @@ const PatentAnalysisList: React.FC = () => {
       dataIndex: 'status',
       key: 'status',
       width: 120,
+      align: 'center' as const,
+      className: 'table-center-column',
       render: (status: string) => {
         let color = 'default';
         if (status === 'Completed') color = 'success';
@@ -157,6 +173,8 @@ const PatentAnalysisList: React.FC = () => {
       title: '작업',
       key: 'action',
       width: 80,
+      align: 'center' as const,
+      className: 'table-center-column',
       render: (_: any, record: Patent) => (
         <Button 
           type="text" 
@@ -173,8 +191,8 @@ const PatentAnalysisList: React.FC = () => {
   return (
     <div style={{ maxWidth: layoutPreset.maxWidth, margin: '0 auto', padding: `0 ${layoutPreset.sidePadding}px`, height: '100%', width: '100%', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', animation: 'fadeIn 0.3s ease-out' }}>
-        <Card variant="borderless" className="c-card" style={{ marginBottom: 24, flexShrink: 0 }}>
-          <Row gutter={[16, 16]} align="middle">
+        <Card variant="borderless" className="c-card compact-filter-card" style={{ marginBottom: 12, flexShrink: 0 }}>
+          <Row gutter={[12, 8]} align="middle">
             <Col flex="auto" style={{ minWidth: 0 }}>
               <div
                 style={{
@@ -229,11 +247,11 @@ const PatentAnalysisList: React.FC = () => {
             </Col>
           </Row>
           {showFilters && (
-            <div style={{ marginTop: 24, padding: 20, background: token.colorBgLayout, borderRadius: 12 }}>
-              <Row gutter={[32, 24]}>
-                <Col span={8}>
+            <div className="compact-filter-panel">
+              <Row gutter={[24, 12]}>
+                <Col span={6}>
                   <Text strong>특허청</Text><br />
-                  <div style={{ marginTop: 12 }}>
+                  <div style={{ marginTop: 4 }}>
                     <Space wrap>
                       {['ALL', 'WIPO', 'USPTO', 'KIPO', 'EPO'].map(opt => (
                         <ToggleTag
@@ -251,9 +269,9 @@ const PatentAnalysisList: React.FC = () => {
                     </Space>
                   </div>
                 </Col>
-                <Col span={8}>
+                <Col span={6}>
                   <Text strong>분석 상태</Text><br />
-                  <div style={{ marginTop: 12 }}>
+                  <div style={{ marginTop: 4 }}>
                     <Space wrap>
                       {['ALL', '분석중', '완료'].map(opt => (
                         <ToggleTag
@@ -271,9 +289,9 @@ const PatentAnalysisList: React.FC = () => {
                     </Space>
                   </div>
                 </Col>
-                <Col span={24}>
+                <Col span={12}>
                   <Text strong>Recent Projects</Text><br />
-                  <div style={{ marginTop: 12, display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                  <div style={{ marginTop: 4, display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                     {['EGFR', 'AKT1', 'MET', 'FGFR3', 'VRK1', 'PKMYT1', 'WEE1', 'UBP1'].map(project => (
                       <Tag.CheckableTag 
                         key={project}
@@ -316,6 +334,7 @@ const PatentAnalysisList: React.FC = () => {
             pagination={{ pageSize: 10, position: ['bottomCenter'], style: { margin: '16px 0' } }}
             scroll={patentListTableScroll}
             style={{ flex: 1 }}
+            tableLayout="fixed"
           />
         </div>
 
@@ -336,7 +355,7 @@ const PatentAnalysisList: React.FC = () => {
           to { opacity: 1; transform: translateY(0); }
         }
         .ant-table-thead > tr > th {
-          background: transparent !important;
+          background: var(--table-header-bg) !important;
           border-bottom: 1px solid ${token.colorBorderSecondary} !important;
         }
         .ant-table-row:hover > td {
