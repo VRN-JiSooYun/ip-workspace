@@ -94,12 +94,13 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
       key: 'compounds',
       label: 'Compounds',
       icon: <BenzeneIcon size={22} />,
-      activeKeys: ['compounds', 'myboard', 'my-tree', 'chem-space'],
+      activeKeys: ['compounds', 'myboard', 'my-tree', 'chem-space', 'clustering'],
       menu: {
         items: [
           { key: 'myboard', label: renderMiniDropdownLabel('My board'), title: '', onClick: () => navigate('/myboard') },
           { key: 'my-tree', label: renderMiniDropdownLabel('My tree'), title: '', onClick: () => navigate('/my-tree') },
           { key: 'chem-space', label: renderMiniDropdownLabel('Chemical space'), title: '', onClick: () => navigate('/chem-space') },
+          { key: 'clustering', label: renderMiniDropdownLabel('Clustering'), title: '', onClick: () => navigate('/clustering') },
         ],
       },
     },
@@ -172,6 +173,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
     if (path === '/myboard/synthesis-board' || path === '/synthesis-board') return 'myboard';
     if (path === '/my-tree') return 'my-tree';
     if (path === '/chem-space') return 'chem-space';
+    if (path === '/clustering') return 'clustering';
     if (path === '/patents/write') return 'patent-write';
     if (path === '/patents/analysis') return 'patent-analysis';
     if (path === '/patents/manage') return 'patent-manage';
@@ -360,6 +362,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                   { key: 'myboard', label: 'My board', onClick: () => navigate('/myboard') },
                   { key: 'my-tree', label: 'My tree', onClick: () => navigate('/my-tree') },
                   { key: 'chem-space', label: 'Chemical space', onClick: () => navigate('/chem-space') },
+                  { key: 'clustering', label: 'Clustering', onClick: () => navigate('/clustering') },
                 ],
               },
               {

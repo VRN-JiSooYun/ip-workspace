@@ -77,6 +77,7 @@ const App: React.FC = () => {
               <Route path="/my-tree" element={<EmptyPage title="My tree" breadcrumb={[{ label: 'Compounds' }, { label: 'My tree' }]} />} />
               <Route path="/chem-space" element={<ChemSpace />} />
               <Route path="/chem-space-3d" element={<ChemSpace3D />} />
+              <Route path="/clustering" element={<EmptyPage title="Clustering" breadcrumb={[{ label: 'Compounds' }, { label: 'Clustering' }]} />} />
               <Route path="/myboard/sar-table" element={<SarTable />} />
               <Route path="/myboard/synthesis-board" element={<SynthesisBoard />} />
               <Route path="/sar-table" element={<Navigate to="/myboard/sar-table" replace />} />

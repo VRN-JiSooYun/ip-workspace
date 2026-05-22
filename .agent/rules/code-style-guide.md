@@ -9,4 +9,4 @@ trigger: always_on
 - sequential thinking MCP를 사용해서 답변을 구성합니다.
 - antigravity에서 만드는 모든 관리 문서는 docs에 저장합니다.
 - 모든 문서는 '한국어'로 작성합니다.
-- node, python, python3 빌드 환경은 로컬에서 실해하지말고 docker를 통해 실행합니다.
+- node, python, python3 빌드 환경은 로컬에서 실해하지말고 dock줘er를 통해 실행합니다.

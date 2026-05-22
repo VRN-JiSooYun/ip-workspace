@@ -9,10 +9,10 @@ import {
   Search, Plus, Filter, Settings, List as ListIcon,
   Image as ImageIcon, GitBranch, Info, ChevronDown, ChevronUp, Beaker,
   Activity, Share2, GripVertical, Upload as UploadIcon, FileText,
-  PanelLeftClose, PanelLeftOpen, Copy, Trash2, Edit3
+  PanelLeftClose, PanelLeftOpen, Copy, Trash2, Combine
 } from 'lucide-react';
 import { useBoardStore } from '../store/useBoardStore';
-import { mockCompounds, mockGroups } from '../mocks/compounds';
+import { mockCompounds } from '../mocks/compounds';
 import { useUserStore } from '../store/useUserStore';
 import RadarChart from '../components/charts/RadarChart';
 import dayjs from 'dayjs';
@@ -27,6 +27,7 @@ import CompoundStructureView from '../components/common/CompoundStructureView';
 import ToggleTag from '../components/common/ToggleTag';
 import shareForwardIconRaw from '../assets/svg/share-forward-fill.svg?raw';
 import shareIconRaw from '../assets/svg/share.svg?raw';
+import bookmarkIconRaw from '../assets/svg/bookmark.svg?raw';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
@@ -41,6 +42,7 @@ const MYBOARD_SHARE_STATUS_COLORS = {
 const createSvgMaskUrl = (svg: string) => `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
 const shareForwardIconMaskUrl = createSvgMaskUrl(shareForwardIconRaw);
 const shareIconMaskUrl = createSvgMaskUrl(shareIconRaw);
+const bookmarkIconMaskUrl = createSvgMaskUrl(bookmarkIconRaw);
 const MYBOARD_RESPONSIVE_TEXT_COLUMN_KEYS = new Set([
   'designMemo',
   'assayPurpose',
@@ -54,6 +56,7 @@ const MYBOARD_RESPONSIVE_TEXT_COLUMN_MIN_WIDTH = 220;
 const MYBOARD_RESPONSIVE_TEXT_COLUMN_MAX_WIDTH = 420;
 const MYBOARD_GROUP_TITLE_MIN_WIDTH = 120;
 const MYBOARD_GROUP_COLUMN_WIDTHS = {
+  bookmark: 40,
   creDate: 100,
   type: 60,
   target: 80,
@@ -91,6 +94,7 @@ const MYBOARD_CENTER_COLUMN_KEYS = new Set([
   'project',
   'compoundId',
   'structure',
+  'experimentStage',
   'designSource',
   'props1',
   'props2',
@@ -109,12 +113,22 @@ const MyBoard: React.FC = () => {
   const navigate = useNavigate();
   const { token } = theme.useToken();
   const { setHeaderContent } = useUIStore();
-  const { selectedGroupIds, toggleGroupSelection, setSelectedSarCompoundIds } = useBoardStore();
+  const {
+    selectedGroupIds,
+    toggleGroupSelection,
+    setSelectedSarCompoundIds,
+    groups,
+    mergeGroups,
+    copyGroup,
+    deleteGroups,
+  } = useBoardStore();
   const { currentUser } = useUserStore();
   const [isGroupModalOpen, setIsGroupModalOpen] = useState(false);
   const [isDesignModalOpen, setIsDesignModalOpen] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [isStructureModalOpen, setIsStructureModalOpen] = useState(false);
+  const [isMergeGroupModalOpen, setIsMergeGroupModalOpen] = useState(false);
+  const [mergeGroupName, setMergeGroupName] = useState('');
   const [cdjsInstance, setCdjsInstance] = useState<any>(null);
   const [designSmiles, setDesignSmiles] = useState('');
   const [searchedSvg, setSearchedSvg] = useState<string | null>(null);
@@ -131,6 +145,7 @@ const MyBoard: React.FC = () => {
   } | null>(null);
   const [groupListMode, setGroupListMode] = useState<'full' | 'structure' | 'hidden'>('full');
   const [selectedDataSources, setSelectedDataSources] = useState<string[]>(['my designs']);
+  const [bookmarkedGroupIds, setBookmarkedGroupIds] = useState<string[]>([]);
   const [viewportWidth, setViewportWidth] = useState<number>(() => {
     if (typeof window === 'undefined') return 1920;
     return window.innerWidth;
@@ -148,8 +163,15 @@ const MyBoard: React.FC = () => {
   const splitStorageKey = 'my-board-split:group-detail';
   const [groupListTableWidth, setGroupListTableWidth] = useState(0);
   const visibleGroupRows = React.useMemo(
-    () => mockGroups.filter(g => selectedDataSources.includes(g.type)),
-    [selectedDataSources]
+    () => groups
+      .filter(g => selectedDataSources.includes(g.type))
+      .sort((a, b) => {
+        const aBookmarked = bookmarkedGroupIds.includes(a.id);
+        const bBookmarked = bookmarkedGroupIds.includes(b.id);
+        if (aBookmarked !== bBookmarked) return aBookmarked ? -1 : 1;
+        return groups.indexOf(a) - groups.indexOf(b);
+      }),
+    [bookmarkedGroupIds, groups, selectedDataSources]
   );
   const contentFitGroupTitleWidth = React.useMemo(() => {
     const longestTitleWidth = visibleGroupRows.reduce(
@@ -350,7 +372,7 @@ const MyBoard: React.FC = () => {
   }, [autoFitGroupTableWidth, clampSplitRatio, isGroupListFull, isStackedSplitLayout, stopSplitResize]);
 
   const alwaysColumnKeys = React.useMemo(() => [
-    '순번', '그룹 번호', '프로젝트', '물질 번호 (VRN)', '화합물 구조', '출처', '디자인 비고', 'Mol.Properties1', 'Mol.Properties2'
+    '순번', '그룹 번호', '프로젝트', '물질 번호 (VRN)', '화합물 구조', '단계', '출처', '디자인 비고', 'Mol.Properties1', 'Mol.Properties2'
   ], []);
   const designColumnKeys = React.useMemo(() => [
     '디자인 번호', '필요량 (mg)', '목적 (개선하고자 하는 assay)', '기대 개선 효과', '의뢰일자', '합성 확장 필요 정도', '의뢰 비고'
@@ -529,6 +551,41 @@ const MyBoard: React.FC = () => {
 
   const groupColumns = [
     {
+      title: '',
+      dataIndex: 'id',
+      key: 'bookmark',
+      width: MYBOARD_GROUP_COLUMN_WIDTHS.bookmark,
+      minWidth: MYBOARD_GROUP_COLUMN_WIDTHS.bookmark,
+      align: 'center' as const,
+      className: 'my-board-group-fixed-column',
+      onCell: () => createFixedGroupColumnProps(MYBOARD_GROUP_COLUMN_WIDTHS.bookmark),
+      onHeaderCell: () => createFixedGroupColumnProps(MYBOARD_GROUP_COLUMN_WIDTHS.bookmark),
+      render: (groupId: string) => {
+        const isBookmarked = bookmarkedGroupIds.includes(groupId);
+
+        return (
+          <Tooltip title={isBookmarked ? '상단 고정 해제' : '상단 고정'}>
+            <Button
+              size="small"
+              type="text"
+              aria-label={isBookmarked ? '상단 고정 해제' : '상단 고정'}
+              className={`my-board-bookmark-button${isBookmarked ? ' active' : ''}`}
+              onClick={(event) => {
+                event.stopPropagation();
+                setBookmarkedGroupIds((prev) => (
+                  prev.includes(groupId)
+                    ? prev.filter((id) => id !== groupId)
+                    : [groupId, ...prev]
+                ));
+              }}
+            >
+              <span className="my-board-bookmark-icon" />
+            </Button>
+          </Tooltip>
+        );
+      },
+    },
+    {
       title: 'Date',
       dataIndex: 'creDate',
       key: 'creDate',
@@ -641,14 +698,16 @@ const MyBoard: React.FC = () => {
 
   const groupContextMenuItems: MenuProps['items'] = [
     {
+      key: 'merge',
+      icon: <Combine size={14} />,
+      label: '그룹 간 통합',
+      disabled: selectedGroupIds.length < 2,
+    },
+    {
       key: 'copy',
       icon: <Copy size={14} />,
       label: '그룹 복사',
-    },
-    {
-      key: 'rename',
-      icon: <Edit3 size={14} />,
-      label: '그룹명 변경',
+      disabled: selectedGroupIds.length !== 1,
     },
     {
       type: 'divider',
@@ -656,10 +715,63 @@ const MyBoard: React.FC = () => {
     {
       key: 'delete',
       icon: <Trash2 size={14} />,
-      label: '삭제',
+      label: '그룹 삭제',
       danger: true,
     },
   ];
+
+  const getContextGroupIds = React.useCallback(() => {
+    if (!groupContextMenu?.groupId) return selectedGroupIds;
+    return selectedGroupIds.includes(groupContextMenu.groupId)
+      ? selectedGroupIds
+      : [...selectedGroupIds, groupContextMenu.groupId];
+  }, [groupContextMenu?.groupId, selectedGroupIds]);
+
+  const getGroupCompoundCount = React.useCallback((groupIds: string[]) => (
+    mockCompounds.filter((compound) => groupIds.includes(compound.groupId)).length
+  ), []);
+
+  const handleGroupContextMenuClick: MenuProps['onClick'] = ({ key }) => {
+    const contextGroupIds = getContextGroupIds();
+
+    if (key === 'merge') {
+      if (contextGroupIds.length < 2) return;
+      const fallbackName = groups
+        .filter((group) => contextGroupIds.includes(group.id))
+        .map((group) => group.name)
+        .join(' + ');
+      setMergeGroupName(fallbackName || '통합 그룹');
+      setIsMergeGroupModalOpen(true);
+      setGroupContextMenu(null);
+      return;
+    }
+
+    if (key === 'copy') {
+      if (contextGroupIds.length !== 1) return;
+      copyGroup(contextGroupIds[0]);
+      setGroupContextMenu(null);
+      return;
+    }
+
+    if (key === 'delete') {
+      if (contextGroupIds.length === 0) return;
+      const compoundCount = getGroupCompoundCount(contextGroupIds);
+      Modal.confirm({
+        title: '그룹 삭제',
+        content: `총 ${contextGroupIds.length}개의 그룹(${compoundCount}개의 화합물)을 삭제 하시겠습니까?`,
+        okText: '삭제',
+        cancelText: '취소',
+        okButtonProps: { danger: true },
+        onOk: () => {
+          deleteGroups(contextGroupIds);
+          setGroupContextMenu(null);
+        },
+      });
+      return;
+    }
+
+    setGroupContextMenu(null);
+  };
 
   const structureOnlyGroupColumns = [
     {
@@ -721,6 +833,18 @@ const MyBoard: React.FC = () => {
           </div>
         );
       }
+    },
+    '단계': {
+      title: '단계',
+      dataIndex: 'experimentStage',
+      key: 'experimentStage',
+      width: 64,
+      align: 'center' as const,
+      render: (stage: number | undefined, record: any) => (
+        <Text strong style={{ color: token.colorPrimary, fontSize: 12 }}>
+          {stage ?? ((Number(String(record.id).replace(/\D/g, '')) || 0) % 5) + 1}
+        </Text>
+      )
     },
     '출처': { title: '출처', dataIndex: 'designSource', key: 'designSource', width: 84 },
     '디자인 비고': { title: '디자인 비고', dataIndex: 'designMemo', key: 'designMemo', ellipsis: true, width: 220 },
@@ -1109,7 +1233,7 @@ const MyBoard: React.FC = () => {
               placement="bottomLeft"
               menu={{
                 items: groupContextMenuItems,
-                onClick: () => setGroupContextMenu(null),
+                onClick: handleGroupContextMenuClick,
               }}
               onOpenChange={(open) => {
                 if (!open) setGroupContextMenu(null);
@@ -1145,11 +1269,11 @@ const MyBoard: React.FC = () => {
                 },
                 onContextMenu: (event) => {
                   event.stopPropagation();
-                  if (record.shareStatus !== '공유 안함') {
-                    setGroupContextMenu(null);
-                    return;
-                  }
                   event.preventDefault();
+
+                  if (!selectedGroupIds.includes(record.id)) {
+                    toggleGroupSelection(record.id);
+                  }
                   setGroupContextMenu({
                     open: true,
                     x: event.clientX,
@@ -1323,7 +1447,11 @@ const MyBoard: React.FC = () => {
                 columns={styledDynamicCompoundColumns}
                 size="small"
                 rowKey="id"
-                pagination={{ pageSize: 10 }}
+                pagination={{
+                  defaultPageSize: 10,
+                  showSizeChanger: true,
+                  pageSizeOptions: [10, 30, 50, 100],
+                }}
                 loading={isLoading}
                 scroll={{ x: detailTableScrollX, y: isStackedSplitLayout ? undefined : 'calc(100vh - 430px)' }}
                 tableLayout="fixed"
@@ -1366,6 +1494,33 @@ const MyBoard: React.FC = () => {
         </Form>
       </Modal>
 
+      <Modal
+        title="그룹 간 통합"
+        open={isMergeGroupModalOpen}
+        okText="통합"
+        cancelText="취소"
+        onCancel={() => setIsMergeGroupModalOpen(false)}
+        onOk={() => {
+          const nextName = mergeGroupName.trim();
+          if (!nextName || selectedGroupIds.length < 2) return;
+          mergeGroups(selectedGroupIds, nextName);
+          setIsMergeGroupModalOpen(false);
+        }}
+      >
+        <Form layout="vertical" style={{ marginTop: 16 }}>
+          <Form.Item label="통합 그룹 이름" required>
+            <Input
+              value={mergeGroupName}
+              onChange={(event) => setMergeGroupName(event.target.value)}
+              placeholder="통합 그룹 이름을 입력하세요"
+            />
+          </Form.Item>
+          <Text type="secondary" style={{ fontSize: 12 }}>
+            선택된 {selectedGroupIds.length}개의 그룹을 하나의 그룹으로 통합합니다.
+          </Text>
+        </Form>
+      </Modal>
+
       {/* Create Design Modal */}
       <Modal
         title="디자인 등록 (Create Design)"
@@ -1397,7 +1552,7 @@ const MyBoard: React.FC = () => {
                     setAssignedGroupIds(ids);
                   }}
                 >
-                  {mockGroups.map(g => <Option key={g.id} value={g.id}>{g.name}</Option>)}
+                  {groups.map(g => <Option key={g.id} value={g.id}>{g.name}</Option>)}
                 </Select>
               </Form.Item>
             </Col>
@@ -1648,6 +1803,35 @@ const MyBoard: React.FC = () => {
         .my-board-detail-table .ant-table-body {
           scrollbar-gutter: stable;
           overflow-y: auto !important;
+        }
+        .my-board-detail-table .ant-pagination {
+          padding-right: 16px;
+          box-sizing: border-box;
+        }
+        .my-board-bookmark-button {
+          width: 24px;
+          height: 24px;
+          padding: 0;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          color: ${token.colorTextTertiary};
+        }
+        .my-board-bookmark-icon {
+          width: 14px;
+          height: 14px;
+          display: inline-block;
+          background-color: currentColor;
+          -webkit-mask: url("${bookmarkIconMaskUrl}") center / contain no-repeat;
+          mask: url("${bookmarkIconMaskUrl}") center / contain no-repeat;
+        }
+        .my-board-bookmark-button.active {
+          color: ${token.colorPrimary};
+          background: ${token.colorPrimaryBg};
+        }
+        .my-board-bookmark-button:hover {
+          color: ${token.colorPrimary};
+          background: ${token.colorPrimaryBg};
         }
         .canvas-card:hover { border-color: ${token.colorPrimary} !important; transform: translateY(-4px); box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
         .cdd-clipboard-icon-container, .CDW_Logo, .cdd-logo { display: none !important; }

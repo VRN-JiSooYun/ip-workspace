@@ -77,6 +77,7 @@ export interface Compound {
   researchNote?: string;
   reportData?: string;
   synthesisEndReason?: string;
+  experimentStage?: number;
   sar?: SARData;
 }
 
@@ -176,6 +177,7 @@ const createMockCompound = (
     researchNote: `ELN-2026-${String(60 + seed).padStart(3, '0')}`,
     reportData: isCompleted ? 'HPLC/NMR 확인' : '예상 MS 등록',
     synthesisEndReason: isCompleted ? '목표 물질 확보' : '-',
+    experimentStage: (seed % 5) + 1,
     sar: createSarData(seed),
   };
 };
@@ -218,7 +220,8 @@ export const mockCompounds: Compound[] = [
     registeredDate: '2026.05.03',
     researchNote: 'ELN-2026-051',
     reportData: 'LCMS 확인',
-    synthesisEndReason: '-'
+    synthesisEndReason: '-',
+    experimentStage: 2
   },
   {
     id: 'c2', groupId: 'g3', compoundId: 'VNA240138', name: 'VNA240138', source: 'Manual', smiles: 'CN(C)C(=O)C1=CC=CC=C1', creDate: '2025.03.21', project: 'cMET', shareStatus: '공유함', designSource: 'Patent',
@@ -251,7 +254,8 @@ export const mockCompounds: Compound[] = [
     registeredDate: '2026.05.05',
     researchNote: 'ELN-2026-052',
     reportData: '예상 MS 등록',
-    synthesisEndReason: '-'
+    synthesisEndReason: '-',
+    experimentStage: 1
   },
   {
     id: 'c3', groupId: 'g3', compoundId: 'VNA240139', name: 'VNA240139', source: 'Manual', smiles: 'C1=CC=C(C=C1)S(=O)(=O)N', creDate: '2024.12.15', project: 'cMET', shareStatus: '공유받음', designSource: 'Paper',
@@ -284,7 +288,8 @@ export const mockCompounds: Compound[] = [
     registeredDate: '2026.05.07',
     researchNote: 'ELN-2026-053',
     reportData: 'NMR 예정',
-    synthesisEndReason: '-'
+    synthesisEndReason: '-',
+    experimentStage: 3
   },
   {
     id: 'c4', groupId: 'g3', compoundId: 'VNA240140', name: 'VNA240140', source: 'Manual', smiles: 'CC1=CC=C(C=C1)C(=O)N', creDate: '2025.01.28', project: 'cMET', shareStatus: '내 물질', designSource: 'FBDD',
@@ -317,7 +322,8 @@ export const mockCompounds: Compound[] = [
     registeredDate: '2026.05.09',
     researchNote: 'ELN-2026-054',
     reportData: 'HPLC purity 97%',
-    synthesisEndReason: '목표 물질 확보'
+    synthesisEndReason: '목표 물질 확보',
+    experimentStage: 5
   },
   ...Array.from({ length: 3 }, (_, index) =>
     createMockCompound(index + 33, 'g3', 'cMET', 'D-cMET', 'Tepotinib 변형 SAR')
