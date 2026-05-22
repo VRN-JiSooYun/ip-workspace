@@ -27,6 +27,7 @@ const WhiteboardEditor: React.FC<WhiteboardEditorProps> = ({
   const imageInputRef = useRef<HTMLInputElement>(null);
   const fabricCanvasRef = useRef<any>(null);
   const isChemDrawOpenRef = useRef(false);
+  const isDeleteConfirmOpenRef = useRef(false);
   const [isChemDrawOpen, setIsChemDrawOpen] = useState(false);
   const [chemDrawInitialStructure, setChemDrawInitialStructure] = useState<{
     cdxml?: string;
@@ -485,6 +486,9 @@ const WhiteboardEditor: React.FC<WhiteboardEditorProps> = ({
 
   const confirmDeleteCanvasObjects = (canvas: any, objects: any[], title: string) => {
     if (!canvas || objects.length === 0) return;
+    if (isDeleteConfirmOpenRef.current) return;
+
+    isDeleteConfirmOpenRef.current = true;
 
     modal.confirm({
       title,
@@ -492,7 +496,16 @@ const WhiteboardEditor: React.FC<WhiteboardEditorProps> = ({
       okText: '확인',
       cancelText: '취소',
       okButtonProps: { danger: true },
-      onOk: () => removeCanvasObjects(canvas, objects),
+      onOk: () => {
+        removeCanvasObjects(canvas, objects);
+        isDeleteConfirmOpenRef.current = false;
+      },
+      onCancel: () => {
+        isDeleteConfirmOpenRef.current = false;
+      },
+      afterClose: () => {
+        isDeleteConfirmOpenRef.current = false;
+      },
     });
   };
 
@@ -856,7 +869,9 @@ const WhiteboardEditor: React.FC<WhiteboardEditorProps> = ({
           }}
         >
           {isRdkitPreviewLoading ? (
-            <Spin tip="RDKit 구조 이미지를 생성하는 중입니다." />
+            <Spin tip="RDKit 구조 이미지를 생성하는 중입니다.">
+              <div style={{ width: 220, height: 72 }} />
+            </Spin>
           ) : rdkitPreviewSvg || pendingStructureData?.svg ? (
             <div
               className="whiteboard-rdkit-preview"

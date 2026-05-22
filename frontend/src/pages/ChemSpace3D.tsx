@@ -295,7 +295,9 @@ const ChemSpace3D: React.FC = () => {
           />
         ) : (
           <div style={{ height: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-            <Spin size="large" tip="Loading 3D Data..." />
+            <Spin size="large" tip="Loading 3D Data...">
+              <div style={{ width: 160, height: 72 }} />
+            </Spin>
           </div>
         )}
       </Card>

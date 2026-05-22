@@ -12,6 +12,7 @@
   --table-row-selected-bg: rgba(248, 124, 99, 0.22);
   --table-row-selected-hover-bg: rgba(248, 124, 99, 0.34);
   --table-header-bg: #edf0f3;
+  --table-header-divider: #b8c3cf;
 }
 
 [data-theme='dark'] {
@@ -26,6 +27,7 @@
   --table-row-selected-bg: rgba(248, 124, 99, 0.34);
   --table-row-selected-hover-bg: rgba(248, 124, 99, 0.46);
   --table-header-bg: #2a2a2a;
+  --table-header-divider: #66717d;
 }
 
 body {
@@ -83,6 +85,89 @@ body {
   font-size: 13px !important;
   text-align: center !important;
   vertical-align: middle !important;
+  position: relative !important;
+  overflow: hidden !important;
+  border-right: 0 !important;
+  border-inline-end: 0 !important;
+  box-shadow: none !important;
+}
+
+.ant-table-wrapper .ant-table-thead > tr > th.ant-table-cell-fix-left,
+.ant-table-wrapper .ant-table-thead > tr > td.ant-table-cell-fix-left,
+.ant-table-wrapper .ant-table-thead > tr > th.ant-table-cell-fix-right,
+.ant-table-wrapper .ant-table-thead > tr > td.ant-table-cell-fix-right {
+  position: sticky !important;
+  z-index: 5 !important;
+}
+
+.ant-table-wrapper .ant-table-thead > tr > th::after,
+.ant-table-wrapper .ant-table-thead > tr > td::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  z-index: 2;
+  width: 1px;
+  height: 100%;
+  background: var(--table-header-divider);
+  pointer-events: none;
+}
+
+.ant-table-wrapper .ant-table-thead > tr > th[colspan]:not([colspan='1'])::before,
+.ant-table-wrapper .ant-table-thead > tr > td[colspan]:not([colspan='1'])::before {
+  content: '';
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 3;
+  height: 1px;
+  background: var(--table-header-divider);
+  pointer-events: none;
+}
+
+.ant-table-wrapper .ant-table-thead > tr:has(+ tr) > th,
+.ant-table-wrapper .ant-table-thead > tr:has(+ tr) > td {
+  border-bottom: 0 !important;
+  box-shadow: none !important;
+}
+
+.ant-table-wrapper .ant-table-thead > tr > th:last-child::after,
+.ant-table-wrapper .ant-table-thead > tr > td:last-child::after,
+.ant-table-wrapper .ant-table-thead > tr > th.ant-table-cell-scrollbar::after,
+.ant-table-wrapper .ant-table-thead > tr > td.ant-table-cell-scrollbar::after {
+  display: none;
+}
+
+.ant-table-wrapper .ant-table-thead > tr > th.ant-table-cell-fix-left:last-child::after,
+.ant-table-wrapper .ant-table-thead > tr > td.ant-table-cell-fix-left:last-child::after,
+.ant-table-wrapper .ant-table-thead > tr > th.ant-table-cell-fix-left-last::after,
+.ant-table-wrapper .ant-table-thead > tr > td.ant-table-cell-fix-left-last::after {
+  display: block;
+  top: 0;
+  right: 0;
+  bottom: auto;
+  width: 1px;
+  height: 100%;
+  transform: none !important;
+  background: var(--table-header-divider);
+  box-shadow: none !important;
+  z-index: 6;
+}
+
+.ant-table-wrapper .ant-table-thead > tr > th.ant-table-cell-fix-left,
+.ant-table-wrapper .ant-table-thead > tr > td.ant-table-cell-fix-left,
+.ant-table-wrapper .ant-table-thead > tr > th.ant-table-cell-fix-left-last,
+.ant-table-wrapper .ant-table-thead > tr > td.ant-table-cell-fix-left-last {
+  box-shadow: inset -1px 0 0 var(--table-header-divider) !important;
+}
+
+.ant-table-wrapper .ant-table-thead > tr > th:last-child,
+.ant-table-wrapper .ant-table-thead > tr > td:last-child,
+.ant-table-wrapper .ant-table-thead > tr > th.ant-table-cell-scrollbar,
+.ant-table-wrapper .ant-table-thead > tr > td.ant-table-cell-scrollbar {
+  border-right: 0 !important;
+  border-inline-end: 0 !important;
 }
 
 .ant-table-wrapper .ant-table-thead > tr > th .ant-table-cell-content,
@@ -90,11 +175,63 @@ body {
   display: block;
   width: 100%;
   text-align: center;
+  max-width: 100%;
+  overflow: hidden;
 }
 
 .ant-table-wrapper .ant-table-tbody > tr > td {
   font-size: 13px;
   vertical-align: middle;
+}
+
+.ant-table-wrapper .ant-table-body {
+  scrollbar-gutter: stable;
+}
+
+.ant-table-wrapper .ant-table-container {
+  position: relative;
+}
+
+.ant-table-wrapper .ant-table-container .ant-table-header {
+  overflow: hidden !important;
+}
+
+.ant-table-wrapper .ant-table-container:has(.ant-table-header)::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  z-index: 30;
+  width: 17px;
+  height: 48px;
+  pointer-events: none;
+  background: var(--table-header-bg);
+  border-left: 1px solid var(--border-color);
+}
+
+.ant-table-wrapper .ant-table-container:has(.ant-table-thead > tr:nth-child(2))::after {
+  height: 96px;
+}
+
+.ant-table-wrapper.sar-table .ant-table-container:has(.ant-table-thead > tr:nth-child(2))::after {
+  height: 132px !important;
+}
+
+.ant-table-wrapper .ant-table-thead > tr > th.ant-table-cell-scrollbar,
+.ant-table-wrapper .ant-table-thead > tr > td.ant-table-cell-scrollbar {
+  padding: 0 !important;
+  font-size: 0 !important;
+  line-height: 0 !important;
+  background: var(--table-header-bg) !important;
+  overflow: hidden !important;
+  border-right: 0 !important;
+  border-inline-end: 0 !important;
+  box-shadow: none !important;
+}
+
+.ant-table-wrapper .ant-table-thead > tr:has(+ tr) > th.ant-table-cell-scrollbar,
+.ant-table-wrapper .ant-table-thead > tr:has(+ tr) > td.ant-table-cell-scrollbar {
+  box-shadow: none !important;
 }
 
 .responsive-text-column,

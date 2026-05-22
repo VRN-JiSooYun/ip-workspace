@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
 import { useUIStore } from '../store/useUIStore';
+import { useUserStore } from '../store/useUserStore';
 import PageHeaderBreadcrumb from '../components/common/PageHeaderBreadcrumb';
 import BenzeneIcon from '../components/common/BenzeneIcon';
 import { getPatentAnalysisLayoutPreset } from '../config/patentAnalysisLayout';
@@ -34,8 +35,22 @@ interface SynthesisDetail {
   name: string;
   smiles: string;
   structureSvg?: string;
-  assignee: string | null;
+  designNo: string;
+  requiredAmountMg: number;
+  assayPurpose: string;
+  expectedEffect: string;
   requestDate: string;
+  synthesisExpansionLevel: '상' | '중' | '하';
+  requestMemo: string;
+  synthesisOwner: string | null;
+  synthesisAcceptedDate: string | null;
+  synthesisTargetDate: string;
+  progressMemo: string;
+  isCompleted: boolean;
+  registeredDate: string;
+  researchNote: string;
+  reportData: string;
+  synthesisEndReason: string;
   completeDate: string | null;
 }
 
@@ -85,6 +100,7 @@ const SynthesisBoard: React.FC = () => {
   const { token } = theme.useToken();
   const navigate = useNavigate();
   const { setHeaderContent } = useUIStore();
+  const { currentUser } = useUserStore();
   const { isDarkMode } = useTheme();
   const [selectedDataSources, setSelectedDataSources] = useState<string[]>(['Designs']);
   const [showFilters, setShowFilters] = useState(false);
@@ -318,14 +334,49 @@ const SynthesisBoard: React.FC = () => {
 
   const mockSynthesisDetails: SynthesisDetail[] = [
     // Designs items
-    { id: 'sd1', groupId: 'sg1', groupNum: 1, compoundId: 'VRA-001', name: 'VRA-001', smiles: 'CC1=CC=C(C=C1)S', structureSvg: exampleCompound1Svg, assignee: '담당자1', requestDate: '2026.04.10', completeDate: null },
-    { id: 'sd2', groupId: 'sg1', groupNum: 2, compoundId: 'VRA-002', name: 'VRA-002', smiles: 'CNC1=NC=NC=C1', structureSvg: exampleCompound2Svg, assignee: '담당자2', requestDate: '2026.04.11', completeDate: null },
-    { id: 'sd_new1', groupId: 'sg1', groupNum: 3, compoundId: 'VRA-003', name: 'VRA-003 (미배정)', smiles: 'CC(=O)C1=CC=CC=C1', structureSvg: exampleCompound3Svg, assignee: null, requestDate: '2026.04.12', completeDate: null },
-    { id: 'sd3', groupId: 'sg2', groupNum: 1, compoundId: 'VRA-004', name: 'VRA-004', smiles: 'C1=CC=C(C=C1)N', structureSvg: exampleCompound4Svg, assignee: '담당자1', requestDate: '2026.04.12', completeDate: '2026.04.20' },
+    {
+      id: 'sd1', groupId: 'sg1', groupNum: 1, compoundId: 'VRA-001', name: 'VRA-001', smiles: 'CC1=CC=C(C=C1)S', structureSvg: exampleCompound1Svg,
+      designNo: 'D-FGFR-001', requiredAmountMg: 20, assayPurpose: 'FGFR 활성 개선', expectedEffect: 'enzyme IC50 2배 개선', requestDate: '2026.04.10',
+      synthesisExpansionLevel: '중', requestMemo: '우선 합성 후 SAR 확인', synthesisOwner: '담당자1', synthesisAcceptedDate: '2026.04.11', synthesisTargetDate: '2026.04.24',
+      progressMemo: 'Step 2 조건 최적화 중', isCompleted: false, registeredDate: '2026.04.10', researchNote: 'ELN-2026-101', reportData: 'LCMS preview', synthesisEndReason: '-', completeDate: null
+    },
+    {
+      id: 'sd2', groupId: 'sg1', groupNum: 2, compoundId: 'VRA-002', name: 'VRA-002', smiles: 'CNC1=NC=NC=C1', structureSvg: exampleCompound2Svg,
+      designNo: 'D-FGFR-002', requiredAmountMg: 15, assayPurpose: 'solubility 개선', expectedEffect: '용해도 개선 및 활성 유지', requestDate: '2026.04.11',
+      synthesisExpansionLevel: '하', requestMemo: 'VRA-001 결과와 비교', synthesisOwner: '담당자2', synthesisAcceptedDate: '2026.04.12', synthesisTargetDate: '2026.04.25',
+      progressMemo: '원료 입고 대기', isCompleted: false, registeredDate: '2026.04.11', researchNote: 'ELN-2026-102', reportData: 'route draft', synthesisEndReason: '-', completeDate: null
+    },
+    {
+      id: 'sd_new1', groupId: 'sg1', groupNum: 3, compoundId: 'VRA-003', name: 'VRA-003 (미배정)', smiles: 'CC(=O)C1=CC=CC=C1', structureSvg: exampleCompound3Svg,
+      designNo: 'D-FGFR-003', requiredAmountMg: 10, assayPurpose: 'hERG risk 확인', expectedEffect: 'off-target 감소', requestDate: '2026.04.12',
+      synthesisExpansionLevel: '상', requestMemo: '가능하면 이번 주 배정 필요', synthesisOwner: null, synthesisAcceptedDate: null, synthesisTargetDate: '2026.04.29',
+      progressMemo: '미배정', isCompleted: false, registeredDate: '2026.04.12', researchNote: '-', reportData: '-', synthesisEndReason: '-', completeDate: null
+    },
+    {
+      id: 'sd3', groupId: 'sg2', groupNum: 1, compoundId: 'VRA-004', name: 'VRA-004', smiles: 'C1=CC=C(C=C1)N', structureSvg: exampleCompound4Svg,
+      designNo: 'D-HER2-001', requiredAmountMg: 30, assayPurpose: 'HER2 potency 확인', expectedEffect: 'cell GI50 개선', requestDate: '2026.04.12',
+      synthesisExpansionLevel: '중', requestMemo: '완료 후 리포트 첨부', synthesisOwner: '담당자1', synthesisAcceptedDate: '2026.04.13', synthesisTargetDate: '2026.04.20',
+      progressMemo: '정제 완료', isCompleted: true, registeredDate: '2026.04.12', researchNote: 'ELN-2026-104', reportData: 'VRA-004_report.pdf', synthesisEndReason: '목표 물질 확보', completeDate: '2026.04.20'
+    },
     // Compounds items
-    { id: 'sd4', groupId: 'cg1', groupNum: 1, compoundId: 'VRA-101', name: 'VRA-101', smiles: 'CC(=O)NC1=CC=CC=C1', structureSvg: exampleCompound1Svg, assignee: '담당자1', requestDate: '2026.04.15', completeDate: null },
-    { id: 'sd5', groupId: 'cg2', groupNum: 1, compoundId: 'VRA-102', name: 'VRA-102', smiles: 'CC(C)C1=CC=CC=C1', structureSvg: exampleCompound2Svg, assignee: '담당자2', requestDate: '2026.04.16', completeDate: '2026.04.21' },
-    { id: 'sd_new2', groupId: 'cg2', groupNum: 2, compoundId: 'VRA-103', name: 'VRA-103 (미배정)', smiles: 'C1=CC=CC=C1O', structureSvg: exampleCompound3Svg, assignee: null, requestDate: '2026.04.22', completeDate: null },
+    {
+      id: 'sd4', groupId: 'cg1', groupNum: 1, compoundId: 'VRA-101', name: 'VRA-101', smiles: 'CC(=O)NC1=CC=CC=C1', structureSvg: exampleCompound1Svg,
+      designNo: 'D-cMET-101', requiredAmountMg: 25, assayPurpose: 'cMET analog 확보', expectedEffect: '기존 물질 대비 PK 개선', requestDate: '2026.04.15',
+      synthesisExpansionLevel: '중', requestMemo: 'scale-up 가능성 확인', synthesisOwner: '담당자1', synthesisAcceptedDate: '2026.04.16', synthesisTargetDate: '2026.04.30',
+      progressMemo: '중간체 합성 완료', isCompleted: false, registeredDate: '2026.04.15', researchNote: 'ELN-2026-111', reportData: 'intermediate_lcms', synthesisEndReason: '-', completeDate: null
+    },
+    {
+      id: 'sd5', groupId: 'cg2', groupNum: 1, compoundId: 'VRA-102', name: 'VRA-102', smiles: 'CC(C)C1=CC=CC=C1', structureSvg: exampleCompound2Svg,
+      designNo: 'D-WRN-102', requiredAmountMg: 20, assayPurpose: 'WRN hit follow-up', expectedEffect: 'selectivity window 확대', requestDate: '2026.04.16',
+      synthesisExpansionLevel: '하', requestMemo: '표준 조건 우선 적용', synthesisOwner: '담당자2', synthesisAcceptedDate: '2026.04.17', synthesisTargetDate: '2026.04.21',
+      progressMemo: '완료 및 분석 등록', isCompleted: true, registeredDate: '2026.04.16', researchNote: 'ELN-2026-112', reportData: 'VRA-102_report.pdf', synthesisEndReason: '목표 물질 확보', completeDate: '2026.04.21'
+    },
+    {
+      id: 'sd_new2', groupId: 'cg2', groupNum: 2, compoundId: 'VRA-103', name: 'VRA-103 (미배정)', smiles: 'C1=CC=CC=C1O', structureSvg: exampleCompound3Svg,
+      designNo: 'D-WRN-103', requiredAmountMg: 10, assayPurpose: 'phenol linker 영향 확인', expectedEffect: 'permeability 개선', requestDate: '2026.04.22',
+      synthesisExpansionLevel: '상', requestMemo: '합성 feasibility 검토 필요', synthesisOwner: null, synthesisAcceptedDate: null, synthesisTargetDate: '2026.05.06',
+      progressMemo: '미배정', isCompleted: false, registeredDate: '2026.04.22', researchNote: '-', reportData: '-', synthesisEndReason: '-', completeDate: null
+    },
   ];
 
   const filteredDetails = useMemo(() => {
@@ -431,10 +482,10 @@ const SynthesisBoard: React.FC = () => {
     }))
   ];
 
-  const detailColumns = [
+  const detailBaseColumns: any[] = [
     { title: 'Num', key: 'num', width: 50, align: 'center' as const, render: (_: any, __: any, index: number) => index + 1 },
     { title: 'Grp.', dataIndex: 'groupNum', key: 'grp', width: 60, align: 'center' as const, render: (num: number) => <Text strong style={{ color: token.colorPrimary }}>{num}</Text> },
-    { title: 'Compound', dataIndex: 'compoundId', key: 'compound', width: 100, align: 'center' as const, className: 'table-center-column' },
+    { title: 'Compound', dataIndex: 'compoundId', key: 'compound', width: 110, align: 'center' as const, className: 'table-center-column', render: (id: string) => <Text strong style={{ color: token.colorPrimary }}>{id}</Text> },
     {
       title: 'Structure',
       dataIndex: 'structureSvg',
@@ -467,16 +518,39 @@ const SynthesisBoard: React.FC = () => {
         </div>
       )
     },
-    { title: 'Name', dataIndex: 'name', key: 'name', ellipsis: true },
+  ];
+
+  const designDetailColumns: any[] = [
+    { title: '디자인 번호', dataIndex: 'designNo', key: 'designNo', width: 120, align: 'center' as const, className: 'table-center-column' },
+    { title: '필요량 (mg)', dataIndex: 'requiredAmountMg', key: 'requiredAmountMg', width: 104, align: 'right' as const, render: (amount: number) => <Text style={{ fontSize: 12 }}>{amount}</Text> },
+    { title: '목적 (개선하고자 하는 assay)', dataIndex: 'assayPurpose', key: 'assayPurpose', width: 240, ellipsis: true },
+    { title: '기대 개선 효과', dataIndex: 'expectedEffect', key: 'expectedEffect', width: 180, ellipsis: true },
+    { title: '의뢰일자', dataIndex: 'requestDate', key: 'requestDate', width: 104, align: 'center' as const, className: 'table-center-column', render: (date: string) => <Text style={{ fontSize: 12 }}>{date}</Text> },
+    {
+      title: '합성 확장 필요 정도',
+      dataIndex: 'synthesisExpansionLevel',
+      key: 'synthesisExpansionLevel',
+      width: 150,
+      align: 'center' as const,
+      className: 'table-center-column',
+      render: (level: SynthesisDetail['synthesisExpansionLevel']) => {
+        const color = level === '상' ? 'red' : level === '중' ? 'orange' : 'default';
+        return <Tag color={color} style={{ margin: 0 }}>{level}</Tag>;
+      }
+    },
+    { title: '의뢰 비고', dataIndex: 'requestMemo', key: 'requestMemo', width: 200, ellipsis: true },
+  ];
+
+  const synthesisDetailColumns: any[] = [
     {
       title: '합성 담당자',
-      dataIndex: 'assignee',
-      key: 'assignee',
+      dataIndex: 'synthesisOwner',
+      key: 'synthesisOwner',
       width: 130,
       align: 'center' as const,
       className: 'table-center-column',
-      render: (assignee: string | null, record: SynthesisDetail) => (
-        assignee ? (
+      render: (owner: string | null, record: SynthesisDetail) => (
+        owner ? (
           <div
             style={{
               cursor: 'pointer',
@@ -493,7 +567,7 @@ const SynthesisBoard: React.FC = () => {
             onClick={() => { setSelectedItem(record); setIsAssignModalOpen(true); }}
           >
             <UserPlus size={14} color={token.colorPrimary} />
-            <Text style={{ fontSize: 12, fontWeight: 500, color: token.colorText }}>{assignee}</Text>
+            <Text style={{ fontSize: 12, fontWeight: 500, color: token.colorText }}>{owner}</Text>
           </div>
         ) : (
           <Button
@@ -507,8 +581,31 @@ const SynthesisBoard: React.FC = () => {
         )
       )
     },
-    { title: '합성 요청 일자', dataIndex: 'requestDate', key: 'requestDate', width: 120, align: 'center' as const, className: 'table-center-column', render: (date: string) => <Text style={{ fontSize: 12 }}>{date}</Text> },
-    { title: '합성 완료 일자', dataIndex: 'completeDate', key: 'completeDate', width: 120, align: 'center' as const, className: 'table-center-column', render: (date: string | null) => <Text style={{ fontSize: 12 }}>{date || '-'}</Text> }
+    { title: '합성 스터디 그룹 수락일자', dataIndex: 'synthesisAcceptedDate', key: 'synthesisAcceptedDate', width: 180, align: 'center' as const, className: 'table-center-column', render: (date: string | null) => <Text style={{ fontSize: 12 }}>{date || '-'}</Text> },
+    { title: '합성 목표일', dataIndex: 'synthesisTargetDate', key: 'synthesisTargetDate', width: 112, align: 'center' as const, className: 'table-center-column', render: (date: string) => <Text style={{ fontSize: 12 }}>{date}</Text> },
+    { title: '진행사항 비고', dataIndex: 'progressMemo', key: 'progressMemo', width: 200, ellipsis: true },
+    {
+      title: '완료 여부',
+      dataIndex: 'isCompleted',
+      key: 'isCompleted',
+      width: 96,
+      align: 'center' as const,
+      className: 'table-center-column',
+      render: (isCompleted: boolean) => (
+        <Tag color={isCompleted ? 'green' : 'gold'} style={{ margin: 0 }}>
+          {isCompleted ? '완료' : '진행중'}
+        </Tag>
+      )
+    },
+    { title: '등록일', dataIndex: 'registeredDate', key: 'registeredDate', width: 104, align: 'center' as const, className: 'table-center-column', render: (date: string) => <Text style={{ fontSize: 12 }}>{date}</Text> },
+    { title: '연구노트', dataIndex: 'researchNote', key: 'researchNote', width: 120, align: 'center' as const, className: 'table-center-column' },
+    { title: '리포트 자료', dataIndex: 'reportData', key: 'reportData', width: 160, ellipsis: true },
+    { title: '합성 종료 이유', dataIndex: 'synthesisEndReason', key: 'synthesisEndReason', width: 160, ellipsis: true },
+  ];
+
+  const detailColumns = [
+    ...detailBaseColumns,
+    ...(currentUser.role === 'design' ? designDetailColumns : synthesisDetailColumns),
   ];
 
   return (
@@ -801,7 +898,7 @@ const SynthesisBoard: React.FC = () => {
                       >
                         <div style={{ padding: '6px 10px', background: token.colorBgLayout, borderBottom: `1px solid ${token.colorBorderSecondary}`, display: 'flex', justifyContent: 'space-between' }}>
                           <Text strong style={{ color: token.colorPrimary, fontSize: 11 }}>{d.compoundId}</Text>
-                          {d.assignee && <Tag color="orange" style={{ fontSize: 10, margin: 0, padding: '0 4px' }}>{d.assignee}</Tag>}
+                          {d.synthesisOwner && <Tag color="orange" style={{ fontSize: 10, margin: 0, padding: '0 4px' }}>{d.synthesisOwner}</Tag>}
                         </div>
                         <div style={{ height: 80, display: 'flex', alignItems: 'center', justifyContent: 'center', background: token.colorBgContainer, position: 'relative' }}>
                           {d.structureSvg ? (
@@ -845,7 +942,7 @@ const SynthesisBoard: React.FC = () => {
         onCancel={() => setIsAssignModalOpen(false)}
         footer={[
           <Button key="cancel" onClick={() => setIsAssignModalOpen(false)}>닫기</Button>,
-          selectedItem?.assignee && (
+          selectedItem?.synthesisOwner && (
             <Button 
               key="remove" 
               danger 
@@ -858,7 +955,7 @@ const SynthesisBoard: React.FC = () => {
             </Button>
           ),
           <Button key="ok" type="primary" onClick={() => setIsAssignModalOpen(false)} style={{ background: token.colorPrimary, borderColor: token.colorPrimary }}>
-            {selectedItem?.assignee ? '담당자 수정' : '배정 완료'}
+            {selectedItem?.synthesisOwner ? '담당자 수정' : '배정 완료'}
           </Button>
         ]}
         width={450}

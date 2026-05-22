@@ -854,6 +854,7 @@ const SarTable: React.FC = () => {
           </div>
         </div>
         <Table
+          className="sar-table"
           dataSource={sarCompounds}
           columns={dynamicColumns}
           rowKey="id"
