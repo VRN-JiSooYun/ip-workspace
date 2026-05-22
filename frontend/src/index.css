@@ -132,8 +132,6 @@ body {
   box-shadow: none !important;
 }
 
-.ant-table-wrapper .ant-table-thead > tr > th:last-child::after,
-.ant-table-wrapper .ant-table-thead > tr > td:last-child::after,
 .ant-table-wrapper .ant-table-thead > tr > th.ant-table-cell-scrollbar::after,
 .ant-table-wrapper .ant-table-thead > tr > td.ant-table-cell-scrollbar::after {
   display: none;
@@ -162,8 +160,6 @@ body {
   box-shadow: inset -1px 0 0 var(--table-header-divider) !important;
 }
 
-.ant-table-wrapper .ant-table-thead > tr > th:last-child,
-.ant-table-wrapper .ant-table-thead > tr > td:last-child,
 .ant-table-wrapper .ant-table-thead > tr > th.ant-table-cell-scrollbar,
 .ant-table-wrapper .ant-table-thead > tr > td.ant-table-cell-scrollbar {
   border-right: 0 !important;
@@ -253,6 +249,53 @@ body {
 
 .table-center-column .ant-tag {
   margin-inline-end: 0;
+}
+
+.compound-structure-svg svg {
+  max-width: 100% !important;
+  max-height: 100% !important;
+  width: 100% !important;
+  height: 100% !important;
+  display: block;
+}
+
+.compound-structure-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 3px;
+  flex: 0 0 22px;
+  padding: 2px;
+  box-sizing: border-box;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.42);
+  border: 1px solid transparent;
+  transition: background-color 0.2s ease, border-color 0.2s ease;
+}
+
+.ant-table-tbody > tr:hover .compound-structure-actions,
+.my-board-group-row-selected .compound-structure-actions,
+.my-board-group-row-selected:hover .compound-structure-actions,
+.row-selected .compound-structure-actions,
+.sar-row-selected .compound-structure-actions,
+.sar-row-hovered .compound-structure-actions {
+  background: transparent;
+  border-color: transparent;
+}
+
+.compound-structure-action-button {
+  width: 16px !important;
+  min-width: 16px !important;
+  height: 16px !important;
+  padding: 0 !important;
+  color: var(--text-secondary) !important;
+  border-radius: 4px !important;
+}
+
+.compound-structure-action-button:hover {
+  color: #F87C63 !important;
+  background: rgba(248, 124, 99, 0.14) !important;
 }
 
 /* Responsive Overrides */
@@ -452,6 +495,7 @@ body {
 
 [data-theme='dark'] .raw-data-svg-frame svg,
 [data-theme='dark'] .svg-renderer-frame svg,
+[data-theme='dark'] .compound-structure-svg svg,
 [data-theme='dark'] .my-board-structure-svg svg,
 [data-theme='dark'] .my-board-structure-preview svg,
 [data-theme='dark'] .sar-structure-svg svg,

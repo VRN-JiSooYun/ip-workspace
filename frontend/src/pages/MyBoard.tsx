@@ -23,6 +23,7 @@ import WhiteboardEditor from '../components/board/WhiteboardEditor';
 import ChemDrawModal from '../components/common/ChemDrawModal';
 import ChemDrawEditor from '../components/common/ChemDrawEditor';
 import BenzeneIcon from '../components/common/BenzeneIcon';
+import CompoundStructureView from '../components/common/CompoundStructureView';
 import ToggleTag from '../components/common/ToggleTag';
 import shareForwardIconRaw from '../assets/svg/share-forward-fill.svg?raw';
 import shareIconRaw from '../assets/svg/share.svg?raw';
@@ -56,7 +57,7 @@ const MYBOARD_GROUP_COLUMN_WIDTHS = {
   creDate: 100,
   type: 60,
   target: 80,
-  representativeStructure: 110,
+  representativeStructure: 122,
   count: 60,
   groupOrder: 72,
   shareStatus: 56,
@@ -499,48 +500,29 @@ const MyBoard: React.FC = () => {
     return (
       <div
         style={{
-          width: 86,
-          height: 52,
           margin: '0 auto',
-          background: token.colorBgLayout,
-          display: 'flex',
+          display: 'inline-flex',
           alignItems: 'center',
           justifyContent: 'center',
-          borderRadius: 4,
-          border: `1px solid ${token.colorBorderSecondary}`,
-          overflow: 'hidden',
-          position: 'relative',
+          gap: 4,
         }}
       >
-        {structureSvg ? (
-          <>
-            <div
-              className="my-board-structure-svg"
-              style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-              dangerouslySetInnerHTML={{ __html: structureSvg }}
-            />
-            <Tooltip title="크게 보기">
-              <Button
-                className="svg-action-btn my-board-structure-preview-button"
-                size="small"
-                type="text"
-                icon={<Search size={14} />}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  setStructurePreview({
-                    title: representativeCompound?.compoundId || representativeCompound?.name || 'Structure',
-                    svg: structureSvg,
-                  });
-                }}
-                style={{
-                  background: 'rgba(255,255,255,0.8)'
-                }}
-              />
-            </Tooltip>
-          </>
-        ) : (
-          <BenzeneIcon size={20} color={token.colorTextTertiary} />
-        )}
+        <CompoundStructureView
+          svg={structureSvg}
+          title={representativeCompound?.compoundId || representativeCompound?.name || 'Structure'}
+          smiles={representativeCompound?.smiles}
+          molBlock={(representativeCompound as any)?.molBlock ?? (representativeCompound as any)?.mol_block ?? (representativeCompound as any)?.molblock}
+          width={86}
+          height={52}
+          iconSize={20}
+          gap={4}
+          onPreview={structureSvg ? () => {
+            setStructurePreview({
+              title: representativeCompound?.compoundId || representativeCompound?.name || 'Structure',
+              svg: structureSvg,
+            });
+          } : undefined}
+        />
       </div>
     );
   };
@@ -683,7 +665,7 @@ const MyBoard: React.FC = () => {
     {
       title: '화합물 구조',
       key: 'representativeStructure',
-      width: 110,
+      width: MYBOARD_GROUP_COLUMN_WIDTHS.representativeStructure,
       align: 'center' as const,
       render: renderRepresentativeStructure
     }
@@ -705,7 +687,7 @@ const MyBoard: React.FC = () => {
       title: '화합물 구조',
       dataIndex: 'structureSvg',
       key: 'structure',
-      width: 200,
+      width: 212,
       render: (structureSvg: string | undefined, record: any) => {
         const displaySvg = searchedSvg && (keyword === record.smiles || keyword === 'Structure Search Result')
           ? searchedSvg
@@ -714,47 +696,28 @@ const MyBoard: React.FC = () => {
         return (
           <div
             style={{
-              width: 168,
-              height: 108,
-              background: token.colorBgLayout,
-              display: 'flex',
+              display: 'inline-flex',
               alignItems: 'center',
               justifyContent: 'center',
-              borderRadius: 4,
-              border: `1px solid ${token.colorBorderSecondary}`,
-              overflow: 'hidden',
-              position: 'relative',
+              gap: 6,
             }}
           >
-            {displaySvg ? (
-              <>
-                <div
-                  className="my-board-structure-svg"
-                  style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                  dangerouslySetInnerHTML={{ __html: displaySvg }}
-                />
-                <Tooltip title="크게 보기">
-                  <Button
-                    className="svg-action-btn my-board-structure-preview-button"
-                    size="small"
-                    type="text"
-                    icon={<Search size={14} />}
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      setStructurePreview({
-                        title: record.compoundId || record.name || 'Structure',
-                        svg: displaySvg,
-                      });
-                    }}
-                    style={{
-                      background: 'rgba(255,255,255,0.8)'
-                    }}
-                  />
-                </Tooltip>
-              </>
-            ) : (
-              <BenzeneIcon size={40} color={token.colorTextTertiary} />
-            )}
+            <CompoundStructureView
+              svg={displaySvg}
+              title={record.compoundId || record.name || 'Structure'}
+              smiles={record.smiles}
+              molBlock={record.molBlock ?? record.mol_block ?? record.molblock}
+              width={168}
+              height={108}
+              iconSize={40}
+              gap={6}
+              onPreview={displaySvg ? () => {
+                setStructurePreview({
+                  title: record.compoundId || record.name || 'Structure',
+                  svg: displaySvg,
+                });
+              } : undefined}
+            />
           </div>
         );
       }
@@ -1362,7 +1325,7 @@ const MyBoard: React.FC = () => {
                 rowKey="id"
                 pagination={{ pageSize: 10 }}
                 loading={isLoading}
-                scroll={{ x: detailTableScrollX }}
+                scroll={{ x: detailTableScrollX, y: isStackedSplitLayout ? undefined : 'calc(100vh - 430px)' }}
                 tableLayout="fixed"
                 locale={{ emptyText: selectedGroupIds.length === 0 ? '왼쪽 그룹 리스트에서 그룹을 선택해 주세요.' : '검색 결과가 없습니다.' }}
               />
@@ -1650,14 +1613,15 @@ const MyBoard: React.FC = () => {
         open={!!structurePreview}
         onCancel={() => setStructurePreview(null)}
         footer={null}
-        width={900}
+        width="min(1200px, calc(100vw - 48px))"
+        centered
       >
         {structurePreview ? (
           <div
             className="my-board-structure-preview"
             style={{
               width: '100%',
-              height: 560,
+              height: 'min(720px, calc(100vh - 180px))',
               background: token.colorBgContainer,
               borderRadius: 8,
               border: `1px solid ${token.colorBorderSecondary}`,
@@ -1681,27 +1645,20 @@ const MyBoard: React.FC = () => {
         .my-board-group-row-selected:hover > td {
           background-color: var(--table-row-selected-hover-bg) !important;
         }
+        .my-board-detail-table .ant-table-body {
+          scrollbar-gutter: stable;
+          overflow-y: auto !important;
+        }
         .canvas-card:hover { border-color: ${token.colorPrimary} !important; transform: translateY(-4px); box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
         .cdd-clipboard-icon-container, .CDW_Logo, .cdd-logo { display: none !important; }
-        .my-board-structure-svg svg {
-          max-width: 100% !important;
-          max-height: 100% !important;
-          width: 100% !important;
-          height: 100% !important;
-          display: block;
-        }
         .my-board-structure-preview svg {
-          max-width: 100% !important;
-          max-height: 100% !important;
+          max-width: calc(100% / 1.5) !important;
+          max-height: calc(100% / 1.5) !important;
           width: auto;
           height: auto;
           display: block;
-        }
-        .my-board-structure-preview-button {
-          position: absolute;
-          top: 4px;
-          right: 4px;
-          z-index: 2;
+          transform: scale(1.5);
+          transform-origin: center;
         }
       `}</style>
     </div>

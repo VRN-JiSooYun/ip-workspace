@@ -16,7 +16,12 @@
 - My Board 그룹 리스트의 `그룹 번호` 컬럼은 72px, `공유` 컬럼은 56px로 축소하고 고정 컬럼 합계는 컬럼 폭 설정에서 자동 계산하도록 변경.
 - My Board 그룹 리스트에서 `Title` 컬럼은 패널 남은 폭을 흡수하는 반응형 컬럼으로 유지.
 - My Board 그룹 리스트에서 `Title` 외 컬럼은 최소 폭 기준으로 `width/minWidth/maxWidth`를 동일하게 적용하고 header/body cell style을 고정 폭으로 지정해 Ant Design의 폭 재분배 영향을 줄임.
-- My Board 그룹 리스트 카드의 실제 렌더 폭을 `ResizeObserver`로 측정해 `Title` 폭 계산에 사용하도록 변경. split 비율 추정 오차로 가로 스크롤이 남는 문제를 줄임.
+- My Board 그룹 리스트 `Title` 폭 계산 기준을 table/card 내부 폭이 아니라 split 부모 컨테이너 폭과 splitRatio로 변경. row 선택/셀 값 변경이 폭 계산에 피드백되는 문제를 방지.
+- My Board 그룹 리스트 `scroll.x`도 컬럼 배열 재합산 대신 `고정 컬럼 합계 + Title 폭`으로 계산해 선택 상태에 따른 columns 재렌더 영향이 scroll 폭에 반영되지 않도록 변경.
+- My Board 그룹 상세 목록에 항상 동일한 `scroll.y` body 컨테이너를 적용해 상세 목록 데이터 증가로 Y 스크롤이 생길 때 split 전체 폭이 재계산되는 흔들림을 방지.
+- My Board 그룹 상세 목록 body에 `scrollbar-gutter: stable`과 `overflow-y: auto`를 명시해 스크롤바 공간을 안정적으로 예약.
+- My Board 그룹 리스트에서 선택 상태에 따라 `그룹 번호` 값이 `-`에서 `G1` 등으로 바뀌어도 레이아웃이 흔들리지 않도록 그룹 번호 표시 영역을 고정 폭으로 지정.
+- ResizeObserver 폭 갱신은 1px 이하 변화에서는 state를 유지해 선택/렌더링에 따른 미세 폭 흔들림을 줄임.
 - My Board 그룹 상세 목록은 순번, 그룹, 프로젝트, 물질 번호, 구조, 출처, Mol.Properties, 디자인 번호, 필요량, 날짜, 담당자, 완료 여부 등 짧은 값 중심 컬럼의 폭을 축소.
 - 구조 미리보기와 Mol.Properties 차트는 컬럼 폭 축소에 맞춰 내부 렌더 크기도 함께 조정.
 - `Mol.Properties1`, `Mol.Properties2` 헤더가 한 줄로 표시되도록 컬럼 폭을 128px로 재조정.
@@ -32,6 +37,9 @@
 - fixed-left 첫 컬럼이 별도 table의 마지막 셀로 인식되어 separator가 제거되는 문제를 막기 위해 fixed-left header 셀은 마지막 셀이어도 우측 세로선을 유지하도록 예외 처리.
 - SAR Table의 fixed-left `Compound` header 경계가 스크롤 table 레이어에 가려지는 문제를 막기 위해 fixed-left header 셀에만 inset boundary shadow를 추가.
 - Ant Design fixed-left shadow pseudo-element의 `translateX(100%)`가 separator에 남아 선이 끊겨 보이는 문제를 막기 위해 fixed-left header separator의 transform, width, height, shadow를 명시적으로 재설정.
+- SAR Table처럼 1행 `rowSpan` 컬럼과 2행 그룹 leaf 컬럼이 섞인 header에서 2행 마지막 leaf 셀이 실제 테이블 마지막 컬럼으로 오인되어 우측 separator가 숨겨지는 문제를 보정.
+- 다중 header의 2행 이후 마지막 셀은 스크롤바 전용 셀이 아닌 경우 우측 separator를 다시 표시하도록 처리.
+- 테이블 끝 경계가 닫혀 보이도록 실제 마지막 header 컬럼 우측 separator도 표시하고, 스크롤바 전용 빈 header 셀만 separator를 숨기도록 정리.
 
 ## 영향 범위
 - Ant Design `Table`을 사용하는 전체 프론트엔드 페이지 공통 적용.

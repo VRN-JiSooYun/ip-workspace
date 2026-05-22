@@ -44,6 +44,7 @@ import PageHeaderBreadcrumb from '../components/common/PageHeaderBreadcrumb';
 import DataCardItem from '../components/patent-analysis/DataCardItem';
 import ChemDrawModal from '../components/common/ChemDrawModal';
 import BenzeneIcon from '../components/common/BenzeneIcon';
+import { getCompoundStructureCopyText } from '../components/common/CompoundStructureView';
 import PatentPdfToolbar from '../components/patent-analysis/pdf/PatentPdfToolbar';
 import PatentPdfViewer from '../components/patent-analysis/pdf/PatentPdfViewer';
 import { usePatentPdfViewer } from '../hooks/usePatentPdfViewer';
@@ -60,7 +61,7 @@ const DETAIL_STACK_BREAKPOINT = 1280;
 const SvgRenderer: React.FC<{ svg: string; height?: number | string }> = ({ svg, height = '100%' }) => (
   <div 
     className="svg-renderer-frame"
-    style={{ height, width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', boxSizing: 'border-box', padding: 4 }}
+    style={{ height, width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', boxSizing: 'border-box', padding: 0 }}
     dangerouslySetInnerHTML={{ __html: svg }}
   />
 );
@@ -472,50 +473,57 @@ const PatentAnalysisDetail: React.FC = () => {
     setPreviewTitle(title);
   };
 
-  const copySmiles = (smiles: string) => {
-    navigator.clipboard.writeText(smiles)
-      .then(() => message.success('SMILES 복사 완료'))
+  const copyStructureData = (opts: { smiles?: string; molblock?: string; svg?: string }) => {
+    const copyText = getCompoundStructureCopyText({
+      smiles: opts.smiles,
+      molBlock: opts.molblock,
+      svg: opts.svg,
+    });
+    if (!copyText) return;
+
+    navigator.clipboard.writeText(copyText)
+      .then(() => message.success('구조 데이터 복사 완료'))
       .catch(() => message.error('복사 실패'));
   };
 
-  /** 돋보기 + copy 버튼 세트 (smiles가 있을 때만 copy 표시) */
+  /** ChemDraw + copy + preview 버튼 세트 */
   const renderSvgActionButtons = (opts: { svg: string; title: string; smiles?: string; molblock?: string; iconSize?: number }) => {
     const sz = opts.iconSize ?? 14;
     const hasChemData = !!(opts.smiles || opts.molblock);
+    const copyText = getCompoundStructureCopyText({ smiles: opts.smiles, molBlock: opts.molblock, svg: opts.svg });
     return (
-      <div style={{ position: 'absolute', right: 4, top: 4, zIndex: 2, display: 'flex', gap: 2 }}>
+      <div className="compound-structure-actions patent-structure-actions" style={{ position: 'absolute', right: 4, top: 4, zIndex: 2 }}>
+        <Tooltip title="크게 보기">
+          <Button
+            className="svg-action-btn compound-structure-action-button"
+            size="small"
+            type="text"
+            icon={<Search size={sz} />}
+            onClick={(e) => { e.stopPropagation(); openSvgPreview(opts.svg, opts.title); }}
+          />
+        </Tooltip>
+        {copyText && (
+          <Tooltip title="구조 데이터 복사">
+            <Button
+              className="svg-action-btn compound-structure-action-button"
+              size="small"
+              type="text"
+              icon={<Copy size={sz} />}
+              onClick={(e) => { e.stopPropagation(); copyStructureData(opts); }}
+            />
+          </Tooltip>
+        )}
         {hasChemData && (
           <Tooltip title="ChemDraw">
             <Button
-              className="svg-action-btn"
+              className="svg-action-btn compound-structure-action-button"
               size="small"
               type="text"
               icon={<BenzeneIcon size={sz} />}
               onClick={(e) => { e.stopPropagation(); setChemDrawSmiles(opts.smiles || ''); setChemDrawMolblock(opts.molblock || ''); setChemDrawTitle(opts.title); setChemDrawOpen(true); }}
-              style={{ background: 'rgba(255,255,255,0.8)' }}
             />
           </Tooltip>
         )}
-        {opts.smiles && (
-          <Tooltip title={`SMILES: ${opts.smiles}`}>
-            <Button
-              className="svg-action-btn"
-              size="small"
-              type="text"
-              icon={<Copy size={sz} />}
-              onClick={(e) => { e.stopPropagation(); copySmiles(opts.smiles!); }}
-              style={{ background: 'rgba(255,255,255,0.8)' }}
-            />
-          </Tooltip>
-        )}
-        <Button
-          className="svg-action-btn"
-          size="small"
-          type="text"
-          icon={<Search size={sz} />}
-          onClick={(e) => { e.stopPropagation(); openSvgPreview(opts.svg, opts.title); }}
-          style={{ background: 'rgba(255,255,255,0.8)' }}
-        />
       </div>
     );
   };
@@ -740,7 +748,7 @@ const PatentAnalysisDetail: React.FC = () => {
                                 {/* Scaffold Rank 1 Image for Functional Group Context */}
                                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
                                   <Title level={5} style={{ marginTop: 0, marginBottom: 8, color: token.colorPrimary }}>Scaffold Rank 1</Title>
-                                  <div style={{ width: 200, height: 200, background: token.colorBgContainer, border: `1px solid ${token.colorBorderSecondary}`, borderRadius: '8px', padding: 8, position: 'relative' }}>
+                                  <div style={{ width: 200, height: 200, background: token.colorBgContainer, border: `1px solid ${token.colorBorderSecondary}`, borderRadius: '8px', padding: 0, position: 'relative', overflow: 'hidden' }}>
                                     {renderSvgActionButtons({
                                       svg: patentDetailData.analysis.scaffoldRanks?.[0]?.svg ?? patentDetailData.analysis.parentScaffold.svg,
                                       title: 'Functional Group - Scaffold Rank 1',
@@ -1722,7 +1730,31 @@ const PatentAnalysisDetail: React.FC = () => {
         .raw-data-tab-content .raw-data-svg-frame svg {
           max-width: 100% !important;
           max-height: 100% !important;
+          width: 100% !important;
+          height: 100% !important;
           display: block;
+        }
+        .raw-data-tab-content .svg-renderer-frame {
+          padding: 0 !important;
+        }
+        .raw-data-tab-content .svg-renderer-frame svg,
+        .raw-data-tab-content .compound-structure-svg svg {
+          max-width: 100% !important;
+          max-height: 100% !important;
+          width: 100% !important;
+          height: 100% !important;
+          display: block;
+        }
+        .raw-data-tab-content .raw-data-svg-frame:has(.patent-structure-actions) .svg-renderer-frame {
+          width: 100% !important;
+          padding-right: 0 !important;
+        }
+        .raw-data-tab-content .patent-structure-actions {
+          background: rgba(255, 255, 255, 0.42);
+        }
+        .raw-data-tab-content .raw-data-svg-frame:hover .patent-structure-actions {
+          background: transparent;
+          border-color: transparent;
         }
         .raw-data-tab-content .raw-data-embodiment-table .ant-table {
           background: transparent;
@@ -1748,6 +1780,14 @@ const PatentAnalysisDetail: React.FC = () => {
         .raw-data-tab-content .raw-data-embodiment-table .raw-data-row-active:hover > td {
           background: var(--table-row-selected-hover-bg) !important;
         }
+        .patent-structure-preview .svg-renderer-frame svg {
+          max-width: calc(100% / 1.5) !important;
+          max-height: calc(100% / 1.5) !important;
+          width: auto;
+          height: auto;
+          transform: scale(1.5);
+          transform-origin: center;
+        }
       `}</style>
 
       <Modal
@@ -1758,10 +1798,11 @@ const PatentAnalysisDetail: React.FC = () => {
           setPreviewImageSrc(null);
         }}
         footer={null}
-        width={900}
+        width="min(1200px, calc(100vw - 48px))"
+        centered
       >
         {previewSvg || previewImageSrc ? (
-          <div style={{ width: '100%', height: 600, background: token.colorBgContainer, borderRadius: 8, border: `1px solid ${token.colorBorderSecondary}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div className={previewSvg ? 'patent-structure-preview' : undefined} style={{ width: '100%', height: 'min(720px, calc(100vh - 180px))', background: token.colorBgContainer, borderRadius: 8, border: `1px solid ${token.colorBorderSecondary}`, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
             {previewImageSrc ? (
               <img src={previewImageSrc} alt="table-preview" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
             ) : null}

@@ -18,12 +18,17 @@ import PageHeaderBreadcrumb from '../components/common/PageHeaderBreadcrumb';
 import BenzeneIcon from '../components/common/BenzeneIcon';
 import ChemDrawModal from '../components/common/ChemDrawModal';
 import ToggleTag from '../components/common/ToggleTag';
+import CompoundStructureView from '../components/common/CompoundStructureView';
 
 const { Title, Text } = Typography;
 
 const SAR_COMPOUND_CARD_GAP = 6;
 const SAR_COMPOUND_CARD_GRID_COLUMN_GAP = 4;
 const SAR_COMPOUND_CARD_GRID_ROW_GAP = 6;
+const SAR_COMPOUND_CARD_BASE_WIDTH = 200;
+const SAR_COMPOUND_CARD_BASE_STRUCTURE_HEIGHT = 148;
+const SAR_COMPOUND_CARD_EXPANDED_WIDTH = SAR_COMPOUND_CARD_BASE_WIDTH * 2;
+const SAR_COMPOUND_CARD_EXPANDED_STRUCTURE_HEIGHT = SAR_COMPOUND_CARD_BASE_STRUCTURE_HEIGHT * 2;
 
 const SarTable: React.FC = () => {
   const navigate = useNavigate();
@@ -90,6 +95,25 @@ const SarTable: React.FC = () => {
       setSelectedRowKey(sarCompounds[0].id);
     }
   }, [sarCompounds, selectedRowKey]);
+
+  useEffect(() => {
+    if (!selectedRowKey) return;
+
+    const frameId = window.requestAnimationFrame(() => {
+      document.getElementById(`sar-compound-card-${selectedRowKey}`)?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'nearest',
+        inline: 'nearest',
+      });
+      document.getElementById(`sar-table-row-${selectedRowKey}`)?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'nearest',
+        inline: 'nearest',
+      });
+    });
+
+    return () => window.cancelAnimationFrame(frameId);
+  }, [selectedRowKey, compoundCardViewMode, sarCompounds.length]);
 
   useEffect(() => {
     const onResize = () => setViewportWidth(window.innerWidth);
@@ -424,16 +448,6 @@ const SarTable: React.FC = () => {
     );
   };
 
-  const renderStructureSvg = (structureSvg?: string) => (
-    <div className="sar-structure-svg">
-      {structureSvg ? (
-        <div dangerouslySetInnerHTML={{ __html: structureSvg }} />
-      ) : (
-        <BenzeneIcon size={48} color={token.colorTextTertiary} />
-      )}
-    </div>
-  );
-
   const allColumnsMap: Record<string, any> = {
     'Compound': {
       title: 'Compound',
@@ -560,6 +574,13 @@ const SarTable: React.FC = () => {
         return col;
       });
   }, [columnOrder, activeColumns, subColumnConfig, isColorActive, isDarkMode, token]);
+
+  const compoundCardWidth = compoundCardViewMode === 'twoRows'
+    ? SAR_COMPOUND_CARD_BASE_WIDTH
+    : SAR_COMPOUND_CARD_EXPANDED_WIDTH;
+  const compoundCardStructureHeight = compoundCardViewMode === 'twoRows'
+    ? SAR_COMPOUND_CARD_BASE_STRUCTURE_HEIGHT
+    : SAR_COMPOUND_CARD_EXPANDED_STRUCTURE_HEIGHT;
 
   return (
     <div
@@ -725,7 +746,7 @@ const SarTable: React.FC = () => {
           style={{
             overflowX: 'auto',
             overflowY: 'hidden',
-            padding: '2px 2px 8px',
+            padding: '2px 0 8px',
           }}
           tabIndex={0}
           onKeyDown={handleCompoundCardKeyDown}
@@ -734,7 +755,7 @@ const SarTable: React.FC = () => {
         <div style={compoundCardViewMode === 'twoRows' ? {
           display: 'grid',
           gridAutoFlow: 'row',
-          gridTemplateColumns: `repeat(${Math.ceil(sarCompounds.length / 2)}, 184px)`,
+          gridTemplateColumns: `repeat(${Math.ceil(sarCompounds.length / 2)}, ${SAR_COMPOUND_CARD_BASE_WIDTH}px)`,
           gridTemplateRows: 'repeat(2, minmax(0, 1fr))',
           gridAutoRows: 'auto',
           columnGap: SAR_COMPOUND_CARD_GRID_COLUMN_GAP,
@@ -749,22 +770,28 @@ const SarTable: React.FC = () => {
               id={`sar-compound-card-${item.id}`}
               key={item.id}
               onClick={() => setSelectedRowKey(item.id)}
+              onDoubleClick={() => {
+                if (item.structureSvg) {
+                  setStructurePreview({ title: item.name, svg: item.structureSvg });
+                }
+              }}
               role="option"
               aria-selected={selectedRowKey === item.id}
               className={`v-item-card sar-compound-card ${selectedRowKey === item.id ? 'selected' : ''} ${hoveredRowKey === item.id ? 'hovered' : ''}`}
               onMouseEnter={() => setHoveredRowKey(item.id)}
               onMouseLeave={() => setHoveredRowKey(null)}
               style={{
-                width: compoundCardViewMode === 'twoRows' ? 184 : 200,
-                padding: compoundCardViewMode === 'twoRows' ? '8px' : '10px',
+                width: compoundCardWidth,
+                padding: 0,
                 textAlign: 'center',
                 cursor: 'pointer',
                 background: selectedRowKey === item.id || hoveredRowKey === item.id ? (isDarkMode ? '#111d2c' : '#e6f7ff') : token.colorBgContainer,
                 boxSizing: 'border-box',
+                borderColor: 'transparent',
               }}
             >
               <div style={{
-                height: compoundCardViewMode === 'twoRows' ? 116 : 148,
+                height: compoundCardStructureHeight,
                 background: token.colorBgContainer,
                 borderRadius: 10,
                 display: 'flex',
@@ -772,22 +799,20 @@ const SarTable: React.FC = () => {
                 justifyContent: 'center',
                 position: 'relative',
                 marginBottom: compoundCardViewMode === 'twoRows' ? 4 : 6,
-                border: `1px solid ${token.colorBorderSecondary}`
+                overflow: 'hidden',
               }}>
-                {renderStructureSvg(item.structureSvg)}
-                {item.structureSvg ? (
-                  <Button
-                    className="svg-action-btn sar-structure-preview-button"
-                    size="small"
-                    type="text"
-                    icon={<Search size={14} />}
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      setStructurePreview({ title: item.name, svg: item.structureSvg || '' });
-                    }}
-                    style={{ background: 'rgba(255,255,255,0.8)' }}
-                  />
-                ) : null}
+                <CompoundStructureView
+                  svg={item.structureSvg}
+                  title={item.name}
+                  smiles={item.smiles}
+                  molBlock={(item as any).molBlock ?? (item as any).mol_block ?? (item as any).molblock}
+                  width={compoundCardWidth}
+                  height={compoundCardStructureHeight}
+                  iconSize={48}
+                  showPreviewAction={false}
+                  showCopyAction={false}
+                  frameStyle={{ borderColor: 'transparent', background: token.colorBgContainer }}
+                />
               </div>
               <Text strong style={{ fontSize: 12, lineHeight: '16px', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={item.name}>
                 {item.name}
@@ -862,6 +887,7 @@ const SarTable: React.FC = () => {
           pagination={false}
           scroll={{ x: 1800, y: sarCompounds.length > 10 ? 500 : undefined }}
           onRow={(record) => ({
+            id: `sar-table-row-${record.id}`,
             onClick: () => setSelectedRowKey(record.id),
             onMouseEnter: () => setHoveredRowKey(record.id),
             onMouseLeave: () => setHoveredRowKey(null)
@@ -1047,14 +1073,14 @@ const SarTable: React.FC = () => {
         open={!!structurePreview}
         onCancel={() => setStructurePreview(null)}
         footer={null}
-        width={900}
+        width="min(1200px, calc(100vw - 48px))"
         centered
       >
         {structurePreview ? (
           <div
             className="sar-structure-preview"
             style={{
-              height: 560,
+              height: 'min(720px, calc(100vh - 180px))',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -1086,27 +1112,24 @@ const SarTable: React.FC = () => {
           display: block;
           max-width: 100%;
           max-height: 100%;
-          width: auto;
-          height: auto;
+          width: 100% !important;
+          height: 100% !important;
+          object-fit: contain;
         }
         .sar-structure-svg {
-          width: 260px;
-          height: 168px;
-          max-width: 100%;
-          max-height: 100%;
-        }
-        .sar-structure-preview-button {
-          position: absolute;
-          top: 8px;
-          right: 8px;
-          z-index: 2;
+          width: 100%;
+          height: 100%;
+          max-width: none;
+          max-height: none;
         }
         .sar-structure-preview svg {
           display: block;
-          max-width: 100%;
-          max-height: 100%;
+          max-width: calc(100% / 1.5);
+          max-height: calc(100% / 1.5);
           width: auto;
           height: auto;
+          transform: scale(1.5);
+          transform-origin: center;
         }
         .sar-row-selected {
           background-color: var(--table-row-selected-bg) !important;
@@ -1150,6 +1173,10 @@ const SarTable: React.FC = () => {
         }
         .ant-table-tbody > tr.sar-row-selected:hover > td {
           background-color: var(--table-row-selected-hover-bg) !important;
+        }
+        .sar-compound-card {
+          border-color: transparent !important;
+          box-shadow: none;
         }
         .sar-compound-card:hover {
           border-color: ${token.colorPrimary} !important;

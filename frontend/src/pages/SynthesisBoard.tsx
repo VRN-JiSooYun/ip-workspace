@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Row, Col, Card, Table, Button, Input,
-  Space, Typography, Modal, Form, Tag, Select, DatePicker, Avatar, Divider, Segmented, Popover, theme
+  Space, Typography, Modal, Form, Tag, Select, DatePicker, Avatar, Divider, Segmented, Popover, Tooltip, theme
 } from 'antd';
 import {
   Search, Plus, Filter, Settings, FlaskConical, Info, ChevronDown, ChevronUp, Beaker, Image as ImageIcon, GitBranch,
@@ -13,6 +13,7 @@ import { useUIStore } from '../store/useUIStore';
 import { useUserStore } from '../store/useUserStore';
 import PageHeaderBreadcrumb from '../components/common/PageHeaderBreadcrumb';
 import BenzeneIcon from '../components/common/BenzeneIcon';
+import CompoundStructureView from '../components/common/CompoundStructureView';
 import { getPatentAnalysisLayoutPreset } from '../config/patentAnalysisLayout';
 import ToggleTag from '../components/common/ToggleTag';
 import dayjs from 'dayjs';
@@ -26,6 +27,8 @@ const { RangePicker } = DatePicker;
 const SYNTHESIS_SPLIT_MIN_PERCENT = 35;
 const SYNTHESIS_SPLIT_MAX_PERCENT = 75;
 const SYNTHESIS_SPLIT_DEFAULT_PERCENT = 58;
+const DESIGN_DETAIL_TABLE_MIN_WIDTH = 1446;
+const SYNTHESIS_DETAIL_TABLE_MIN_WIDTH = 1522;
 
 interface SynthesisDetail {
   id: string;
@@ -484,53 +487,41 @@ const SynthesisBoard: React.FC = () => {
 
   const detailBaseColumns: any[] = [
     { title: 'Num', key: 'num', width: 50, align: 'center' as const, render: (_: any, __: any, index: number) => index + 1 },
-    { title: 'Grp.', dataIndex: 'groupNum', key: 'grp', width: 60, align: 'center' as const, render: (num: number) => <Text strong style={{ color: token.colorPrimary }}>{num}</Text> },
-    { title: 'Compound', dataIndex: 'compoundId', key: 'compound', width: 110, align: 'center' as const, className: 'table-center-column', render: (id: string) => <Text strong style={{ color: token.colorPrimary }}>{id}</Text> },
+    { title: 'Grp.', dataIndex: 'groupNum', key: 'grp', width: 48, align: 'center' as const, render: (num: number) => <Text strong style={{ color: token.colorPrimary }}>{num}</Text> },
+    { title: 'Compound', dataIndex: 'compoundId', key: 'compound', width: 96, align: 'center' as const, className: 'table-center-column', render: (id: string) => <Text strong style={{ color: token.colorPrimary }}>{id}</Text> },
     {
-      title: 'Structure',
+      title: '화합물 구조',
       dataIndex: 'structureSvg',
       key: 'structure',
-      width: 100,
+      width: 212,
       align: 'center' as const,
       render: (structureSvg: string | undefined, record: SynthesisDetail) => (
-        <div style={{ width: 80, height: 50, background: token.colorBgLayout, borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', border: `1px solid ${token.colorBorderSecondary}`, position: 'relative', overflow: 'hidden' }}>
-          {structureSvg ? (
-            <>
-              <div
-                className="synthesis-structure-svg synthesis-structure-svg-table"
-                dangerouslySetInnerHTML={{ __html: structureSvg }}
-              />
-              <Button
-                className="svg-action-btn synthesis-structure-preview-button"
-                size="small"
-                type="text"
-                icon={<Search size={14} />}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  setStructurePreview({ title: record.compoundId || record.name, svg: structureSvg });
-                }}
-                style={{ background: 'rgba(255,255,255,0.8)' }}
-              />
-            </>
-          ) : (
-            <BenzeneIcon size={18} color={token.colorBorder} />
-          )}
-        </div>
+        <CompoundStructureView
+          svg={structureSvg}
+          title={record.compoundId || record.name || 'Structure'}
+          smiles={record.smiles}
+          molBlock={(record as any).molBlock ?? (record as any).mol_block ?? (record as any).molblock}
+          width={168}
+          height={108}
+          iconSize={40}
+          gap={6}
+          onPreview={structureSvg ? () => setStructurePreview({ title: record.compoundId || record.name || 'Structure', svg: structureSvg }) : undefined}
+        />
       )
     },
   ];
 
   const designDetailColumns: any[] = [
-    { title: '디자인 번호', dataIndex: 'designNo', key: 'designNo', width: 120, align: 'center' as const, className: 'table-center-column' },
-    { title: '필요량 (mg)', dataIndex: 'requiredAmountMg', key: 'requiredAmountMg', width: 104, align: 'right' as const, render: (amount: number) => <Text style={{ fontSize: 12 }}>{amount}</Text> },
-    { title: '목적 (개선하고자 하는 assay)', dataIndex: 'assayPurpose', key: 'assayPurpose', width: 240, ellipsis: true },
-    { title: '기대 개선 효과', dataIndex: 'expectedEffect', key: 'expectedEffect', width: 180, ellipsis: true },
-    { title: '의뢰일자', dataIndex: 'requestDate', key: 'requestDate', width: 104, align: 'center' as const, className: 'table-center-column', render: (date: string) => <Text style={{ fontSize: 12 }}>{date}</Text> },
+    { title: '디자인 번호', dataIndex: 'designNo', key: 'designNo', width: 108, align: 'center' as const, className: 'table-center-column' },
+    { title: '필요량 (mg)', dataIndex: 'requiredAmountMg', key: 'requiredAmountMg', width: 94, align: 'right' as const, render: (amount: number) => <Text style={{ fontSize: 12 }}>{amount}</Text> },
+    { title: '목적 (개선하고자 하는 assay)', dataIndex: 'assayPurpose', key: 'assayPurpose', ellipsis: true },
+    { title: '기대 개선 효과', dataIndex: 'expectedEffect', key: 'expectedEffect', ellipsis: true },
+    { title: '의뢰일자', dataIndex: 'requestDate', key: 'requestDate', width: 90, align: 'center' as const, className: 'table-center-column', render: (date: string) => <Text style={{ fontSize: 12 }}>{date}</Text> },
     {
       title: '합성 확장 필요 정도',
       dataIndex: 'synthesisExpansionLevel',
       key: 'synthesisExpansionLevel',
-      width: 150,
+      width: 128,
       align: 'center' as const,
       className: 'table-center-column',
       render: (level: SynthesisDetail['synthesisExpansionLevel']) => {
@@ -538,7 +529,7 @@ const SynthesisBoard: React.FC = () => {
         return <Tag color={color} style={{ margin: 0 }}>{level}</Tag>;
       }
     },
-    { title: '의뢰 비고', dataIndex: 'requestMemo', key: 'requestMemo', width: 200, ellipsis: true },
+    { title: '의뢰 비고', dataIndex: 'requestMemo', key: 'requestMemo', ellipsis: true },
   ];
 
   const synthesisDetailColumns: any[] = [
@@ -546,7 +537,7 @@ const SynthesisBoard: React.FC = () => {
       title: '합성 담당자',
       dataIndex: 'synthesisOwner',
       key: 'synthesisOwner',
-      width: 130,
+      width: 112,
       align: 'center' as const,
       className: 'table-center-column',
       render: (owner: string | null, record: SynthesisDetail) => (
@@ -581,14 +572,14 @@ const SynthesisBoard: React.FC = () => {
         )
       )
     },
-    { title: '합성 스터디 그룹 수락일자', dataIndex: 'synthesisAcceptedDate', key: 'synthesisAcceptedDate', width: 180, align: 'center' as const, className: 'table-center-column', render: (date: string | null) => <Text style={{ fontSize: 12 }}>{date || '-'}</Text> },
-    { title: '합성 목표일', dataIndex: 'synthesisTargetDate', key: 'synthesisTargetDate', width: 112, align: 'center' as const, className: 'table-center-column', render: (date: string) => <Text style={{ fontSize: 12 }}>{date}</Text> },
-    { title: '진행사항 비고', dataIndex: 'progressMemo', key: 'progressMemo', width: 200, ellipsis: true },
+    { title: <span>합성 스터디 그룹<br />수락일자</span>, dataIndex: 'synthesisAcceptedDate', key: 'synthesisAcceptedDate', width: 106, align: 'center' as const, className: 'table-center-column', render: (date: string | null) => <Text style={{ fontSize: 12 }}>{date || '-'}</Text> },
+    { title: '합성 목표일', dataIndex: 'synthesisTargetDate', key: 'synthesisTargetDate', width: 90, align: 'center' as const, className: 'table-center-column', render: (date: string) => <Text style={{ fontSize: 12 }}>{date}</Text> },
+    { title: '진행사항 비고', dataIndex: 'progressMemo', key: 'progressMemo', ellipsis: true },
     {
       title: '완료 여부',
       dataIndex: 'isCompleted',
       key: 'isCompleted',
-      width: 96,
+      width: 86,
       align: 'center' as const,
       className: 'table-center-column',
       render: (isCompleted: boolean) => (
@@ -597,16 +588,19 @@ const SynthesisBoard: React.FC = () => {
         </Tag>
       )
     },
-    { title: '등록일', dataIndex: 'registeredDate', key: 'registeredDate', width: 104, align: 'center' as const, className: 'table-center-column', render: (date: string) => <Text style={{ fontSize: 12 }}>{date}</Text> },
-    { title: '연구노트', dataIndex: 'researchNote', key: 'researchNote', width: 120, align: 'center' as const, className: 'table-center-column' },
-    { title: '리포트 자료', dataIndex: 'reportData', key: 'reportData', width: 160, ellipsis: true },
-    { title: '합성 종료 이유', dataIndex: 'synthesisEndReason', key: 'synthesisEndReason', width: 160, ellipsis: true },
+    { title: '등록일', dataIndex: 'registeredDate', key: 'registeredDate', width: 90, align: 'center' as const, className: 'table-center-column', render: (date: string) => <Text style={{ fontSize: 12 }}>{date}</Text> },
+    { title: '연구노트', dataIndex: 'researchNote', key: 'researchNote', width: 112, align: 'center' as const, className: 'table-center-column' },
+    { title: '리포트 자료', dataIndex: 'reportData', key: 'reportData', ellipsis: true },
+    { title: '합성 종료 이유', dataIndex: 'synthesisEndReason', key: 'synthesisEndReason', ellipsis: true },
   ];
 
   const detailColumns = [
     ...detailBaseColumns,
     ...(currentUser.role === 'design' ? designDetailColumns : synthesisDetailColumns),
   ];
+  const detailTableScrollX = currentUser.role === 'design'
+    ? DESIGN_DETAIL_TABLE_MIN_WIDTH
+    : SYNTHESIS_DETAIL_TABLE_MIN_WIDTH;
 
   return (
     <div
@@ -879,7 +873,7 @@ const SynthesisBoard: React.FC = () => {
                 size="small"
                 pagination={{ pageSize: 20 }}
                 rowKey="id"
-                scroll={{ x: 'max-content', y: !isResponsiveToolbar && filteredDetails.length > 10 ? 'calc(100vh - 350px)' : undefined }}
+                scroll={{ x: detailTableScrollX, y: !isResponsiveToolbar && filteredDetails.length > 10 ? 'calc(100vh - 350px)' : undefined }}
               />
             ) : viewMode === 'draw' ? (
               <div style={{ padding: 20, overflowY: 'auto', height: isResponsiveToolbar ? 'auto' : 'calc(100vh - 350px)' }}>
@@ -900,28 +894,18 @@ const SynthesisBoard: React.FC = () => {
                           <Text strong style={{ color: token.colorPrimary, fontSize: 11 }}>{d.compoundId}</Text>
                           {d.synthesisOwner && <Tag color="orange" style={{ fontSize: 10, margin: 0, padding: '0 4px' }}>{d.synthesisOwner}</Tag>}
                         </div>
-                        <div style={{ height: 80, display: 'flex', alignItems: 'center', justifyContent: 'center', background: token.colorBgContainer, position: 'relative' }}>
-                          {d.structureSvg ? (
-                            <>
-                              <div
-                                className="synthesis-structure-svg synthesis-structure-svg-card"
-                                dangerouslySetInnerHTML={{ __html: d.structureSvg }}
-                              />
-                              <Button
-                                className="svg-action-btn synthesis-structure-preview-button synthesis-structure-preview-button-card"
-                                size="small"
-                                type="text"
-                                icon={<Search size={14} />}
-                                onClick={(event) => {
-                                  event.stopPropagation();
-                                  setStructurePreview({ title: d.compoundId || d.name, svg: d.structureSvg || '' });
-                                }}
-                                style={{ background: 'rgba(255,255,255,0.8)' }}
-                              />
-                            </>
-                          ) : (
-                            <FlaskConical size={24} color={token.colorBorder} />
-                          )}
+                        <div style={{ height: 92, display: 'flex', alignItems: 'center', justifyContent: 'center', background: token.colorBgContainer }}>
+                          <CompoundStructureView
+                            svg={d.structureSvg}
+                            title={d.compoundId || d.name || 'Structure'}
+                            smiles={d.smiles}
+                            molBlock={(d as any).molBlock ?? (d as any).mol_block ?? (d as any).molblock}
+                            width={118}
+                            height={72}
+                            iconSize={24}
+                            gap={5}
+                            onPreview={d.structureSvg ? () => setStructurePreview({ title: d.compoundId || d.name, svg: d.structureSvg || '' }) : undefined}
+                          />
                         </div>
                       </div>
                     </Col>
@@ -989,14 +973,14 @@ const SynthesisBoard: React.FC = () => {
         open={!!structurePreview}
         onCancel={() => setStructurePreview(null)}
         footer={null}
-        width={900}
+        width="min(1200px, calc(100vw - 48px))"
         centered
       >
         {structurePreview ? (
           <div
             className="synthesis-structure-preview"
             style={{
-              height: 560,
+              height: 'min(720px, calc(100vh - 180px))',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -1049,8 +1033,10 @@ const SynthesisBoard: React.FC = () => {
           height: auto;
         }
         .synthesis-structure-svg-table svg {
-          max-width: 72px;
-          max-height: 44px;
+          max-width: 100% !important;
+          max-height: 100% !important;
+          width: 100% !important;
+          height: 100% !important;
         }
         .synthesis-structure-svg-card {
           padding: 8px;
@@ -1072,10 +1058,12 @@ const SynthesisBoard: React.FC = () => {
         }
         .synthesis-structure-preview svg {
           display: block;
-          max-width: 100%;
-          max-height: 100%;
+          max-width: calc(100% / 1.5);
+          max-height: calc(100% / 1.5);
           width: auto;
           height: auto;
+          transform: scale(1.5);
+          transform-origin: center;
         }
         .canvas-card:hover {
           border-color: #F87C63 !important;

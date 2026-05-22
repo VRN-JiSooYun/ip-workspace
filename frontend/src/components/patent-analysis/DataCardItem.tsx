@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { App, Button, Card, Tag, Tooltip, Typography, theme } from 'antd';
-import { Search, ChevronLeft, Copy } from 'lucide-react';
+import { Button, Card, Tag, Tooltip, Typography, theme } from 'antd';
+import { ChevronLeft, Search } from 'lucide-react';
 import ChemDrawModal from '../common/ChemDrawModal';
 import BenzeneIcon from '../common/BenzeneIcon';
+import CompoundStructureView from '../common/CompoundStructureView';
 
 const { Text } = Typography;
 
@@ -93,9 +94,9 @@ const DataCardItem: React.FC<DataCardItemProps> = ({
   hoverable = true,
 }) => {
   const { token } = theme.useToken();
-  const { message } = App.useApp();
   const [chemDrawOpen, setChemDrawOpen] = useState(false);
   const imageClickHandler = onImageClick ?? onClick;
+  const structureActionSize = size === 'small' ? 12 : 14;
 
   // SVG 렌더링 컴포넌트
   const renderImage = () => {
@@ -119,17 +120,27 @@ const DataCardItem: React.FC<DataCardItemProps> = ({
     switch (imageType) {
       case 'svg':
         return (
-          <div
-            className="svg-renderer-frame"
-            style={{
-              height: imageHeight,
-              width: '100%',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              overflow: 'hidden',
-            }}
-            dangerouslySetInnerHTML={{ __html: imageUrl }}
+          <CompoundStructureView
+            svg={imageUrl}
+            title={title}
+            smiles={smiles}
+            molBlock={molblock}
+            width="100%"
+            height={imageHeight - 2}
+            iconSize={28}
+            gap={4}
+            fullWidth
+            frameStyle={{ borderColor: 'transparent', background: 'transparent' }}
+            onPreview={onPreview}
+            actions={(smiles || molblock) ? [{
+              key: 'chemdraw',
+              title: 'ChemDraw',
+              icon: <BenzeneIcon size={structureActionSize} />,
+              onClick: (event) => {
+                event.stopPropagation();
+                setChemDrawOpen(true);
+              },
+            }] : []}
           />
         );
       case 'base64':
@@ -212,39 +223,9 @@ const DataCardItem: React.FC<DataCardItemProps> = ({
           imageClickHandler?.();
         }}
       >
-        {/* 미리보기 & 복사 & ChemDraw 버튼 */}
-        {(onPreview || smiles || molblock) && (
+        {imageType !== 'svg' && onPreview && (
           <div style={{ position: 'absolute', right: 4, top: 4, zIndex: 2, display: 'flex', gap: 2 }}>
-            {(smiles || molblock) && (
-              <Tooltip title="ChemDraw">
-                <Button
-                  className="svg-action-btn"
-                  size="small"
-                  type="text"
-                  icon={<BenzeneIcon size={size === 'small' ? 12 : 14} />}
-                  onClick={(e) => { e.stopPropagation(); setChemDrawOpen(true); }}
-                  style={{ background: 'rgba(255,255,255,0.85)' }}
-                />
-              </Tooltip>
-            )}
-            {smiles && (
-              <Tooltip title={`SMILES: ${smiles}`}>
-                <Button
-                  className="svg-action-btn"
-                  size="small"
-                  type="text"
-                  icon={<Copy size={size === 'small' ? 12 : 14} />}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    navigator.clipboard.writeText(smiles)
-                      .then(() => message.success('SMILES 복사 완료'))
-                      .catch(() => message.error('복사 실패'));
-                  }}
-                  style={{ background: 'rgba(255,255,255,0.85)' }}
-                />
-              </Tooltip>
-            )}
-            {onPreview && (
+            <Tooltip title="미리보기">
               <Button
                 className="svg-action-btn"
                 size="small"
@@ -256,10 +237,9 @@ const DataCardItem: React.FC<DataCardItemProps> = ({
                 }}
                 style={{ background: 'rgba(255,255,255,0.85)' }}
               />
-            )}
+            </Tooltip>
           </div>
         )}
-
         {renderImage()}
       </div>
 
