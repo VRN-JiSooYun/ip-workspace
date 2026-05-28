@@ -24,6 +24,10 @@ const App: React.FC = () => {
         token: {
           colorPrimary: '#F87C63',
           borderRadius: 12,
+          fontSize: 13,
+          fontSizeSM: 11,
+          fontSizeLG: 15,
+          fontSizeXL: 19,
           fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
           colorBgLayout: isDarkMode ? '#141414' : '#f7f9fb',
           colorBorder: isDarkMode ? '#434343' : '#d8dbe0',

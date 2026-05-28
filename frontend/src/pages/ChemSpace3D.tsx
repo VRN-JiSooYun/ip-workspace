@@ -83,11 +83,11 @@ const ChemSpace3D: React.FC = () => {
           return `
             <div style="padding: 8px;">
               <div style="font-weight: bold; margin-bottom: 4px;">${d.n || 'Unknown'}</div>
-              <div style="font-size: 11px; color: #666;">Kinase: ${d.k || 'Unknown'}</div>
+              <div style="font-size: 10px; color: #666;">Kinase: ${d.k || 'Unknown'}</div>
               <div style="display: flex; flex-direction: column; gap: 2px; margin-top: 4px;">
-                <span style="font-size: 11px;">LogP: ${d.lp?.toFixed(2)}</span>
-                <span style="font-size: 11px;">TPSA: ${d.tp?.toFixed(2)}</span>
-                <span style="font-size: 11px;">QED: ${d.q?.toFixed(3)}</span>
+                <span style="font-size: 10px;">LogP: ${d.lp?.toFixed(2)}</span>
+                <span style="font-size: 10px;">TPSA: ${d.tp?.toFixed(2)}</span>
+                <span style="font-size: 10px;">QED: ${d.q?.toFixed(3)}</span>
               </div>
             </div>
           `;
@@ -268,7 +268,7 @@ const ChemSpace3D: React.FC = () => {
           }}
         >
           <div>
-            <ToggleTag checked={showAxes} onChange={setShowAxes} style={{ marginInlineEnd: 0, fontSize: 12 }}>
+            <ToggleTag checked={showAxes} onChange={setShowAxes} style={{ marginInlineEnd: 0, fontSize: 11 }}>
               Show Axis
             </ToggleTag>
           </div>

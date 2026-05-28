@@ -9,10 +9,10 @@ import {
   Search, Plus, Filter, Settings, List as ListIcon,
   Image as ImageIcon, GitBranch, Info, ChevronDown, ChevronUp, Beaker,
   Activity, Share2, GripVertical, Upload as UploadIcon, FileText,
-  PanelLeftClose, PanelLeftOpen, Copy, Trash2, Combine
+  PanelLeftClose, PanelLeftOpen, Copy, Trash2, Combine, Edit3, MoveRight
 } from 'lucide-react';
 import { useBoardStore } from '../store/useBoardStore';
-import { mockCompounds } from '../mocks/compounds';
+import { mockCompounds, type Compound } from '../mocks/compounds';
 import { useUserStore } from '../store/useUserStore';
 import RadarChart from '../components/charts/RadarChart';
 import dayjs from 'dayjs';
@@ -52,13 +52,16 @@ const MYBOARD_RESPONSIVE_TEXT_COLUMN_KEYS = new Set([
   'reportData',
   'synthesisEndReason',
 ]);
+const MYBOARD_MULTILINE_TEXT_COLUMN_KEYS = new Set([
+  'name',
+  ...MYBOARD_RESPONSIVE_TEXT_COLUMN_KEYS,
+]);
 const MYBOARD_RESPONSIVE_TEXT_COLUMN_MIN_WIDTH = 220;
 const MYBOARD_RESPONSIVE_TEXT_COLUMN_MAX_WIDTH = 420;
 const MYBOARD_GROUP_TITLE_MIN_WIDTH = 120;
 const MYBOARD_GROUP_COLUMN_WIDTHS = {
   bookmark: 40,
   creDate: 100,
-  type: 60,
   target: 80,
   representativeStructure: 122,
   count: 60,
@@ -84,7 +87,6 @@ const estimateGroupTitleTextWidth = (text: string) => {
 };
 const MYBOARD_CENTER_COLUMN_KEYS = new Set([
   'creDate',
-  'type',
   'target',
   'representativeStructure',
   'count',
@@ -128,6 +130,8 @@ const MyBoard: React.FC = () => {
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [isStructureModalOpen, setIsStructureModalOpen] = useState(false);
   const [isMergeGroupModalOpen, setIsMergeGroupModalOpen] = useState(false);
+  const [isCompoundGroupSelectModalOpen, setIsCompoundGroupSelectModalOpen] = useState(false);
+  const [isCompoundEditModalOpen, setIsCompoundEditModalOpen] = useState(false);
   const [mergeGroupName, setMergeGroupName] = useState('');
   const [cdjsInstance, setCdjsInstance] = useState<any>(null);
   const [designSmiles, setDesignSmiles] = useState('');
@@ -136,6 +140,10 @@ const MyBoard: React.FC = () => {
   const [showFilters, setShowFilters] = useState(false);
   const [viewMode, setViewMode] = useState<'table' | 'draw' | 'tree'>('table');
   const [assignedGroupIds, setAssignedGroupIds] = useState<string[]>([]);
+  const [compoundRows, setCompoundRows] = useState<Compound[]>(mockCompounds);
+  const [selectedDetailCompoundIds, setSelectedDetailCompoundIds] = useState<React.Key[]>([]);
+  const [compoundGroupAction, setCompoundGroupAction] = useState<'move' | 'copy'>('move');
+  const [selectedCompoundTargetGroupId, setSelectedCompoundTargetGroupId] = useState<string>();
   const [isLoading, setIsLoading] = useState(false);
   const [groupContextMenu, setGroupContextMenu] = useState<{
     open: boolean;
@@ -143,8 +151,13 @@ const MyBoard: React.FC = () => {
     y: number;
     groupId: string;
   } | null>(null);
+  const [compoundContextMenu, setCompoundContextMenu] = useState<{
+    open: boolean;
+    x: number;
+    y: number;
+    compoundId: string;
+  } | null>(null);
   const [groupListMode, setGroupListMode] = useState<'full' | 'structure' | 'hidden'>('full');
-  const [selectedDataSources, setSelectedDataSources] = useState<string[]>(['my designs']);
   const [bookmarkedGroupIds, setBookmarkedGroupIds] = useState<string[]>([]);
   const [viewportWidth, setViewportWidth] = useState<number>(() => {
     if (typeof window === 'undefined') return 1920;
@@ -163,15 +176,14 @@ const MyBoard: React.FC = () => {
   const splitStorageKey = 'my-board-split:group-detail';
   const [groupListTableWidth, setGroupListTableWidth] = useState(0);
   const visibleGroupRows = React.useMemo(
-    () => groups
-      .filter(g => selectedDataSources.includes(g.type))
+    () => [...groups]
       .sort((a, b) => {
         const aBookmarked = bookmarkedGroupIds.includes(a.id);
         const bBookmarked = bookmarkedGroupIds.includes(b.id);
         if (aBookmarked !== bBookmarked) return aBookmarked ? -1 : 1;
         return groups.indexOf(a) - groups.indexOf(b);
       }),
-    [bookmarkedGroupIds, groups, selectedDataSources]
+    [bookmarkedGroupIds, groups]
   );
   const contentFitGroupTitleWidth = React.useMemo(() => {
     const longestTitleWidth = visibleGroupRows.reduce(
@@ -210,7 +222,7 @@ const MyBoard: React.FC = () => {
       border: `1px solid ${isActive ? token.colorPrimary : 'transparent'}`,
       color: isActive ? token.colorPrimary : token.colorTextSecondary,
       borderRadius: 6,
-      fontSize: 11,
+      fontSize: 10,
       fontWeight: isActive ? 600 : 500,
       boxShadow: isActive ? '0 0 0 1px rgba(248, 124, 99, 0.15)' : 'none'
     };
@@ -372,7 +384,7 @@ const MyBoard: React.FC = () => {
   }, [autoFitGroupTableWidth, clampSplitRatio, isGroupListFull, isStackedSplitLayout, stopSplitResize]);
 
   const alwaysColumnKeys = React.useMemo(() => [
-    '순번', '그룹 번호', '프로젝트', '물질 번호 (VRN)', '화합물 구조', '단계', '출처', '디자인 비고', 'Mol.Properties1', 'Mol.Properties2'
+    '순번', '그룹 번호', '프로젝트', '물질 번호 (VRN)', '화합물 구조', '단계', '출처', '디자인 비고', 'MolProp1', 'MolProp2'
   ], []);
   const designColumnKeys = React.useMemo(() => [
     '디자인 번호', '필요량 (mg)', '목적 (개선하고자 하는 assay)', '기대 개선 효과', '의뢰일자', '합성 확장 필요 정도', '의뢰 비고'
@@ -481,7 +493,7 @@ const MyBoard: React.FC = () => {
   }, [selectedGroupIds]);
 
   const filteredCompounds = React.useMemo(() => {
-    return mockCompounds
+    return compoundRows
       .filter((compound) => {
         // If it's a structure search results mode, don't filter out by the keyword string
         const matchesKeyword = keyword === 'Structure Search Result' ||
@@ -500,20 +512,37 @@ const MyBoard: React.FC = () => {
         const bGroupOrder = selectedGroupOrderMap[b.groupId] ?? Number.MAX_SAFE_INTEGER;
 
         if (aGroupOrder !== bGroupOrder) return aGroupOrder - bGroupOrder;
-        return mockCompounds.indexOf(a) - mockCompounds.indexOf(b);
+        return compoundRows.indexOf(a) - compoundRows.indexOf(b);
       });
-  }, [keyword, selectedGroupIds, selectedGroupOrderMap, selectedProjects, selectedShares, selectedSources]);
+  }, [compoundRows, keyword, selectedGroupIds, selectedGroupOrderMap, selectedProjects, selectedShares, selectedSources]);
 
   const sarTargetCount = selectedGroupIds.length > 0 ? filteredCompounds.length : 0;
+  const selectedDetailCompoundKeys = React.useMemo(
+    () => selectedDetailCompoundIds.map(String),
+    [selectedDetailCompoundIds]
+  );
+  const selectedDetailCompounds = React.useMemo(
+    () => compoundRows.filter((compound) => selectedDetailCompoundKeys.includes(compound.id)),
+    [compoundRows, selectedDetailCompoundKeys]
+  );
+  const selectedEditableCompound = selectedDetailCompounds.length === 1 ? selectedDetailCompounds[0] : null;
+  const isSelectedCompoundSynthesized = Boolean(
+    selectedEditableCompound?.isCompleted || selectedEditableCompound?.status === '합성완료'
+  );
+
+  React.useEffect(() => {
+    const visibleIds = new Set(filteredCompounds.map((compound) => compound.id));
+    setSelectedDetailCompoundIds((prev) => prev.filter((id) => visibleIds.has(String(id))));
+  }, [filteredCompounds]);
 
   const firstCompoundByGroupId = React.useMemo(() => {
-    return mockCompounds.reduce<Record<string, typeof mockCompounds[number]>>((acc, compound) => {
+    return compoundRows.reduce<Record<string, Compound>>((acc, compound) => {
       if (!acc[compound.groupId]) {
         acc[compound.groupId] = compound;
       }
       return acc;
     }, {});
-  }, []);
+  }, [compoundRows]);
 
   const renderRepresentativeStructure = (_: any, record: any) => {
     const representativeCompound = firstCompoundByGroupId[record.id];
@@ -521,6 +550,7 @@ const MyBoard: React.FC = () => {
 
     return (
       <div
+        className="my-board-representative-structure"
         style={{
           margin: '0 auto',
           display: 'inline-flex',
@@ -538,6 +568,8 @@ const MyBoard: React.FC = () => {
           height={52}
           iconSize={20}
           gap={4}
+          showPreviewAction={!isGroupListStructureOnly}
+          showCopyAction={!isGroupListStructureOnly}
           onPreview={structureSvg ? () => {
             setStructurePreview({
               title: representativeCompound?.compoundId || representativeCompound?.name || 'Structure',
@@ -549,6 +581,24 @@ const MyBoard: React.FC = () => {
     );
   };
 
+  const renderMultilineText = (value: any) => {
+    const text = value == null || value === '' ? '-' : String(value);
+
+    return (
+      <span className="my-board-multiline-text" title={text}>
+        {text}
+      </span>
+    );
+  };
+
+  const toggleBookmarkedGroup = React.useCallback((groupId: string) => {
+    setBookmarkedGroupIds((prev) => (
+      prev.includes(groupId)
+        ? prev.filter((id) => id !== groupId)
+        : [groupId, ...prev]
+    ));
+  }, []);
+
   const groupColumns = [
     {
       title: '',
@@ -558,7 +608,17 @@ const MyBoard: React.FC = () => {
       minWidth: MYBOARD_GROUP_COLUMN_WIDTHS.bookmark,
       align: 'center' as const,
       className: 'my-board-group-fixed-column',
-      onCell: () => createFixedGroupColumnProps(MYBOARD_GROUP_COLUMN_WIDTHS.bookmark),
+      onCell: (record: any) => ({
+        ...createFixedGroupColumnProps(MYBOARD_GROUP_COLUMN_WIDTHS.bookmark),
+        onClick: (event: React.MouseEvent<HTMLElement>) => {
+          event.stopPropagation();
+          toggleBookmarkedGroup(record.id);
+        },
+        style: {
+          ...createFixedGroupColumnStyle(MYBOARD_GROUP_COLUMN_WIDTHS.bookmark),
+          cursor: 'pointer',
+        },
+      }),
       onHeaderCell: () => createFixedGroupColumnProps(MYBOARD_GROUP_COLUMN_WIDTHS.bookmark),
       render: (groupId: string) => {
         const isBookmarked = bookmarkedGroupIds.includes(groupId);
@@ -572,11 +632,7 @@ const MyBoard: React.FC = () => {
               className={`my-board-bookmark-button${isBookmarked ? ' active' : ''}`}
               onClick={(event) => {
                 event.stopPropagation();
-                setBookmarkedGroupIds((prev) => (
-                  prev.includes(groupId)
-                    ? prev.filter((id) => id !== groupId)
-                    : [groupId, ...prev]
-                ));
+                toggleBookmarkedGroup(groupId);
               }}
             >
               <span className="my-board-bookmark-icon" />
@@ -594,22 +650,6 @@ const MyBoard: React.FC = () => {
       className: 'my-board-group-fixed-column',
       onCell: () => createFixedGroupColumnProps(MYBOARD_GROUP_COLUMN_WIDTHS.creDate),
       onHeaderCell: () => createFixedGroupColumnProps(MYBOARD_GROUP_COLUMN_WIDTHS.creDate),
-    },
-    { 
-      title: 'Type', 
-      dataIndex: 'type', 
-      key: 'type', 
-      width: MYBOARD_GROUP_COLUMN_WIDTHS.type,
-      minWidth: MYBOARD_GROUP_COLUMN_WIDTHS.type,
-      align: 'center' as const,
-      className: 'my-board-group-fixed-column',
-      onCell: () => createFixedGroupColumnProps(MYBOARD_GROUP_COLUMN_WIDTHS.type),
-      onHeaderCell: () => createFixedGroupColumnProps(MYBOARD_GROUP_COLUMN_WIDTHS.type),
-      render: (type: string) => (
-        <Tag color={type === 'my designs' ? 'orange' : 'cyan'} style={{ fontWeight: 700, borderRadius: 4, margin: 0 }}>
-          {type === 'my designs' ? 'D' : 'C'}
-        </Tag>
-      )
     },
     {
       title: 'Target',
@@ -633,7 +673,7 @@ const MyBoard: React.FC = () => {
       onHeaderCell: () => createFixedGroupColumnProps(MYBOARD_GROUP_COLUMN_WIDTHS.representativeStructure),
       render: renderRepresentativeStructure
     },
-    { title: 'Title', dataIndex: 'name', key: 'name', width: groupTableTitleWidth, minWidth: MYBOARD_GROUP_TITLE_MIN_WIDTH, ellipsis: true },
+    { title: 'Title', dataIndex: 'name', key: 'name', width: groupTableTitleWidth, minWidth: MYBOARD_GROUP_TITLE_MIN_WIDTH, render: renderMultilineText },
     {
       title: '개수',
       dataIndex: 'count',
@@ -728,8 +768,160 @@ const MyBoard: React.FC = () => {
   }, [groupContextMenu?.groupId, selectedGroupIds]);
 
   const getGroupCompoundCount = React.useCallback((groupIds: string[]) => (
-    mockCompounds.filter((compound) => groupIds.includes(compound.groupId)).length
-  ), []);
+    compoundRows.filter((compound) => groupIds.includes(compound.groupId)).length
+  ), [compoundRows]);
+
+  const hasSelectedDetailCompounds = selectedDetailCompoundIds.length > 0;
+  const canAddCompound = selectedGroupIds.length > 0;
+  const canDeleteCompound = hasSelectedDetailCompounds;
+  const canEditCompound = selectedDetailCompoundIds.length === 1;
+
+  const getCompoundActionButtonStyle = React.useCallback((enabled: boolean): React.CSSProperties => ({
+    background: enabled ? token.colorPrimary : token.colorBgLayout,
+    borderColor: enabled ? token.colorPrimary : token.colorBorderSecondary,
+    color: enabled ? token.colorBgContainer : token.colorTextTertiary,
+  }), [token]);
+
+  const openCompoundGroupSelectModal = React.useCallback((action: 'move' | 'copy') => {
+    if (!hasSelectedDetailCompounds) return;
+    setCompoundGroupAction(action);
+    setSelectedCompoundTargetGroupId(selectedGroupIds[0] ?? groups[0]?.id);
+    setIsCompoundGroupSelectModalOpen(true);
+  }, [groups, hasSelectedDetailCompounds, selectedGroupIds]);
+
+  const handleDeleteSelectedCompounds = React.useCallback(() => {
+    if (!canDeleteCompound) return;
+    Modal.confirm({
+      title: '화합물 삭제',
+      content: `선택한 ${selectedDetailCompoundIds.length}개의 화합물을 삭제하시겠습니까?`,
+      okText: '삭제',
+      cancelText: '취소',
+      okButtonProps: { danger: true },
+      onOk: () => {
+        const selectedIds = new Set(selectedDetailCompoundIds.map(String));
+        setCompoundRows((prev) => prev.filter((compound) => !selectedIds.has(compound.id)));
+        setSelectedDetailCompoundIds([]);
+        setCompoundContextMenu(null);
+      },
+    });
+  }, [canDeleteCompound, selectedDetailCompoundIds]);
+
+  const handleOpenCompoundEdit = React.useCallback(() => {
+    if (!canEditCompound) return;
+    setIsCompoundEditModalOpen(true);
+    setCompoundContextMenu(null);
+  }, [canEditCompound]);
+
+  const toggleDetailCompoundSelection = React.useCallback((compoundId: string) => {
+    setSelectedDetailCompoundIds((prev) => (
+      prev.includes(compoundId)
+        ? prev.filter((id) => id !== compoundId)
+        : [...prev, compoundId]
+    ));
+  }, []);
+
+  const compoundContextMenuItems: MenuProps['items'] = [
+    {
+      key: 'split',
+      icon: <Combine size={14} />,
+      label: '그룹 분리',
+      disabled: !hasSelectedDetailCompounds,
+    },
+    {
+      key: 'newGroup',
+      icon: <Plus size={14} />,
+      label: '새 그룹 생성',
+      disabled: !hasSelectedDetailCompounds,
+    },
+    {
+      type: 'divider',
+    },
+    {
+      key: 'delete',
+      icon: <Trash2 size={14} />,
+      label: '삭제',
+      danger: true,
+      disabled: !canDeleteCompound,
+    },
+    {
+      key: 'edit',
+      icon: <Edit3 size={14} />,
+      label: '수정',
+      disabled: !canEditCompound,
+    },
+    {
+      type: 'divider',
+    },
+    {
+      key: 'move',
+      icon: <MoveRight size={14} />,
+      label: '다른 그룹으로 이동',
+      disabled: !hasSelectedDetailCompounds,
+    },
+    {
+      key: 'copy',
+      icon: <Copy size={14} />,
+      label: '다른 그룹으로 복제',
+      disabled: !hasSelectedDetailCompounds,
+    },
+  ];
+
+  const handleCompoundContextMenuClick: MenuProps['onClick'] = ({ key }) => {
+    if (key === 'split' || key === 'newGroup') {
+      if (!hasSelectedDetailCompounds) return;
+      setIsGroupModalOpen(true);
+      setCompoundContextMenu(null);
+      return;
+    }
+
+    if (key === 'delete') {
+      handleDeleteSelectedCompounds();
+      return;
+    }
+
+    if (key === 'edit') {
+      handleOpenCompoundEdit();
+      return;
+    }
+
+    if (key === 'move' || key === 'copy') {
+      openCompoundGroupSelectModal(key);
+      setCompoundContextMenu(null);
+      return;
+    }
+
+    setCompoundContextMenu(null);
+  };
+
+  const handleApplyCompoundGroupAction = React.useCallback(() => {
+    if (!selectedCompoundTargetGroupId || selectedDetailCompoundIds.length === 0) return;
+    const selectedIds = new Set(selectedDetailCompoundIds.map(String));
+
+    if (compoundGroupAction === 'move') {
+      setCompoundRows((prev) => prev.map((compound) => (
+        selectedIds.has(compound.id)
+          ? { ...compound, groupId: selectedCompoundTargetGroupId }
+          : compound
+      )));
+    } else {
+      const selectedRows = compoundRows.filter((compound) => selectedIds.has(compound.id));
+      const timestamp = Date.now();
+      setCompoundRows((prev) => [
+        ...prev,
+        ...selectedRows.map((compound, index) => ({
+          ...compound,
+          id: `${compound.id}-copy-${timestamp}-${index}`,
+          groupId: selectedCompoundTargetGroupId,
+          compoundId: `${compound.compoundId}-COPY`,
+          name: `${compound.name} Copy`,
+        })),
+      ]);
+    }
+
+    setSelectedDetailCompoundIds([]);
+    setIsCompoundGroupSelectModalOpen(false);
+    setSelectedCompoundTargetGroupId(undefined);
+  }, [compoundGroupAction, compoundRows, selectedCompoundTargetGroupId, selectedDetailCompoundIds]);
 
   const handleGroupContextMenuClick: MenuProps['onClick'] = ({ key }) => {
     const contextGroupIds = getContextGroupIds();
@@ -789,12 +981,12 @@ const MyBoard: React.FC = () => {
       title: '그룹',
       dataIndex: 'groupId',
       key: 'groupOrder',
-      width: 72,
+      width: 56,
       align: 'center' as const,
       render: (groupId: string) => selectedGroupOrderMap[groupId] ? `G${selectedGroupOrderMap[groupId]}` : '-'
     },
     '프로젝트': { title: '프로젝트', dataIndex: 'project', key: 'project', width: 80, render: (project: string) => <Tag color="blue">{project}</Tag> },
-    '물질 번호 (VRN)': { title: '물질 번호 (VRN)', dataIndex: 'compoundId', key: 'compoundId', width: 144, render: (id: string) => <Text strong color={token.colorPrimary}>{id}</Text> },
+    '물질 번호 (VRN)': { title: '물질 번호 (VRN)', dataIndex: 'compoundId', key: 'compoundId', width: 124, render: (id: string) => <Text strong color={token.colorPrimary}>{id}</Text> },
     '화합물 구조': {
       title: '화합물 구조',
       dataIndex: 'structureSvg',
@@ -838,41 +1030,41 @@ const MyBoard: React.FC = () => {
       title: '단계',
       dataIndex: 'experimentStage',
       key: 'experimentStage',
-      width: 64,
+      width: 48,
       align: 'center' as const,
       render: (stage: number | undefined, record: any) => (
-        <Text strong style={{ color: token.colorPrimary, fontSize: 12 }}>
+        <Text strong style={{ color: token.colorPrimary, fontSize: 11 }}>
           {stage ?? ((Number(String(record.id).replace(/\D/g, '')) || 0) % 5) + 1}
         </Text>
       )
     },
-    '출처': { title: '출처', dataIndex: 'designSource', key: 'designSource', width: 84 },
-    '디자인 비고': { title: '디자인 비고', dataIndex: 'designMemo', key: 'designMemo', ellipsis: true, width: 220 },
-    'Mol.Properties1': {
-      title: 'Mol.Properties1',
+    '출처': { title: '출처', dataIndex: 'designSource', key: 'designSource', width: 64 },
+    '디자인 비고': { title: '디자인 비고', dataIndex: 'designMemo', key: 'designMemo', width: 220, render: renderMultilineText },
+    'MolProp1': {
+      title: 'MolProp1',
       dataIndex: 'properties1',
       key: 'props1',
-      width: 128,
+      width: 96,
       render: (props: number[]) => props ? <RadarChart data={props} size={56} /> : '-'
     },
-    'Mol.Properties2': {
-      title: 'Mol.Properties2',
+    'MolProp2': {
+      title: 'MolProp2',
       dataIndex: 'properties2',
       key: 'props2',
-      width: 128,
+      width: 96,
       render: (props: number[]) => props ? <RadarChart data={props} size={56} color="#5856d6" /> : '-'
     },
     '디자인 번호': { title: '디자인 번호', dataIndex: 'designNo', key: 'designNo', width: 112 },
     '필요량 (mg)': { title: '필요량 (mg)', dataIndex: 'requiredAmountMg', key: 'requiredAmountMg', width: 104, align: 'right' as const },
-    '목적 (개선하고자 하는 assay)': { title: '목적 (개선하고자 하는 assay)', dataIndex: 'assayPurpose', key: 'assayPurpose', width: 260, ellipsis: true },
-    '기대 개선 효과': { title: '기대 개선 효과', dataIndex: 'expectedEffect', key: 'expectedEffect', width: 180, ellipsis: true },
+    '목적 (개선하고자 하는 assay)': { title: '목적 (개선하고자 하는 assay)', dataIndex: 'assayPurpose', key: 'assayPurpose', width: 260, render: renderMultilineText },
+    '기대 개선 효과': { title: '기대 개선 효과', dataIndex: 'expectedEffect', key: 'expectedEffect', width: 180, render: renderMultilineText },
     '의뢰일자': { title: '의뢰일자', dataIndex: 'requestDate', key: 'requestDate', width: 96 },
     '합성 확장 필요 정도': { title: '합성 확장 필요 정도', dataIndex: 'synthesisExpansionLevel', key: 'synthesisExpansionLevel', width: 144 },
-    '의뢰 비고': { title: '의뢰 비고', dataIndex: 'requestMemo', key: 'requestMemo', width: 180, ellipsis: true },
+    '의뢰 비고': { title: '의뢰 비고', dataIndex: 'requestMemo', key: 'requestMemo', width: 180, render: renderMultilineText },
     '합성 담당자': { title: '합성 담당자', dataIndex: 'synthesisOwner', key: 'synthesisOwner', width: 104 },
     '합성 스터디 그룹 수락일자': { title: '합성 스터디 그룹 수락일자', dataIndex: 'synthesisAcceptedDate', key: 'synthesisAcceptedDate', width: 172 },
     '합성 목표일': { title: '합성 목표일', dataIndex: 'synthesisTargetDate', key: 'synthesisTargetDate', width: 104 },
-    '진행사항 비고': { title: '진행사항 비고', dataIndex: 'progressMemo', key: 'progressMemo', width: 180, ellipsis: true },
+    '진행사항 비고': { title: '진행사항 비고', dataIndex: 'progressMemo', key: 'progressMemo', width: 180, render: renderMultilineText },
     '완료 여부': {
       title: '완료 여부',
       dataIndex: 'isCompleted',
@@ -882,8 +1074,8 @@ const MyBoard: React.FC = () => {
     },
     '등록일': { title: '등록일', dataIndex: 'registeredDate', key: 'registeredDate', width: 96 },
     '연구노트': { title: '연구노트', dataIndex: 'researchNote', key: 'researchNote', width: 108 },
-    '리포트 자료': { title: '리포트 자료', dataIndex: 'reportData', key: 'reportData', width: 156, ellipsis: true },
-    '합성 종료 이유': { title: '합성 종료 이유', dataIndex: 'synthesisEndReason', key: 'synthesisEndReason', width: 164, ellipsis: true }
+    '리포트 자료': { title: '리포트 자료', dataIndex: 'reportData', key: 'reportData', width: 156, render: renderMultilineText },
+    '합성 종료 이유': { title: '합성 종료 이유', dataIndex: 'synthesisEndReason', key: 'synthesisEndReason', width: 164, render: renderMultilineText }
   };
 
   const responsiveTextColumnWidth = React.useMemo(() => {
@@ -922,6 +1114,7 @@ const MyBoard: React.FC = () => {
         column.className,
         MYBOARD_CENTER_COLUMN_KEYS.has(column.key) ? 'table-center-column' : undefined,
         MYBOARD_RESPONSIVE_TEXT_COLUMN_KEYS.has(column.key) ? 'my-board-responsive-text-column' : undefined,
+        MYBOARD_MULTILINE_TEXT_COLUMN_KEYS.has(column.key) ? 'my-board-multiline-text-column' : undefined,
       ].filter(Boolean).join(' ') || undefined,
       onHeaderCell: (...args: any[]) => {
         const headerCellProps = typeof column.onHeaderCell === 'function' ? column.onHeaderCell(...args) : {};
@@ -1050,21 +1243,6 @@ const MyBoard: React.FC = () => {
               <Button icon={<BenzeneIcon size={18} />} onClick={() => setIsStructureModalOpen(true)} className="v-action-btn">구조 검색</Button>
             </div>
           </Col>
-          <Col flex={isStackedSplitLayout ? '1 1 100%' : 'none'}>
-            <Button
-              type="primary"
-              icon={<Plus size={18} />}
-              onClick={() => setIsGroupModalOpen(true)}
-              className="v-action-btn"
-              style={{
-                background: token.colorPrimary,
-                borderColor: token.colorPrimary,
-                width: isStackedSplitLayout ? '100%' : undefined,
-              }}
-            >
-              상위 그룹 생성
-            </Button>
-          </Col>
         </Row>
         {showFilters && (
           <div className="compact-filter-panel">
@@ -1186,32 +1364,18 @@ const MyBoard: React.FC = () => {
                   />
                 </Tooltip>
                 <Text strong style={{ color: token.colorPrimary }}>그룹 리스트</Text>
-                <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-                  <ToggleTag
-                    checked={selectedDataSources.includes('my designs')}
-                    onChange={(checked) => {
-                      const next = checked
-                        ? [...selectedDataSources, 'my designs']
-                        : selectedDataSources.filter(s => s !== 'my designs');
-                      if (next.length > 0) setSelectedDataSources(next);
-                    }}
-                    style={{ fontSize: 11 }}
-                  >
-                    My Designs
-                  </ToggleTag>
-                  <ToggleTag
-                    checked={selectedDataSources.includes('my compounds')}
-                    onChange={(checked) => {
-                      const next = checked
-                        ? [...selectedDataSources, 'my compounds']
-                        : selectedDataSources.filter(s => s !== 'my compounds');
-                      if (next.length > 0) setSelectedDataSources(next);
-                    }}
-                    style={{ fontSize: 11 }}
-                  >
-                    My Compounds
-                  </ToggleTag>
-                </div>
+                <Button
+                  type="primary"
+                  size="small"
+                  icon={<Plus size={14} />}
+                  onClick={() => setIsGroupModalOpen(true)}
+                  style={{
+                    background: token.colorPrimary,
+                    borderColor: token.colorPrimary,
+                  }}
+                >
+                  Add Group
+                </Button>
               </div>
               <Space size={8}>
                 <Button
@@ -1253,7 +1417,7 @@ const MyBoard: React.FC = () => {
               />
             </Dropdown>
             <Table
-              className="my-board-table my-board-group-table"
+              className={`my-board-table my-board-group-table${isGroupListStructureOnly ? ' my-board-group-table-structure-only' : ''}`}
               dataSource={visibleGroupRows}
               columns={isGroupListStructureOnly ? styledStructureOnlyGroupColumns : styledGroupColumns}
               pagination={false}
@@ -1341,11 +1505,31 @@ const MyBoard: React.FC = () => {
                     type="primary"
                     size="small"
                     icon={<Plus size={14} />}
-                    disabled={selectedGroupIds.length === 0}
-                    style={{ background: token.colorPrimary, borderColor: token.colorPrimary }}
+                    disabled={!canAddCompound}
+                    style={getCompoundActionButtonStyle(canAddCompound)}
                     onClick={() => setIsDesignModalOpen(true)}
                   >
-                    Create Design
+                    Add
+                  </Button>
+                  <Button
+                    type="primary"
+                    size="small"
+                    icon={<Trash2 size={14} />}
+                    disabled={!canDeleteCompound}
+                    style={getCompoundActionButtonStyle(canDeleteCompound)}
+                    onClick={handleDeleteSelectedCompounds}
+                  >
+                    Del
+                  </Button>
+                  <Button
+                    type="primary"
+                    size="small"
+                    icon={<Edit3 size={14} />}
+                    disabled={!canEditCompound}
+                    style={getCompoundActionButtonStyle(canEditCompound)}
+                    onClick={handleOpenCompoundEdit}
+                  >
+                    Edit
                   </Button>
                   <Button
                     type="primary"
@@ -1376,7 +1560,7 @@ const MyBoard: React.FC = () => {
                               width: 24, height: 24,
                               background: activePreset === n ? token.colorPrimary : token.colorBorderSecondary,
                               borderRadius: 4,
-                              fontSize: 11,
+                              fontSize: 10,
                               display: 'flex',
                               alignItems: 'center',
                               justifyContent: 'center',
@@ -1441,6 +1625,31 @@ const MyBoard: React.FC = () => {
               </div>
             </div>
             {viewMode === 'table' ? (
+              <>
+              <Dropdown
+                open={Boolean(compoundContextMenu?.open)}
+                trigger={['click']}
+                placement="bottomLeft"
+                menu={{
+                  items: compoundContextMenuItems,
+                  onClick: handleCompoundContextMenuClick,
+                }}
+                onOpenChange={(open) => {
+                  if (!open) setCompoundContextMenu(null);
+                }}
+              >
+                <span
+                  style={{
+                    position: 'fixed',
+                    left: compoundContextMenu?.x ?? 0,
+                    top: compoundContextMenu?.y ?? 0,
+                    width: 1,
+                    height: 1,
+                    zIndex: 9999,
+                    pointerEvents: 'auto',
+                  }}
+                />
+              </Dropdown>
               <Table
                 className="my-board-table my-board-detail-table"
                 dataSource={selectedGroupIds.length > 0 ? filteredCompounds : []}
@@ -1455,8 +1664,32 @@ const MyBoard: React.FC = () => {
                 loading={isLoading}
                 scroll={{ x: detailTableScrollX, y: isStackedSplitLayout ? undefined : 'calc(100vh - 430px)' }}
                 tableLayout="fixed"
+                onRow={(record) => ({
+                  onClick: (event) => {
+                    const target = event.target as HTMLElement;
+                    if (target.closest('button, a, input, textarea, .ant-checkbox-wrapper, .ant-select, .ant-dropdown')) return;
+                    toggleDetailCompoundSelection(record.id);
+                  },
+                  onContextMenu: (event) => {
+                    event.stopPropagation();
+                    event.preventDefault();
+
+                    if (!selectedDetailCompoundIds.includes(record.id)) {
+                      setSelectedDetailCompoundIds([record.id]);
+                    }
+                    setCompoundContextMenu({
+                      open: true,
+                      x: event.clientX,
+                      y: event.clientY,
+                      compoundId: record.id,
+                    });
+                  },
+                  style: { cursor: 'pointer' },
+                })}
+                rowClassName={(record) => selectedDetailCompoundIds.includes(record.id) ? 'row-selected my-board-detail-row-selected' : ''}
                 locale={{ emptyText: selectedGroupIds.length === 0 ? '왼쪽 그룹 리스트에서 그룹을 선택해 주세요.' : '검색 결과가 없습니다.' }}
               />
+              </>
             ) : viewMode === 'draw' ? (
               <div style={{ padding: 16 }}>
                 <WhiteboardEditor
@@ -1475,7 +1708,7 @@ const MyBoard: React.FC = () => {
 
       {/* Create Group Modal */}
       <Modal
-        title="상위 그룹 생성"
+        title="신규 그룹 등록"
         open={isGroupModalOpen}
         onCancel={() => setIsGroupModalOpen(false)}
         onOk={() => setIsGroupModalOpen(false)}
@@ -1515,10 +1748,98 @@ const MyBoard: React.FC = () => {
               placeholder="통합 그룹 이름을 입력하세요"
             />
           </Form.Item>
-          <Text type="secondary" style={{ fontSize: 12 }}>
+          <Text type="secondary" style={{ fontSize: 11 }}>
             선택된 {selectedGroupIds.length}개의 그룹을 하나의 그룹으로 통합합니다.
           </Text>
         </Form>
+      </Modal>
+
+      <Modal
+        title={compoundGroupAction === 'move' ? '다른 그룹으로 이동' : '다른 그룹으로 복제'}
+        open={isCompoundGroupSelectModalOpen}
+        okText={compoundGroupAction === 'move' ? '이동' : '복제'}
+        cancelText="취소"
+        onCancel={() => setIsCompoundGroupSelectModalOpen(false)}
+        onOk={handleApplyCompoundGroupAction}
+        okButtonProps={{ disabled: !selectedCompoundTargetGroupId || selectedDetailCompoundIds.length === 0 }}
+      >
+        <Form layout="vertical" style={{ marginTop: 16 }}>
+          <Form.Item label="대상 그룹" required>
+            <Select
+              placeholder="그룹 선택"
+              value={selectedCompoundTargetGroupId}
+              onChange={setSelectedCompoundTargetGroupId}
+            >
+              {groups.map((group) => (
+                <Option key={group.id} value={group.id}>{group.name}</Option>
+              ))}
+            </Select>
+          </Form.Item>
+          <Text type="secondary" style={{ fontSize: 11 }}>
+            선택된 {selectedDetailCompoundIds.length}개의 화합물을 {compoundGroupAction === 'move' ? '선택한 그룹으로 이동합니다.' : '선택한 그룹에 복제합니다.'}
+          </Text>
+        </Form>
+      </Modal>
+
+      <Modal
+        title="화합물 수정"
+        open={isCompoundEditModalOpen}
+        okText="저장"
+        cancelText="취소"
+        onCancel={() => setIsCompoundEditModalOpen(false)}
+        onOk={() => setIsCompoundEditModalOpen(false)}
+        width={760}
+        destroyOnHidden
+      >
+        {selectedEditableCompound ? (
+          <Form layout="vertical" style={{ marginTop: 16 }}>
+            <Row gutter={16}>
+              <Col span={12}>
+                <Form.Item label="물질 번호">
+                  <Input defaultValue={selectedEditableCompound.compoundId} />
+                </Form.Item>
+              </Col>
+              <Col span={12}>
+                <Form.Item label="단계">
+                  <Input defaultValue={selectedEditableCompound.experimentStage} />
+                </Form.Item>
+              </Col>
+              <Col span={24}>
+                <Form.Item label="구조">
+                  <Input.TextArea
+                    rows={3}
+                    defaultValue={selectedEditableCompound.smiles}
+                    disabled={isSelectedCompoundSynthesized}
+                    placeholder={isSelectedCompoundSynthesized ? '합성 후 화합물은 구조를 수정할 수 없습니다.' : 'SMILES 또는 구조 정보를 입력하세요.'}
+                  />
+                </Form.Item>
+              </Col>
+              <Col span={12}>
+                <Form.Item label="계산값">
+                  <Input value="계산값은 수정할 수 없습니다." disabled />
+                </Form.Item>
+              </Col>
+              <Col span={12}>
+                <Form.Item label="실험값">
+                  <Input
+                    value={isSelectedCompoundSynthesized ? '합성 후 화합물은 실험값을 수정할 수 없습니다.' : '실험값은 수정할 수 없습니다.'}
+                    disabled
+                  />
+                </Form.Item>
+              </Col>
+              <Col span={24}>
+                <Form.Item label="세부 정보">
+                  <Input.TextArea rows={3} defaultValue={selectedEditableCompound.designMemo} />
+                </Form.Item>
+              </Col>
+            </Row>
+            <Text type="secondary" style={{ fontSize: 11 }}>
+              {isSelectedCompoundSynthesized
+                ? '합성 후 화합물은 세부 정보만 수정할 수 있습니다.'
+                : '합성 전 화합물은 구조와 세부 정보를 수정할 수 있으며 계산값은 수정할 수 없습니다.'}
+            </Text>
+          </Form>
+        ) : null}
       </Modal>
 
       {/* Create Design Modal */}
@@ -1602,7 +1923,7 @@ const MyBoard: React.FC = () => {
                   onChange={(checked) => {
                     setSelectedCalculations(checked ? [...calculationOptions] : []);
                   }}
-                  style={{ minHeight: 24, padding: '2px 10px', fontSize: 11, marginInlineEnd: 0 }}
+                  style={{ minHeight: 24, padding: '2px 10px', fontSize: 10, marginInlineEnd: 0 }}
                 >
                   All
                 </ToggleTag>
@@ -1645,7 +1966,7 @@ const MyBoard: React.FC = () => {
                 ))}
               </div>
             </div>
-            <Text type="secondary" style={{ fontSize: '12px', marginTop: 8, display: 'block' }}>
+            <Text type="secondary" style={{ fontSize: '11px', marginTop: 8, display: 'block' }}>
               * 체크된 항목은 API를 통해 계산 결과가 리포트에 포함됩니다.
             </Text>
           </Form.Item>
@@ -1707,7 +2028,7 @@ const MyBoard: React.FC = () => {
             </div>
           </div>
           <Text strong style={{ display: 'block', marginBottom: 4 }}>Column Order & Visibility</Text>
-          <Text type="secondary" style={{ display: 'block', marginBottom: 16, fontSize: 12 }}>
+          <Text type="secondary" style={{ display: 'block', marginBottom: 16, fontSize: 11 }}>
             현재 {currentUser.team} 권한입니다.
           </Text>
           {columnOrder.map((item, index) => (
@@ -1747,7 +2068,7 @@ const MyBoard: React.FC = () => {
           ))}
         </div>
         <div style={{ marginTop: 16, padding: '12px', background: token.colorBgLayout, borderRadius: 8 }}>
-          <Text type="secondary" style={{ fontSize: '12px' }}>
+          <Text type="secondary" style={{ fontSize: '11px' }}>
             <Info size={12} style={{ marginRight: 4 }} />
             목록을 마우스로 끌어서 테이블 컬럼의 표시 순서를 변경할 수 있습니다.
           </Text>
@@ -1799,6 +2120,27 @@ const MyBoard: React.FC = () => {
         }
         .my-board-group-row-selected:hover > td {
           background-color: var(--table-row-selected-hover-bg) !important;
+        }
+        .my-board-detail-row-selected > td {
+          background-color: var(--table-row-selected-bg) !important;
+        }
+        .my-board-detail-row-selected:hover > td {
+          background-color: var(--table-row-selected-hover-bg) !important;
+        }
+        .my-board-group-table-structure-only .ant-table-tbody .my-board-representative-structure {
+          width: 100% !important;
+          margin: 0 !important;
+        }
+        .my-board-group-table-structure-only .ant-table-tbody > tr > td {
+          padding-left: 4px !important;
+          padding-right: 4px !important;
+        }
+        .my-board-group-table-structure-only .ant-table-tbody .compound-structure-view {
+          width: 100% !important;
+          margin: 0 !important;
+        }
+        .my-board-group-table-structure-only .ant-table-tbody .compound-structure-frame {
+          width: 100% !important;
         }
         .my-board-detail-table .ant-table-body {
           scrollbar-gutter: stable;

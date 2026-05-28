@@ -211,8 +211,8 @@ const DevelopmentStatus: React.FC = () => {
                 background: token.colorBgContainer,
               }}
             >
-              <Text type="secondary" style={{ fontSize: 12 }}>{item.label}</Text>
-              <div style={{ marginTop: 6, color: item.tone, fontSize: 24, fontWeight: 800 }}>{item.value}</div>
+              <Text type="secondary" style={{ fontSize: 11 }}>{item.label}</Text>
+              <div style={{ marginTop: 6, color: item.tone, fontSize: 23, fontWeight: 800 }}>{item.value}</div>
             </div>
           ))}
         </div>
@@ -223,7 +223,7 @@ const DevelopmentStatus: React.FC = () => {
               <Users size={18} color={token.colorPrimary} />
               <Text strong>수리응용2팀 서비스 개발 파이프라인</Text>
             </div>
-            <Text type="secondary" style={{ fontSize: 12 }}>행을 클릭하면 상세 현황이 펼쳐집니다.</Text>
+            <Text type="secondary" style={{ fontSize: 11 }}>행을 클릭하면 상세 현황이 펼쳐집니다.</Text>
           </div>
 
           <div style={{ padding: 20, overflowX: 'auto' }}>
@@ -237,9 +237,9 @@ const DevelopmentStatus: React.FC = () => {
                   columnGap: 0,
                 }}
               >
-                <Text type="secondary" style={{ fontSize: 12, fontWeight: 700 }}>Service</Text>
+                <Text type="secondary" style={{ fontSize: 11, fontWeight: 700 }}>Service</Text>
                 {phases.map((phase) => (
-                  <Text key={phase} type="secondary" style={{ textAlign: 'center', fontSize: 12, fontWeight: 700 }}>
+                  <Text key={phase} type="secondary" style={{ textAlign: 'center', fontSize: 11, fontWeight: 700 }}>
                     {phase}
                   </Text>
                 ))}
@@ -282,13 +282,13 @@ const DevelopmentStatus: React.FC = () => {
                       >
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth: 0 }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                            <Text strong style={{ fontSize: 16 }}>{project.name}</Text>
+                            <Text strong style={{ fontSize: 15 }}>{project.name}</Text>
                             <Tag color={meta.color} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, marginInlineEnd: 0 }}>
                               {meta.icon}
                               {project.status}
                             </Tag>
                           </div>
-                          <Text type="secondary" style={{ fontSize: 12 }}>
+                          <Text type="secondary" style={{ fontSize: 11 }}>
                             {project.category} · {project.owner} · 목표 {project.targetDate}
                           </Text>
                         </div>
@@ -334,7 +334,7 @@ const DevelopmentStatus: React.FC = () => {
                               left: `calc(${project.progress}% - 14px)`,
                               top: -2,
                               transform: 'translateX(-50%)',
-                              fontSize: 11,
+                              fontSize: 10,
                               fontWeight: 700,
                               color: isExpanded ? token.colorPrimary : token.colorTextSecondary,
                               whiteSpace: 'nowrap',
@@ -370,7 +370,7 @@ const DevelopmentStatus: React.FC = () => {
                               <Text strong>최근 업데이트</Text>
                               <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
                                 {project.updates.map((update) => (
-                                  <Text key={update} style={{ fontSize: 13 }}>
+                                  <Text key={update} style={{ fontSize: 12 }}>
                                     <CheckCircle2 size={13} color={token.colorSuccess} style={{ marginRight: 6, verticalAlign: -2 }} />
                                     {update}
                                   </Text>
@@ -382,7 +382,7 @@ const DevelopmentStatus: React.FC = () => {
                               <Text strong>다음 액션</Text>
                               <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
                                 {project.nextActions.map((action) => (
-                                  <Text key={action} style={{ fontSize: 13 }}>
+                                  <Text key={action} style={{ fontSize: 12 }}>
                                     <ArrowRight size={13} color={token.colorPrimary} style={{ marginRight: 6, verticalAlign: -2 }} />
                                     {action}
                                   </Text>
@@ -420,7 +420,7 @@ const DevelopmentStatus: React.FC = () => {
         </div>
 
         {expandedProject && (
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center', color: token.colorTextSecondary, fontSize: 12 }}>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', color: token.colorTextSecondary, fontSize: 11 }}>
             <CircleDot size={12} color={token.colorPrimary} />
             현재 선택: {expandedProject.name} · {expandedProject.progress}% · {expandedProject.currentStage}
           </div>

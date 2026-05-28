@@ -72,7 +72,7 @@ const PdfSidebar: React.FC<PdfSidebarProps> = ({
                   <div
                     style={{
                       fontStyle: 'italic',
-                      fontSize: '12px',
+                      fontSize: '11px',
                       color: '#555',
                       marginBottom: '8px',
                       borderLeft: '2px solid #ddd',
@@ -83,7 +83,7 @@ const PdfSidebar: React.FC<PdfSidebarProps> = ({
                   </div>
                 )}
                 {item.comment && (
-                  <Text strong style={{ fontSize: '13px' }}>
+                  <Text strong style={{ fontSize: '12px' }}>
                     {typeof item.comment === 'string' ? item.comment : item.comment.text}
                   </Text>
                 )}

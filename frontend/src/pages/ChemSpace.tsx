@@ -259,30 +259,30 @@ const ChemSpace: React.FC = () => {
                       borderRadius: 4
                     }} />
                     <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <Text style={{ fontSize: 10 }}>Low QED</Text>
-                      <Text style={{ fontSize: 10 }}>High QED</Text>
+                      <Text style={{ fontSize: 9 }}>Low QED</Text>
+                      <Text style={{ fontSize: 9 }}>High QED</Text>
                     </div>
                     <Divider style={{ margin: '4px 0' }} />
-                    <Space><div style={{ width: 12, height: 12, borderRadius: '50%', backgroundColor: '#fde725', border: '1px solid #000' }} /> <Text style={{ fontSize: '12px', fontWeight: 'bold' }}>EGFR Positive</Text></Space>
+                    <Space><div style={{ width: 12, height: 12, borderRadius: '50%', backgroundColor: '#fde725', border: '1px solid #000' }} /> <Text style={{ fontSize: '11px', fontWeight: 'bold' }}>EGFR Positive</Text></Space>
                   </Space>
                 ) : (
                   colorBy === 'kinase' ? (
                   <Space direction="vertical" size={8}>
-                    <Space><div style={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: '#F87C63' }} /> <Text style={{ fontSize: '12px' }}>TK</Text></Space>
-                    <Space><div style={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: '#4ECDC4' }} /> <Text style={{ fontSize: '12px' }}>TKL</Text></Space>
-                    <Space><div style={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: '#FFD166' }} /> <Text style={{ fontSize: '12px' }}>STE</Text></Space>
-                    <Space><div style={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: '#06D6A0' }} /> <Text style={{ fontSize: '12px' }}>CK1</Text></Space>
-                    <Space><div style={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: '#118AB2' }} /> <Text style={{ fontSize: '12px' }}>AGC</Text></Space>
-                    <Space><div style={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: '#073B4C' }} /> <Text style={{ fontSize: '12px' }}>CMGC</Text></Space>
-                    <Space><div style={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: '#A29BFE' }} /> <Text style={{ fontSize: '12px' }}>CAMK</Text></Space>
-                    <Space><div style={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: '#8D99AE' }} /> <Text style={{ fontSize: '12px' }}>Other</Text></Space>
+                    <Space><div style={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: '#F87C63' }} /> <Text style={{ fontSize: '11px' }}>TK</Text></Space>
+                    <Space><div style={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: '#4ECDC4' }} /> <Text style={{ fontSize: '11px' }}>TKL</Text></Space>
+                    <Space><div style={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: '#FFD166' }} /> <Text style={{ fontSize: '11px' }}>STE</Text></Space>
+                    <Space><div style={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: '#06D6A0' }} /> <Text style={{ fontSize: '11px' }}>CK1</Text></Space>
+                    <Space><div style={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: '#118AB2' }} /> <Text style={{ fontSize: '11px' }}>AGC</Text></Space>
+                    <Space><div style={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: '#073B4C' }} /> <Text style={{ fontSize: '11px' }}>CMGC</Text></Space>
+                    <Space><div style={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: '#A29BFE' }} /> <Text style={{ fontSize: '11px' }}>CAMK</Text></Space>
+                    <Space><div style={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: '#8D99AE' }} /> <Text style={{ fontSize: '11px' }}>Other</Text></Space>
                     <Divider style={{ margin: '4px 0' }} />
-                    <Space><div style={{ width: 12, height: 12, borderRadius: '50%', backgroundColor: '#fde725', border: '1px solid #000' }} /> <Text style={{ fontSize: '12px', fontWeight: 'bold' }}>EGFR Positive</Text></Space>
+                    <Space><div style={{ width: 12, height: 12, borderRadius: '50%', backgroundColor: '#fde725', border: '1px solid #000' }} /> <Text style={{ fontSize: '11px', fontWeight: 'bold' }}>EGFR Positive</Text></Space>
                   </Space>
                 ) : (
                   <Space direction="vertical" size={8}>
-                    <Space><div style={{ width: 12, height: 12, borderRadius: '50%', backgroundColor: '#fde725', border: '1px solid #000' }} /> <Text style={{ fontSize: '12px', fontWeight: 'bold' }}>EGFR Positive</Text></Space>
-                    <Space><div style={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: '#440154' }} /> <Text style={{ fontSize: '12px' }}>EGFR Negative</Text></Space>
+                    <Space><div style={{ width: 12, height: 12, borderRadius: '50%', backgroundColor: '#fde725', border: '1px solid #000' }} /> <Text style={{ fontSize: '11px', fontWeight: 'bold' }}>EGFR Positive</Text></Space>
+                    <Space><div style={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: '#440154' }} /> <Text style={{ fontSize: '11px' }}>EGFR Negative</Text></Space>
                   </Space>
                 ))}
               </div>
@@ -303,7 +303,7 @@ const ChemSpace: React.FC = () => {
                     size={8} 
                     style={{ marginRight: 8 }}
                   >
-                    <ToggleTag checked={show3DAxes} onChange={setShow3DAxes} style={{ marginInlineEnd: 0, fontSize: 12 }}>
+                    <ToggleTag checked={show3DAxes} onChange={setShow3DAxes} style={{ marginInlineEnd: 0, fontSize: 11 }}>
                       Show Axis
                     </ToggleTag>
                   </Space>
@@ -325,7 +325,7 @@ const ChemSpace: React.FC = () => {
                       <Col key={idx} span={isThreeChartMode && idx === 2 ? 24 : 12} style={{ height: isTwoChartMode ? 520 : 400, marginBottom: 12 }}>
                         <Card 
                           size="small" 
-                          title={<Text style={{ fontSize: 13, fontWeight: 600 }}>{config.title}</Text>}
+                          title={<Text style={{ fontSize: 12, fontWeight: 600 }}>{config.title}</Text>}
                           style={{ height: '100%', boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}
                           styles={{ body: { height: 'calc(100% - 38px)', padding: 8 } }}
                         >
@@ -378,7 +378,7 @@ const ChemSpace: React.FC = () => {
                           border: `1px solid ${isDarkMode ? '#434343' : '#d8dbe0'}`,
                           zIndex: 100
                         }}>
-                          <Text style={{ fontSize: 11 }}>Showing <b>{filteredData.length}</b> compounds</Text>
+                          <Text style={{ fontSize: 10 }}>Showing <b>{filteredData.length}</b> compounds</Text>
                         </div>
                       </>
                     )}
@@ -408,7 +408,7 @@ const ChemSpace: React.FC = () => {
             <Title level={3} style={{ margin: 0 }}>Fullscreen View</Title>
             <Space size={12}>
               {is3DView && (
-                <ToggleTag checked={show3DAxes} onChange={setShow3DAxes} style={{ marginInlineEnd: 0, fontSize: 12 }}>
+                <ToggleTag checked={show3DAxes} onChange={setShow3DAxes} style={{ marginInlineEnd: 0, fontSize: 11 }}>
                   Show Axis
                 </ToggleTag>
               )}
@@ -433,7 +433,7 @@ const ChemSpace: React.FC = () => {
                   <Card
                     key={idx}
                     size="small"
-                    title={<Text style={{ fontSize: 13, fontWeight: 600 }}>{config.title}</Text>}
+                    title={<Text style={{ fontSize: 12, fontWeight: 600 }}>{config.title}</Text>}
                     style={{
                       height: '100%',
                       minWidth: 0,

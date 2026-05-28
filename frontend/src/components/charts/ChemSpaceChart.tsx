@@ -49,14 +49,14 @@ const ChemSpaceChart: React.FC<ChemSpaceChartProps> = ({
           return `
             <div style="padding: 8px;">
               <div style="font-weight: bold; margin-bottom: 4px;">${d.n || 'Unknown'}</div>
-              <div style="font-size: 12px; color: #666;">Kinase: ${d.k || 'Unknown'}</div>
-              <div style="font-size: 11px; font-family: monospace; margin: 4px 0; max-width: 200px; word-break: break-all;">${d.s || ''}</div>
+              <div style="font-size: 11px; color: #666;">Kinase: ${d.k || 'Unknown'}</div>
+              <div style="font-size: 10px; font-family: monospace; margin: 4px 0; max-width: 200px; word-break: break-all;">${d.s || ''}</div>
               <div style="display: flex; gap: 8px; margin-top: 4px;">
-                <span style="font-size: 11px;">MW: ${typeof d.mw === 'number' ? d.mw.toFixed(2) : '-'}</span>
-                <span style="font-size: 11px;">LogP: ${typeof d.lp === 'number' ? d.lp.toFixed(2) : '-'}</span>
-                <span style="font-size: 11px;">TPSA: ${typeof d.tp === 'number' ? d.tp.toFixed(2) : '-'}</span>
+                <span style="font-size: 10px;">MW: ${typeof d.mw === 'number' ? d.mw.toFixed(2) : '-'}</span>
+                <span style="font-size: 10px;">LogP: ${typeof d.lp === 'number' ? d.lp.toFixed(2) : '-'}</span>
+                <span style="font-size: 10px;">TPSA: ${typeof d.tp === 'number' ? d.tp.toFixed(2) : '-'}</span>
               </div>
-              ${d.e ? '<div style="margin-top: 4px; color: #fde725; font-weight: bold; font-size: 11px;">★ EGFR Positive</div>' : ''}
+              ${d.e ? '<div style="margin-top: 4px; color: #fde725; font-weight: bold; font-size: 10px;">★ EGFR Positive</div>' : ''}
             </div>
           `;
         },
@@ -76,7 +76,7 @@ const ChemSpaceChart: React.FC<ChemSpaceChartProps> = ({
         nameLocation: 'middle',
         nameGap: 35,
         splitLine: { lineStyle: { type: 'dashed', color: token.colorBorderSecondary } },
-        axisLabel: { color: isDarkMode ? '#888' : '#666', fontSize: 11 },
+        axisLabel: { color: isDarkMode ? '#888' : '#666', fontSize: 10 },
         scale: false,
         min: (xAxis === 'molWt' || xAxis === 'tpsa') ? 0 : undefined
       },
@@ -85,7 +85,7 @@ const ChemSpaceChart: React.FC<ChemSpaceChartProps> = ({
         nameLocation: 'middle',
         nameGap: 45,
         splitLine: { lineStyle: { type: 'dashed', color: token.colorBorderSecondary } },
-        axisLabel: { color: isDarkMode ? '#888' : '#666', fontSize: 11 },
+        axisLabel: { color: isDarkMode ? '#888' : '#666', fontSize: 10 },
         scale: false,
         min: (yAxis === 'molWt' || yAxis === 'tpsa') ? 0 : undefined
       },

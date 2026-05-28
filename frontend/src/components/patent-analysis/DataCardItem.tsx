@@ -109,7 +109,7 @@ const DataCardItem: React.FC<DataCardItemProps> = ({
             alignItems: 'center',
             justifyContent: 'center',
             color: token.colorTextTertiary,
-            fontSize: 12,
+            fontSize: 11,
           }}
         >
           이미지 없음
@@ -178,12 +178,12 @@ const DataCardItem: React.FC<DataCardItemProps> = ({
       {/* 헤더 */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
         <div style={{ flex: 1 }}>
-          <Text strong style={{ fontSize: 13 }}>
+          <Text strong style={{ fontSize: 12 }}>
             {typeof title === 'object' ? JSON.stringify(title) : String(title ?? '')}
           </Text>
           {subtitle && (
             <div style={{ marginTop: 2 }}>
-              <Text type="secondary" style={{ fontSize: 11 }}>
+              <Text type="secondary" style={{ fontSize: 10 }}>
                 {typeof subtitle === 'object' ? JSON.stringify(subtitle) : String(subtitle ?? '')}
               </Text>
             </div>
@@ -191,11 +191,11 @@ const DataCardItem: React.FC<DataCardItemProps> = ({
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
-          {cornerIcon && <div style={{ fontSize: 16 }}>{cornerIcon}</div>}
+          {cornerIcon && <div style={{ fontSize: 15 }}>{cornerIcon}</div>}
           {tags.length > 0 && (
             <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
               {tags.map((tag, idx) => (
-                <Tag key={idx} color={tag.color} style={{ fontSize: 11, margin: 0 }}>
+                <Tag key={idx} color={tag.color} style={{ fontSize: 10, margin: 0 }}>
                   {typeof tag.label === 'object' ? JSON.stringify(tag.label) : String(tag.label ?? '')}
                 </Tag>
               ))}
@@ -248,7 +248,7 @@ const DataCardItem: React.FC<DataCardItemProps> = ({
 
       {/* 푸터 텍스트 */}
       {footerText && (
-        <Text type="secondary" style={{ fontSize: 11 }} ellipsis={{ tooltip: typeof footerText === 'object' ? JSON.stringify(footerText) : String(footerText ?? '') }}>
+        <Text type="secondary" style={{ fontSize: 10 }} ellipsis={{ tooltip: typeof footerText === 'object' ? JSON.stringify(footerText) : String(footerText ?? '') }}>
           {typeof footerText === 'object' ? JSON.stringify(footerText) : String(footerText ?? '')}
         </Text>
       )}
@@ -265,7 +265,7 @@ const DataCardItem: React.FC<DataCardItemProps> = ({
               pagination.onPrev();
             }}
           />
-          <Text style={{ fontSize: size === 'small' ? 11 : 12, alignSelf: 'center', minWidth: 80, textAlign: 'center' }}>
+          <Text style={{ fontSize: size === 'small' ? 10 : 11, alignSelf: 'center', minWidth: 80, textAlign: 'center' }}>
             {pagination.pageLabel
               ? pagination.pageLabel(pagination.currentIndex, pagination.totalCount)
               : `${pagination.currentIndex + 1} / ${pagination.totalCount}`}

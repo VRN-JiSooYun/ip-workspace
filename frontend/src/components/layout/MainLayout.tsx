@@ -248,7 +248,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
           </div>
           {sidebarMode === 'full' && (
             <div onClick={() => navigate('/dashboard')} style={{ cursor: 'pointer' }}>
-              <div style={{ fontWeight: 800, fontSize: '18px', color: isDarkMode ? '#e8e8e8' : '#191c1e', letterSpacing: '-0.5px' }}>MyWorkspace</div>
+              <div style={{ fontWeight: 800, fontSize: '17px', color: isDarkMode ? '#e8e8e8' : '#191c1e', letterSpacing: '-0.5px' }}>MyWorkspace</div>
             </div>
           )}
         </div>
@@ -259,8 +259,8 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
               className="vora-link-button"
               onClick={() => window.open(voraExternalUrl, '_blank', 'noopener,noreferrer')}
               style={{
-                height: 40,
-                width: sidebarMode === 'full' ? 'calc(100% - 24px)' : 40,
+                height: 34,
+                width: sidebarMode === 'full' ? 'calc(100% - 24px)' : 34,
                 marginLeft: sidebarMode === 'full' ? 12 : 'auto',
                 marginRight: sidebarMode === 'full' ? 0 : 'auto',
                 marginBottom: 6,
@@ -268,6 +268,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                 alignItems: 'center',
                 justifyContent: 'center',
                 paddingInline: sidebarMode === 'full' ? 16 : 0,
+                fontSize: 12,
                 fontWeight: 600,
                 borderRadius: 10,
                 boxShadow: 'none',
@@ -280,8 +281,8 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
             <Button
               className="medichem-eln-link-button"
               style={{
-                height: 40,
-                width: sidebarMode === 'full' ? 'calc(100% - 24px)' : 40,
+                height: 34,
+                width: sidebarMode === 'full' ? 'calc(100% - 24px)' : 34,
                 marginLeft: sidebarMode === 'full' ? 12 : 'auto',
                 marginRight: sidebarMode === 'full' ? 0 : 'auto',
                 marginBottom: 18,
@@ -289,6 +290,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                 alignItems: 'center',
                 justifyContent: 'center',
                 paddingInline: sidebarMode === 'full' ? 16 : 0,
+                fontSize: 12,
                 fontWeight: 600,
                 borderRadius: 10,
                 boxShadow: 'none',
@@ -501,7 +503,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                     background: isDarkMode ? '#2b2b2b' : '#f2f4f6',
                     borderRadius: '12px',
                     height: 40,
-                    fontSize: '14px',
+                    fontSize: '13px',
                     color: token.colorText
                   }}
                 />

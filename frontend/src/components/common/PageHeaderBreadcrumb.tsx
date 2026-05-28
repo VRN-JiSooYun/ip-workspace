@@ -24,7 +24,7 @@ const PageHeaderBreadcrumb: React.FC<PageHeaderBreadcrumbProps> = ({ items }) =>
         style={{ 
           color: index === items.length - 1 ? 'inherit' : undefined,
           fontWeight: index === items.length - 1 ? 600 : 400,
-          fontSize: '15px'
+          fontSize: '14px'
         }}
       >
         {item.label}
@@ -32,7 +32,7 @@ const PageHeaderBreadcrumb: React.FC<PageHeaderBreadcrumbProps> = ({ items }) =>
     ) : (
       <Text 
         strong={index === items.length - 1}
-        style={{ fontSize: '15px' }}
+        style={{ fontSize: '14px' }}
       >
         {item.label}
       </Text>

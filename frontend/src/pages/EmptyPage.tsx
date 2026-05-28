@@ -37,7 +37,7 @@ const EmptyPage: React.FC<EmptyPageProps> = ({ title = 'Coming Soon', breadcrumb
           <div style={{ textAlign: 'center' }}>
             <div
               style={{
-                fontSize: '20px',
+                fontSize: '19px',
                 fontWeight: 600,
                 color: token.colorText,
                 marginBottom: '8px',
@@ -45,7 +45,7 @@ const EmptyPage: React.FC<EmptyPageProps> = ({ title = 'Coming Soon', breadcrumb
             >
               {title}
             </div>
-            <div style={{ color: token.colorTextSecondary, fontSize: '14px' }}>
+            <div style={{ color: token.colorTextSecondary, fontSize: '13px' }}>
               이 페이지는 준비 중입니다.
             </div>
           </div>

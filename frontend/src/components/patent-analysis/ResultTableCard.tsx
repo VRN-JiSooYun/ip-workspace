@@ -68,11 +68,11 @@ export const ResultTableCard: React.FC<ResultTableCardProps> = ({
       }
       extraInfo={
         <div>
-          <Text style={{ fontSize: 12 }}>
+          <Text style={{ fontSize: 11 }}>
             Pages: {pageArray.length > 0 ? pageArray.join(', ') : '-'}
           </Text>
           <br />
-          <Text style={{ fontSize: 12 }}>Images: {base64List.length}</Text>
+          <Text style={{ fontSize: 11 }}>Images: {base64List.length}</Text>
         </div>
       }
       pagination={

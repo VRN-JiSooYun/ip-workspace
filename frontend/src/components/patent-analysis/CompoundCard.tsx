@@ -49,7 +49,7 @@ export const CompoundCard: React.FC<CompoundCardProps> = ({
       tags={compound.ranking ? [{ label: `Rank ${compound.ranking}`, color: 'blue' }] : []}
       cornerIcon={
         compound.is_human_key_compound ? (
-          <span style={{ fontSize: 16, cursor: 'pointer' }} title="Key Compound">
+          <span style={{ fontSize: 15, cursor: 'pointer' }} title="Key Compound">
             🔑
           </span>
         ) : undefined
@@ -64,8 +64,8 @@ export const CompoundCard: React.FC<CompoundCardProps> = ({
         rEntries.length > 0 && (
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
             {rEntries.map(([k, v]) => (
-              <Tag key={k} style={{ fontSize: 10 }}>
-                <Text strong style={{ fontSize: 10 }}>
+              <Tag key={k} style={{ fontSize: 9 }}>
+                <Text strong style={{ fontSize: 9 }}>
                   {k}:
                 </Text>{' '}
                 {v}

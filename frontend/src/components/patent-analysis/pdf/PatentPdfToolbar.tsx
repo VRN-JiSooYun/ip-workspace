@@ -113,7 +113,7 @@ const PatentPdfToolbar: React.FC<PatentPdfToolbarProps> = ({
         Search
       </Button>
 
-      <Text style={{ fontSize: 12 }}>
+      <Text style={{ fontSize: 11 }}>
         {searchMatchCount > 0
             ? `${activeMatchIndex}/${searchMatchCount}`
             : searchExecuted && searchQuery.trim()
@@ -144,7 +144,7 @@ const PatentPdfToolbar: React.FC<PatentPdfToolbarProps> = ({
           style={{ width: 60 }}
           controls={false}
         />
-        <Text style={{ fontSize: 12 }}>/ {totalPages || '-'}</Text>
+        <Text style={{ fontSize: 11 }}>/ {totalPages || '-'}</Text>
       </Space>
     </div>
   );

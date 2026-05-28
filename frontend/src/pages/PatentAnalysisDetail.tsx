@@ -564,7 +564,7 @@ const PatentAnalysisDetail: React.FC = () => {
             />
             <div style={{ minWidth: 0 }}>
               <Title level={4} style={{ margin: 0, lineHeight: '1.2', wordBreak: 'keep-all' }}>{selectedPatent.title}</Title>
-              <Text type="secondary" style={{ fontSize: '13px', display: 'block' }}>{selectedPatent.patentNumber} | {selectedPatent.applicant} | {selectedPatent.publicationDate}</Text>
+              <Text type="secondary" style={{ fontSize: '12px', display: 'block' }}>{selectedPatent.patentNumber} | {selectedPatent.applicant} | {selectedPatent.publicationDate}</Text>
             </div>
           </Space>
         </div>
@@ -774,7 +774,7 @@ const PatentAnalysisDetail: React.FC = () => {
                                               <Button
                                                 type="link"
                                                 size="small"
-                                                style={{ fontSize: 12, padding: 0 }}
+                                                style={{ fontSize: 11, padding: 0 }}
                                                 onClick={() => {
                                                   setRGroupFilter({ key: group.id, smiles: v.smiles });
                                                   setActiveTab('raw-data');
@@ -809,7 +809,7 @@ const PatentAnalysisDetail: React.FC = () => {
                                         tags={comp.ranking ? [{ label: `Rank ${comp.ranking}`, color: 'blue' }] : []}
                                         cornerIcon={
                                           comp.is_human_key_compound ? (
-                                            <span style={{ fontSize: 16, cursor: 'pointer' }} title="Key Compound">🔑</span>
+                                            <span style={{ fontSize: 15, cursor: 'pointer' }} title="Key Compound">🔑</span>
                                           ) : undefined
                                         }
                                         imageUrl={comp.compound_svg}
@@ -900,7 +900,7 @@ const PatentAnalysisDetail: React.FC = () => {
                         </div>
                         {rGroupFilter && (
                           <div style={{ marginBottom: 12, padding: '8px 12px', background: token.colorPrimaryBg, borderRadius: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
-                            <Text style={{ fontSize: 13 }}>
+                            <Text style={{ fontSize: 12 }}>
                               필터: <Tag color="blue">{rGroupFilter.key}</Tag> = <Tag>{rGroupFilter.smiles}</Tag>
                             </Text>
                             <Button size="small" type="text" danger onClick={() => setRGroupFilter(null)}>해제</Button>
@@ -940,10 +940,10 @@ const PatentAnalysisDetail: React.FC = () => {
                                       {svg ? (
                                         <SvgRenderer svg={svg} height={92} />
                                       ) : (
-                                        <Text style={{ fontSize: 12, color: token.colorTextTertiary }}>no image</Text>
+                                        <Text style={{ fontSize: 11, color: token.colorTextTertiary }}>no image</Text>
                                       )}
                                     </div>
-                                    <Text style={{ fontSize: 11, color: token.colorTextSecondary, maxWidth: 170, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={smiles}>
+                                    <Text style={{ fontSize: 10, color: token.colorTextSecondary, maxWidth: 170, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={smiles}>
                                       {smiles || '-'}
                                     </Text>
                                   </div>
@@ -970,9 +970,9 @@ const PatentAnalysisDetail: React.FC = () => {
                                   const sameCount = rawPc.filter((c: any) => c.ranking === ranking).length;
                                   return (
                                     <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
-                                      <Text style={{ fontSize: 12 }}>{ranking ?? '-'}</Text>
+                                      <Text style={{ fontSize: 11 }}>{ranking ?? '-'}</Text>
                                       {sameCount > 1 && (
-                                        <Tag color="orange" style={{ fontSize: 10, padding: '0 4px', lineHeight: '16px', margin: 0 }}>동률</Tag>
+                                        <Tag color="orange" style={{ fontSize: 9, padding: '0 4px', lineHeight: '16px', margin: 0 }}>동률</Tag>
                                       )}
                                     </div>
                                   );
@@ -1004,7 +1004,7 @@ const PatentAnalysisDetail: React.FC = () => {
                                       <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                                         <Button size="small" type="text" icon={<ChevronLeft size={12} />}
                                           onClick={() => { setActiveCompId(compKey); handlePageChange(compKey, -1, pageArr, bboxArr); }} />
-                                        <Text style={{ fontSize: 11 }}>p.{pageArr[curIdx] ?? '-'}</Text>
+                                        <Text style={{ fontSize: 10 }}>p.{pageArr[curIdx] ?? '-'}</Text>
                                         <Button size="small" type="text" style={{ transform: 'scaleX(-1)' }} icon={<ChevronLeft size={12} />}
                                           onClick={() => { setActiveCompId(compKey); handlePageChange(compKey, 1, pageArr, bboxArr); }} />
                                       </div>
@@ -1032,7 +1032,7 @@ const PatentAnalysisDetail: React.FC = () => {
                                     className="raw-data-svg-frame"
                                     style={{ width: 170, height: 130, background: token.colorBgContainer, border: `1px solid ${token.colorBorderSecondary}`, borderRadius: 8, boxSizing: 'border-box', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                                   >
-                                    <Text style={{ fontSize: 12, color: token.colorTextTertiary }}>no image</Text>
+                                    <Text style={{ fontSize: 11, color: token.colorTextTertiary }}>no image</Text>
                                   </div>
                                 )
                               },
@@ -1046,10 +1046,10 @@ const PatentAnalysisDetail: React.FC = () => {
                                 render: (_v: any, record: any) => {
                                   const smilesText = typeof record.scaffold === 'string' ? record.scaffold.trim() : '';
                                   if (!smilesText) {
-                                    return <Text type="secondary" style={{ fontSize: 11 }}>-</Text>;
+                                    return <Text type="secondary" style={{ fontSize: 10 }}>-</Text>;
                                   }
                                   return (
-                                    <Text style={{ fontSize: 11 }} copyable={{ text: smilesText }}>
+                                    <Text style={{ fontSize: 10 }} copyable={{ text: smilesText }}>
                                       {smilesText}
                                     </Text>
                                   );
@@ -1113,7 +1113,7 @@ const PatentAnalysisDetail: React.FC = () => {
                                     tags={comp.ranking ? [{ label: `Rank ${comp.ranking}`, color: 'blue' }] : []}
                                     cornerIcon={
                                       comp.is_human_key_compound ? (
-                                        <span style={{ fontSize: 16, cursor: 'pointer' }} title="Key Compound">🔑</span>
+                                        <span style={{ fontSize: 15, cursor: 'pointer' }} title="Key Compound">🔑</span>
                                       ) : undefined
                                     }
                                     imageUrl={comp.compound_svg}
@@ -1134,7 +1134,7 @@ const PatentAnalysisDetail: React.FC = () => {
                                             <Tooltip key={k} title={`${k}: ${String(v ?? '')}`}>
                                               <Tag
                                                 style={{
-                                                  fontSize: 10,
+                                                  fontSize: 9,
                                                   maxWidth: 170,
                                                   cursor: 'copy',
                                                   overflow: 'hidden',
@@ -1152,7 +1152,7 @@ const PatentAnalysisDetail: React.FC = () => {
                                                     .catch(() => message.error('복사에 실패했습니다.'));
                                                 }}
                                               >
-                                                <Text strong style={{ fontSize: 10 }}>{k}:</Text>
+                                                <Text strong style={{ fontSize: 9 }}>{k}:</Text>
                                                 <span
                                                   style={{
                                                     maxWidth: 110,
@@ -1301,10 +1301,10 @@ const PatentAnalysisDetail: React.FC = () => {
                                       {svg ? (
                                         <SvgRenderer svg={svg} height={92} />
                                       ) : (
-                                        <Text style={{ fontSize: 12, color: token.colorTextTertiary }}>no image</Text>
+                                        <Text style={{ fontSize: 11, color: token.colorTextTertiary }}>no image</Text>
                                       )}
                                     </div>
-                                    <Text style={{ fontSize: 11, color: token.colorTextSecondary, maxWidth: 170, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={smiles}>
+                                    <Text style={{ fontSize: 10, color: token.colorTextSecondary, maxWidth: 170, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={smiles}>
                                       {smiles || '-'}
                                     </Text>
                                   </div>
@@ -1321,7 +1321,7 @@ const PatentAnalysisDetail: React.FC = () => {
                                 const arr = Array.isArray(value) ? value : value != null ? [value] : [];
                                 if (arr.length === 0) return <Text type="secondary">-</Text>;
                                 return (
-                                  <div style={{ fontSize: 12, lineHeight: 1.4 }}>
+                                  <div style={{ fontSize: 11, lineHeight: 1.4 }}>
                                     {arr.map((item: any, idx: number) => (
                                       <div key={`${bioKey}-${idx}`}>{String(item)}</div>
                                     ))}
@@ -1357,7 +1357,7 @@ const PatentAnalysisDetail: React.FC = () => {
                                 fixed: 'left' as const,
                                 align: 'center' as const,
                                 className: 'table-center-column',
-                                render: (ranking: any) => <Text style={{ fontSize: 12 }}>{ranking ?? '-'}</Text>
+                                render: (ranking: any) => <Text style={{ fontSize: 11 }}>{ranking ?? '-'}</Text>
                               },
                               { title: 'Scaffold Group', dataIndex: 'scaffold_ranking', key: 'scaffold_ranking', width: 140, align: 'center' as const, className: 'table-center-column', render: (v: any) => v ?? '-' },
                               { title: 'Example Number', key: 'example_number', width: 150, align: 'center' as const, className: 'table-center-column', render: (_: any, record: any) => formatExampleNumber(record.example_number) },
@@ -1385,7 +1385,7 @@ const PatentAnalysisDetail: React.FC = () => {
                                       <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                                         <Button size="small" type="text" icon={<ChevronLeft size={12} />}
                                           onClick={() => { setActiveCompId(compKey); handlePageChange(compKey, -1, pageArr, bboxArr); }} />
-                                        <Text style={{ fontSize: 11 }}>p.{pageArr[curIdx] ?? '-'}</Text>
+                                        <Text style={{ fontSize: 10 }}>p.{pageArr[curIdx] ?? '-'}</Text>
                                         <Button size="small" type="text" style={{ transform: 'scaleX(-1)' }} icon={<ChevronLeft size={12} />}
                                           onClick={() => { setActiveCompId(compKey); handlePageChange(compKey, 1, pageArr, bboxArr); }} />
                                       </div>
@@ -1413,7 +1413,7 @@ const PatentAnalysisDetail: React.FC = () => {
                                     className="raw-data-svg-frame"
                                     style={{ width: 170, height: 130, background: token.colorBgContainer, border: `1px solid ${token.colorBorderSecondary}`, borderRadius: 8, boxSizing: 'border-box', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                                   >
-                                    <Text style={{ fontSize: 12, color: token.colorTextTertiary }}>no image</Text>
+                                    <Text style={{ fontSize: 11, color: token.colorTextTertiary }}>no image</Text>
                                   </div>
                                 )
                               },
@@ -1506,7 +1506,7 @@ const PatentAnalysisDetail: React.FC = () => {
                                           bioEntries.length > 0 && (
                                             <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                                               {bioEntries.map(([k, v]) => (
-                                                <Text key={k} style={{ fontSize: 11 }} ellipsis={{ tooltip: `${k}: ${Array.isArray(v) ? v.join(', ') : String(v ?? '-')}` }}>
+                                                <Text key={k} style={{ fontSize: 10 }} ellipsis={{ tooltip: `${k}: ${Array.isArray(v) ? v.join(', ') : String(v ?? '-')}` }}>
                                                   {k}: {Array.isArray(v) ? v.join(', ') : String(v ?? '-')}
                                                 </Text>
                                               ))}
@@ -1584,11 +1584,11 @@ const PatentAnalysisDetail: React.FC = () => {
                                         }
                                         extraInfo={
                                           <div>
-                                            <Text style={{ fontSize: 12 }}>
+                                            <Text style={{ fontSize: 11 }}>
                                               Pages: {pageArray.length > 0 ? pageArray.join(', ') : '-'}
                                             </Text>
                                             <br />
-                                            <Text style={{ fontSize: 12 }}>Images: {base64List.length}</Text>
+                                            <Text style={{ fontSize: 11 }}>Images: {base64List.length}</Text>
                                           </div>
                                         }
                                         pagination={
@@ -1763,7 +1763,7 @@ const PatentAnalysisDetail: React.FC = () => {
           background: var(--table-header-bg) !important;
           border-bottom: 2px solid ${token.colorBorderSecondary} !important;
           padding: 14px 12px;
-          font-size: 13px;
+          font-size: 12px;
           font-weight: 600;
         }
         .raw-data-tab-content .raw-data-embodiment-table .ant-table-tbody > tr > td {

@@ -290,7 +290,7 @@ const WhiteboardEditor: React.FC<WhiteboardEditorProps> = ({
         const text = new fabric.IText(label, {
           left: currentX,
           top: currentY + 130,
-          fontSize: 12,
+          fontSize: 11,
           fontFamily: 'Inter',
           fontWeight: 'bold',
           fill: token.colorTextSecondary,
@@ -590,7 +590,7 @@ const WhiteboardEditor: React.FC<WhiteboardEditorProps> = ({
             const fabricText = new fabric.IText(text, {
               left: center.x,
               top: center.y,
-              fontSize: 20,
+              fontSize: 19,
               fontFamily: 'Inter',
               fill: token.colorText,
               originX: 'center',
@@ -687,7 +687,7 @@ const WhiteboardEditor: React.FC<WhiteboardEditorProps> = ({
     const text = new fabric.IText('텍스트를 입력하세요', {
       left: 200,
       top: 200,
-      fontSize: 20,
+      fontSize: 19,
       fontFamily: 'Inter',
       fill: token.colorText,
     });

@@ -59,11 +59,11 @@ const ChemSpaceChart3D: React.FC<ChemSpaceChart3DProps> = ({ data, xAxis, yAxis,
           return `
             <div style="padding: 8px;">
               <div style="font-weight: bold; margin-bottom: 4px;">${d.n || 'Unknown'}</div>
-              <div style="font-size: 11px; color: #666;">Kinase: ${d.k || 'Unknown'}</div>
+              <div style="font-size: 10px; color: #666;">Kinase: ${d.k || 'Unknown'}</div>
               <div style="display: flex; flex-direction: column; gap: 2px; margin-top: 4px;">
-                <span style="font-size: 11px;">${getAxisName(xAxis)}: ${d[xKey]?.toFixed(2)}</span>
-                <span style="font-size: 11px;">${getAxisName(yAxis)}: ${d[yKey]?.toFixed(2)}</span>
-                <span style="font-size: 11px;">${getAxisName(zAxis)}: ${d[zKey]?.toFixed(3)}</span>
+                <span style="font-size: 10px;">${getAxisName(xAxis)}: ${d[xKey]?.toFixed(2)}</span>
+                <span style="font-size: 10px;">${getAxisName(yAxis)}: ${d[yKey]?.toFixed(2)}</span>
+                <span style="font-size: 10px;">${getAxisName(zAxis)}: ${d[zKey]?.toFixed(3)}</span>
               </div>
             </div>
           `;
@@ -92,14 +92,14 @@ const ChemSpaceChart3D: React.FC<ChemSpaceChart3DProps> = ({ data, xAxis, yAxis,
         nameGap: 40,
         nameTextStyle: {
           color: showAxes ? (isDarkMode ? '#aaa' : '#444') : 'transparent',
-          fontSize: 20,
+          fontSize: 19,
           fontWeight: 'bold'
         },
         axisLabel: {
           show: true,
           textStyle: {
             color: showAxes ? (isDarkMode ? '#888' : '#666') : 'transparent',
-            fontSize: 16,
+            fontSize: 15,
             fontWeight: 'bold'
           }
         },
@@ -132,14 +132,14 @@ const ChemSpaceChart3D: React.FC<ChemSpaceChart3DProps> = ({ data, xAxis, yAxis,
         nameGap: 40,
         nameTextStyle: {
           color: showAxes ? (isDarkMode ? '#aaa' : '#444') : 'transparent',
-          fontSize: 20,
+          fontSize: 19,
           fontWeight: 'bold'
         },
         axisLabel: {
           show: true,
           textStyle: {
             color: showAxes ? (isDarkMode ? '#888' : '#666') : 'transparent',
-            fontSize: 16,
+            fontSize: 15,
             fontWeight: 'bold'
           }
         },
@@ -172,14 +172,14 @@ const ChemSpaceChart3D: React.FC<ChemSpaceChart3DProps> = ({ data, xAxis, yAxis,
         nameGap: 40,
         nameTextStyle: {
           color: showAxes ? (isDarkMode ? '#aaa' : '#444') : 'transparent',
-          fontSize: 20,
+          fontSize: 19,
           fontWeight: 'bold'
         },
         axisLabel: {
           show: true,
           textStyle: {
             color: showAxes ? (isDarkMode ? '#888' : '#666') : 'transparent',
-            fontSize: 16,
+            fontSize: 15,
             fontWeight: 'bold'
           }
         },

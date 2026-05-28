@@ -5,11 +5,9 @@ interface BoardState {
   selectedGroupIds: string[];
   selectedSarCompoundIds: string[];
   groups: CompoundGroup[];
-  searchType: string[]; // ['my designs', 'my compounds']
   toggleGroupSelection: (groupId: string) => void;
   setSelectedSarCompoundIds: (compoundIds: string[]) => void;
   clearSelectedSarCompoundIds: () => void;
-  setSearchType: (types: string[]) => void;
   addGroup: (group: CompoundGroup) => void;
   mergeGroups: (groupIds: string[], name: string) => void;
   copyGroup: (groupId: string) => void;
@@ -20,7 +18,6 @@ export const useBoardStore = create<BoardState>((set) => ({
   selectedGroupIds: [],
   selectedSarCompoundIds: [],
   groups: mockGroups,
-  searchType: ['my designs', 'my compounds'],
   toggleGroupSelection: (groupId) => set((state) => ({
     selectedGroupIds: state.selectedGroupIds.includes(groupId)
       ? state.selectedGroupIds.filter(id => id !== groupId)
@@ -28,7 +25,6 @@ export const useBoardStore = create<BoardState>((set) => ({
   })),
   setSelectedSarCompoundIds: (compoundIds) => set({ selectedSarCompoundIds: compoundIds }),
   clearSelectedSarCompoundIds: () => set({ selectedSarCompoundIds: [] }),
-  setSearchType: (types) => set({ searchType: types }),
   addGroup: (group) => set((state) => ({ groups: [...state.groups, group] })),
   mergeGroups: (groupIds, name) => set((state) => {
     const targetGroups = state.groups.filter((group) => groupIds.includes(group.id));

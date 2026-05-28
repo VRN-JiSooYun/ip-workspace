@@ -310,7 +310,7 @@ const ChemDrawModal: React.FC<ChemDrawModalProps> = ({
         }} 
       />
       <div style={{ marginTop: 12 }}>
-        <Text type="secondary" style={{ fontSize: 12 }}>
+        <Text type="secondary" style={{ fontSize: 11 }}>
           <Info size={14} style={{ marginRight: 4, verticalAlign: 'middle' }} />
           구조를 완성한 후 '{confirmText}' 버튼을 눌러주세요.
         </Text>

@@ -13,6 +13,8 @@
   --table-row-selected-hover-bg: rgba(248, 124, 99, 0.34);
   --table-header-bg: #edf0f3;
   --table-header-divider: #b8c3cf;
+  --table-header-font-size: 12px;
+  --table-cell-font-size: 12px;
 }
 
 [data-theme='dark'] {
@@ -39,6 +41,10 @@ body {
   -moz-osx-font-smoothing: grayscale;
   background-color: var(--bg-color);
   color: var(--text-primary);
+}
+
+span.ant-typography {
+  font-size: 12px;
 }
 
 /* CORE UI Style Utilities */
@@ -82,7 +88,7 @@ body {
 .ant-table-wrapper .ant-table-thead > tr > td {
   background: var(--table-header-bg) !important;
   font-weight: 700 !important;
-  font-size: 13px !important;
+  font-size: var(--table-header-font-size) !important;
   text-align: center !important;
   vertical-align: middle !important;
   position: relative !important;
@@ -176,7 +182,7 @@ body {
 }
 
 .ant-table-wrapper .ant-table-tbody > tr > td {
-  font-size: 13px;
+  font-size: var(--table-cell-font-size);
   vertical-align: middle;
 }
 
@@ -241,6 +247,21 @@ body {
 .my-board-responsive-text-column .ant-typography,
 .my-board-responsive-text-column .ant-table-cell-content {
   max-width: 100%;
+}
+
+.my-board-multiline-text-column {
+  white-space: normal !important;
+}
+
+.my-board-multiline-text {
+  display: -webkit-box;
+  max-width: 100%;
+  overflow: hidden;
+  white-space: normal;
+  word-break: break-word;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
 }
 
 .table-center-column {
@@ -424,7 +445,7 @@ body {
   border-bottom: 1px solid var(--border-color);
   color: #F87C63;
   font-weight: 700;
-  font-size: 1.1rem;
+  font-size: 1.0375rem;
 }
 
 .dashboard-card-content {
@@ -442,7 +463,7 @@ body {
   font-weight: 700;
   margin-top: 15px;
   margin-bottom: 8px;
-  font-size: 14px;
+  font-size: 13px;
 }
 
 .dashboard-card-content > .dashboard-list-title:first-child {
@@ -451,7 +472,7 @@ body {
 
 .dashboard-list-item {
   color: var(--text-primary);
-  font-size: 13px;
+  font-size: 12px;
   margin-bottom: 4px;
   padding-left: 10px;
   position: relative;
@@ -467,7 +488,7 @@ body {
 .status-badge {
   padding: 2px 6px;
   border-radius: 3px;
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 700;
   color: #fff;
   margin-left: 4px;

@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Typography, Row, Col, Card, Table, Button, Input,
-  Space, Modal, Form, Tag, Select, DatePicker, Avatar, Divider, Segmented, Tooltip, theme
+  Space, Modal, Form, Tag, Select, DatePicker, Avatar, Divider, Segmented, Tooltip, theme, Slider, InputNumber
 } from 'antd';
 import {
   Search, ChevronDown, ChevronUp,
@@ -30,6 +30,8 @@ const SAR_COMPOUND_CARD_BASE_WIDTH = 200;
 const SAR_COMPOUND_CARD_BASE_STRUCTURE_HEIGHT = 148;
 const SAR_COMPOUND_CARD_EXPANDED_WIDTH = SAR_COMPOUND_CARD_BASE_WIDTH * 2;
 const SAR_COMPOUND_CARD_EXPANDED_STRUCTURE_HEIGHT = SAR_COMPOUND_CARD_BASE_STRUCTURE_HEIGHT * 2;
+const SAR_COMPOUND_CARD_IMAGE_SCALE_MIN = 30;
+const SAR_COMPOUND_CARD_IMAGE_SCALE_MAX = 150;
 const SAR_GROUP_STRUCTURE_PANEL_WIDTH = 128;
 const SAR_GROUP_STRUCTURE_COLUMN_WIDTH = 122;
 
@@ -90,6 +92,8 @@ const SarTable: React.FC = () => {
   const [searchedSvg, setSearchedSvg] = useState<string | null>(null);
   const [activePreset, setActivePreset] = useState<number>(1);
   const [compoundCardViewMode, setCompoundCardViewMode] = useState<'single' | 'twoRows'>('single');
+  const [compoundCardImageScalePercent, setCompoundCardImageScalePercent] = useState(100);
+  const [hasUserClearedSelection, setHasUserClearedSelection] = useState(false);
   const [isCompoundStructureCollapsed, setIsCompoundStructureCollapsed] = useState(false);
   const [isGroupStructureCollapsed, setIsGroupStructureCollapsed] = useState(false);
   const [viewportWidth, setViewportWidth] = useState<number>(() => {
@@ -98,6 +102,14 @@ const SarTable: React.FC = () => {
   });
   const layoutPreset = useMemo(() => getPatentAnalysisLayoutPreset(viewportWidth), [viewportWidth]);
   const isResponsiveToolbar = viewportWidth <= 1100;
+  const sarCompoundIdSignature = useMemo(
+    () => sarCompounds.map((compound) => compound.id).join('|'),
+    [sarCompounds]
+  );
+
+  useEffect(() => {
+    setHasUserClearedSelection(false);
+  }, [sarCompoundIdSignature]);
 
   useEffect(() => {
     if (sarCompounds.length === 0) {
@@ -106,10 +118,22 @@ const SarTable: React.FC = () => {
     }
 
     const hasSelectedRow = sarCompounds.some((compound) => compound.id === selectedRowKey);
-    if (!hasSelectedRow) {
+    if (!hasSelectedRow && !hasUserClearedSelection) {
       setSelectedRowKey(sarCompounds[0].id);
     }
-  }, [sarCompounds, selectedRowKey]);
+  }, [hasUserClearedSelection, sarCompounds, selectedRowKey]);
+
+  const toggleCompoundSelection = React.useCallback((compoundId: string) => {
+    setSelectedRowKey((current) => {
+      if (current === compoundId) {
+        setHasUserClearedSelection(true);
+        return null;
+      }
+
+      setHasUserClearedSelection(false);
+      return compoundId;
+    });
+  }, []);
 
   useEffect(() => {
     if (!selectedRowKey) return;
@@ -324,12 +348,8 @@ const SarTable: React.FC = () => {
         height={52}
         iconSize={20}
         gap={4}
-        onPreview={structureSvg ? () => {
-          setStructurePreview({
-            title: representativeCompound?.compoundId || representativeCompound?.name || record.name || 'Structure',
-            svg: structureSvg,
-          });
-        } : undefined}
+        showPreviewAction={false}
+        showCopyAction={false}
       />
     );
   };
@@ -544,7 +564,7 @@ const SarTable: React.FC = () => {
       title: 'MS (rem.%)',
       children: [
         { title: 'H', dataIndex: ['sar', 'ms', 'h'], key: 'ms_h', width: 60, render: (v: any) => renderValue(v, 'm') },
-        { title: 'Target', dataIndex: 'target', key: 'target', width: 80, render: (text: string) => <Tag color="blue" style={{ fontSize: 11 }}>{text}</Tag> },
+        { title: 'Target', dataIndex: 'target', key: 'target', width: 80, render: (text: string) => <Tag color="blue" style={{ fontSize: 10 }}>{text}</Tag> },
         { title: 'M', dataIndex: ['sar', 'ms', 'm'], key: 'ms_m', width: 60, render: (v: any) => renderValue(v, 'm') },
       ]
     },
@@ -639,12 +659,15 @@ const SarTable: React.FC = () => {
       });
   }, [columnOrder, activeColumns, subColumnConfig, isColorActive, isDarkMode, token]);
 
+  const compoundCardImageScale = compoundCardViewMode === 'single'
+    ? compoundCardImageScalePercent / 100
+    : 1;
   const compoundCardWidth = compoundCardViewMode === 'twoRows'
     ? SAR_COMPOUND_CARD_BASE_WIDTH
-    : SAR_COMPOUND_CARD_EXPANDED_WIDTH;
+    : Math.round(SAR_COMPOUND_CARD_EXPANDED_WIDTH * compoundCardImageScale);
   const compoundCardStructureHeight = compoundCardViewMode === 'twoRows'
     ? SAR_COMPOUND_CARD_BASE_STRUCTURE_HEIGHT
-    : SAR_COMPOUND_CARD_EXPANDED_STRUCTURE_HEIGHT;
+    : Math.round(SAR_COMPOUND_CARD_EXPANDED_STRUCTURE_HEIGHT * compoundCardImageScale);
 
   return (
     <div
@@ -837,19 +860,56 @@ const SarTable: React.FC = () => {
                 )}
                 <BenzeneIcon size={16} color={token.colorPrimary} />
                 <Text strong>화합물</Text>
-                <Text type="secondary" style={{ fontSize: 12 }}>{sarCompounds.length} compounds</Text>
+                <Text type="secondary" style={{ fontSize: 11 }}>{sarCompounds.length} compounds</Text>
               </Space>
               <Space size={8}>
                 {!isCompoundStructureCollapsed && (
-                  <Segmented
-                    size="small"
-                    value={compoundCardViewMode}
-                    onChange={(value) => setCompoundCardViewMode(value as 'single' | 'twoRows')}
-                    options={[
-                      { label: '기본', value: 'single' },
-                      { label: '2줄', value: 'twoRows' },
-                    ]}
-                  />
+                  <>
+                    {compoundCardViewMode === 'single' && (
+                      <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 8,
+                          width: 220,
+                        }}
+                      >
+                        <Text type="secondary" style={{ fontSize: 11, whiteSpace: 'nowrap' }}>이미지</Text>
+                        <Slider
+                          min={SAR_COMPOUND_CARD_IMAGE_SCALE_MIN}
+                          max={SAR_COMPOUND_CARD_IMAGE_SCALE_MAX}
+                          step={5}
+                          value={compoundCardImageScalePercent}
+                          onChange={setCompoundCardImageScalePercent}
+                          tooltip={{ formatter: (value) => `${value}%` }}
+                          style={{ flex: 1, margin: 0 }}
+                        />
+                        <InputNumber
+                          size="small"
+                          min={SAR_COMPOUND_CARD_IMAGE_SCALE_MIN}
+                          max={SAR_COMPOUND_CARD_IMAGE_SCALE_MAX}
+                          step={5}
+                          value={compoundCardImageScalePercent}
+                          onChange={(value) => {
+                            if (typeof value === 'number') {
+                              setCompoundCardImageScalePercent(value);
+                            }
+                          }}
+                          addonAfter="%"
+                          style={{ width: 82 }}
+                        />
+                      </div>
+                    )}
+                    <Segmented
+                      size="small"
+                      value={compoundCardViewMode}
+                      onChange={(value) => setCompoundCardViewMode(value as 'single' | 'twoRows')}
+                      options={[
+                        { label: '기본', value: 'single' },
+                        { label: '2줄', value: 'twoRows' },
+                      ]}
+                    />
+                  </>
                 )}
                 <Button
                   size="small"
@@ -889,7 +949,7 @@ const SarTable: React.FC = () => {
                   <div
                     id={`sar-compound-card-${item.id}`}
                     key={item.id}
-                    onClick={() => setSelectedRowKey(item.id)}
+                    onClick={() => toggleCompoundSelection(item.id)}
                     onDoubleClick={() => {
                       if (item.structureSvg) {
                         setStructurePreview({ title: item.name, svg: item.structureSvg });
@@ -929,12 +989,13 @@ const SarTable: React.FC = () => {
                         width={compoundCardWidth}
                         height={compoundCardStructureHeight}
                         iconSize={48}
+                        className="sar-compound-structure-view"
                         showPreviewAction={false}
                         showCopyAction={false}
                         frameStyle={{ borderColor: 'transparent', background: token.colorBgContainer }}
                       />
                     </div>
-                    <Text strong style={{ fontSize: 12, lineHeight: '16px', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={item.name}>
+                    <Text strong style={{ fontSize: 11, lineHeight: '16px', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={item.name}>
                       {item.name}
                     </Text>
                   </div>
@@ -958,7 +1019,7 @@ const SarTable: React.FC = () => {
                     justifyContent: 'center',
                     cursor: 'pointer',
                     border: isColorActive ? `1px solid ${token.colorBorderSecondary}` : `1px solid ${token.colorBorderSecondary}`,
-                    fontSize: 12,
+                    fontSize: 11,
                     fontWeight: 'bold',
                     color: isColorActive ? token.colorBgContainer : token.colorText
                   }}
@@ -977,7 +1038,7 @@ const SarTable: React.FC = () => {
                         width: 24, height: 24,
                         background: activePreset === n ? token.colorPrimary : token.colorBorderSecondary,
                         borderRadius: 4,
-                        fontSize: 11,
+                        fontSize: 10,
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
@@ -1009,7 +1070,7 @@ const SarTable: React.FC = () => {
               scroll={{ x: 1800, y: sarCompounds.length > 10 ? 500 : undefined }}
               onRow={(record) => ({
                 id: `sar-table-row-${record.id}`,
-                onClick: () => setSelectedRowKey(record.id),
+                onClick: () => toggleCompoundSelection(record.id),
                 onMouseEnter: () => setHoveredRowKey(record.id),
                 onMouseLeave: () => setHoveredRowKey(null)
               })}
@@ -1058,7 +1119,7 @@ const SarTable: React.FC = () => {
           </div>
 
           <div style={{ paddingBottom: 16, borderTop: `1px solid ${token.colorBorderSecondary}`, paddingTop: 20 }}>
-            <Text type="secondary" style={{ fontSize: 12 }}>
+            <Text type="secondary" style={{ fontSize: 11 }}>
               <Info size={12} style={{ marginRight: 4 }} />
               현재 설정된 컬럼 가시성 및 순서를 선택된 번호({activePreset}번)에 저장할 수 있습니다.
             </Text>
@@ -1098,9 +1159,9 @@ const SarTable: React.FC = () => {
                       {expandedColumns.includes(item) ? <ChevronUp size={16} color={token.colorTextTertiary} /> : <ChevronDown size={16} color={token.colorTextTertiary} />}
                     </div>
                     <GripVertical size={16} color={token.colorTextTertiary} />
-                    <Text 
-                      strong={activeColumns.includes(item)} 
-                      style={{ 
+                    <Text
+                      strong={activeColumns.includes(item)}
+                      style={{
                         color: activeColumns.includes(item) ? token.colorPrimary : token.colorTextTertiary,
                         cursor: 'pointer',
                         userSelect: 'none'
@@ -1151,14 +1212,14 @@ const SarTable: React.FC = () => {
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'space-between',
-                          fontSize: 12
+                          fontSize: 11
                         }}
                       >
                         <Space>
                           <GripVertical size={12} color={token.colorBorder} />
-                          <Text 
-                            style={{ 
-                              fontSize: 12, 
+                          <Text
+                            style={{
+                              fontSize: 11,
                               color: sub.visible ? token.colorText : token.colorTextTertiary,
                               cursor: 'pointer',
                               userSelect: 'none'
@@ -1332,7 +1393,7 @@ const SarTable: React.FC = () => {
           color: ${isDarkMode ? 'rgba(255,255,255,0.85)' : '#495057'} !important;
           text-align: center !important;
           border-color: ${isDarkMode ? '#303030' : '#f0f0f0'} !important;
-          font-size: 12px;
+          font-size: var(--table-header-font-size);
           font-weight: 600;
           padding: 12px 4px !important;
         }
@@ -1343,10 +1404,17 @@ const SarTable: React.FC = () => {
         .sar-group-structure-table .ant-table-thead > tr:first-child > th {
           color: #495057 !important;
         }
+        .sar-group-structure-card .ant-table-tbody .compound-structure-view {
+          width: calc(100% - 4px) !important;
+          margin: 0 2px !important;
+        }
+        .sar-group-structure-card .ant-table-tbody .compound-structure-frame {
+          width: 100% !important;
+        }
         .ant-table-tbody > tr > td {
           padding: 10px 4px !important;
           text-align: center !important;
-          font-size: 12px;
+          font-size: var(--table-cell-font-size);
           border-color: ${isDarkMode ? '#303030' : '#f0f0f0'} !important;
         }
         .ant-table-bordered .ant-table-container {

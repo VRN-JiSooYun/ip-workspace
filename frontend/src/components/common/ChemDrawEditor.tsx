@@ -279,7 +279,7 @@ const ChemDrawEditor: React.FC<ChemDrawEditorProps> = ({
         }}
       />
       <div style={{ marginTop: 8 }}>
-        <Text type="secondary" style={{ fontSize: 12 }}>
+        <Text type="secondary" style={{ fontSize: 11 }}>
           <Info size={14} style={{ marginRight: 4, verticalAlign: 'middle' }} />
           ChemDraw editor에서 구조를 그린 뒤 등록을 진행하세요.
         </Text>
