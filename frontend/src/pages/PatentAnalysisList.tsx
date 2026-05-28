@@ -29,6 +29,7 @@ import { getPatentAnalysisLayoutPreset } from '../config/patentAnalysisLayout';
 import { useUIStore } from '../store/useUIStore';
 import PageHeaderBreadcrumb from '../components/common/PageHeaderBreadcrumb';
 import ToggleTag from '../components/common/ToggleTag';
+import { mapPatentListItem, patentAnalysisApi } from '../services/patentAnalysisApi';
 
 const { Text } = Typography;
 
@@ -40,6 +41,8 @@ const PatentAnalysisList: React.FC = () => {
   const navigate = useNavigate();
   
   const [isChemDrawVisible, setIsChemDrawVisible] = useState(false);
+  const [patents, setPatents] = useState<Patent[]>(mockPatents);
+  const [isLoadingPatents, setIsLoadingPatents] = useState(false);
   const [searchText, setSearchText] = useState('');
   const [showFilters, setShowFilters] = useState(false);
   const [selectedProject, setSelectedProject] = useState('EGFR');
@@ -80,16 +83,44 @@ const PatentAnalysisList: React.FC = () => {
     return () => window.removeEventListener('resize', onResize);
   }, []);
 
+  useEffect(() => {
+    let ignore = false;
+
+    const loadPatents = async () => {
+      setIsLoadingPatents(true);
+      try {
+        const response = await patentAnalysisApi.getMyPatents({ page: 1, pageSize: 50 });
+        if (ignore) return;
+        const mappedPatents = response.items.map(mapPatentListItem);
+        setPatents(mappedPatents.length > 0 ? mappedPatents : mockPatents);
+      } catch (error) {
+        if (!ignore) {
+          setPatents(mockPatents);
+        }
+      } finally {
+        if (!ignore) {
+          setIsLoadingPatents(false);
+        }
+      }
+    };
+
+    void loadPatents();
+
+    return () => {
+      ignore = true;
+    };
+  }, []);
+
   const filteredPatents = React.useMemo(() => {
     const normalizedSearchText = searchText.trim().toLowerCase();
     if (!normalizedSearchText) {
-      return mockPatents;
+      return patents;
     }
-    return mockPatents.filter((patent) =>
+    return patents.filter((patent) =>
       patent.title.toLowerCase().includes(normalizedSearchText) ||
-      patent.patentNumber.includes(normalizedSearchText)
+      patent.patentNumber.toLowerCase().includes(normalizedSearchText)
     );
-  }, [searchText]);
+  }, [patents, searchText]);
 
   const patentListTableScrollY = React.useMemo(() => {
     return Math.max(280, viewportHeight - 420);
@@ -327,6 +358,7 @@ const PatentAnalysisList: React.FC = () => {
             columns={columns}
             dataSource={filteredPatents}
             rowKey="id"
+            loading={isLoadingPatents}
             onRow={(record) => ({
               onClick: () => navigate(`/patents/analysis/${record.id}`),
               style: { cursor: 'pointer' }

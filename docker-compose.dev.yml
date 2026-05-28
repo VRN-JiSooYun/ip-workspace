@@ -8,9 +8,30 @@ services:
     ports:
       - "18080:80"
     environment:
+      - VITE_API_URL=/api
       - VITE_RDKIT_API_URL=/rdkit-api
     depends_on:
+      - dev-myworkspace-backend
       - dev-myworkspace-rdkit-api
+    networks:
+      - dev-myworkspace-net
+
+  dev-myworkspace-backend:
+    container_name: dev-myworkspace-backend
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
+    restart: always
+    ports:
+      - "18082:3000"
+    environment:
+      - NODE_ENV=development
+      - PORT=3000
+      - CORS_ORIGINS=http://localhost:18080
+      - PATENT_ANALYSIS_HELPER_API_URL=http://172.16.1.210:10130
+      - PATENT_ANALYSIS_UPLOAD_API_URL=http://172.16.1.210:8000
+      - PATENT_ANALYSIS_OWNER_ID=171
+      - HTTP_TIMEOUT_MS=30000
     networks:
       - dev-myworkspace-net
 

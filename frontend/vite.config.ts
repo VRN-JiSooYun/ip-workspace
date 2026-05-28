@@ -8,6 +8,10 @@ export default defineConfig({
     host: true,
     port: 5173,
     proxy: {
+      '/api': {
+        target: 'http://local-myworkspace-backend:3000',
+        changeOrigin: true,
+      },
       '/rdkit-api': {
         target: 'http://local-myworkspace-rdkit-api:8000',
         changeOrigin: true,

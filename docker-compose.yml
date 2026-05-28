@@ -10,10 +10,32 @@ services:
       - ./frontend:/app
       - /app/node_modules
     environment:
-      - VITE_API_URL=http://localhost:3000
+      - VITE_API_URL=/api
       - VITE_RDKIT_API_URL=/rdkit-api
     depends_on:
+      - local-myworkspace-backend
       - local-myworkspace-rdkit-api
+    networks:
+      - myworkspace-net
+
+  local-myworkspace-backend:
+    container_name: local-myworkspace-backend
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./backend:/app
+      - /app/node_modules
+    environment:
+      - NODE_ENV=development
+      - PORT=3000
+      - CORS_ORIGINS=http://localhost:5174,http://localhost:18080
+      - PATENT_ANALYSIS_HELPER_API_URL=http://172.16.1.210:10130
+      - PATENT_ANALYSIS_UPLOAD_API_URL=http://172.16.1.210:8000
+      - PATENT_ANALYSIS_OWNER_ID=171
+      - HTTP_TIMEOUT_MS=30000
     networks:
       - myworkspace-net
 

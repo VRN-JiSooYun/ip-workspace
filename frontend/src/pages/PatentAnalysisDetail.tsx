@@ -34,10 +34,10 @@ import {
   FileSpreadsheet,
   Copy
 } from 'lucide-react';
-import { mockPatents, mockResidues } from '../mocks/patents';
+import { Patent, mockPatents, mockResidues } from '../mocks/patents';
 import { mockHighlights } from '../mocks/patentHighlights';
 import { patentDetailData } from '../mocks/patentDetail_WO2026090333A1';
-import { getPrototypeMockDataset } from '../mocks/patentAnalysisMockApi';
+import { getPrototypeMockDataset, mergeEmbodimentPayload } from '../mocks/patentAnalysisMockApi';
 import { getPatentAnalysisLayoutPreset } from '../config/patentAnalysisLayout';
 import { useUIStore } from '../store/useUIStore';
 import PageHeaderBreadcrumb from '../components/common/PageHeaderBreadcrumb';
@@ -48,6 +48,7 @@ import { getCompoundStructureCopyText } from '../components/common/CompoundStruc
 import PatentPdfToolbar from '../components/patent-analysis/pdf/PatentPdfToolbar';
 import PatentPdfViewer from '../components/patent-analysis/pdf/PatentPdfViewer';
 import { usePatentPdfViewer } from '../hooks/usePatentPdfViewer';
+import { patentAnalysisApi } from '../services/patentAnalysisApi';
 
 const { Title, Text, Paragraph } = Typography;
 
@@ -66,6 +67,24 @@ const SvgRenderer: React.FC<{ svg: string; height?: number | string }> = ({ svg,
   />
 );
 
+const normalizePublicationNumber = (value: string) => value.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+
+const createRoutePatent = (id: string): Patent => {
+  const publicationNumber = normalizePublicationNumber(id);
+  return {
+    id: publicationNumber,
+    patentNumber: publicationNumber,
+    title: publicationNumber,
+    applicant: '-',
+    publicationDate: '-',
+    target: '-',
+    status: 'Completed',
+    isFavorite: false,
+    keyCompoundSmiles: '',
+    abstract: '',
+  };
+};
+
 const PatentAnalysisDetail: React.FC = () => {
   const { token } = theme.useToken();
   const { message } = App.useApp();
@@ -73,13 +92,17 @@ const PatentAnalysisDetail: React.FC = () => {
   const navigate = useNavigate();
   const selectedPatent = useMemo(() => {
     if (!id) return null;
-    return mockPatents.find(p => p.id === id) || null;
+    return mockPatents.find(p => (
+      p.id === id ||
+      normalizePublicationNumber(p.patentNumber) === normalizePublicationNumber(id)
+    )) || createRoutePatent(id);
   }, [id]);
   const selectedMockDataset = useMemo(
     () => getPrototypeMockDataset({ patentId: id, patentNumber: selectedPatent?.patentNumber }),
     [id, selectedPatent?.patentNumber]
   );
-  const patentResult = selectedMockDataset.patentResult;
+  const [apiPatentResult, setApiPatentResult] = React.useState<Record<string, any> | null>(null);
+  const patentResult = apiPatentResult ?? selectedMockDataset.patentResult;
   const frequencyAnalysis = patentResult.frequency_analysis_result_json
     ?? patentResult.data?.[0]?.frequency_analysis_result_json
     ?? { r_groups: {} };
@@ -94,6 +117,34 @@ const PatentAnalysisDetail: React.FC = () => {
     patentNumber: selectedPatent?.patentNumber,
     currentHighlights,
   });
+
+  useEffect(() => {
+    if (!selectedPatent?.patentNumber) return;
+    let ignore = false;
+
+    const loadPatentDetail = async () => {
+      const publicationNumber = normalizePublicationNumber(selectedPatent.patentNumber);
+      try {
+        const [detail, embodiments] = await Promise.all([
+          patentAnalysisApi.getPatentDetail(publicationNumber),
+          patentAnalysisApi.getEmbodiments(publicationNumber, { page: 1, pageSize: 100 }),
+        ]);
+        if (!ignore) {
+          setApiPatentResult(mergeEmbodimentPayload(detail.raw, embodiments.raw));
+        }
+      } catch (error) {
+        if (!ignore) {
+          setApiPatentResult(null);
+        }
+      }
+    };
+
+    void loadPatentDetail();
+
+    return () => {
+      ignore = true;
+    };
+  }, [selectedPatent?.patentNumber]);
 
   const clampSplitRatio = React.useCallback((value: number) => {
     return Math.min(Math.max(value, SPLIT_MIN_PERCENT), SPLIT_MAX_PERCENT);
