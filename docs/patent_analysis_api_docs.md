@@ -59,6 +59,7 @@
 | `GET-PATENT-DATA` | 특정 특허의 상세 데이터 및 화합물 목록 조회 | `publication_number`, `owner_id` |
 | `GET-PATENT-LIST` | 필터 및 정렬 조건에 따른 특허 목록 조회 | `filter_dict`, `order_dict`, `owner_id`, `num-rows-per-page`, `page-no` |
 | `GET-PATENT-LIST-BY-COMPOUND-ID` | 특정 화합물이 포함된 특허 목록 조회 | `compound_id` |
+| `GET-PATENT-LIST-BY-COMPOUND-IDS` | 여러 화합물이 포함된 특허 목록 일괄 조회 | `compound_ids` (comma-separated string) |
 | `GET-EMBODIMENT-LIST` | 특정 특허 내의 실시예(화합물) 목록 조회 | `publication_number`, `filter_dict`, `order_dict`, `num-rows-per-page`, `page-no` |
 | `GET-COMPOUND-SEARCH-HISTORY` | 유저의 화합물 검색 기록 조회 | `owner_id` |
 | `GET-ELASTIC-COMPOUND-LIST` | Elasticsearch를 이용한 화합물 검색 (유사도, 부분구조 등) | `smiles`, `type`, `sim`, `page`, `size` |

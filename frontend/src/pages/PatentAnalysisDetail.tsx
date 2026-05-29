@@ -1,5 +1,5 @@
 import React, { useMemo, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { 
   Button, 
   Space, 
@@ -15,7 +15,8 @@ import {
   Empty,
   Table,
   Badge,
-  App
+  App,
+  Alert
 } from 'antd';
 import { 
   Plus, 
@@ -48,7 +49,7 @@ import { getCompoundStructureCopyText } from '../components/common/CompoundStruc
 import PatentPdfToolbar from '../components/patent-analysis/pdf/PatentPdfToolbar';
 import PatentPdfViewer from '../components/patent-analysis/pdf/PatentPdfViewer';
 import { usePatentPdfViewer } from '../hooks/usePatentPdfViewer';
-import { patentAnalysisApi } from '../services/patentAnalysisApi';
+import { mapPatentListItem, patentAnalysisApi } from '../services/patentAnalysisApi';
 
 const { Title, Text, Paragraph } = Typography;
 
@@ -68,6 +69,15 @@ const SvgRenderer: React.FC<{ svg: string; height?: number | string }> = ({ svg,
 );
 
 const normalizePublicationNumber = (value: string) => value.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+
+const getBrowserPdfUrl = (value: unknown) => {
+  if (typeof value !== 'string' || !value.trim()) return null;
+  const trimmed = value.trim();
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  if (trimmed.startsWith('/raid/')) return null;
+  if (trimmed.startsWith('/')) return trimmed;
+  return null;
+};
 
 const createRoutePatent = (id: string): Patent => {
   const publicationNumber = normalizePublicationNumber(id);
@@ -90,19 +100,52 @@ const PatentAnalysisDetail: React.FC = () => {
   const { message } = App.useApp();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
+  const routePatent = (location.state as { patent?: Patent } | null)?.patent;
   const selectedPatent = useMemo(() => {
     if (!id) return null;
+    if (routePatent) return routePatent;
     return mockPatents.find(p => (
       p.id === id ||
       normalizePublicationNumber(p.patentNumber) === normalizePublicationNumber(id)
     )) || createRoutePatent(id);
-  }, [id]);
+  }, [id, routePatent]);
   const selectedMockDataset = useMemo(
     () => getPrototypeMockDataset({ patentId: id, patentNumber: selectedPatent?.patentNumber }),
     [id, selectedPatent?.patentNumber]
   );
   const [apiPatentResult, setApiPatentResult] = React.useState<Record<string, any> | null>(null);
+  const [isLoadingPatentDetail, setIsLoadingPatentDetail] = React.useState(false);
+  const [patentDetailError, setPatentDetailError] = React.useState<string | null>(null);
   const patentResult = apiPatentResult ?? selectedMockDataset.patentResult;
+  const displayedPatent = React.useMemo(() => {
+    const metadata = apiPatentResult?.data?.[0];
+    if (metadata) {
+      return mapPatentListItem(metadata, 0);
+    }
+    return selectedPatent;
+  }, [apiPatentResult, selectedPatent]);
+  const detailMetadata = apiPatentResult?.data?.[0] ?? null;
+  const browserPdfDocument = React.useMemo(() => {
+    const hasApiPdfPath = Boolean(detailMetadata?.ocr_pdf_path ?? detailMetadata?.pdf_path ?? detailMetadata?.pdf_url);
+    const apiPdfUrl = getBrowserPdfUrl(detailMetadata?.ocr_pdf_path)
+      ?? getBrowserPdfUrl(detailMetadata?.pdf_path)
+      ?? getBrowserPdfUrl(detailMetadata?.pdf_url);
+    if (apiPdfUrl) {
+      return apiPdfUrl;
+    }
+    if (hasApiPdfPath && displayedPatent?.patentNumber) {
+      return patentAnalysisApi.getPatentPdfUrl(normalizePublicationNumber(displayedPatent.patentNumber));
+    }
+
+    if (
+      displayedPatent &&
+      normalizePublicationNumber(selectedMockDataset.publicationNumber) === normalizePublicationNumber(displayedPatent.patentNumber)
+    ) {
+      return selectedMockDataset.pdfDocument;
+    }
+    return null;
+  }, [detailMetadata, displayedPatent, selectedMockDataset.pdfDocument, selectedMockDataset.publicationNumber]);
   const frequencyAnalysis = patentResult.frequency_analysis_result_json
     ?? patentResult.data?.[0]?.frequency_analysis_result_json
     ?? { r_groups: {} };
@@ -114,7 +157,7 @@ const PatentAnalysisDetail: React.FC = () => {
     return mockHighlights[selectedPatent.id] || [];
   }, [selectedPatent]);
   const pdfViewer = usePatentPdfViewer({
-    patentNumber: selectedPatent?.patentNumber,
+    patentNumber: displayedPatent?.patentNumber,
     currentHighlights,
   });
 
@@ -124,6 +167,8 @@ const PatentAnalysisDetail: React.FC = () => {
 
     const loadPatentDetail = async () => {
       const publicationNumber = normalizePublicationNumber(selectedPatent.patentNumber);
+      setIsLoadingPatentDetail(true);
+      setPatentDetailError(null);
       try {
         const [detail, embodiments] = await Promise.all([
           patentAnalysisApi.getPatentDetail(publicationNumber),
@@ -135,6 +180,11 @@ const PatentAnalysisDetail: React.FC = () => {
       } catch (error) {
         if (!ignore) {
           setApiPatentResult(null);
+          setPatentDetailError(error instanceof Error ? error.message : '특허 상세 API 요청에 실패했습니다.');
+        }
+      } finally {
+        if (!ignore) {
+          setIsLoadingPatentDetail(false);
         }
       }
     };
@@ -185,6 +235,8 @@ const PatentAnalysisDetail: React.FC = () => {
   });
   const splitContainerRef = React.useRef<HTMLDivElement | null>(null);
   const splitRafRef = React.useRef<number | null>(null);
+  const lastSplitUpdateAtRef = React.useRef(0);
+  const lastSplitRatioRef = React.useRef(SPLIT_DEFAULT_PERCENT);
   const splitStorageKey = React.useMemo(() => `patent-analysis-split:${id ?? 'default'}`, [id]);
   const layoutPreset = React.useMemo(() => getPatentAnalysisLayoutPreset(viewportWidth), [viewportWidth]);
   const effectiveSplitWidth = splitContainerWidth || viewportWidth;
@@ -240,8 +292,13 @@ const PatentAnalysisDetail: React.FC = () => {
   }, [splitStorageKey, clampSplitRatio, layoutPreset.defaultSplit]);
 
   useEffect(() => {
+    lastSplitRatioRef.current = splitRatio;
+  }, [splitRatio]);
+
+  useEffect(() => {
+    if (isResizingSplit) return;
     window.localStorage.setItem(splitStorageKey, String(splitRatio));
-  }, [splitRatio, splitStorageKey]);
+  }, [isResizingSplit, splitRatio, splitStorageKey]);
 
   const updateSplitRatioFromClientX = React.useCallback((clientX: number) => {
     const container = splitContainerRef.current;
@@ -249,14 +306,23 @@ const PatentAnalysisDetail: React.FC = () => {
     const rect = container.getBoundingClientRect();
     if (rect.width <= 0) return;
     const nextRatio = ((clientX - rect.left) / rect.width) * 100;
-    setSplitRatio(clampSplitRatio(nextRatio));
+    const clampedRatio = clampSplitRatio(nextRatio);
+    const now = window.performance.now();
+    const isMeaningfulChange = Math.abs(clampedRatio - lastSplitRatioRef.current) >= 0.4;
+    const canUpdate = now - lastSplitUpdateAtRef.current >= 32;
+    if (!isMeaningfulChange || !canUpdate) return;
+
+    lastSplitUpdateAtRef.current = now;
+    lastSplitRatioRef.current = clampedRatio;
+    setSplitRatio(clampedRatio);
   }, [clampSplitRatio]);
 
   const stopSplitResize = React.useCallback(() => {
     setIsResizingSplit(false);
     document.body.style.cursor = '';
     document.body.style.userSelect = '';
-  }, []);
+    window.localStorage.setItem(splitStorageKey, String(lastSplitRatioRef.current));
+  }, [splitStorageKey]);
 
   useEffect(() => {
     if (!isResizingSplit) return;
@@ -327,13 +393,13 @@ const PatentAnalysisDetail: React.FC = () => {
   }, [clampSplitRatio, layoutPreset.defaultSplit]);
 
   const handlePdfDownload = React.useCallback(() => {
-    const pdfUrl = selectedMockDataset.pdfDocument;
+    const pdfUrl = browserPdfDocument;
     if (!pdfUrl) {
       message.error('다운로드할 PDF 파일이 없습니다.');
       return;
     }
 
-    const filenameBase = selectedPatent?.patentNumber || selectedMockDataset.publicationNumber || 'patent-document';
+    const filenameBase = displayedPatent?.patentNumber || selectedMockDataset.publicationNumber || 'patent-document';
     const filename = `${filenameBase.replace(/[^A-Za-z0-9_-]/g, '_')}.pdf`;
     const link = document.createElement('a');
     link.href = pdfUrl;
@@ -341,25 +407,25 @@ const PatentAnalysisDetail: React.FC = () => {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-  }, [message, selectedMockDataset.pdfDocument, selectedMockDataset.publicationNumber, selectedPatent?.patentNumber]);
+  }, [browserPdfDocument, displayedPatent?.patentNumber, message, selectedMockDataset.publicationNumber]);
 
   useEffect(() => {
-    if (selectedPatent) {
+    if (displayedPatent) {
       setHeaderContent(
         <PageHeaderBreadcrumb 
           items={[
             { label: 'Documents' },
             { label: 'Patents' },
             { label: 'My 특허 분석', onClick: () => navigate('/patents/analysis') },
-            { label: selectedPatent.patentNumber }
+            { label: displayedPatent.patentNumber }
           ]}
         />
       );
     }
     return () => setHeaderContent(null);
-  }, [selectedPatent, setHeaderContent, navigate]);
+  }, [displayedPatent, setHeaderContent, navigate]);
 
-  if (!selectedPatent) {
+  if (!displayedPatent) {
     return (
       <div style={{ padding: 40, textAlign: 'center' }}>
         <Empty description="해당 특허를 찾을 수 없습니다." />
@@ -614,11 +680,20 @@ const PatentAnalysisDetail: React.FC = () => {
               style={{ borderRadius: '10px' }}
             />
             <div style={{ minWidth: 0 }}>
-              <Title level={4} style={{ margin: 0, lineHeight: '1.2', wordBreak: 'keep-all' }}>{selectedPatent.title}</Title>
-              <Text type="secondary" style={{ fontSize: '12px', display: 'block' }}>{selectedPatent.patentNumber} | {selectedPatent.applicant} | {selectedPatent.publicationDate}</Text>
+              <Title level={4} style={{ margin: 0, lineHeight: '1.2', wordBreak: 'keep-all' }}>{displayedPatent.title}</Title>
+              <Text type="secondary" style={{ fontSize: '12px', display: 'block' }}>{displayedPatent.patentNumber} | {displayedPatent.applicant} | {displayedPatent.publicationDate}</Text>
             </div>
           </Space>
         </div>
+        {patentDetailError && (
+          <Alert
+            type="warning"
+            showIcon
+            message="특허 상세 API 연결 실패"
+            description="현재 화면은 mock 데이터로 표시됩니다."
+            style={{ marginBottom: 12 }}
+          />
+        )}
 
         <div
           ref={splitContainerRef}
@@ -677,26 +752,48 @@ const PatentAnalysisDetail: React.FC = () => {
               onToggleThumbnail={() => setThumbnailCollapsed(prev => !prev)}
             />
 
-            <PatentPdfViewer
-              document={selectedMockDataset.pdfDocument}
-              rotation={pdfViewer.pdfRotation}
-              viewerContainerRef={pdfViewer.pdfViewerContainerRef}
-              currentPage={pdfViewer.pdfCurrentPage}
-              onGoToPage={(page) => handleGoToPdf(page)}
-              pdfTotalPages={pdfViewer.pdfTotalPages}
-              activeBBox={pdfViewer.activeBBox}
-              dynamicHighlights={pdfViewer.dynamicHighlights}
-              userHighlights={pdfViewer.userHighlights}
-              onPdfDocumentReady={pdfViewer.setPdfDocument}
-              onPdfTotalPagesChange={pdfViewer.setPdfTotalPages}
-              setHighlighterUtils={pdfViewer.setHighlighterUtils}
-              backgroundColor={token.colorBgContainer}
-              borderColor={token.colorBorderSecondary}
-              onAddHighlight={pdfViewer.addHighlight}
-              onDeleteHighlight={pdfViewer.deleteHighlight}
-              onScrollToHighlight={pdfViewer.scrollToHighlight}
-              thumbnailCollapsed={thumbnailCollapsed}
-            />
+            {browserPdfDocument ? (
+              <PatentPdfViewer
+                document={browserPdfDocument}
+                rotation={pdfViewer.pdfRotation}
+                viewerContainerRef={pdfViewer.pdfViewerContainerRef}
+                currentPage={pdfViewer.pdfCurrentPage}
+                onGoToPage={(page) => handleGoToPdf(page)}
+                pdfTotalPages={pdfViewer.pdfTotalPages}
+                activeBBox={pdfViewer.activeBBox}
+                dynamicHighlights={pdfViewer.dynamicHighlights}
+                userHighlights={pdfViewer.userHighlights}
+                onPdfDocumentReady={pdfViewer.setPdfDocument}
+                onPdfTotalPagesChange={pdfViewer.setPdfTotalPages}
+                setHighlighterUtils={pdfViewer.setHighlighterUtils}
+                backgroundColor={token.colorBgContainer}
+                borderColor={token.colorBorderSecondary}
+                onAddHighlight={pdfViewer.addHighlight}
+                onDeleteHighlight={pdfViewer.deleteHighlight}
+                onScrollToHighlight={pdfViewer.scrollToHighlight}
+                thumbnailCollapsed={thumbnailCollapsed}
+              />
+            ) : (
+              <Card
+                style={{
+                  flex: 1,
+                  borderRadius: 16,
+                  border: `1px solid ${token.colorBorderSecondary}`,
+                  display: 'flex',
+                  minHeight: 0,
+                }}
+                styles={{
+                  body: {
+                    flex: 1,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  },
+                }}
+              >
+                <Empty description={isLoadingPatentDetail ? '특허 상세 데이터를 불러오는 중입니다.' : '브라우저에서 접근 가능한 PDF 파일이 없습니다.'} />
+              </Card>
+            )}
           </div>
 
           <div

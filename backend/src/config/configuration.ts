@@ -23,6 +23,10 @@ export default () => ({
       process.env.PATENT_ANALYSIS_UPLOAD_API_URL ??
       'http://172.16.1.210:8000',
     ownerId: process.env.PATENT_ANALYSIS_OWNER_ID ?? '171',
+    compoundSearchPatentLookupLimit: parseNumber(
+      process.env.PATENT_ANALYSIS_COMPOUND_SEARCH_PATENT_LOOKUP_LIMIT,
+      20,
+    ),
   },
   httpTimeoutMs: parseNumber(process.env.HTTP_TIMEOUT_MS, 30000),
 });

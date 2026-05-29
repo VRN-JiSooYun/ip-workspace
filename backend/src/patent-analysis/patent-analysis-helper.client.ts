@@ -70,4 +70,33 @@ export class PatentAnalysisHelperClient {
       throw new InternalServerErrorException('Unknown patent analysis API error');
     }
   }
+
+  async download(payload: PatentAnalysisFormPayload) {
+    const form = new FormData();
+
+    Object.entries(payload).forEach(([key, value]) => {
+      if (value === undefined || value === null) return;
+      form.append(key, String(value));
+    });
+
+    try {
+      return await this.httpService.axiosRef.post(
+        `${this.helperApiUrl.replace(/\/$/, '')}/api`,
+        form,
+        {
+          headers: form.getHeaders(),
+          responseType: 'stream',
+          timeout: this.timeoutMs,
+        },
+      );
+    } catch (error) {
+      if (error instanceof Error) {
+        throw new BadGatewayException({
+          message: 'Failed to download file from patent analysis API',
+          detail: error.message,
+        });
+      }
+      throw new InternalServerErrorException('Unknown patent analysis download error');
+    }
+  }
 }

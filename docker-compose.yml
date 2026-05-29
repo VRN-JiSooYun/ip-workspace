@@ -10,7 +10,7 @@ services:
       - ./frontend:/app
       - /app/node_modules
     environment:
-      - VITE_API_URL=/api
+      - VITE_API_URL=http://localhost:3000/api
       - VITE_RDKIT_API_URL=/rdkit-api
     depends_on:
       - local-myworkspace-backend

@@ -174,7 +174,7 @@ const ThumbnailSidebar: React.FC<{
   );
 };
 
-const PatentPdfViewer: React.FC<PatentPdfViewerProps> = ({
+const PatentPdfViewerComponent: React.FC<PatentPdfViewerProps> = ({
   document,
   rotation,
   viewerContainerRef,
@@ -241,7 +241,7 @@ const PatentPdfViewer: React.FC<PatentPdfViewerProps> = ({
             transition: 'width 0.2s ease',
           }}
         >
-          {pdfDoc && (
+          {!thumbnailCollapsed && pdfDoc && (
             <ThumbnailSidebar
               pdfDocument={pdfDoc}
               highlighterUtils={highlighterUtils}
@@ -289,4 +289,4 @@ const PatentPdfViewer: React.FC<PatentPdfViewerProps> = ({
   );
 };
 
-export default PatentPdfViewer;
+export default React.memo(PatentPdfViewerComponent);

@@ -29,6 +29,34 @@ export type EmbodimentListResponse = {
   raw: Record<string, any>;
 };
 
+export type CompoundSearchResponse = {
+  items: Record<string, any>[];
+  totalCount: number;
+  raw: Record<string, any>;
+};
+
+export type CompoundPatentListResponse = {
+  compoundId: string;
+  items: Record<string, any>[];
+  totalCount: number;
+  raw: Record<string, any>;
+};
+
+type RequestOptions = {
+  timeoutMs?: number;
+  signal?: AbortSignal;
+};
+
+export class ApiRequestError extends Error {
+  status?: number;
+
+  constructor(message: string, status?: number) {
+    super(message);
+    this.name = 'ApiRequestError';
+    this.status = status;
+  }
+}
+
 const getApiBaseUrl = () => {
   const runtimeValue = typeof window !== 'undefined'
     ? (window as RuntimeWindow)._env_?.VITE_API_URL
@@ -41,23 +69,84 @@ const getApiBaseUrl = () => {
   return value.replace(/\/$/, '');
 };
 
-const requestJson = async <T>(path: string, params?: Record<string, string | number | undefined>): Promise<T> => {
+const buildApiUrl = (path: string, params?: Record<string, string | number | undefined>) => {
   const url = new URL(`${getApiBaseUrl()}${path}`, window.location.origin);
   Object.entries(params ?? {}).forEach(([key, value]) => {
     if (value === undefined || value === '') return;
     url.searchParams.set(key, String(value));
   });
+  return url.toString();
+};
 
-  const response = await fetch(url.toString());
-  if (!response.ok) {
-    throw new Error(`API request failed: ${response.status}`);
+const getErrorMessage = async (response: Response) => {
+  try {
+    const body = await response.json();
+    const message = body?.message;
+    if (Array.isArray(message)) return message.join(', ');
+    if (typeof message === 'string' && message.trim()) return message;
+  } catch {
+    // Ignore malformed error bodies and use the HTTP status fallback.
   }
-  return response.json() as Promise<T>;
+  return `API request failed: ${response.status}`;
+};
+
+const requestJson = async <T>(
+  path: string,
+  params?: Record<string, string | number | undefined>,
+  options?: RequestOptions,
+): Promise<T> => {
+  const url = buildApiUrl(path, params);
+  const controller = new AbortController();
+  const timeoutMs = options?.timeoutMs;
+  const timeoutId = timeoutMs
+    ? window.setTimeout(() => controller.abort(), timeoutMs)
+    : undefined;
+
+  const abortOnExternalSignal = () => controller.abort();
+  if (options?.signal) {
+    if (options.signal.aborted) {
+      controller.abort();
+    } else {
+      options.signal.addEventListener('abort', abortOnExternalSignal, { once: true });
+    }
+  }
+
+  try {
+    const response = await fetch(url, { signal: controller.signal });
+    if (!response.ok) {
+      throw new ApiRequestError(await getErrorMessage(response), response.status);
+    }
+    return response.json() as Promise<T>;
+  } catch (error) {
+    if (error instanceof ApiRequestError) {
+      throw error;
+    }
+    if (error instanceof DOMException && error.name === 'AbortError') {
+      throw new ApiRequestError('API request timed out');
+    }
+    throw error;
+  } finally {
+    if (timeoutId !== undefined) {
+      window.clearTimeout(timeoutId);
+    }
+    options?.signal?.removeEventListener('abort', abortOnExternalSignal);
+  }
 };
 
 const normalizePatentNumber = (value: unknown, fallback: string) => {
   const raw = String(value ?? fallback);
   return raw.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+};
+
+const getPublicationNumber = (row: Record<string, any>, fallback: string) => {
+  const rawPublicationNumber = row.publication_number ?? row.publicationNumber ?? row.patent_number;
+  const patentOfficeCode = row.patent_office_code ?? row.office_code;
+  const kindCode = row.kind_code ?? row.kindCode;
+
+  if (rawPublicationNumber && patentOfficeCode && !String(rawPublicationNumber).startsWith(String(patentOfficeCode))) {
+    return normalizePatentNumber(`${patentOfficeCode}${rawPublicationNumber}${kindCode ?? ''}`, fallback);
+  }
+  return normalizePatentNumber(rawPublicationNumber, fallback);
 };
 
 const getFirstString = (row: Record<string, any>, keys: string[], fallback = '') => {
@@ -81,10 +170,7 @@ const mapStatus = (value: string): Patent['status'] => {
 };
 
 export const mapPatentListItem = (row: Record<string, any>, index: number): Patent => {
-  const publicationNumber = normalizePatentNumber(
-    row.publication_number ?? row.publicationNumber ?? row.patent_number,
-    `PATENT${index + 1}`,
-  );
+  const publicationNumber = getPublicationNumber(row, `PATENT${index + 1}`);
   const title = getFirstString(
     row,
     ['title', 'patent_title', 'invention_title', 'name'],
@@ -108,10 +194,47 @@ export const mapPatentListItem = (row: Record<string, any>, index: number): Pate
 };
 
 export const patentAnalysisApi = {
-  getMyPatents: (params?: { page?: number; pageSize?: number; ownerId?: string }) =>
+  getMyPatents: (params?: {
+    page?: number;
+    pageSize?: number;
+    ownerId?: string;
+    filter?: string;
+    order?: string;
+    title?: string;
+    keyword?: string;
+    publicationNumber?: string;
+    target?: string;
+    dateFrom?: string;
+    dateTo?: string;
+    smiles?: string;
+    type?: string;
+    sim?: number;
+  }) =>
     requestJson<PatentListResponse>('/patents/my', params),
+  searchCompounds: (params: {
+    wasm?: number;
+    smiles: string;
+    type?: string;
+    sim?: number;
+    actionType?: string;
+    operation?: string;
+    page?: number;
+    size?: number;
+    patentPageSize?: number;
+    compoundPageSize?: number;
+    ownerId?: string;
+  }, options?: RequestOptions) =>
+    requestJson<CompoundSearchResponse>('/patents/compound-search', params, options),
+  getPatentsByCompoundId: (compoundId: string, options?: RequestOptions) =>
+    requestJson<CompoundPatentListResponse>(
+      `/patents/compounds/${encodeURIComponent(compoundId)}/patents`,
+      undefined,
+      options,
+    ),
   getPatentDetail: (publicationNumber: string, params?: { ownerId?: string }) =>
     requestJson<PatentDetailResponse>(`/patents/${publicationNumber}`, params),
+  getPatentPdfUrl: (publicationNumber: string, params?: { ownerId?: string }) =>
+    buildApiUrl(`/patents/${publicationNumber}/pdf`, params),
   getEmbodiments: (
     publicationNumber: string,
     params?: { page?: number; pageSize?: number; ownerId?: string },

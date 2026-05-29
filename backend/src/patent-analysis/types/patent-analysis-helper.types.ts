@@ -5,8 +5,9 @@ export type PatentAnalysisHelperResult<T = unknown> = {
 
 export type PatentListResult = {
   partial_rows?: unknown[];
-  total_count?: number;
-  total_rows?: number;
+  data?: unknown[];
+  total_count?: number | { total?: number | string }[];
+  total_rows?: number | unknown[];
   [key: string]: unknown;
 };
 
@@ -20,9 +21,21 @@ export type PatentDetailResult = {
 
 export type EmbodimentListResult = {
   partial_rows?: unknown[];
-  total_rows?: number;
+  total_rows?: number | unknown[];
   modified_partial_rows?: unknown[];
-  modified_total_rows?: number;
+  modified_total_rows?: number | unknown[];
+  [key: string]: unknown;
+};
+
+export type CompoundSearchResult = {
+  identical?: unknown[];
+  substructure?: unknown[];
+  similarity?: unknown[];
+  pattern?: unknown[];
+  bm?: unknown[];
+  csk?: unknown[];
+  total_count?: number | string | { total?: number | string }[];
+  total_rows?: number | string | unknown[];
   [key: string]: unknown;
 };
 

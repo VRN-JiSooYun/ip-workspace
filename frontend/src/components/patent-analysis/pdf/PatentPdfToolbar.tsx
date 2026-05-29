@@ -150,4 +150,4 @@ const PatentPdfToolbar: React.FC<PatentPdfToolbarProps> = ({
   );
 };
 
-export default PatentPdfToolbar;
+export default React.memo(PatentPdfToolbar);
