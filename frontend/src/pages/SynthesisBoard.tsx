@@ -962,12 +962,6 @@ const SynthesisBoard: React.FC = () => {
         .ant-table-tbody > tr.row-selected:hover > td {
           background-color: var(--table-row-selected-hover-bg) !important;
         }
-        .ant-table-thead > tr > th {
-          background: var(--table-header-bg) !important;
-          color: ${isDarkMode ? 'rgba(255,255,255,0.85)' : '#495057'} !important;
-          font-size: var(--table-header-font-size);
-          font-weight: 600;
-        }
         .ant-table-tbody > tr > td {
           font-size: var(--table-cell-font-size);
         }

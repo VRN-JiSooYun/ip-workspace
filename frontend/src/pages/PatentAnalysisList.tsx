@@ -39,9 +39,23 @@ const { Text } = Typography;
 
 const PATENT_LIST_TITLE_COLUMN_WIDTH = 520;
 const PATENT_LIST_TABLE_SCROLL_X = 1370;
-const STRUCTURE_SEARCH_COMPOUND_PAGE_SIZE = 25;
 const STRUCTURE_SEARCH_MAX_RESULT_WINDOW = 10000;
-const STRUCTURE_SEARCH_TABLE_SCROLL_X = 1180;
+const PATENT_ANALYSIS_PAGE_SIZE_OPTIONS = [10, 30, 50, 100] as const;
+const PATENT_ANALYSIS_DEFAULT_PAGE_SIZE = 10;
+const STRUCTURE_SEARCH_EXPAND_COLUMN_WIDTH = 48;
+const STRUCTURE_SEARCH_COLUMN_WIDTHS = {
+  rowNumber: 72,
+  structure: 212,
+  compoundId: 180,
+  mw: 110,
+  logP: 110,
+  tpsa: 110,
+  patentCount: 120,
+  smiles: 218,
+} as const;
+const STRUCTURE_SEARCH_TABLE_SCROLL_X =
+  STRUCTURE_SEARCH_EXPAND_COLUMN_WIDTH +
+  Object.values(STRUCTURE_SEARCH_COLUMN_WIDTHS).reduce((total, width) => total + width, 0);
 const DEFAULT_PATENT_ORDER = JSON.stringify([{ column_name: 'p.publication_date', order: 'desc' }]);
 const PATENT_OFFICE_FILTER_OPTIONS = ['ALL', 'WIPO', 'USPTO', 'KIPO', 'EPO'];
 const STATUS_FILTER_OPTIONS = ['ALL', '분석중', '완료'];
@@ -52,6 +66,11 @@ const SEARCH_TYPE_OPTIONS = [
   { label: '특허 번호', value: 'publicationNumber' },
   { label: '구조 검색', value: 'structure' },
 ];
+
+const normalizePatentAnalysisPageSize = (value?: number): number =>
+  PATENT_ANALYSIS_PAGE_SIZE_OPTIONS.includes(value as (typeof PATENT_ANALYSIS_PAGE_SIZE_OPTIONS)[number])
+    ? Number(value)
+    : PATENT_ANALYSIS_DEFAULT_PAGE_SIZE;
 
 type PatentSearchType = 'title' | 'publicationNumber' | 'structure';
 
@@ -91,7 +110,6 @@ type PatentAnalysisListStoredState = {
   currentPage?: number;
   pageSize?: number;
   expandedStructureCompoundIds?: string[];
-  structurePatentCache?: Record<string, Record<string, any>[]>;
 };
 
 const escapeFilterValue = (value: string): string => value.replace(/'/g, "''");
@@ -204,9 +222,7 @@ const PatentAnalysisList: React.FC = () => {
   const [isChemDrawVisible, setIsChemDrawVisible] = useState(false);
   const [patents, setPatents] = useState<Patent[]>([]);
   const [structureCompounds, setStructureCompounds] = useState<StructureSearchCompound[]>([]);
-  const [structurePatentCache, setStructurePatentCache] = useState<Record<string, Record<string, any>[]>>(
-    () => storedListState.structurePatentCache ?? {}
-  );
+  const [structurePatentCache, setStructurePatentCache] = useState<Record<string, Record<string, any>[]>>({});
   const [loadingStructurePatentIds, setLoadingStructurePatentIds] = useState<string[]>([]);
   const [expandedStructureCompoundIds, setExpandedStructureCompoundIds] = useState<string[]>(
     () => storedListState.expandedStructureCompoundIds ?? []
@@ -214,7 +230,7 @@ const PatentAnalysisList: React.FC = () => {
   const [previewStructure, setPreviewStructure] = useState<StructureSearchCompound | null>(null);
   const [totalPatents, setTotalPatents] = useState(0);
   const [currentPage, setCurrentPage] = useState(() => storedListState.currentPage ?? 1);
-  const [pageSize, setPageSize] = useState(() => storedListState.pageSize ?? 25);
+  const [pageSize, setPageSize] = useState(() => normalizePatentAnalysisPageSize(storedListState.pageSize));
   const [isLoadingPatents, setIsLoadingPatents] = useState(false);
   const [patentListError, setPatentListError] = useState<string | null>(null);
   const [isUsingMockFallback, setIsUsingMockFallback] = useState(false);
@@ -384,13 +400,16 @@ const PatentAnalysisList: React.FC = () => {
       currentPage,
       pageSize,
       expandedStructureCompoundIds,
-      structurePatentCache,
     };
 
-    window.sessionStorage.setItem(
-      PATENT_ANALYSIS_LIST_STATE_KEY,
-      JSON.stringify(nextStoredState),
-    );
+    try {
+      window.sessionStorage.setItem(
+        PATENT_ANALYSIS_LIST_STATE_KEY,
+        JSON.stringify(nextStoredState),
+      );
+    } catch (error) {
+      console.warn('[PatentAnalysisList] Failed to persist list state.', error);
+    }
   }, [
     appliedCustomDateRange,
     appliedPeriod,
@@ -408,7 +427,6 @@ const PatentAnalysisList: React.FC = () => {
     selectedProjects,
     selectedStatuses,
     showFilters,
-    structurePatentCache,
   ]);
 
   useEffect(() => {
@@ -438,8 +456,8 @@ const PatentAnalysisList: React.FC = () => {
                 ? 'GET-ELASTIC-COMPOUND-LIST-BY-PAGE'
                 : 'GET-ELASTIC-COMPOUND-LIST',
               page: currentPage,
-              size: STRUCTURE_SEARCH_COMPOUND_PAGE_SIZE,
-              compoundPageSize: STRUCTURE_SEARCH_COMPOUND_PAGE_SIZE,
+              size: pageSize,
+              compoundPageSize: pageSize,
             }, {
               signal: controller.signal,
               timeoutMs: 60000,
@@ -455,9 +473,7 @@ const PatentAnalysisList: React.FC = () => {
             dateTo: patentNumberFilter ? undefined : appliedDateParams.dateTo,
           });
         if (ignore) return;
-        const rowOffsetPageSize = appliedStructureSmiles
-          ? STRUCTURE_SEARCH_COMPOUND_PAGE_SIZE
-          : pageSize;
+        const rowOffsetPageSize = pageSize;
         const rawTotalCount = normalizeTotalCount(response.totalCount, response.items.length);
         const normalizedTotalCount = rawTotalCount;
         const paginationTotalCount = appliedStructureSmiles
@@ -732,12 +748,12 @@ const PatentAnalysisList: React.FC = () => {
     {
       title: 'No.',
       key: 'rowNumber',
-      width: 72,
+      width: STRUCTURE_SEARCH_COLUMN_WIDTHS.rowNumber,
       align: 'center' as const,
       className: 'table-center-column',
       render: (_: unknown, __: StructureSearchCompound, index: number) => (
         <Text type="secondary">
-          {(currentPage - 1) * STRUCTURE_SEARCH_COMPOUND_PAGE_SIZE + index + 1}
+          {(currentPage - 1) * pageSize + index + 1}
         </Text>
       ),
     },
@@ -745,7 +761,7 @@ const PatentAnalysisList: React.FC = () => {
       title: '구조',
       dataIndex: 'svgImg',
       key: 'structure',
-      width: 212,
+      width: STRUCTURE_SEARCH_COLUMN_WIDTHS.structure,
       align: 'center' as const,
       render: (svg: string, record: StructureSearchCompound) => (
         <div
@@ -778,7 +794,7 @@ const PatentAnalysisList: React.FC = () => {
       title: 'Compound ID',
       dataIndex: 'compoundId',
       key: 'compoundId',
-      width: 180,
+      width: STRUCTURE_SEARCH_COLUMN_WIDTHS.compoundId,
       align: 'center' as const,
       render: (text: string) => <Text strong>{text}</Text>,
     },
@@ -786,7 +802,7 @@ const PatentAnalysisList: React.FC = () => {
       title: 'MW',
       dataIndex: 'mw',
       key: 'mw',
-      width: 110,
+      width: STRUCTURE_SEARCH_COLUMN_WIDTHS.mw,
       align: 'center' as const,
       render: formatMetric,
     },
@@ -794,7 +810,7 @@ const PatentAnalysisList: React.FC = () => {
       title: 'LogP',
       dataIndex: 'logP',
       key: 'logP',
-      width: 110,
+      width: STRUCTURE_SEARCH_COLUMN_WIDTHS.logP,
       align: 'center' as const,
       render: formatMetric,
     },
@@ -802,7 +818,7 @@ const PatentAnalysisList: React.FC = () => {
       title: 'TPSA',
       dataIndex: 'tpsa',
       key: 'tpsa',
-      width: 110,
+      width: STRUCTURE_SEARCH_COLUMN_WIDTHS.tpsa,
       align: 'center' as const,
       render: formatMetric,
     },
@@ -810,7 +826,7 @@ const PatentAnalysisList: React.FC = () => {
       title: '관련 특허',
       dataIndex: 'patentCount',
       key: 'patentCount',
-      width: 120,
+      width: STRUCTURE_SEARCH_COLUMN_WIDTHS.patentCount,
       align: 'center' as const,
       render: (count: number) => <Tag color={count > 0 ? 'blue' : 'default'}>{count.toLocaleString()}건</Tag>,
     },
@@ -818,6 +834,7 @@ const PatentAnalysisList: React.FC = () => {
       title: 'SMILES',
       dataIndex: 'smiles',
       key: 'smiles',
+      width: STRUCTURE_SEARCH_COLUMN_WIDTHS.smiles,
       ellipsis: true,
       render: (text: string) => <Text type="secondary">{text || '-'}</Text>,
     },
@@ -1067,7 +1084,7 @@ const PatentAnalysisList: React.FC = () => {
           )}
         </Card>
 
-        <div className="v-table-card" style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+        <div className="v-table-card patent-analysis-table-card" style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
           <div className="v-table-header patent-analysis-table-header" style={{ flexWrap: 'wrap', gap: 12 }}>
             <Text strong style={{ color: token.colorPrimary }}>
               {appliedStructureSmiles ? '구조 검색 Compound 목록' : '특허 분석 리스트'}
@@ -1115,6 +1132,7 @@ const PatentAnalysisList: React.FC = () => {
               size="small"
               loading={isLoadingPatents}
               expandable={{
+                columnWidth: STRUCTURE_SEARCH_EXPAND_COLUMN_WIDTH,
                 expandedRowKeys: expandedStructureCompoundIds,
                 expandedRowRender: renderStructureCompoundPatents,
                 rowExpandable: (record) => record.patentCount > 0,
@@ -1129,16 +1147,20 @@ const PatentAnalysisList: React.FC = () => {
               }}
               pagination={{
                 current: currentPage,
-                pageSize: STRUCTURE_SEARCH_COMPOUND_PAGE_SIZE,
+                pageSize,
                 total: Math.min(totalPatents, STRUCTURE_SEARCH_MAX_RESULT_WINDOW),
-                showSizeChanger: false,
+                showSizeChanger: true,
+                pageSizeOptions: PATENT_ANALYSIS_PAGE_SIZE_OPTIONS.map(String),
                 showTotal: (_total, range) => {
                   const isCapped = totalPatents > STRUCTURE_SEARCH_MAX_RESULT_WINDOW;
                   return `${range[0]}-${range[1]} / ${totalPatents.toLocaleString()} compounds${isCapped ? ` (상위 ${STRUCTURE_SEARCH_MAX_RESULT_WINDOW.toLocaleString()}개 탐색 가능)` : ''}`;
                 },
-                position: ['bottomCenter'],
+                position: ['bottomRight'],
                 style: { margin: '16px 0' },
-                onChange: (page) => setCurrentPage(page),
+                onChange: (page, nextPageSize) => {
+                  setCurrentPage(page);
+                  setPageSize(normalizePatentAnalysisPageSize(nextPageSize));
+                },
               }}
               scroll={structureSearchTableScroll}
               style={{ flex: 1 }}
@@ -1161,12 +1183,12 @@ const PatentAnalysisList: React.FC = () => {
                 pageSize,
                 total: totalPatents,
                 showSizeChanger: true,
-                pageSizeOptions: [10, 25, 50, 100],
-                position: ['bottomCenter'],
+                pageSizeOptions: PATENT_ANALYSIS_PAGE_SIZE_OPTIONS.map(String),
+                position: ['bottomRight'],
                 style: { margin: '16px 0' },
                 onChange: (page, nextPageSize) => {
                   setCurrentPage(page);
-                  setPageSize(nextPageSize);
+                  setPageSize(normalizePatentAnalysisPageSize(nextPageSize));
                 },
               }}
               scroll={patentListTableScroll}
@@ -1219,29 +1241,43 @@ const PatentAnalysisList: React.FC = () => {
           from { opacity: 0; transform: translateY(10px); }
           to { opacity: 1; transform: translateY(0); }
         }
-        .ant-table-thead > tr > th {
-          background: var(--table-header-bg) !important;
-          border-bottom: 1px solid ${token.colorBorderSecondary} !important;
-        }
         .ant-table-row:hover > td {
           background: var(--table-row-hover-bg) !important;
         }
         .patent-analysis-table-header {
           min-height: 48px;
         }
-        .patent-analysis-list-table .ant-table-thead > tr > th {
-          border-bottom: 1px solid ${token.colorBorderSecondary} !important;
-          border-inline-end: 1px solid ${token.colorBorderSecondary} !important;
+        .patent-analysis-list-table .ant-table-container {
+          border: 1px solid ${token.colorBorderSecondary};
+          overflow: hidden;
+          box-shadow: inset 0 1px 0 ${token.colorFillQuaternary};
         }
-        .patent-analysis-list-table .ant-table-thead > tr > th:last-child {
-          border-inline-end: 0 !important;
+        .patent-analysis-list-table .ant-table,
+        .patent-analysis-list-table .ant-table-container,
+        .patent-analysis-list-table .ant-table-header,
+        .patent-analysis-list-table .ant-table-body,
+        .patent-analysis-list-table .ant-table-content,
+        .patent-analysis-list-table .ant-table-thead > tr > th,
+        .patent-analysis-list-table .ant-table-thead > tr > td {
+          border-radius: 0 !important;
+          border-start-start-radius: 0 !important;
+          border-start-end-radius: 0 !important;
+          border-end-start-radius: 0 !important;
+          border-end-end-radius: 0 !important;
         }
         .patent-analysis-list-table .ant-table-tbody > tr > td {
           border-bottom: 1px solid ${token.colorBorderSecondary};
         }
+        .patent-analysis-list-table .ant-table-tbody > tr:last-child > td {
+          border-bottom: 1px solid transparent !important;
+        }
         .patent-analysis-list-table .ant-table-body {
+          background: ${token.colorBgContainer} !important;
           scrollbar-gutter: stable;
           overflow-y: auto !important;
+        }
+        .patent-analysis-list-table .ant-table-body table {
+          background: ${token.colorBgContainer} !important;
         }
         .patent-analysis-list-table .ant-pagination {
           padding-right: 16px;
@@ -1254,8 +1290,6 @@ const PatentAnalysisList: React.FC = () => {
         .structure-patent-subtable-wrap,
         .structure-patent-subtable-empty {
           border: 1px solid ${token.colorBorderSecondary};
-          border-radius: 8px;
-          overflow: hidden;
           background: ${token.colorBgContainer};
           box-shadow: inset 0 1px 0 ${token.colorFillQuaternary};
         }
@@ -1265,29 +1299,13 @@ const PatentAnalysisList: React.FC = () => {
         .structure-patent-subtable .ant-table {
           background: transparent;
           margin-inline: 0 !important;
-        }
-        .structure-patent-subtable .ant-table-container {
-          border-start-start-radius: 8px !important;
-          border-start-end-radius: 8px !important;
-        }
-        .structure-patent-subtable .ant-table-thead > tr > th {
-          background: ${token.colorFillAlter} !important;
-          border-bottom: 1px solid ${token.colorBorderSecondary} !important;
-          height: 40px;
-          padding-top: 8px !important;
-          padding-bottom: 8px !important;
-        }
-        .structure-patent-subtable .ant-table-thead > tr > th:first-child {
-          border-start-start-radius: 8px !important;
-        }
-        .structure-patent-subtable .ant-table-thead > tr > th:last-child {
-          border-start-end-radius: 8px !important;
+          margin-block: 0 !important;
         }
         .structure-patent-subtable .ant-table-tbody > tr > td {
           border-bottom: 1px solid ${token.colorBorderSecondary};
         }
         .structure-patent-subtable .ant-table-tbody > tr:last-child > td {
-          border-bottom: 0;
+          border-bottom: 1px solid transparent !important;
         }
         .structure-patent-subtable .ant-pagination {
           margin: 10px 12px !important;

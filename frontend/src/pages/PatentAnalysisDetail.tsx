@@ -1907,13 +1907,6 @@ const PatentAnalysisDetail: React.FC = () => {
         .raw-data-tab-content .raw-data-embodiment-table .ant-table {
           background: transparent;
         }
-        .raw-data-tab-content .raw-data-embodiment-table .ant-table-thead > tr > th {
-          background: var(--table-header-bg) !important;
-          border-bottom: 2px solid ${token.colorBorderSecondary} !important;
-          padding: 14px 12px;
-          font-size: 12px;
-          font-weight: 600;
-        }
         .raw-data-tab-content .raw-data-embodiment-table .ant-table-tbody > tr > td {
           vertical-align: middle;
           padding: 14px 12px;

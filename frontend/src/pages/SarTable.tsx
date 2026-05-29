@@ -1310,10 +1310,6 @@ const SarTable: React.FC = () => {
         .sar-group-structure-table .ant-table-body {
           overflow-x: hidden !important;
         }
-        .sar-group-structure-table .ant-table-thead > tr > th {
-          color: #495057 !important;
-        }
-        .sar-group-structure-table .ant-table-thead > tr > th,
         .sar-group-structure-table .ant-table-tbody > tr > td {
           padding: 8px 4px !important;
         }
@@ -1388,21 +1384,8 @@ const SarTable: React.FC = () => {
         .sar-row-selected.sar-row-hovered td {
           background-color: var(--table-row-selected-hover-bg) !important;
         }
-        .ant-table-thead > tr > th {
-          background: var(--table-header-bg) !important;
-          color: ${isDarkMode ? 'rgba(255,255,255,0.85)' : '#495057'} !important;
-          text-align: center !important;
-          border-color: ${isDarkMode ? '#303030' : '#f0f0f0'} !important;
-          font-size: var(--table-header-font-size);
-          font-weight: 600;
-          padding: 12px 4px !important;
-        }
         .ant-table-thead > tr:first-child > th {
-          color: #F87C63 !important;
           border-bottom: 1px solid ${isDarkMode ? '#303030' : '#f0f0f0'} !important;
-        }
-        .sar-group-structure-table .ant-table-thead > tr:first-child > th {
-          color: #495057 !important;
         }
         .sar-group-structure-card .ant-table-tbody .compound-structure-view {
           width: calc(100% - 4px) !important;

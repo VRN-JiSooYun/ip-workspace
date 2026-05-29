@@ -25,9 +25,9 @@ services:
     ports:
       - "18082:3000"
     environment:
-      - NODE_ENV=development
+      - NODE_ENV=production
       - PORT=3000
-      - CORS_ORIGINS=http://localhost:18080
+      - CORS_ORIGINS=http://localhost:18080,http://172.16.1.183:18080
       - PATENT_ANALYSIS_HELPER_API_URL=http://172.16.1.210:10130
       - PATENT_ANALYSIS_UPLOAD_API_URL=http://172.16.1.210:8000
       - PATENT_ANALYSIS_OWNER_ID=171
