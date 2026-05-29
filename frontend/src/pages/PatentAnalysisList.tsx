@@ -262,6 +262,7 @@ const PatentAnalysisList: React.FC = () => {
   const { setHeaderContent } = useUIStore();
   const layoutPreset = React.useMemo(() => getPatentAnalysisLayoutPreset(viewportWidth), [viewportWidth]);
   const isResponsiveToolbar = viewportWidth <= 1100;
+  const isStructureSearchMode = searchType === 'structure';
   const openPatentDetail = React.useCallback((patent: Patent) => {
     navigate(`/patents/analysis/${patent.patentNumber}`, {
       state: { patent },
@@ -381,6 +382,12 @@ const PatentAnalysisList: React.FC = () => {
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
   }, []);
+
+  useEffect(() => {
+    if (isStructureSearchMode && showFilters) {
+      setShowFilters(false);
+    }
+  }, [isStructureSearchMode, showFilters]);
 
   useEffect(() => {
     const nextStoredState: PatentAnalysisListStoredState = {
@@ -975,6 +982,7 @@ const PatentAnalysisList: React.FC = () => {
                 <Button
                   icon={showFilters ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
                   onClick={() => setShowFilters(!showFilters)}
+                  disabled={isStructureSearchMode}
                   className="v-action-btn"
                 >
                   상세 필터 {showFilters ? '닫기' : '열기'}
@@ -1095,22 +1103,26 @@ const PatentAnalysisList: React.FC = () => {
                 : `${totalPatents.toLocaleString()} patents`}
             </Text>
           </div>
-          {(appliedSearchText || appliedProjects.length > 0 || appliedPeriod !== '전체' || appliedStructureSmiles) && (
+          {(appliedSearchText || (!appliedStructureSmiles && (appliedProjects.length > 0 || appliedPeriod !== '전체'))) && (
             <Space wrap style={{ padding: '12px 12px 10px' }}>
               {appliedSearchText && (
                 <Tag color={appliedSearchType === 'structure' ? 'cyan' : 'blue'}>
                   {appliedSearchTagLabel}: {appliedSearchText}
                 </Tag>
               )}
-              {appliedProjects.map(project => (
-                <Tag key={project} color="green">타겟: {project}</Tag>
-              ))}
-              {appliedPeriod !== '전체' && (
-                <Tag color="purple">
-                  기간: {appliedPeriod === '직접설정'
-                    ? `${appliedDateParams.dateFrom ?? '-'} ~ ${appliedDateParams.dateTo ?? '-'}`
-                    : appliedPeriod}
-                </Tag>
+              {!appliedStructureSmiles && (
+                <>
+                  {appliedProjects.map(project => (
+                    <Tag key={project} color="green">타겟: {project}</Tag>
+                  ))}
+                  {appliedPeriod !== '전체' && (
+                    <Tag color="purple">
+                      기간: {appliedPeriod === '직접설정'
+                        ? `${appliedDateParams.dateFrom ?? '-'} ~ ${appliedDateParams.dateTo ?? '-'}`
+                        : appliedPeriod}
+                    </Tag>
+                  )}
+                </>
               )}
             </Space>
           )}
