@@ -1,10 +1,13 @@
 import { create } from 'zustand';
 import { CompoundGroup, mockGroups } from '../mocks/compounds';
 
+export type SarHighlightMode = 'com' | 'diff' | 'off';
+
 export interface GroupStructureViewSettings {
   sarImageScalePercent: number;
   sarRotationDeg: number;
   sarOverlapPercent: number;
+  sarHighlightMode: SarHighlightMode;
   myBoardImageScalePercent: number;
 }
 
@@ -12,6 +15,7 @@ export const DEFAULT_GROUP_STRUCTURE_VIEW_SETTINGS: GroupStructureViewSettings =
   sarImageScalePercent: 100,
   sarRotationDeg: 0,
   sarOverlapPercent: 0,
+  sarHighlightMode: 'off',
   myBoardImageScalePercent: 100,
 };
 

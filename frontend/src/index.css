@@ -486,9 +486,9 @@ span.ant-typography {
 .reaction-molecule-preview {
   width: 100%;
   min-height: 180px;
-  border: 1px solid var(--c-card-border);
+  border: 0;
   border-radius: 10px;
-  background: #fff;
+  background: transparent;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -498,6 +498,13 @@ span.ant-typography {
 .reaction-molecule-preview svg {
   max-width: 92%;
   max-height: 160px;
+}
+
+.reaction-calculation-card .compound-structure-frame {
+  border: 0 !important;
+  outline: 0 !important;
+  box-shadow: none !important;
+  background: transparent !important;
 }
 
 .reaction-site-list {

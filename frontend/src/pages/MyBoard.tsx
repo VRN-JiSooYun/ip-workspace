@@ -636,7 +636,7 @@ const MyBoard: React.FC = () => {
           gap={0}
           actionPlacement="overlay"
           structureStyle={{ transform: `scale(${structureFitScale}) rotate(${structureSettings.sarRotationDeg}deg)` }}
-          frameStyle={{ borderColor: 'transparent', background: 'transparent', overflow: 'visible' }}
+          frameStyle={{ border: 0, background: 'transparent', boxShadow: 'none', overflow: 'visible' }}
           onPreview={structureSvg ? () => {
             setStructurePreview({
               title: representativeCompound?.compoundId || representativeCompound?.name || 'Structure',
@@ -1098,7 +1098,7 @@ const MyBoard: React.FC = () => {
               gap={0}
               actionPlacement="overlay"
               structureStyle={{ transform: `rotate(${structureSettings.sarRotationDeg}deg)` }}
-              frameStyle={{ borderColor: 'transparent', background: 'transparent', overflow: 'visible' }}
+              frameStyle={{ border: 0, background: 'transparent', boxShadow: 'none', overflow: 'visible' }}
               onPreview={displaySvg ? () => {
                 setStructurePreview({
                   title: record.compoundId || record.name || 'Structure',
@@ -2253,6 +2253,12 @@ const MyBoard: React.FC = () => {
           top: auto;
           right: 4px;
           bottom: 4px;
+        }
+        .my-board-table .my-board-structure-column .compound-structure-frame {
+          border: 0 !important;
+          outline: 0 !important;
+          box-shadow: none !important;
+          background: transparent !important;
         }
         .my-board-structure-setting-row {
           display: inline-grid;

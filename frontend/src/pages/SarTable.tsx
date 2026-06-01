@@ -12,7 +12,7 @@ import {
 import { useTheme } from '../contexts/ThemeContext';
 import { mockCompounds } from '../mocks/compounds';
 import { useBoardStore } from '../store/useBoardStore';
-import { DEFAULT_GROUP_STRUCTURE_VIEW_SETTINGS } from '../store/useBoardStore';
+import { DEFAULT_GROUP_STRUCTURE_VIEW_SETTINGS, type SarHighlightMode } from '../store/useBoardStore';
 import { getPatentAnalysisLayoutPreset } from '../config/patentAnalysisLayout';
 import dayjs from 'dayjs';
 import { useUIStore } from '../store/useUIStore';
@@ -450,7 +450,7 @@ const SarTable: React.FC = () => {
           showPreviewAction={false}
           showCopyAction={false}
           structureStyle={{ transform: `scale(${structureFitScale}) rotate(${structureSettings.sarRotationDeg}deg)` }}
-          frameStyle={{ borderColor: 'transparent', background: 'transparent', overflow: 'visible' }}
+          frameStyle={{ border: 0, background: 'transparent', boxShadow: 'none', overflow: 'visible' }}
         />
       </div>
     );
@@ -965,6 +965,18 @@ const SarTable: React.FC = () => {
                 <BenzeneIcon size={16} color={token.colorPrimary} />
                 <Text strong>화합물</Text>
                 <Text type="secondary" style={{ fontSize: 11 }}>{sarCompounds.length} compounds</Text>
+                <Segmented
+                  className="sar-compound-highlight-toggle"
+                  size="small"
+                  value={activeStructureSettings?.sarHighlightMode}
+                  disabled={isStructureSettingsDisabled}
+                  onChange={(value) => updateActiveStructureSettings({ sarHighlightMode: value as SarHighlightMode })}
+                  options={[
+                    { label: <Tooltip title="동일 골격에 하이라이팅 표시">Com</Tooltip>, value: 'com' },
+                    { label: <Tooltip title="차이나는 부분만 하이라이팅 표시">Diff</Tooltip>, value: 'diff' },
+                    { label: <Tooltip title="끄기">Off</Tooltip>, value: 'off' },
+                  ]}
+                />
               </Space>
               <Space size={8}>
                 {!isCompoundStructureCollapsed && (
@@ -1135,7 +1147,7 @@ const SarTable: React.FC = () => {
                           showPreviewAction={false}
                           showCopyAction={false}
                           structureStyle={{ transform: `rotate(${itemStructureSettings.sarRotationDeg}deg)` }}
-                          frameStyle={{ borderColor: 'transparent', background: isCompoundCardOverlapped ? 'transparent' : token.colorBgContainer }}
+                          frameStyle={{ border: 0, background: isCompoundCardOverlapped ? 'transparent' : token.colorBgContainer, boxShadow: 'none' }}
                         />
                       </div>
                       <Text strong style={{ fontSize: 11, lineHeight: '16px', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={item.name}>
@@ -1503,7 +1515,15 @@ const SarTable: React.FC = () => {
         .sar-group-structure-card .ant-table-tbody .compound-structure-frame {
           width: ${SAR_GROUP_STRUCTURE_WIDTH}px !important;
           height: ${SAR_GROUP_STRUCTURE_HEIGHT}px !important;
+          border: 0 !important;
+          outline: 0 !important;
+          box-shadow: none !important;
           overflow: visible !important;
+        }
+        .sar-compound-card .compound-structure-frame {
+          border: 0 !important;
+          outline: 0 !important;
+          box-shadow: none !important;
         }
         .ant-table-tbody > tr > td {
           padding: 10px 4px !important;
@@ -1527,6 +1547,15 @@ const SarTable: React.FC = () => {
           gap: 8px;
           flex-wrap: wrap;
           align-items: stretch;
+        }
+        .sar-compound-highlight-toggle {
+          margin-left: 2px;
+        }
+        .sar-compound-highlight-toggle .ant-segmented-item-label {
+          min-height: 22px;
+          line-height: 22px;
+          padding-inline: 8px;
+          font-size: 11px;
         }
         .sar-compound-setting-row {
           display: grid;

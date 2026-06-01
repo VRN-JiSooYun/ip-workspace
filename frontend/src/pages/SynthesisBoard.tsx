@@ -515,7 +515,7 @@ const SynthesisBoard: React.FC = () => {
               gap={0}
               actionPlacement="overlay"
               structureStyle={{ transform: `rotate(${structureSettings.sarRotationDeg}deg)` }}
-              frameStyle={{ borderColor: 'transparent', background: 'transparent' }}
+              frameStyle={{ border: 0, background: 'transparent', boxShadow: 'none' }}
               onPreview={structureSvg ? () => setStructurePreview({ title: record.compoundId || record.name || 'Structure', svg: structureSvg }) : undefined}
             />
           </div>
@@ -884,6 +884,7 @@ const SynthesisBoard: React.FC = () => {
                             iconSize={24}
                             gap={5}
                             structureStyle={{ transform: `rotate(${getGroupStructureSettings(d.groupId).sarRotationDeg}deg)` }}
+                            frameStyle={{ border: 0, background: 'transparent', boxShadow: 'none' }}
                             onPreview={d.structureSvg ? () => setStructurePreview({ title: d.compoundId || d.name, svg: d.structureSvg || '' }) : undefined}
                           />
                         </div>
@@ -1002,6 +1003,13 @@ const SynthesisBoard: React.FC = () => {
           top: auto;
           right: 4px;
           bottom: 4px;
+        }
+        .synthesis-detail-table .synthesis-structure-column .compound-structure-frame,
+        .canvas-card .compound-structure-frame {
+          border: 0 !important;
+          outline: 0 !important;
+          box-shadow: none !important;
+          background: transparent !important;
         }
         .synthesis-structure-svg {
           display: flex;

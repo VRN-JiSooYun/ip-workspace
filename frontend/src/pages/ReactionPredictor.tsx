@@ -182,6 +182,7 @@ const ReactionPredictor: React.FC = () => {
           gap={6}
           showPreviewAction={false}
           showCopyAction={false}
+          frameStyle={{ border: 0, background: 'transparent', boxShadow: 'none' }}
         />
       ),
     },
