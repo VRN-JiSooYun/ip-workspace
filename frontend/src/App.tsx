@@ -9,6 +9,7 @@ import SarTable from './pages/SarTable';
 import SynthesisBoard from './pages/SynthesisBoard';
 import ChemSpace from './pages/ChemSpace';
 import ChemSpace3D from './pages/ChemSpace3D';
+import ReactionPredictor from './pages/ReactionPredictor';
 import PatentAnalysisList from './pages/PatentAnalysisList';
 import PatentAnalysisDetail from './pages/PatentAnalysisDetail';
 import DevelopmentStatus from './pages/DevelopmentStatus';
@@ -82,6 +83,7 @@ const App: React.FC = () => {
               <Route path="/chem-space" element={<ChemSpace />} />
               <Route path="/chem-space-3d" element={<ChemSpace3D />} />
               <Route path="/clustering" element={<EmptyPage title="Clustering" breadcrumb={[{ label: 'Compounds' }, { label: 'Clustering' }]} />} />
+              <Route path="/reaction-predictor" element={<ReactionPredictor />} />
               <Route path="/myboard/sar-table" element={<SarTable />} />
               <Route path="/myboard/synthesis-board" element={<SynthesisBoard />} />
               <Route path="/sar-table" element={<Navigate to="/myboard/sar-table" replace />} />

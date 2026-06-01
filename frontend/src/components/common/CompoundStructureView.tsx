@@ -29,10 +29,12 @@ export interface CompoundStructureViewProps {
   frameClassName?: string;
   frameStyle?: React.CSSProperties;
   svgClassName?: string;
+  structureStyle?: React.CSSProperties;
   fullWidth?: boolean;
   showPreviewAction?: boolean;
   showCopyAction?: boolean;
   onPreview?: () => void;
+  actionPlacement?: 'rail' | 'overlay';
   actions?: CompoundStructureAction[];
 }
 
@@ -178,10 +180,12 @@ const CompoundStructureView: React.FC<CompoundStructureViewProps> = ({
   frameClassName,
   frameStyle,
   svgClassName,
+  structureStyle,
   fullWidth = false,
   showPreviewAction = true,
   showCopyAction = true,
   onPreview,
+  actionPlacement = 'rail',
   actions = [],
 }) => {
   const { token } = theme.useToken();
@@ -243,25 +247,53 @@ const CompoundStructureView: React.FC<CompoundStructureViewProps> = ({
           borderRadius: 4,
           border: `1px solid ${token.colorBorderSecondary}`,
           overflow: 'hidden',
+          position: 'relative',
           ...frameStyle,
         }}
         >
         {svg ? (
           <div
             className={`compound-structure-svg${svgClassName ? ` ${svgClassName}` : ''}`}
-            style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+            style={{
+              width: '100%',
+              height: '100%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              transformOrigin: 'center',
+              ...structureStyle,
+            }}
             dangerouslySetInnerHTML={{ __html: svg }}
           />
         ) : hasRenderableChemData ? (
-          <ChemDrawStructurePreview cdxml={cdxml} molBlock={molBlock} smiles={smiles} />
+          <div style={{ width: '100%', height: '100%', transformOrigin: 'center', ...structureStyle }}>
+            <ChemDrawStructurePreview cdxml={cdxml} molBlock={molBlock} smiles={smiles} />
+          </div>
         ) : (
           <BenzeneIcon
             size={iconSize ?? (typeof width === 'number' && typeof height === 'number' ? Math.min(width, height) * 0.42 : 28)}
             color={token.colorTextTertiary}
           />
         )}
+        {actionPlacement === 'overlay' && allActions.length > 0 ? (
+          <div className="compound-structure-actions-overlay">
+            {allActions.map((action) => (
+              <Tooltip key={action.key} title={action.title}>
+                <Button
+                  {...action.buttonProps}
+                  className={`svg-action-btn compound-structure-action-button${action.buttonProps?.className ? ` ${action.buttonProps.className}` : ''}`}
+                  size="small"
+                  type="text"
+                  icon={action.icon}
+                  disabled={action.disabled}
+                  onClick={action.onClick}
+                />
+              </Tooltip>
+            ))}
+          </div>
+        ) : null}
       </div>
-      {allActions.length > 0 ? (
+      {actionPlacement === 'rail' && allActions.length > 0 ? (
         <div className="compound-structure-actions" style={{ height: actionRailHeight ?? height }}>
           {allActions.map((action) => (
             <Tooltip key={action.key} title={action.title}>

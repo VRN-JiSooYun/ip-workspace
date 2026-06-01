@@ -2,16 +2,17 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Typography, Row, Col, Card, Table, Button, Input,
-  Space, Modal, Form, Tag, Select, DatePicker, Avatar, Divider, Segmented, Tooltip, theme, Slider, InputNumber
+  Space, Modal, Form, Tag, Select, DatePicker, Avatar, Divider, Segmented, Tooltip, theme
 } from 'antd';
 import {
   Search, ChevronDown, ChevronUp,
   Settings, Download, Share2, Info, GripVertical, CheckCircle2, XCircle, ArrowLeft,
-  PanelLeftClose, PanelLeftOpen
+  PanelLeftClose, PanelLeftOpen, Minus, Plus, RotateCcw, RotateCw, Layers, Ungroup
 } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
 import { mockCompounds } from '../mocks/compounds';
 import { useBoardStore } from '../store/useBoardStore';
+import { DEFAULT_GROUP_STRUCTURE_VIEW_SETTINGS } from '../store/useBoardStore';
 import { getPatentAnalysisLayoutPreset } from '../config/patentAnalysisLayout';
 import dayjs from 'dayjs';
 import { useUIStore } from '../store/useUIStore';
@@ -30,16 +31,45 @@ const SAR_COMPOUND_CARD_BASE_WIDTH = 200;
 const SAR_COMPOUND_CARD_BASE_STRUCTURE_HEIGHT = 148;
 const SAR_COMPOUND_CARD_EXPANDED_WIDTH = SAR_COMPOUND_CARD_BASE_WIDTH * 2;
 const SAR_COMPOUND_CARD_EXPANDED_STRUCTURE_HEIGHT = SAR_COMPOUND_CARD_BASE_STRUCTURE_HEIGHT * 2;
-const SAR_COMPOUND_CARD_IMAGE_SCALE_MIN = 30;
-const SAR_COMPOUND_CARD_IMAGE_SCALE_MAX = 150;
-const SAR_GROUP_STRUCTURE_PANEL_WIDTH = 128;
-const SAR_GROUP_STRUCTURE_COLUMN_WIDTH = 122;
+const SAR_COMPOUND_CARD_IMAGE_SCALE_MIN = 60;
+const SAR_COMPOUND_CARD_IMAGE_SCALE_MAX = 130;
+const SAR_COMPOUND_CARD_SETTING_STEP = 5;
+const SAR_COMPOUND_CARD_SCALE_BASE_RATIO = 0.95;
+const SAR_COMPOUND_CARD_ROTATION_STEP = 30;
+const SAR_COMPOUND_CARD_OVERLAP_MIN = 0;
+const SAR_COMPOUND_CARD_OVERLAP_MAX = 30;
+const SAR_GROUP_STRUCTURE_WIDTH = 117;
+const SAR_GROUP_STRUCTURE_HEIGHT = 87.75;
+const SAR_GROUP_STRUCTURE_MAX_WIDTH = 124;
+const SAR_GROUP_STRUCTURE_MAX_HEIGHT = 97;
+const SAR_GROUP_STRUCTURE_PANEL_WIDTH = 136;
+const SAR_GROUP_STRUCTURE_COLUMN_WIDTH = 124;
+
+const getRotatedStructureBounds = (width: number, height: number, rotationDeg: number) => {
+  const normalizedDeg = ((rotationDeg % 180) + 180) % 180;
+  const radians = normalizedDeg * Math.PI / 180;
+  const cos = Math.abs(Math.cos(radians));
+  const sin = Math.abs(Math.sin(radians));
+
+  return {
+    width: Math.ceil(width * cos + height * sin),
+    height: Math.ceil(width * sin + height * cos),
+  };
+};
 
 const SarTable: React.FC = () => {
   const navigate = useNavigate();
   const { token } = theme.useToken();
   const { isDarkMode } = useTheme();
-  const { selectedGroupIds, selectedSarCompoundIds, groups, toggleGroupSelection, setSelectedSarCompoundIds } = useBoardStore();
+  const {
+    selectedGroupIds,
+    selectedSarCompoundIds,
+    groups,
+    groupStructureViewSettings,
+    toggleGroupSelection,
+    setSelectedSarCompoundIds,
+    updateGroupStructureViewSettings,
+  } = useBoardStore();
   const { setHeaderContent } = useUIStore();
 
   useEffect(() => {
@@ -88,11 +118,9 @@ const SarTable: React.FC = () => {
   const [showFilters, setShowFilters] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [isStructureModalOpen, setIsStructureModalOpen] = useState(false);
-  const [structurePreview, setStructurePreview] = useState<{ title: string; svg: string } | null>(null);
   const [searchedSvg, setSearchedSvg] = useState<string | null>(null);
   const [activePreset, setActivePreset] = useState<number>(1);
   const [compoundCardViewMode, setCompoundCardViewMode] = useState<'single' | 'twoRows'>('single');
-  const [compoundCardImageScalePercent, setCompoundCardImageScalePercent] = useState(100);
   const [hasUserClearedSelection, setHasUserClearedSelection] = useState(false);
   const [isCompoundStructureCollapsed, setIsCompoundStructureCollapsed] = useState(false);
   const [isGroupStructureCollapsed, setIsGroupStructureCollapsed] = useState(false);
@@ -106,6 +134,22 @@ const SarTable: React.FC = () => {
     () => sarCompounds.map((compound) => compound.id).join('|'),
     [sarCompounds]
   );
+  const activeStructureSettingsGroupId = selectedGroupIds.length === 1 ? selectedGroupIds[0] : null;
+  const activeStructureSettings = activeStructureSettingsGroupId
+    ? {
+        ...DEFAULT_GROUP_STRUCTURE_VIEW_SETTINGS,
+        ...groupStructureViewSettings[activeStructureSettingsGroupId],
+      }
+    : null;
+  const isStructureSettingsDisabled = !activeStructureSettingsGroupId;
+  const updateActiveStructureSettings = (settings: Partial<typeof DEFAULT_GROUP_STRUCTURE_VIEW_SETTINGS>) => {
+    if (!activeStructureSettingsGroupId) return;
+    updateGroupStructureViewSettings(activeStructureSettingsGroupId, settings);
+  };
+  const getGroupStructureSettings = React.useCallback((groupId: string) => ({
+    ...DEFAULT_GROUP_STRUCTURE_VIEW_SETTINGS,
+    ...groupStructureViewSettings[groupId],
+  }), [groupStructureViewSettings]);
 
   useEffect(() => {
     setHasUserClearedSelection(false);
@@ -219,7 +263,7 @@ const SarTable: React.FC = () => {
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (!selectedRowKey || event.metaKey || event.ctrlKey || event.altKey) return;
-      if (isSettingsModalOpen || isStructureModalOpen || structurePreview) return;
+      if (isSettingsModalOpen || isStructureModalOpen) return;
 
       const activeElement = document.activeElement as HTMLElement | null;
       const activeTag = activeElement?.tagName.toLowerCase();
@@ -246,7 +290,6 @@ const SarTable: React.FC = () => {
     isStructureModalOpen,
     sarCompounds,
     selectedRowKey,
-    structurePreview,
   ]);
 
   // Default states for columns
@@ -334,23 +377,82 @@ const SarTable: React.FC = () => {
     );
   };
 
+  const clampSteppedPercent = (value: number, min: number, max: number) => {
+    const steppedValue = Math.round(value / SAR_COMPOUND_CARD_SETTING_STEP) * SAR_COMPOUND_CARD_SETTING_STEP;
+    return Math.min(max, Math.max(min, steppedValue));
+  };
+
+  const changeSarImageScale = (delta: number) => {
+    const currentValue = activeStructureSettings?.sarImageScalePercent ?? DEFAULT_GROUP_STRUCTURE_VIEW_SETTINGS.sarImageScalePercent;
+    updateActiveStructureSettings({
+      sarImageScalePercent: clampSteppedPercent(
+        currentValue + delta,
+        SAR_COMPOUND_CARD_IMAGE_SCALE_MIN,
+        SAR_COMPOUND_CARD_IMAGE_SCALE_MAX
+      ),
+    });
+  };
+
+  const changeSarRotation = (delta: number) => {
+    const currentValue = activeStructureSettings?.sarRotationDeg ?? DEFAULT_GROUP_STRUCTURE_VIEW_SETTINGS.sarRotationDeg;
+    updateActiveStructureSettings({
+      sarRotationDeg: (currentValue + delta + 360) % 360,
+    });
+  };
+
+  const changeSarOverlap = (delta: number) => {
+    const currentValue = activeStructureSettings?.sarOverlapPercent ?? DEFAULT_GROUP_STRUCTURE_VIEW_SETTINGS.sarOverlapPercent;
+    updateActiveStructureSettings({
+      sarOverlapPercent: clampSteppedPercent(
+        currentValue + delta,
+        SAR_COMPOUND_CARD_OVERLAP_MIN,
+        SAR_COMPOUND_CARD_OVERLAP_MAX
+      ),
+    });
+  };
+
   const renderGroupStructure = (_: unknown, record: any) => {
     const representativeCompound = firstCompoundByGroupId[record.id];
     const structureSvg = representativeCompound?.structureSvg;
+    const structureSettings = getGroupStructureSettings(record.id);
+    const rotatedBounds = getRotatedStructureBounds(
+      SAR_GROUP_STRUCTURE_WIDTH,
+      SAR_GROUP_STRUCTURE_HEIGHT,
+      structureSettings.sarRotationDeg
+    );
+    const structureFitScale = Math.min(
+      1,
+      SAR_GROUP_STRUCTURE_MAX_WIDTH / rotatedBounds.width,
+      SAR_GROUP_STRUCTURE_MAX_HEIGHT / rotatedBounds.height
+    );
 
     return (
-      <CompoundStructureView
-        svg={structureSvg}
-        title={representativeCompound?.compoundId || representativeCompound?.name || record.name || 'Structure'}
-        smiles={representativeCompound?.smiles}
-        molBlock={(representativeCompound as any)?.molBlock ?? (representativeCompound as any)?.mol_block ?? (representativeCompound as any)?.molblock}
-        width={86}
-        height={52}
-        iconSize={20}
-        gap={4}
-        showPreviewAction={false}
-        showCopyAction={false}
-      />
+      <div
+        className="sar-group-representative-structure"
+        style={{
+          margin: '0 auto',
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          minWidth: Math.ceil(rotatedBounds.width * structureFitScale),
+          minHeight: Math.ceil(rotatedBounds.height * structureFitScale),
+        }}
+      >
+        <CompoundStructureView
+          svg={structureSvg}
+          title={representativeCompound?.compoundId || representativeCompound?.name || record.name || 'Structure'}
+          smiles={representativeCompound?.smiles}
+          molBlock={(representativeCompound as any)?.molBlock ?? (representativeCompound as any)?.mol_block ?? (representativeCompound as any)?.molblock}
+          width={SAR_GROUP_STRUCTURE_WIDTH}
+          height={SAR_GROUP_STRUCTURE_HEIGHT}
+          iconSize={40}
+          gap={0}
+          showPreviewAction={false}
+          showCopyAction={false}
+          structureStyle={{ transform: `scale(${structureFitScale}) rotate(${structureSettings.sarRotationDeg}deg)` }}
+          frameStyle={{ borderColor: 'transparent', background: 'transparent', overflow: 'visible' }}
+        />
+      </div>
     );
   };
 
@@ -659,14 +761,16 @@ const SarTable: React.FC = () => {
       });
   }, [columnOrder, activeColumns, subColumnConfig, isColorActive, isDarkMode, token]);
 
-  const compoundCardImageScale = compoundCardViewMode === 'single'
-    ? compoundCardImageScalePercent / 100
-    : 1;
+  const compoundCardImageScale = ((activeStructureSettings?.sarImageScalePercent ?? DEFAULT_GROUP_STRUCTURE_VIEW_SETTINGS.sarImageScalePercent) / 100) * SAR_COMPOUND_CARD_SCALE_BASE_RATIO;
+  const compoundCardOverlapPercent = compoundCardViewMode === 'single'
+    ? activeStructureSettings?.sarOverlapPercent ?? DEFAULT_GROUP_STRUCTURE_VIEW_SETTINGS.sarOverlapPercent
+    : 0;
+  const isCompoundCardOverlapped = compoundCardOverlapPercent > 0;
   const compoundCardWidth = compoundCardViewMode === 'twoRows'
-    ? SAR_COMPOUND_CARD_BASE_WIDTH
+    ? Math.round(SAR_COMPOUND_CARD_BASE_WIDTH * compoundCardImageScale)
     : Math.round(SAR_COMPOUND_CARD_EXPANDED_WIDTH * compoundCardImageScale);
   const compoundCardStructureHeight = compoundCardViewMode === 'twoRows'
-    ? SAR_COMPOUND_CARD_BASE_STRUCTURE_HEIGHT
+    ? Math.round(SAR_COMPOUND_CARD_BASE_STRUCTURE_HEIGHT * compoundCardImageScale)
     : Math.round(SAR_COMPOUND_CARD_EXPANDED_STRUCTURE_HEIGHT * compoundCardImageScale);
 
   return (
@@ -837,7 +941,7 @@ const SarTable: React.FC = () => {
         )}
 
         <div className="sar-board-content">
-          {/* Compound Cards Slider (Prototype Style) */}
+          {/* Compound Cards Controls */}
           <div style={{
             padding: '16px',
             background: token.colorBgContainer,
@@ -865,41 +969,71 @@ const SarTable: React.FC = () => {
               <Space size={8}>
                 {!isCompoundStructureCollapsed && (
                   <>
-                    {compoundCardViewMode === 'single' && (
-                      <div
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 8,
-                          width: 220,
-                        }}
-                      >
-                        <Text type="secondary" style={{ fontSize: 11, whiteSpace: 'nowrap' }}>이미지</Text>
-                        <Slider
-                          min={SAR_COMPOUND_CARD_IMAGE_SCALE_MIN}
-                          max={SAR_COMPOUND_CARD_IMAGE_SCALE_MAX}
-                          step={5}
-                          value={compoundCardImageScalePercent}
-                          onChange={setCompoundCardImageScalePercent}
-                          tooltip={{ formatter: (value) => `${value}%` }}
-                          style={{ flex: 1, margin: 0 }}
-                        />
-                        <InputNumber
-                          size="small"
-                          min={SAR_COMPOUND_CARD_IMAGE_SCALE_MIN}
-                          max={SAR_COMPOUND_CARD_IMAGE_SCALE_MAX}
-                          step={5}
-                          value={compoundCardImageScalePercent}
-                          onChange={(value) => {
-                            if (typeof value === 'number') {
-                              setCompoundCardImageScalePercent(value);
-                            }
-                          }}
-                          addonAfter="%"
-                          style={{ width: 82 }}
-                        />
+                    <div className="sar-compound-setting-stack" aria-label="화합물 구조 표시 설정">
+                      <div className="sar-compound-setting-row">
+                        <Tooltip title="구조 이미지 축소">
+                          <Button
+                            size="small"
+                            icon={<Minus size={12} />}
+                            disabled={isStructureSettingsDisabled}
+                            onClick={() => changeSarImageScale(-SAR_COMPOUND_CARD_SETTING_STEP)}
+                          />
+                        </Tooltip>
+                        <div className="sar-compound-setting-value">
+                          {activeStructureSettings ? `${activeStructureSettings.sarImageScalePercent}%` : ''}
+                        </div>
+                        <Tooltip title="구조 이미지 확대">
+                          <Button
+                            size="small"
+                            icon={<Plus size={12} />}
+                            disabled={isStructureSettingsDisabled}
+                            onClick={() => changeSarImageScale(SAR_COMPOUND_CARD_SETTING_STEP)}
+                          />
+                        </Tooltip>
                       </div>
-                    )}
+                      <div className="sar-compound-setting-row">
+                        <Tooltip title="왼쪽으로 30도 회전">
+                          <Button
+                            size="small"
+                            icon={<RotateCcw size={12} />}
+                            disabled={isStructureSettingsDisabled}
+                            onClick={() => changeSarRotation(-SAR_COMPOUND_CARD_ROTATION_STEP)}
+                          />
+                        </Tooltip>
+                        <div className="sar-compound-setting-value">
+                          {activeStructureSettings ? `${activeStructureSettings.sarRotationDeg}°` : ''}
+                        </div>
+                        <Tooltip title="오른쪽으로 30도 회전">
+                          <Button
+                            size="small"
+                            icon={<RotateCw size={12} />}
+                            disabled={isStructureSettingsDisabled}
+                            onClick={() => changeSarRotation(SAR_COMPOUND_CARD_ROTATION_STEP)}
+                          />
+                        </Tooltip>
+                      </div>
+                      <div className="sar-compound-setting-row">
+                        <Tooltip title="구조 겹침 증가">
+                          <Button
+                            size="small"
+                            icon={<Layers size={12} />}
+                            disabled={isStructureSettingsDisabled || compoundCardViewMode === 'twoRows'}
+                            onClick={() => changeSarOverlap(SAR_COMPOUND_CARD_SETTING_STEP)}
+                          />
+                        </Tooltip>
+                        <div className="sar-compound-setting-value">
+                          {activeStructureSettings && compoundCardViewMode !== 'twoRows' ? activeStructureSettings.sarOverlapPercent : ''}
+                        </div>
+                        <Tooltip title="구조 겹침 감소">
+                          <Button
+                            size="small"
+                            icon={<Ungroup size={12} />}
+                            disabled={isStructureSettingsDisabled || compoundCardViewMode === 'twoRows'}
+                            onClick={() => changeSarOverlap(-SAR_COMPOUND_CARD_SETTING_STEP)}
+                          />
+                        </Tooltip>
+                      </div>
+                    </div>
                     <Segmented
                       size="small"
                       value={compoundCardViewMode}
@@ -935,7 +1069,7 @@ const SarTable: React.FC = () => {
               <div style={compoundCardViewMode === 'twoRows' ? {
                 display: 'grid',
                 gridAutoFlow: 'row',
-                gridTemplateColumns: `repeat(${Math.ceil(sarCompounds.length / 2)}, ${SAR_COMPOUND_CARD_BASE_WIDTH}px)`,
+                gridTemplateColumns: `repeat(${Math.ceil(sarCompounds.length / 2)}, ${compoundCardWidth}px)`,
                 gridTemplateRows: 'repeat(2, minmax(0, 1fr))',
                 gridAutoRows: 'auto',
                 columnGap: SAR_COMPOUND_CARD_GRID_COLUMN_GAP,
@@ -943,63 +1077,73 @@ const SarTable: React.FC = () => {
                 width: 'max-content',
               } : {
                 display: 'inline-flex',
-                gap: SAR_COMPOUND_CARD_GAP,
+                gap: compoundCardOverlapPercent > 0 ? 0 : SAR_COMPOUND_CARD_GAP,
               }}>
-                {sarCompounds.map((item) => (
-                  <div
-                    id={`sar-compound-card-${item.id}`}
-                    key={item.id}
-                    onClick={() => toggleCompoundSelection(item.id)}
-                    onDoubleClick={() => {
-                      if (item.structureSvg) {
-                        setStructurePreview({ title: item.name, svg: item.structureSvg });
-                      }
-                    }}
-                    role="option"
-                    aria-selected={selectedRowKey === item.id}
-                    className={`v-item-card sar-compound-card ${selectedRowKey === item.id ? 'selected' : ''} ${hoveredRowKey === item.id ? 'hovered' : ''}`}
-                    onMouseEnter={() => setHoveredRowKey(item.id)}
-                    onMouseLeave={() => setHoveredRowKey(null)}
-                    style={{
-                      width: compoundCardWidth,
-                      padding: 0,
-                      textAlign: 'center',
-                      cursor: 'pointer',
-                      background: selectedRowKey === item.id || hoveredRowKey === item.id ? (isDarkMode ? '#111d2c' : '#e6f7ff') : token.colorBgContainer,
-                      boxSizing: 'border-box',
-                      borderColor: 'transparent',
-                    }}
-                  >
-                    <div style={{
-                      height: compoundCardStructureHeight,
-                      background: token.colorBgContainer,
-                      borderRadius: 10,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      position: 'relative',
-                      marginBottom: compoundCardViewMode === 'twoRows' ? 4 : 6,
-                      overflow: 'hidden',
-                    }}>
-                      <CompoundStructureView
-                        svg={item.structureSvg}
-                        title={item.name}
-                        smiles={item.smiles}
-                        molBlock={(item as any).molBlock ?? (item as any).mol_block ?? (item as any).molblock}
-                        width={compoundCardWidth}
-                        height={compoundCardStructureHeight}
-                        iconSize={48}
-                        className="sar-compound-structure-view"
-                        showPreviewAction={false}
-                        showCopyAction={false}
-                        frameStyle={{ borderColor: 'transparent', background: token.colorBgContainer }}
-                      />
+                {sarCompounds.map((item, index) => {
+                  const itemStructureSettings = getGroupStructureSettings(item.groupId);
+
+                  return (
+                    <div
+                      id={`sar-compound-card-${item.id}`}
+                      key={item.id}
+                      onClick={() => toggleCompoundSelection(item.id)}
+                      role="option"
+                      aria-selected={selectedRowKey === item.id}
+                      className={`v-item-card sar-compound-card ${selectedRowKey === item.id ? 'selected' : ''} ${hoveredRowKey === item.id ? 'hovered' : ''}`}
+                      onMouseEnter={() => setHoveredRowKey(item.id)}
+                      onMouseLeave={() => setHoveredRowKey(null)}
+                      style={{
+                        width: compoundCardWidth,
+                        padding: 0,
+                        textAlign: 'center',
+                        cursor: 'pointer',
+                        background: isCompoundCardOverlapped
+                          ? 'transparent'
+                          : selectedRowKey === item.id || hoveredRowKey === item.id
+                            ? (isDarkMode ? '#111d2c' : '#e6f7ff')
+                            : token.colorBgContainer,
+                        boxSizing: 'border-box',
+                        borderColor: 'transparent',
+                        marginRight: compoundCardViewMode === 'single' && index < sarCompounds.length - 1
+                          ? -(compoundCardWidth * compoundCardOverlapPercent / 100)
+                          : 0,
+                        zIndex: selectedRowKey === item.id || hoveredRowKey === item.id
+                          ? sarCompounds.length + 1
+                          : index + 1,
+                      }}
+                    >
+                      <div style={{
+                        height: compoundCardStructureHeight,
+                        background: isCompoundCardOverlapped ? 'transparent' : token.colorBgContainer,
+                        borderRadius: 10,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        position: 'relative',
+                        marginBottom: compoundCardViewMode === 'twoRows' ? 4 : 6,
+                        overflow: 'hidden',
+                      }}>
+                        <CompoundStructureView
+                          svg={item.structureSvg}
+                          title={item.name}
+                          smiles={item.smiles}
+                          molBlock={(item as any).molBlock ?? (item as any).mol_block ?? (item as any).molblock}
+                          width={compoundCardWidth}
+                          height={compoundCardStructureHeight}
+                          iconSize={48}
+                          className="sar-compound-structure-view"
+                          showPreviewAction={false}
+                          showCopyAction={false}
+                          structureStyle={{ transform: `rotate(${itemStructureSettings.sarRotationDeg}deg)` }}
+                          frameStyle={{ borderColor: 'transparent', background: isCompoundCardOverlapped ? 'transparent' : token.colorBgContainer }}
+                        />
+                      </div>
+                      <Text strong style={{ fontSize: 11, lineHeight: '16px', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={item.name}>
+                        {item.name}
+                      </Text>
                     </div>
-                    <Text strong style={{ fontSize: 11, lineHeight: '16px', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={item.name}>
-                      {item.name}
-                    </Text>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
               </div>
             )}
@@ -1252,32 +1396,6 @@ const SarTable: React.FC = () => {
         onConfirm={handleStructureSearchConfirm}
       />
 
-      <Modal
-        title={structurePreview?.title || 'Structure'}
-        open={!!structurePreview}
-        onCancel={() => setStructurePreview(null)}
-        footer={null}
-        width="min(1200px, calc(100vw - 48px))"
-        centered
-      >
-        {structurePreview ? (
-          <div
-            className="sar-structure-preview"
-            style={{
-              height: 'min(720px, calc(100vh - 180px))',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              background: token.colorBgContainer,
-              border: `1px solid ${token.colorBorderSecondary}`,
-              borderRadius: 8,
-              overflow: 'hidden'
-            }}
-            dangerouslySetInnerHTML={{ __html: structurePreview.svg }}
-          />
-        ) : null}
-      </Modal>
-
       <style>{`
         .sar-board-layout {
           display: flex;
@@ -1361,15 +1479,6 @@ const SarTable: React.FC = () => {
           max-width: none;
           max-height: none;
         }
-        .sar-structure-preview svg {
-          display: block;
-          max-width: calc(100% / 1.5);
-          max-height: calc(100% / 1.5);
-          width: auto;
-          height: auto;
-          transform: scale(1.5);
-          transform-origin: center;
-        }
         .sar-row-selected {
           background-color: var(--table-row-selected-bg) !important;
         }
@@ -1388,11 +1497,13 @@ const SarTable: React.FC = () => {
           border-bottom: 1px solid ${isDarkMode ? '#303030' : '#f0f0f0'} !important;
         }
         .sar-group-structure-card .ant-table-tbody .compound-structure-view {
-          width: calc(100% - 4px) !important;
-          margin: 0 2px !important;
+          width: 100% !important;
+          margin: 0 !important;
         }
         .sar-group-structure-card .ant-table-tbody .compound-structure-frame {
-          width: 100% !important;
+          width: ${SAR_GROUP_STRUCTURE_WIDTH}px !important;
+          height: ${SAR_GROUP_STRUCTURE_HEIGHT}px !important;
+          overflow: visible !important;
         }
         .ant-table-tbody > tr > td {
           padding: 10px 4px !important;
@@ -1410,13 +1521,50 @@ const SarTable: React.FC = () => {
         .ant-table-tbody > tr.sar-row-selected:hover > td {
           background-color: var(--table-row-selected-hover-bg) !important;
         }
+        .sar-compound-setting-stack {
+          display: inline-flex;
+          flex-direction: row;
+          gap: 8px;
+          flex-wrap: wrap;
+          align-items: stretch;
+        }
+        .sar-compound-setting-row {
+          display: grid;
+          grid-template-columns: 24px 42px 24px;
+          align-items: center;
+          gap: 4px;
+        }
+        .sar-compound-setting-row .ant-btn {
+          width: 24px;
+          height: 20px;
+          min-width: 24px;
+          padding: 0;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          border-radius: 2px;
+        }
+        .sar-compound-setting-value {
+          height: 20px;
+          min-width: 42px;
+          padding: 0 4px;
+          border: 1px solid ${token.colorBorderSecondary};
+          border-radius: 2px;
+          background: ${token.colorBgContainer};
+          color: ${token.colorText};
+          font-size: 10px;
+          line-height: 18px;
+          text-align: center;
+          box-sizing: border-box;
+          user-select: none;
+        }
         .sar-compound-card {
           border-color: transparent !important;
           box-shadow: none;
         }
         .sar-compound-card:hover {
           border-color: ${token.colorPrimary} !important;
-          background-color: ${isDarkMode ? '#1a1a1a' : '#f9f9f9'} !important;
+          background-color: ${isCompoundCardOverlapped ? 'transparent' : isDarkMode ? '#1a1a1a' : '#f9f9f9'} !important;
           transform: translateY(-2px);
           box-shadow: 0 4px 12px rgba(0,0,0,0.1);
         }
@@ -1425,11 +1573,11 @@ const SarTable: React.FC = () => {
           box-shadow: 0 0 0 1px ${token.colorPrimary};
         }
         .sar-compound-card.selected:hover {
-          background-color: ${isDarkMode ? '#111d2c' : '#e6f7ff'} !important;
+          background-color: ${isCompoundCardOverlapped ? 'transparent' : isDarkMode ? '#111d2c' : '#e6f7ff'} !important;
         }
         .sar-compound-card.hovered {
           border-color: ${token.colorPrimary} !important;
-          background-color: ${isDarkMode ? '#111d2c' : '#e6f7ff'} !important;
+          background-color: ${isCompoundCardOverlapped ? 'transparent' : isDarkMode ? '#111d2c' : '#e6f7ff'} !important;
           transform: translateY(-2px);
           box-shadow: 0 4px 12px rgba(0,0,0,0.1);
         }
@@ -1439,6 +1587,26 @@ const SarTable: React.FC = () => {
         .sar-compound-card:focus-visible {
           outline: none !important;
           box-shadow: none;
+        }
+        .sar-compound-card-list {
+          scrollbar-width: thin;
+          scrollbar-color: ${token.colorBorder} transparent;
+        }
+        .sar-compound-card-list::-webkit-scrollbar {
+          width: 10px;
+          height: 10px;
+        }
+        .sar-compound-card-list::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        .sar-compound-card-list::-webkit-scrollbar-thumb {
+          background-color: ${token.colorBorder};
+          border: 3px solid transparent;
+          border-radius: 999px;
+          background-clip: content-box;
+        }
+        .sar-compound-card-list::-webkit-scrollbar-thumb:hover {
+          background-color: ${token.colorTextQuaternary};
         }
         .sar-table-card {
           margin-bottom: 24px;

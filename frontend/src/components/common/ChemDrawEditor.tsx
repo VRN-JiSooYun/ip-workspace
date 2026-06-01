@@ -58,6 +58,7 @@ interface ChemDrawEditorProps {
   smilesValue?: string;
   onSmilesChange?: (smiles: string) => void;
   onReady?: (editor: any) => void;
+  flipControlsPlacement?: 'top' | 'left';
 }
 
 const ChemDrawEditor: React.FC<ChemDrawEditorProps> = ({
@@ -68,7 +69,8 @@ const ChemDrawEditor: React.FC<ChemDrawEditorProps> = ({
   initialMolblock,
   smilesValue,
   onSmilesChange,
-  onReady
+  onReady,
+  flipControlsPlacement = 'top'
 }) => {
   const { token } = theme.useToken();
   const [containerId] = useState(`chemdraw-${Math.random().toString(36).slice(2, 11)}`);
@@ -270,36 +272,58 @@ const ChemDrawEditor: React.FC<ChemDrawEditorProps> = ({
     applyChemDrawFlip(editorInstance, axis);
   };
 
+  const flipControls = (
+    <Space
+      direction={flipControlsPlacement === 'left' ? 'vertical' : 'horizontal'}
+      style={flipControlsPlacement === 'top' ? { marginBottom: 8 } : undefined}
+    >
+      <Tooltip title="선택 구조 좌우 반전">
+        <Button
+          icon={<ArrowLeftRight size={16} />}
+          onClick={() => handleFlip('horizontal')}
+          disabled={!editorInstance}
+        />
+      </Tooltip>
+      <Tooltip title="선택 구조 상하 반전">
+        <Button
+          icon={<ArrowUpDown size={16} />}
+          onClick={() => handleFlip('vertical')}
+          disabled={!editorInstance}
+        />
+      </Tooltip>
+    </Space>
+  );
+
+  const editorCanvas = (
+    <div
+      id={containerId}
+      style={{
+        height,
+        width: '100%',
+        minWidth: 0,
+        background: token.colorBgLayout,
+        borderRadius: 8,
+        border: `1px solid ${token.colorBorderSecondary}`,
+        overflow: 'hidden'
+      }}
+    />
+  );
+
   return (
     <>
-      <Space style={{ marginBottom: 8 }}>
-        <Tooltip title="선택 구조 좌우 반전">
-          <Button
-            icon={<ArrowLeftRight size={16} />}
-            onClick={() => handleFlip('horizontal')}
-            disabled={!editorInstance}
-          />
-        </Tooltip>
-        <Tooltip title="선택 구조 상하 반전">
-          <Button
-            icon={<ArrowUpDown size={16} />}
-            onClick={() => handleFlip('vertical')}
-            disabled={!editorInstance}
-          />
-        </Tooltip>
-      </Space>
-      <div
-        id={containerId}
-        style={{
-          height,
-          width: '100%',
-          minWidth: 0,
-          background: token.colorBgLayout,
-          borderRadius: 8,
-          border: `1px solid ${token.colorBorderSecondary}`,
-          overflow: 'hidden'
-        }}
-      />
+      {flipControlsPlacement === 'left' ? (
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, minWidth: 0 }}>
+          {flipControls}
+          <div style={{ flex: '1 1 auto', minWidth: 0 }}>
+            {editorCanvas}
+          </div>
+        </div>
+      ) : (
+        <>
+          {flipControls}
+          {editorCanvas}
+        </>
+      )}
       <div style={{ marginTop: 8 }}>
         <Text type="secondary" style={{ fontSize: 11 }}>
           <Info size={14} style={{ marginRight: 4, verticalAlign: 'middle' }} />

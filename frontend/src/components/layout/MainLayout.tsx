@@ -147,6 +147,12 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
       icon: <Search size={22} />,
       onClick: () => navigate('/universal-search'),
     },
+    {
+      key: 'reaction-predictor',
+      label: 'Reaction Predictor',
+      icon: <FlaskConical size={22} />,
+      onClick: () => navigate('/reaction-predictor'),
+    },
   ];
 
   const bottomMiniMenuItems: MiniMenuItem[] = [
@@ -174,6 +180,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
     if (path === '/my-tree') return 'my-tree';
     if (path === '/chem-space') return 'chem-space';
     if (path === '/clustering') return 'clustering';
+    if (path === '/reaction-predictor') return 'reaction-predictor';
     if (path === '/patents/write') return 'patent-write';
     if (path === '/patents/analysis') return 'patent-analysis';
     if (path === '/patents/manage') return 'patent-manage';
@@ -405,6 +412,12 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                 icon: renderSidebarIcon(<Search size={22} />),
                 label: <span style={{ fontWeight: 600 }}>통합검색</span>,
                 onClick: () => navigate('/universal-search')
+              },
+              {
+                key: 'reaction-predictor',
+                icon: renderSidebarIcon(<FlaskConical size={22} />),
+                label: <span style={{ fontWeight: 600 }}>Reaction Predictor</span>,
+                onClick: () => navigate('/reaction-predictor')
               },
               ]}
             />

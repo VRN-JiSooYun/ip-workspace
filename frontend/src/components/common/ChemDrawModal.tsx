@@ -285,7 +285,7 @@ const ChemDrawModal: React.FC<ChemDrawModalProps> = ({
   };
 
   const flipControls = (
-    <Space>
+    <Space direction="vertical">
       <Tooltip title="선택 구조 좌우 반전">
         <Button
           icon={<ArrowLeftRight size={16} />}
@@ -311,8 +311,7 @@ const ChemDrawModal: React.FC<ChemDrawModalProps> = ({
       width={900}
       destroyOnHidden
       footer={
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-          {flipControls}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 12 }}>
           <Space>
             <Button onClick={handleCancel}>취소</Button>
             <Button
@@ -327,17 +326,21 @@ const ChemDrawModal: React.FC<ChemDrawModalProps> = ({
         </div>
       }
     >
-      <div 
-        id={containerId} 
-        style={{ 
-          height: 500, 
-          width: '100%',
-          background: token.colorBgLayout, 
-          borderRadius: 8, 
-          border: `1px solid ${token.colorBorderSecondary}`,
-          overflow: 'hidden'
-        }} 
-      />
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, minWidth: 0 }}>
+        {flipControls}
+        <div
+          id={containerId}
+          style={{
+            height: 500,
+            width: '100%',
+            minWidth: 0,
+            background: token.colorBgLayout,
+            borderRadius: 8,
+            border: `1px solid ${token.colorBorderSecondary}`,
+            overflow: 'hidden'
+          }}
+        />
+      </div>
       <div style={{ marginTop: 12 }}>
         <Text type="secondary" style={{ fontSize: 11 }}>
           <Info size={14} style={{ marginRight: 4, verticalAlign: 'middle' }} />

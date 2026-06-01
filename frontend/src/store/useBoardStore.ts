@@ -1,13 +1,29 @@
 import { create } from 'zustand';
 import { CompoundGroup, mockGroups } from '../mocks/compounds';
 
+export interface GroupStructureViewSettings {
+  sarImageScalePercent: number;
+  sarRotationDeg: number;
+  sarOverlapPercent: number;
+  myBoardImageScalePercent: number;
+}
+
+export const DEFAULT_GROUP_STRUCTURE_VIEW_SETTINGS: GroupStructureViewSettings = {
+  sarImageScalePercent: 100,
+  sarRotationDeg: 0,
+  sarOverlapPercent: 0,
+  myBoardImageScalePercent: 100,
+};
+
 interface BoardState {
   selectedGroupIds: string[];
   selectedSarCompoundIds: string[];
   groups: CompoundGroup[];
+  groupStructureViewSettings: Record<string, GroupStructureViewSettings>;
   toggleGroupSelection: (groupId: string) => void;
   setSelectedSarCompoundIds: (compoundIds: string[]) => void;
   clearSelectedSarCompoundIds: () => void;
+  updateGroupStructureViewSettings: (groupId: string, settings: Partial<GroupStructureViewSettings>) => void;
   addGroup: (group: CompoundGroup) => void;
   mergeGroups: (groupIds: string[], name: string) => void;
   copyGroup: (groupId: string) => void;
@@ -18,6 +34,7 @@ export const useBoardStore = create<BoardState>((set) => ({
   selectedGroupIds: [],
   selectedSarCompoundIds: [],
   groups: mockGroups,
+  groupStructureViewSettings: {},
   toggleGroupSelection: (groupId) => set((state) => ({
     selectedGroupIds: state.selectedGroupIds.includes(groupId)
       ? state.selectedGroupIds.filter(id => id !== groupId)
@@ -25,6 +42,16 @@ export const useBoardStore = create<BoardState>((set) => ({
   })),
   setSelectedSarCompoundIds: (compoundIds) => set({ selectedSarCompoundIds: compoundIds }),
   clearSelectedSarCompoundIds: () => set({ selectedSarCompoundIds: [] }),
+  updateGroupStructureViewSettings: (groupId, settings) => set((state) => ({
+    groupStructureViewSettings: {
+      ...state.groupStructureViewSettings,
+      [groupId]: {
+        ...DEFAULT_GROUP_STRUCTURE_VIEW_SETTINGS,
+        ...state.groupStructureViewSettings[groupId],
+        ...settings,
+      },
+    },
+  })),
   addGroup: (group) => set((state) => ({ groups: [...state.groups, group] })),
   mergeGroups: (groupIds, name) => set((state) => {
     const targetGroups = state.groups.filter((group) => groupIds.includes(group.id));

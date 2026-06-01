@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
 import { useUIStore } from '../store/useUIStore';
+import { DEFAULT_GROUP_STRUCTURE_VIEW_SETTINGS, useBoardStore } from '../store/useBoardStore';
 import PageHeaderBreadcrumb from '../components/common/PageHeaderBreadcrumb';
 import BenzeneIcon from '../components/common/BenzeneIcon';
 import CompoundStructureView from '../components/common/CompoundStructureView';
@@ -99,6 +100,7 @@ const SynthesisBoard: React.FC = () => {
   const navigate = useNavigate();
   const { setHeaderContent } = useUIStore();
   const { isDarkMode } = useTheme();
+  const { groupStructureViewSettings } = useBoardStore();
   const [showFilters, setShowFilters] = useState(false);
   const [keyword, setKeyword] = useState('');
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>('sg1');
@@ -135,6 +137,11 @@ const SynthesisBoard: React.FC = () => {
       boxShadow: isActive ? '0 0 0 1px rgba(248, 124, 99, 0.15)' : 'none'
     };
   };
+
+  const getGroupStructureSettings = React.useCallback((groupId: string) => ({
+    ...DEFAULT_GROUP_STRUCTURE_VIEW_SETTINGS,
+    ...groupStructureViewSettings[groupId],
+  }), [groupStructureViewSettings]);
 
   // Filter States (Sync with MyBoard)
   const projectList = ['FGFR', 'C797S DM', 'cMET', 'VRK1', 'HER2', 'WRN', 'WEE1'];
@@ -484,19 +491,36 @@ const SynthesisBoard: React.FC = () => {
       key: 'structure',
       width: 212,
       align: 'center' as const,
-      render: (structureSvg: string | undefined, record: SynthesisDetail) => (
-        <CompoundStructureView
-          svg={structureSvg}
-          title={record.compoundId || record.name || 'Structure'}
-          smiles={record.smiles}
-          molBlock={(record as any).molBlock ?? (record as any).mol_block ?? (record as any).molblock}
-          width={168}
-          height={108}
-          iconSize={40}
-          gap={6}
-          onPreview={structureSvg ? () => setStructurePreview({ title: record.compoundId || record.name || 'Structure', svg: structureSvg }) : undefined}
-        />
-      )
+      className: 'synthesis-structure-column',
+      render: (structureSvg: string | undefined, record: SynthesisDetail) => {
+        const structureSettings = getGroupStructureSettings(record.groupId);
+
+        return (
+          <div
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 0,
+            }}
+          >
+            <CompoundStructureView
+              svg={structureSvg}
+              title={record.compoundId || record.name || 'Structure'}
+              smiles={record.smiles}
+              molBlock={(record as any).molBlock ?? (record as any).mol_block ?? (record as any).molblock}
+              width={168}
+              height={108}
+              iconSize={40}
+              gap={0}
+              actionPlacement="overlay"
+              structureStyle={{ transform: `rotate(${structureSettings.sarRotationDeg}deg)` }}
+              frameStyle={{ borderColor: 'transparent', background: 'transparent' }}
+              onPreview={structureSvg ? () => setStructurePreview({ title: record.compoundId || record.name || 'Structure', svg: structureSvg }) : undefined}
+            />
+          </div>
+        );
+      }
     },
     {
       title: '단계',
@@ -822,6 +846,7 @@ const SynthesisBoard: React.FC = () => {
             </div>
             {viewMode === 'table' ? (
               <Table
+                className="synthesis-detail-table"
                 dataSource={filteredDetails}
                 columns={detailColumns}
                 size="small"
@@ -858,6 +883,7 @@ const SynthesisBoard: React.FC = () => {
                             height={72}
                             iconSize={24}
                             gap={5}
+                            structureStyle={{ transform: `rotate(${getGroupStructureSettings(d.groupId).sarRotationDeg}deg)` }}
                             onPreview={d.structureSvg ? () => setStructurePreview({ title: d.compoundId || d.name, svg: d.structureSvg || '' }) : undefined}
                           />
                         </div>
@@ -964,6 +990,18 @@ const SynthesisBoard: React.FC = () => {
         }
         .ant-table-tbody > tr > td {
           font-size: var(--table-cell-font-size);
+        }
+        .synthesis-detail-table .ant-table-tbody > tr > td.synthesis-structure-column {
+          padding: 4px !important;
+        }
+        .synthesis-detail-table .ant-table-thead > tr > th.synthesis-structure-column {
+          padding-left: 4px !important;
+          padding-right: 4px !important;
+        }
+        .synthesis-detail-table .synthesis-structure-column .compound-structure-actions-overlay {
+          top: auto;
+          right: 4px;
+          bottom: 4px;
         }
         .synthesis-structure-svg {
           display: flex;

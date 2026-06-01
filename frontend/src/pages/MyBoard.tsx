@@ -9,9 +9,9 @@ import {
   Search, Plus, Filter, Settings, List as ListIcon,
   Image as ImageIcon, GitBranch, Info, ChevronDown, ChevronUp, Beaker,
   Activity, Share2, GripVertical, Upload as UploadIcon, FileText,
-  PanelLeftClose, PanelLeftOpen, Copy, Trash2, Combine, Edit3, MoveRight
+  PanelLeftClose, PanelLeftOpen, Copy, Trash2, Combine, Edit3, MoveRight, Minus
 } from 'lucide-react';
-import { useBoardStore } from '../store/useBoardStore';
+import { DEFAULT_GROUP_STRUCTURE_VIEW_SETTINGS, useBoardStore } from '../store/useBoardStore';
 import { mockCompounds, type Compound } from '../mocks/compounds';
 import { useUserStore } from '../store/useUserStore';
 import RadarChart from '../components/charts/RadarChart';
@@ -63,7 +63,7 @@ const MYBOARD_GROUP_COLUMN_WIDTHS = {
   bookmark: 40,
   creDate: 100,
   target: 80,
-  representativeStructure: 122,
+  representativeStructure: 156,
   count: 60,
   groupOrder: 72,
   shareStatus: 56,
@@ -77,6 +77,30 @@ const createFixedGroupColumnProps = (width: number) => ({
   style: createFixedGroupColumnStyle(width),
 });
 const MYBOARD_GROUP_FIXED_COLUMN_WIDTH = Object.values(MYBOARD_GROUP_COLUMN_WIDTHS).reduce((sum, width) => sum + width, 0);
+const MYBOARD_STRUCTURE_BASE_WIDTH = 168;
+const MYBOARD_STRUCTURE_BASE_HEIGHT = 108;
+const MYBOARD_STRUCTURE_BASE_PERCENT = 120;
+const MYBOARD_STRUCTURE_SCALE_BASE_RATIO = 0.9975;
+const MYBOARD_GROUP_STRUCTURE_WIDTH = 117;
+const MYBOARD_GROUP_STRUCTURE_HEIGHT = 87.75;
+const MYBOARD_GROUP_STRUCTURE_MAX_WIDTH = 124;
+const MYBOARD_GROUP_STRUCTURE_MAX_HEIGHT = 97;
+const MYBOARD_GROUP_STRUCTURE_ONLY_COLUMN_WIDTH = 124;
+const MYBOARD_GROUP_STRUCTURE_ONLY_PANEL_WIDTH = 136;
+const MYBOARD_STRUCTURE_IMAGE_SCALE_MIN = 70;
+const MYBOARD_STRUCTURE_IMAGE_SCALE_MAX = 120;
+const MYBOARD_STRUCTURE_IMAGE_SCALE_STEP = 5;
+const getRotatedStructureBounds = (width: number, height: number, rotationDeg: number) => {
+  const normalizedDeg = ((rotationDeg % 180) + 180) % 180;
+  const radians = normalizedDeg * Math.PI / 180;
+  const cos = Math.abs(Math.cos(radians));
+  const sin = Math.abs(Math.sin(radians));
+
+  return {
+    width: Math.ceil(width * cos + height * sin),
+    height: Math.ceil(width * sin + height * cos),
+  };
+};
 const estimateGroupTitleTextWidth = (text: string) => {
   const textWidth = Array.from(text).reduce((sum, char) => {
     if (char === ' ') return sum + 4;
@@ -120,6 +144,8 @@ const MyBoard: React.FC = () => {
     toggleGroupSelection,
     setSelectedSarCompoundIds,
     groups,
+    groupStructureViewSettings,
+    updateGroupStructureViewSettings,
     mergeGroups,
     copyGroup,
     deleteGroups,
@@ -491,6 +517,32 @@ const MyBoard: React.FC = () => {
       return acc;
     }, {});
   }, [selectedGroupIds]);
+  const activeStructureSettingsGroupId = selectedGroupIds.length === 1 ? selectedGroupIds[0] : null;
+  const activeStructureSettings = activeStructureSettingsGroupId
+    ? {
+        ...DEFAULT_GROUP_STRUCTURE_VIEW_SETTINGS,
+        ...groupStructureViewSettings[activeStructureSettingsGroupId],
+      }
+    : null;
+  const isStructureSettingsDisabled = !activeStructureSettingsGroupId;
+  const updateActiveStructureSettings = (settings: Partial<typeof DEFAULT_GROUP_STRUCTURE_VIEW_SETTINGS>) => {
+    if (!activeStructureSettingsGroupId) return;
+    updateGroupStructureViewSettings(activeStructureSettingsGroupId, settings);
+  };
+  const clampMyBoardStructureScale = (value: number) => {
+    const steppedValue = Math.round(value / MYBOARD_STRUCTURE_IMAGE_SCALE_STEP) * MYBOARD_STRUCTURE_IMAGE_SCALE_STEP;
+    return Math.min(MYBOARD_STRUCTURE_IMAGE_SCALE_MAX, Math.max(MYBOARD_STRUCTURE_IMAGE_SCALE_MIN, steppedValue));
+  };
+  const changeMyBoardStructureScale = (delta: number) => {
+    const currentValue = activeStructureSettings?.myBoardImageScalePercent ?? DEFAULT_GROUP_STRUCTURE_VIEW_SETTINGS.myBoardImageScalePercent;
+    updateActiveStructureSettings({
+      myBoardImageScalePercent: clampMyBoardStructureScale(currentValue + delta),
+    });
+  };
+  const getGroupStructureSettings = React.useCallback((groupId: string) => ({
+    ...DEFAULT_GROUP_STRUCTURE_VIEW_SETTINGS,
+    ...groupStructureViewSettings[groupId],
+  }), [groupStructureViewSettings]);
 
   const filteredCompounds = React.useMemo(() => {
     return compoundRows
@@ -547,6 +599,17 @@ const MyBoard: React.FC = () => {
   const renderRepresentativeStructure = (_: any, record: any) => {
     const representativeCompound = firstCompoundByGroupId[record.id];
     const structureSvg = representativeCompound?.structureSvg;
+    const structureSettings = getGroupStructureSettings(record.id);
+    const rotatedBounds = getRotatedStructureBounds(
+      MYBOARD_GROUP_STRUCTURE_WIDTH,
+      MYBOARD_GROUP_STRUCTURE_HEIGHT,
+      structureSettings.sarRotationDeg
+    );
+    const structureFitScale = Math.min(
+      1,
+      MYBOARD_GROUP_STRUCTURE_MAX_WIDTH / rotatedBounds.width,
+      MYBOARD_GROUP_STRUCTURE_MAX_HEIGHT / rotatedBounds.height
+    );
 
     return (
       <div
@@ -556,7 +619,9 @@ const MyBoard: React.FC = () => {
           display: 'inline-flex',
           alignItems: 'center',
           justifyContent: 'center',
-          gap: 4,
+          gap: 0,
+          minWidth: Math.ceil(rotatedBounds.width * structureFitScale),
+          minHeight: Math.ceil(rotatedBounds.height * structureFitScale),
         }}
       >
         <CompoundStructureView
@@ -565,12 +630,13 @@ const MyBoard: React.FC = () => {
           smiles={representativeCompound?.smiles}
           molBlock={(representativeCompound as any)?.molBlock ?? (representativeCompound as any)?.mol_block ?? (representativeCompound as any)?.molblock}
           cdxml={(representativeCompound as any)?.draw}
-          width={86}
-          height={52}
-          iconSize={20}
-          gap={4}
-          showPreviewAction={!isGroupListStructureOnly}
-          showCopyAction={!isGroupListStructureOnly}
+          width={MYBOARD_GROUP_STRUCTURE_WIDTH}
+          height={MYBOARD_GROUP_STRUCTURE_HEIGHT}
+          iconSize={40}
+          gap={0}
+          actionPlacement="overlay"
+          structureStyle={{ transform: `scale(${structureFitScale}) rotate(${structureSettings.sarRotationDeg}deg)` }}
+          frameStyle={{ borderColor: 'transparent', background: 'transparent', overflow: 'visible' }}
           onPreview={structureSvg ? () => {
             setStructurePreview({
               title: representativeCompound?.compoundId || representativeCompound?.name || 'Structure',
@@ -669,7 +735,7 @@ const MyBoard: React.FC = () => {
       width: MYBOARD_GROUP_COLUMN_WIDTHS.representativeStructure,
       minWidth: MYBOARD_GROUP_COLUMN_WIDTHS.representativeStructure,
       align: 'center' as const,
-      className: 'my-board-group-fixed-column',
+      className: 'my-board-group-fixed-column my-board-structure-column',
       onCell: () => createFixedGroupColumnProps(MYBOARD_GROUP_COLUMN_WIDTHS.representativeStructure),
       onHeaderCell: () => createFixedGroupColumnProps(MYBOARD_GROUP_COLUMN_WIDTHS.representativeStructure),
       render: renderRepresentativeStructure
@@ -970,8 +1036,9 @@ const MyBoard: React.FC = () => {
     {
       title: '화합물 구조',
       key: 'representativeStructure',
-      width: MYBOARD_GROUP_COLUMN_WIDTHS.representativeStructure,
+      width: MYBOARD_GROUP_STRUCTURE_ONLY_COLUMN_WIDTH,
       align: 'center' as const,
+      className: 'my-board-structure-column',
       render: renderRepresentativeStructure
     }
   ];
@@ -993,10 +1060,20 @@ const MyBoard: React.FC = () => {
       dataIndex: 'structureSvg',
       key: 'structure',
       width: 212,
+      className: 'my-board-structure-column',
       render: (structureSvg: string | undefined, record: any) => {
         const displaySvg = searchedSvg && (keyword === record.smiles || keyword === 'Structure Search Result')
           ? searchedSvg
           : structureSvg;
+        const structureSettings = getGroupStructureSettings(record.groupId);
+        const structureScale = (structureSettings.myBoardImageScalePercent / MYBOARD_STRUCTURE_BASE_PERCENT) * MYBOARD_STRUCTURE_SCALE_BASE_RATIO;
+        const structureWidth = Math.round(MYBOARD_STRUCTURE_BASE_WIDTH * structureScale);
+        const structureHeight = Math.round(MYBOARD_STRUCTURE_BASE_HEIGHT * structureScale);
+        const rotatedBounds = getRotatedStructureBounds(
+          structureWidth,
+          structureHeight,
+          structureSettings.sarRotationDeg
+        );
 
         return (
           <div
@@ -1004,7 +1081,9 @@ const MyBoard: React.FC = () => {
               display: 'inline-flex',
               alignItems: 'center',
               justifyContent: 'center',
-              gap: 6,
+              gap: 0,
+              width: rotatedBounds.width,
+              minHeight: rotatedBounds.height,
             }}
           >
             <CompoundStructureView
@@ -1013,10 +1092,13 @@ const MyBoard: React.FC = () => {
               smiles={record.smiles}
               molBlock={record.molBlock ?? record.mol_block ?? record.molblock}
               cdxml={record.draw}
-              width={168}
-              height={108}
+              width={structureWidth}
+              height={structureHeight}
               iconSize={40}
-              gap={6}
+              gap={0}
+              actionPlacement="overlay"
+              structureStyle={{ transform: `rotate(${structureSettings.sarRotationDeg}deg)` }}
+              frameStyle={{ borderColor: 'transparent', background: 'transparent', overflow: 'visible' }}
               onPreview={displaySvg ? () => {
                 setStructurePreview({
                   title: record.compoundId || record.name || 'Structure',
@@ -1324,9 +1406,9 @@ const MyBoard: React.FC = () => {
             width: isStackedSplitLayout
               ? '100%'
               : isGroupListStructureOnly
-                ? 128
+                ? MYBOARD_GROUP_STRUCTURE_ONLY_PANEL_WIDTH
                 : `calc(${splitRatio}% - 6px)`,
-            flex: isGroupListStructureOnly && !isStackedSplitLayout ? '0 0 128px' : undefined,
+            flex: isGroupListStructureOnly && !isStackedSplitLayout ? `0 0 ${MYBOARD_GROUP_STRUCTURE_ONLY_PANEL_WIDTH}px` : undefined,
             minWidth: 0,
             transition: isResizingSplit ? 'none' : 'width 0.2s ease, flex-basis 0.2s ease'
           }}
@@ -1552,6 +1634,28 @@ const MyBoard: React.FC = () => {
                 <Space>
                   {viewMode === 'table' && (
                   <>
+                    <div className="my-board-structure-setting-row" aria-label="화합물 구조 크기 설정">
+                      <Tooltip title="구조 이미지 축소">
+                        <Button
+                          size="small"
+                          icon={<Minus size={12} />}
+                          disabled={isStructureSettingsDisabled}
+                          onClick={() => changeMyBoardStructureScale(-MYBOARD_STRUCTURE_IMAGE_SCALE_STEP)}
+                        />
+                      </Tooltip>
+                      <div className="my-board-structure-setting-value">
+                        {activeStructureSettings ? `${activeStructureSettings.myBoardImageScalePercent}%` : ''}
+                      </div>
+                      <Tooltip title="구조 이미지 확대">
+                        <Button
+                          size="small"
+                          icon={<Plus size={12} />}
+                          disabled={isStructureSettingsDisabled}
+                          onClick={() => changeMyBoardStructureScale(MYBOARD_STRUCTURE_IMAGE_SCALE_STEP)}
+                        />
+                      </Tooltip>
+                    </div>
+                    <Divider type="vertical" />
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       <div style={{ display: 'flex', gap: 4 }}>
                         {[1, 2, 3, 4, 5].map(n => (
@@ -1906,6 +2010,7 @@ const MyBoard: React.FC = () => {
                 <ChemDrawEditor
                   active={isDesignModalOpen}
                   height={420}
+                  flipControlsPlacement="left"
                   smilesValue={designSmiles}
                   onSmilesChange={setDesignSmiles}
                   onReady={setCdjsInstance}
@@ -1991,6 +2096,7 @@ const MyBoard: React.FC = () => {
 
       {/* Settings Modal (Interactive DND) */}
       <Modal
+        className="my-board-settings-modal"
         title="테이블 컬럼 설정 (드래그하여 순서 변경)"
         open={isSettingsModalOpen}
         onCancel={() => setIsSettingsModalOpen(false)}
@@ -2129,20 +2235,75 @@ const MyBoard: React.FC = () => {
         .my-board-detail-row-selected:hover > td {
           background-color: var(--table-row-selected-hover-bg) !important;
         }
+        .my-board-detail-table .ant-table-tbody > tr > td.my-board-structure-column {
+          padding: 4px !important;
+        }
+        .my-board-detail-table .ant-table-thead > tr > th.my-board-structure-column {
+          padding-left: 4px !important;
+          padding-right: 4px !important;
+        }
+        .my-board-group-table .ant-table-tbody > tr > td.my-board-structure-column {
+          padding: 4px !important;
+        }
+        .my-board-group-table .ant-table-thead > tr > th.my-board-structure-column {
+          padding-left: 4px !important;
+          padding-right: 4px !important;
+        }
+        .my-board-table .my-board-structure-column .compound-structure-actions-overlay {
+          top: auto;
+          right: 4px;
+          bottom: 4px;
+        }
+        .my-board-structure-setting-row {
+          display: inline-grid;
+          grid-template-columns: 24px 42px 24px;
+          align-items: center;
+          gap: 4px;
+        }
+        .my-board-structure-setting-row .ant-btn {
+          width: 24px;
+          height: 20px;
+          min-width: 24px;
+          padding: 0;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          border-radius: 2px;
+        }
+        .my-board-structure-setting-value {
+          height: 20px;
+          min-width: 42px;
+          padding: 0 4px;
+          border: 1px solid ${token.colorBorderSecondary};
+          border-radius: 2px;
+          background: ${token.colorBgContainer};
+          color: ${token.colorText};
+          font-size: 10px;
+          line-height: 18px;
+          text-align: center;
+          box-sizing: border-box;
+          user-select: none;
+        }
         .my-board-group-table-structure-only .ant-table-tbody .my-board-representative-structure {
           width: 100% !important;
           margin: 0 !important;
         }
-        .my-board-group-table-structure-only .ant-table-tbody > tr > td {
-          padding-left: 4px !important;
-          padding-right: 4px !important;
         }
         .my-board-group-table-structure-only .ant-table-tbody .compound-structure-view {
           width: 100% !important;
           margin: 0 !important;
         }
         .my-board-group-table-structure-only .ant-table-tbody .compound-structure-frame {
-          width: 100% !important;
+          width: ${MYBOARD_GROUP_STRUCTURE_WIDTH}px !important;
+          height: ${MYBOARD_GROUP_STRUCTURE_HEIGHT}px !important;
+          overflow: visible !important;
+        }
+        .my-board-group-table-structure-only .ant-table-thead > tr > th {
+          text-align: center !important;
+        }
+        .my-board-group-table-structure-only .ant-table-container,
+        .my-board-group-table-structure-only .ant-table-content {
+          overflow: hidden !important;
         }
         .my-board-structure-preview > svg {
           width: 100% !important;
@@ -2158,6 +2319,26 @@ const MyBoard: React.FC = () => {
         .my-board-detail-table .ant-pagination {
           padding-right: 16px;
           box-sizing: border-box;
+        }
+        .my-board-settings-modal .ant-modal-body {
+          scrollbar-width: thin;
+          scrollbar-color: ${token.colorBorder} transparent;
+        }
+        .my-board-settings-modal .ant-modal-body::-webkit-scrollbar {
+          width: 10px;
+          height: 10px;
+        }
+        .my-board-settings-modal .ant-modal-body::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        .my-board-settings-modal .ant-modal-body::-webkit-scrollbar-thumb {
+          background-color: ${token.colorBorder};
+          border: 3px solid transparent;
+          border-radius: 999px;
+          background-clip: content-box;
+        }
+        .my-board-settings-modal .ant-modal-body::-webkit-scrollbar-thumb:hover {
+          background-color: ${token.colorTextQuaternary};
         }
         .my-board-bookmark-button {
           width: 24px;
