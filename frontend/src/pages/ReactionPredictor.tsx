@@ -80,6 +80,7 @@ const ReactionPredictor: React.FC = () => {
   const [isStructureModalOpen, setIsStructureModalOpen] = useState(false);
   const [predictionName, setPredictionName] = useState('OA-032');
   const [predictionSmiles, setPredictionSmiles] = useState('');
+  const predictionEditorRef = React.useRef<any>(null);
   const [detectedSites, setDetectedSites] = useState<ReactionSite[]>([
     { site: 'C3', leavingGroup: 'Br', enabled: false },
     { site: 'C4', leavingGroup: 'Br', enabled: false },
@@ -138,14 +139,16 @@ const ReactionPredictor: React.FC = () => {
     setIsStructureModalOpen(false);
   };
 
-  const handleRunPrediction = () => {
+  const handleRunPrediction = async () => {
+    const flushedSmiles = await predictionEditorRef.current?.__flushPendingInput?.();
+    const nextSmiles = typeof flushedSmiles === 'string' ? flushedSmiles : predictionSmiles;
     const sourceRow = mockReactionPredictions[0];
     const enabledSites = detectedSites.filter((site) => site.enabled);
     const nextRow: ReactionPredictionRow = {
       ...sourceRow,
       id: `rp-${Date.now()}`,
       name: predictionName.trim() || 'OA prediction',
-      smiles: predictionSmiles.trim() || sourceRow.smiles,
+      smiles: nextSmiles.trim() || sourceRow.smiles,
       reactionType,
       sites: enabledSites.length > 0 ? enabledSites : detectedSites,
       startDate: '26.06.01 10:30',
@@ -317,7 +320,11 @@ const ReactionPredictor: React.FC = () => {
               rowKey="id"
               columns={columns}
               dataSource={filteredRows}
-              pagination={false}
+              pagination={{
+                defaultPageSize: 10,
+                showSizeChanger: true,
+                pageSizeOptions: [10, 30, 50, 100],
+              }}
               scroll={{ x: 850 }}
               rowClassName={(row) => (row.id === selectedRow?.id ? 'row-selected' : '')}
               onRow={(row) => ({
@@ -426,6 +433,9 @@ const ReactionPredictor: React.FC = () => {
               height={460}
               smilesValue={predictionSmiles}
               onSmilesChange={setPredictionSmiles}
+              onReady={(editor) => {
+                predictionEditorRef.current = editor;
+              }}
               flipControlsPlacement="left"
             />
             <Text type="secondary" style={{ display: 'block', marginTop: 12 }}>Name</Text>
@@ -479,6 +489,10 @@ const ReactionPredictor: React.FC = () => {
               block
               size="large"
               icon={<Sparkles size={18} />}
+              onMouseDown={(event: React.MouseEvent<HTMLElement>) => {
+                event.preventDefault();
+                void predictionEditorRef.current?.__flushPendingInput?.();
+              }}
               onClick={handleRunPrediction}
               disabled={!detectedSites.some((site) => site.enabled)}
             >

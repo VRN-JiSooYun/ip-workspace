@@ -607,8 +607,13 @@ const WhiteboardEditor: React.FC<WhiteboardEditorProps> = ({
     window.addEventListener('paste', handlePaste);
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      const target = e.target as HTMLElement | null;
-      const isEditableTarget = target?.closest('input, textarea, [contenteditable="true"]');
+      const target = e.target as EventTarget | null;
+      const isEditableTarget = Boolean(
+        target &&
+        'closest' in target &&
+        typeof target.closest === 'function' &&
+        target.closest('input, textarea, [contenteditable="true"]')
+      );
       const activeObject = canvas.getActiveObject();
       const data = getStructureData(activeObject);
 

@@ -463,6 +463,26 @@ span.ant-typography {
   text-align: right;
 }
 
+.reaction-calculation-card .ant-table-pagination.ant-pagination {
+  margin: 12px 16px 14px;
+  padding-right: 0;
+  box-sizing: border-box;
+  align-items: center;
+}
+
+.reaction-calculation-card .ant-pagination .ant-pagination-item-active {
+  border-color: #F87C63;
+  background: transparent;
+}
+
+.reaction-calculation-card .ant-pagination .ant-pagination-item-active a {
+  color: #F87C63;
+}
+
+.reaction-calculation-card .ant-pagination .ant-select-selector {
+  border-radius: 6px;
+}
+
 .reaction-result-panel {
   display: flex;
   flex-direction: column;
@@ -547,6 +567,14 @@ span.ant-typography {
   align-items: center;
   gap: 10px;
   text-align: center;
+}
+
+.reaction-factor-row .ant-tag {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  margin-inline-end: 0;
 }
 
 .reaction-factor-copy {

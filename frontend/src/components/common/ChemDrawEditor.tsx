@@ -3,6 +3,7 @@ import { Button, Space, Tooltip, Typography, theme } from 'antd';
 import { ArrowLeftRight, ArrowUpDown, Info } from 'lucide-react';
 import { CHEMDRAW_CONFIG } from '../../config/chemdraw';
 import { installChemDrawKoreanKeyboardBridge } from '../../utils/chemdrawKeyboard';
+import { commitChemDrawActiveInput, waitForChemDrawEditorReady } from '../../utils/chemdrawCommit';
 import { applyChemDrawFlip } from '../../utils/chemdrawTransform';
 import type { ChemDrawFlipAxis } from '../../utils/chemdrawTransform';
 
@@ -139,6 +140,17 @@ const ChemDrawEditor: React.FC<ChemDrawEditorProps> = ({
     }
   };
 
+  const flushPendingInput = async (editor = editorInstance) => {
+    if (!editor) return '';
+
+    await commitChemDrawActiveInput(containerId, editor);
+
+    const smiles = await getEditorSmiles(editor);
+    lastEmittedSmilesRef.current = smiles;
+    onSmilesChange?.(smiles);
+    return smiles;
+  };
+
   useEffect(() => {
     if (!active) {
       setEditorInstance(null);
@@ -188,9 +200,13 @@ const ChemDrawEditor: React.FC<ChemDrawEditorProps> = ({
             viewOnly: false,
             callback: (editor: any) => {
               if (isDisposed) return;
-              setEditorInstance(editor);
-              onReady?.(editor);
+              editor.__flushPendingInput = () => flushPendingInput(editor);
               window.setTimeout(() => loadStructure(editor), 500);
+              void waitForChemDrawEditorReady(containerId, editor).then(() => {
+                if (isDisposed) return;
+                setEditorInstance(editor);
+                onReady?.(editor);
+              });
             }
           });
         }, 300);

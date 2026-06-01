@@ -496,29 +496,21 @@ const SynthesisBoard: React.FC = () => {
         const structureSettings = getGroupStructureSettings(record.groupId);
 
         return (
-          <div
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 0,
-            }}
-          >
-            <CompoundStructureView
-              svg={structureSvg}
-              title={record.compoundId || record.name || 'Structure'}
-              smiles={record.smiles}
-              molBlock={(record as any).molBlock ?? (record as any).mol_block ?? (record as any).molblock}
-              width={168}
-              height={108}
-              iconSize={40}
-              gap={0}
-              actionPlacement="overlay"
-              structureStyle={{ transform: `rotate(${structureSettings.sarRotationDeg}deg)` }}
-              frameStyle={{ border: 0, background: 'transparent', boxShadow: 'none' }}
-              onPreview={structureSvg ? () => setStructurePreview({ title: record.compoundId || record.name || 'Structure', svg: structureSvg }) : undefined}
-            />
-          </div>
+          <CompoundStructureView
+            svg={structureSvg}
+            title={record.compoundId || record.name || 'Structure'}
+            smiles={record.smiles}
+            molBlock={(record as any).molBlock ?? (record as any).mol_block ?? (record as any).molblock}
+            width={168}
+            height={108}
+            iconSize={40}
+            gap={0}
+            actionPlacement="overlay"
+            fitRotatedBounds
+            frameless
+            rotationDeg={structureSettings.sarRotationDeg}
+            onPreview={structureSvg ? () => setStructurePreview({ title: record.compoundId || record.name || 'Structure', svg: structureSvg }) : undefined}
+          />
         );
       }
     },

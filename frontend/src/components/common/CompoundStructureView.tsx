@@ -36,7 +36,23 @@ export interface CompoundStructureViewProps {
   onPreview?: () => void;
   actionPlacement?: 'rail' | 'overlay';
   actions?: CompoundStructureAction[];
+  rotationDeg?: number;
+  fitRotatedBounds?: boolean;
+  frameless?: boolean;
+  containerStyle?: React.CSSProperties;
 }
+
+export const getRotatedStructureBounds = (width: number, height: number, rotationDeg: number) => {
+  const normalizedDeg = ((rotationDeg % 180) + 180) % 180;
+  const radians = normalizedDeg * Math.PI / 180;
+  const cos = Math.abs(Math.cos(radians));
+  const sin = Math.abs(Math.sin(radians));
+
+  return {
+    width: Math.ceil(width * cos + height * sin),
+    height: Math.ceil(width * sin + height * cos),
+  };
+};
 
 export const getCompoundStructureCopyText = (params: {
   smiles?: string | null;
@@ -187,11 +203,27 @@ const CompoundStructureView: React.FC<CompoundStructureViewProps> = ({
   onPreview,
   actionPlacement = 'rail',
   actions = [],
+  rotationDeg,
+  fitRotatedBounds = false,
+  frameless = false,
+  containerStyle,
 }) => {
   const { token } = theme.useToken();
   const { message } = App.useApp();
   const copyText = getCompoundStructureCopyText({ smiles, molBlock, cdxml, svg });
   const hasRenderableChemData = !!(cdxml || molBlock || smiles);
+  const shouldFitRotatedBounds = fitRotatedBounds && typeof width === 'number' && typeof height === 'number';
+  const rotatedBounds = shouldFitRotatedBounds
+    ? getRotatedStructureBounds(width, height, rotationDeg ?? 0)
+    : null;
+  const mergedFrameStyle: React.CSSProperties = {
+    ...(frameless ? { border: 0, background: 'transparent', boxShadow: 'none', overflow: 'visible' } : {}),
+    ...frameStyle,
+  };
+  const mergedStructureStyle: React.CSSProperties = {
+    ...(rotationDeg == null ? {} : { transform: `rotate(${rotationDeg}deg)` }),
+    ...structureStyle,
+  };
 
   const previewAction: CompoundStructureAction[] = showPreviewAction && svg && onPreview ? [{
     key: 'preview',
@@ -232,6 +264,8 @@ const CompoundStructureView: React.FC<CompoundStructureViewProps> = ({
         gap,
         width: fullWidth ? '100%' : 'fit-content',
         margin: fullWidth ? undefined : '0 auto',
+        ...(rotatedBounds ? { width: rotatedBounds.width, minHeight: rotatedBounds.height } : {}),
+        ...containerStyle,
       }}
     >
       <div
@@ -248,7 +282,7 @@ const CompoundStructureView: React.FC<CompoundStructureViewProps> = ({
           border: `1px solid ${token.colorBorderSecondary}`,
           overflow: 'hidden',
           position: 'relative',
-          ...frameStyle,
+          ...mergedFrameStyle,
         }}
         >
         {svg ? (
@@ -261,12 +295,12 @@ const CompoundStructureView: React.FC<CompoundStructureViewProps> = ({
               alignItems: 'center',
               justifyContent: 'center',
               transformOrigin: 'center',
-              ...structureStyle,
+              ...mergedStructureStyle,
             }}
             dangerouslySetInnerHTML={{ __html: svg }}
           />
         ) : hasRenderableChemData ? (
-          <div style={{ width: '100%', height: '100%', transformOrigin: 'center', ...structureStyle }}>
+          <div style={{ width: '100%', height: '100%', transformOrigin: 'center', ...mergedStructureStyle }}>
             <ChemDrawStructurePreview cdxml={cdxml} molBlock={molBlock} smiles={smiles} />
           </div>
         ) : (

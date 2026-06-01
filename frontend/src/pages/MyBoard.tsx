@@ -23,7 +23,7 @@ import WhiteboardEditor from '../components/board/WhiteboardEditor';
 import ChemDrawModal from '../components/common/ChemDrawModal';
 import ChemDrawEditor from '../components/common/ChemDrawEditor';
 import BenzeneIcon from '../components/common/BenzeneIcon';
-import CompoundStructureView from '../components/common/CompoundStructureView';
+import CompoundStructureView, { getRotatedStructureBounds } from '../components/common/CompoundStructureView';
 import ToggleTag from '../components/common/ToggleTag';
 import shareForwardIconRaw from '../assets/svg/share-forward-fill.svg?raw';
 import shareIconRaw from '../assets/svg/share.svg?raw';
@@ -90,17 +90,6 @@ const MYBOARD_GROUP_STRUCTURE_ONLY_PANEL_WIDTH = 136;
 const MYBOARD_STRUCTURE_IMAGE_SCALE_MIN = 70;
 const MYBOARD_STRUCTURE_IMAGE_SCALE_MAX = 120;
 const MYBOARD_STRUCTURE_IMAGE_SCALE_STEP = 5;
-const getRotatedStructureBounds = (width: number, height: number, rotationDeg: number) => {
-  const normalizedDeg = ((rotationDeg % 180) + 180) % 180;
-  const radians = normalizedDeg * Math.PI / 180;
-  const cos = Math.abs(Math.cos(radians));
-  const sin = Math.abs(Math.sin(radians));
-
-  return {
-    width: Math.ceil(width * cos + height * sin),
-    height: Math.ceil(width * sin + height * cos),
-  };
-};
 const estimateGroupTitleTextWidth = (text: string) => {
   const textWidth = Array.from(text).reduce((sum, char) => {
     if (char === ' ') return sum + 4;
@@ -1069,44 +1058,29 @@ const MyBoard: React.FC = () => {
         const structureScale = (structureSettings.myBoardImageScalePercent / MYBOARD_STRUCTURE_BASE_PERCENT) * MYBOARD_STRUCTURE_SCALE_BASE_RATIO;
         const structureWidth = Math.round(MYBOARD_STRUCTURE_BASE_WIDTH * structureScale);
         const structureHeight = Math.round(MYBOARD_STRUCTURE_BASE_HEIGHT * structureScale);
-        const rotatedBounds = getRotatedStructureBounds(
-          structureWidth,
-          structureHeight,
-          structureSettings.sarRotationDeg
-        );
 
         return (
-          <div
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 0,
-              width: rotatedBounds.width,
-              minHeight: rotatedBounds.height,
-            }}
-          >
-            <CompoundStructureView
-              svg={displaySvg}
-              title={record.compoundId || record.name || 'Structure'}
-              smiles={record.smiles}
-              molBlock={record.molBlock ?? record.mol_block ?? record.molblock}
-              cdxml={record.draw}
-              width={structureWidth}
-              height={structureHeight}
-              iconSize={40}
-              gap={0}
-              actionPlacement="overlay"
-              structureStyle={{ transform: `rotate(${structureSettings.sarRotationDeg}deg)` }}
-              frameStyle={{ border: 0, background: 'transparent', boxShadow: 'none', overflow: 'visible' }}
-              onPreview={displaySvg ? () => {
-                setStructurePreview({
-                  title: record.compoundId || record.name || 'Structure',
-                  svg: displaySvg,
-                });
-              } : undefined}
-            />
-          </div>
+          <CompoundStructureView
+            svg={displaySvg}
+            title={record.compoundId || record.name || 'Structure'}
+            smiles={record.smiles}
+            molBlock={record.molBlock ?? record.mol_block ?? record.molblock}
+            cdxml={record.draw}
+            width={structureWidth}
+            height={structureHeight}
+            iconSize={40}
+            gap={0}
+            actionPlacement="overlay"
+            fitRotatedBounds
+            frameless
+            rotationDeg={structureSettings.sarRotationDeg}
+            onPreview={displaySvg ? () => {
+              setStructurePreview({
+                title: record.compoundId || record.name || 'Structure',
+                svg: displaySvg,
+              });
+            } : undefined}
+          />
         );
       }
     },
@@ -1956,11 +1930,18 @@ const MyBoard: React.FC = () => {
           setIsDesignModalOpen(false);
           setCdjsInstance(null);
         }}
-        onOk={() => {
+        onOk={async () => {
+          await cdjsInstance?.__flushPendingInput?.();
           setIsDesignModalOpen(false);
           setCdjsInstance(null);
         }}
-        okButtonProps={{ disabled: !cdjsInstance }}
+        okButtonProps={{
+          disabled: !cdjsInstance,
+          onMouseDown: (event: React.MouseEvent<HTMLElement>) => {
+            event.preventDefault();
+            void cdjsInstance?.__flushPendingInput?.();
+          },
+        }}
         okText="등록"
         cancelText="취소"
         width={1200}
@@ -2354,6 +2335,8 @@ const MyBoard: React.FC = () => {
           align-items: center;
           justify-content: center;
           color: ${token.colorTextTertiary};
+          border: 1px solid transparent;
+          transition: background-color 0.16s ease, color 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease;
         }
         .my-board-bookmark-icon {
           width: 14px;
@@ -2365,11 +2348,20 @@ const MyBoard: React.FC = () => {
         }
         .my-board-bookmark-button.active {
           color: ${token.colorPrimary};
-          background: ${token.colorPrimaryBg};
+          background: color-mix(in srgb, ${token.colorPrimary} 18%, ${token.colorBgContainer});
+          border-color: ${token.colorPrimary};
+          box-shadow: inset 0 0 0 1px ${token.colorPrimary};
         }
         .my-board-bookmark-button:hover {
           color: ${token.colorPrimary};
           background: ${token.colorPrimaryBg};
+        }
+        .my-board-bookmark-button.active:hover,
+        .my-board-bookmark-button.active:focus-visible {
+          color: ${token.colorPrimary};
+          background: color-mix(in srgb, ${token.colorPrimary} 24%, ${token.colorBgContainer});
+          border-color: ${token.colorPrimary};
+          box-shadow: inset 0 0 0 1px ${token.colorPrimary};
         }
         .canvas-card:hover { border-color: ${token.colorPrimary} !important; transform: translateY(-4px); box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
         .cdd-clipboard-icon-container, .CDW_Logo, .cdd-logo { display: none !important; }

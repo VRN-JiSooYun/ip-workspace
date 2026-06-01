@@ -3,6 +3,7 @@ import { Modal, Button, Space, Tooltip, Typography, theme } from 'antd';
 import { ArrowLeftRight, ArrowUpDown, Info } from 'lucide-react';
 import { CHEMDRAW_CONFIG } from '../../config/chemdraw';
 import { installChemDrawKoreanKeyboardBridge } from '../../utils/chemdrawKeyboard';
+import { commitChemDrawActiveInput, waitForChemDrawEditorReady } from '../../utils/chemdrawCommit';
 import { applyChemDrawFlip } from '../../utils/chemdrawTransform';
 import type { ChemDrawFlipAxis } from '../../utils/chemdrawTransform';
 
@@ -126,7 +127,6 @@ const ChemDrawModal: React.FC<ChemDrawModalProps> = ({
             license: CHEMDRAW_CONFIG.LICENSE_XML,
             viewOnly: false,
             callback: (editor: any) => {
-              setCdjsInstance(editor);
               // initialCdxml, initialMolblock 또는 initialSmiles를 에디터에 로드
               const loadStructure = () => {
                 if (!editor) return;
@@ -167,6 +167,10 @@ const ChemDrawModal: React.FC<ChemDrawModalProps> = ({
               };
               // 에디터 초기화 직후에는 준비 안 될 수 있으므로 약간의 딜레이
               setTimeout(loadStructure, 500);
+              void waitForChemDrawEditorReady(containerId, editor).then(() => {
+                if (isDisposed) return;
+                setCdjsInstance(editor);
+              });
             }
           });
         }, 300);
@@ -204,8 +208,13 @@ const ChemDrawModal: React.FC<ChemDrawModalProps> = ({
     applyChemDrawFlip(cdjsInstance, axis);
   };
 
+  const flushActiveEditorInput = async () => {
+    await commitChemDrawActiveInput(containerId, cdjsInstance);
+  };
+
   const handleConfirm = async () => {
     if (cdjsInstance) {
+      await flushActiveEditorInput();
       const formats = (window as any).perkinelmer?.DataFormats;
       const data: ChemDrawStructureData = {
         smiles: '',
@@ -284,6 +293,12 @@ const ChemDrawModal: React.FC<ChemDrawModalProps> = ({
     }
   };
 
+  const handleConfirmMouseDown = (event: React.MouseEvent<HTMLElement>) => {
+    if (!cdjsInstance) return;
+    event.preventDefault();
+    void flushActiveEditorInput();
+  };
+
   const flipControls = (
     <Space direction="vertical">
       <Tooltip title="선택 구조 좌우 반전">
@@ -316,6 +331,7 @@ const ChemDrawModal: React.FC<ChemDrawModalProps> = ({
             <Button onClick={handleCancel}>취소</Button>
             <Button
               type="primary"
+              onMouseDown={handleConfirmMouseDown}
               onClick={handleConfirm}
               disabled={!cdjsInstance}
               style={{ background: token.colorPrimary, borderColor: token.colorPrimary }}
