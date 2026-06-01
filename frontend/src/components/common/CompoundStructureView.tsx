@@ -1,8 +1,9 @@
-import React from 'react';
-import { Button, Tooltip, message, theme } from 'antd';
+import React, { useEffect, useMemo, useState } from 'react';
+import { App, Button, Tooltip, theme } from 'antd';
 import type { ButtonProps } from 'antd';
 import { Copy, Search } from 'lucide-react';
 import BenzeneIcon from './BenzeneIcon';
+import { CHEMDRAW_CONFIG } from '../../config/chemdraw';
 
 export interface CompoundStructureAction {
   key: string;
@@ -18,6 +19,7 @@ export interface CompoundStructureViewProps {
   title?: string;
   smiles?: string | null;
   molBlock?: string | null;
+  cdxml?: string | null;
   width: number | string;
   height: number | string;
   iconSize?: number;
@@ -39,14 +41,126 @@ export const getCompoundStructureCopyText = (params: {
   molBlock?: string | null;
   mol_block?: string | null;
   molblock?: string | null;
+  cdxml?: string | null;
   svg?: string | null;
 }) => {
   const smiles = typeof params.smiles === 'string' ? params.smiles.trim() : '';
   const molBlockSource = params.molBlock ?? params.mol_block ?? params.molblock;
   const molBlock = typeof molBlockSource === 'string' ? molBlockSource.trim() : '';
+  const cdxml = typeof params.cdxml === 'string' ? params.cdxml.trim() : '';
   const svg = typeof params.svg === 'string' ? params.svg.trim() : '';
 
-  return smiles || molBlock || svg;
+  return smiles || molBlock || cdxml || svg;
+};
+
+const loadChemDrawScript = (() => {
+  let promise: Promise<void> | null = null;
+
+  return () => {
+    if (typeof window === 'undefined') {
+      return Promise.reject(new Error('Window is not available'));
+    }
+
+    if ((window as any).perkinelmer?.ChemdrawWebManager) {
+      return Promise.resolve();
+    }
+
+    if (!promise) {
+      promise = new Promise<void>((resolve, reject) => {
+        const existingScript = document.querySelector<HTMLScriptElement>(
+          `script[src="${CHEMDRAW_CONFIG.SCRIPT_PATH}"]`
+        );
+
+        if (existingScript) {
+          existingScript.addEventListener('load', () => resolve(), { once: true });
+          existingScript.addEventListener('error', () => reject(new Error('Failed to load ChemDraw')), { once: true });
+          return;
+        }
+
+        const script = document.createElement('script');
+        script.src = CHEMDRAW_CONFIG.SCRIPT_PATH;
+        script.async = true;
+        script.onload = () => resolve();
+        script.onerror = () => reject(new Error('Failed to load ChemDraw'));
+        document.body.appendChild(script);
+      });
+    }
+
+    return promise;
+  };
+})();
+
+const ChemDrawStructurePreview: React.FC<{
+  cdxml?: string | null;
+  molBlock?: string | null;
+  smiles?: string | null;
+}> = ({ cdxml, molBlock, smiles }) => {
+  const [containerId] = useState(() => `compound-structure-${Math.random().toString(36).slice(2, 11)}`);
+  const [renderFailed, setRenderFailed] = useState(false);
+  const structureKey = useMemo(
+    () => `${cdxml ?? ''}__${molBlock ?? ''}__${smiles ?? ''}`,
+    [cdxml, molBlock, smiles]
+  );
+
+  useEffect(() => {
+    let isDisposed = false;
+
+    const attachPreview = async () => {
+      try {
+        await loadChemDrawScript();
+        if (isDisposed) return;
+
+        const manager = (window as any).perkinelmer?.ChemdrawWebManager;
+        const formats = (window as any).perkinelmer?.DataFormats;
+        if (!manager) {
+          setRenderFailed(true);
+          return;
+        }
+
+        manager.attach({
+          id: containerId,
+          license: CHEMDRAW_CONFIG.LICENSE_XML,
+          viewOnly: true,
+          callback: (editor: any) => {
+            if (isDisposed || !editor) return;
+
+            try {
+              if (cdxml) {
+                if (editor.loadCDXML) editor.loadCDXML(cdxml);
+                else if (editor.setData) editor.setData(formats?.CDXML || 'CDXML', cdxml);
+              } else if (molBlock) {
+                if (editor.loadMOL) editor.loadMOL(molBlock);
+                else if (editor.setData) editor.setData(formats?.MOLV2000 || formats?.MOLFILE || 'chemical/x-mdl-molfile', molBlock);
+              } else if (smiles) {
+                if (editor.loadSMILES) editor.loadSMILES(smiles);
+                else if (editor.setData) editor.setData(formats?.SMILES || 'chemical/x-daylight-smiles', smiles);
+              }
+            } catch {
+              setRenderFailed(true);
+            }
+          },
+        });
+      } catch {
+        if (!isDisposed) setRenderFailed(true);
+      }
+    };
+
+    void attachPreview();
+
+    return () => {
+      isDisposed = true;
+      const container = document.getElementById(containerId);
+      if (container) {
+        container.innerHTML = '';
+      }
+    };
+  }, [cdxml, containerId, molBlock, smiles, structureKey]);
+
+  if (renderFailed) {
+    return null;
+  }
+
+  return <div id={containerId} style={{ width: '100%', height: '100%' }} />;
 };
 
 const CompoundStructureView: React.FC<CompoundStructureViewProps> = ({
@@ -54,6 +168,7 @@ const CompoundStructureView: React.FC<CompoundStructureViewProps> = ({
   title = 'Structure',
   smiles,
   molBlock,
+  cdxml,
   width,
   height,
   iconSize,
@@ -70,7 +185,9 @@ const CompoundStructureView: React.FC<CompoundStructureViewProps> = ({
   actions = [],
 }) => {
   const { token } = theme.useToken();
-  const copyText = getCompoundStructureCopyText({ smiles, molBlock, svg });
+  const { message } = App.useApp();
+  const copyText = getCompoundStructureCopyText({ smiles, molBlock, cdxml, svg });
+  const hasRenderableChemData = !!(cdxml || molBlock || smiles);
 
   const previewAction: CompoundStructureAction[] = showPreviewAction && svg && onPreview ? [{
     key: 'preview',
@@ -128,13 +245,15 @@ const CompoundStructureView: React.FC<CompoundStructureViewProps> = ({
           overflow: 'hidden',
           ...frameStyle,
         }}
-      >
+        >
         {svg ? (
           <div
             className={`compound-structure-svg${svgClassName ? ` ${svgClassName}` : ''}`}
             style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
             dangerouslySetInnerHTML={{ __html: svg }}
           />
+        ) : hasRenderableChemData ? (
+          <ChemDrawStructurePreview cdxml={cdxml} molBlock={molBlock} smiles={smiles} />
         ) : (
           <BenzeneIcon
             size={iconSize ?? (typeof width === 'number' && typeof height === 'number' ? Math.min(width, height) * 0.42 : 28)}

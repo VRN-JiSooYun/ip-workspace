@@ -492,7 +492,7 @@ const PatentAnalysisList: React.FC = () => {
           return;
         }
         if (appliedStructureSmiles) {
-          setStructureCompounds(response.items.map((item) => ({
+          setStructureCompounds(response.items.slice(0, rowOffsetPageSize).map((item) => ({
             compoundId: String(item.compoundId ?? ''),
             svgImg: typeof item.svgImg === 'string' ? item.svgImg : '',
             smiles: typeof item.smiles === 'string' ? item.smiles : '',

@@ -564,6 +564,7 @@ const MyBoard: React.FC = () => {
           title={representativeCompound?.compoundId || representativeCompound?.name || 'Structure'}
           smiles={representativeCompound?.smiles}
           molBlock={(representativeCompound as any)?.molBlock ?? (representativeCompound as any)?.mol_block ?? (representativeCompound as any)?.molblock}
+          cdxml={(representativeCompound as any)?.draw}
           width={86}
           height={52}
           iconSize={20}
@@ -1011,6 +1012,7 @@ const MyBoard: React.FC = () => {
               title={record.compoundId || record.name || 'Structure'}
               smiles={record.smiles}
               molBlock={record.molBlock ?? record.mol_block ?? record.molblock}
+              cdxml={record.draw}
               width={168}
               height={108}
               iconSize={40}
@@ -2141,6 +2143,13 @@ const MyBoard: React.FC = () => {
         }
         .my-board-group-table-structure-only .ant-table-tbody .compound-structure-frame {
           width: 100% !important;
+        }
+        .my-board-structure-preview > svg {
+          width: 100% !important;
+          height: 100% !important;
+          max-width: 100%;
+          max-height: 100%;
+          display: block;
         }
         .my-board-detail-table .ant-table-body {
           scrollbar-gutter: stable;

@@ -1,8 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { Modal, Button, Typography, theme } from 'antd';
-import { Info } from 'lucide-react';
+import { Modal, Button, Space, Tooltip, Typography, theme } from 'antd';
+import { ArrowLeftRight, ArrowUpDown, Info } from 'lucide-react';
 import { CHEMDRAW_CONFIG } from '../../config/chemdraw';
 import { installChemDrawKoreanKeyboardBridge } from '../../utils/chemdrawKeyboard';
+import { applyChemDrawFlip } from '../../utils/chemdrawTransform';
+import type { ChemDrawFlipAxis } from '../../utils/chemdrawTransform';
 
 const { Text } = Typography;
 
@@ -198,6 +200,10 @@ const ChemDrawModal: React.FC<ChemDrawModalProps> = ({
     onCancel();
   };
 
+  const handleFlip = (axis: ChemDrawFlipAxis) => {
+    applyChemDrawFlip(cdjsInstance, axis);
+  };
+
   const handleConfirm = async () => {
     if (cdjsInstance) {
       const formats = (window as any).perkinelmer?.DataFormats;
@@ -278,6 +284,25 @@ const ChemDrawModal: React.FC<ChemDrawModalProps> = ({
     }
   };
 
+  const flipControls = (
+    <Space>
+      <Tooltip title="선택 구조 좌우 반전">
+        <Button
+          icon={<ArrowLeftRight size={16} />}
+          onClick={() => handleFlip('horizontal')}
+          disabled={!cdjsInstance}
+        />
+      </Tooltip>
+      <Tooltip title="선택 구조 상하 반전">
+        <Button
+          icon={<ArrowUpDown size={16} />}
+          onClick={() => handleFlip('vertical')}
+          disabled={!cdjsInstance}
+        />
+      </Tooltip>
+    </Space>
+  );
+
   return (
     <Modal 
       title={title} 
@@ -285,18 +310,22 @@ const ChemDrawModal: React.FC<ChemDrawModalProps> = ({
       onCancel={handleCancel} 
       width={900}
       destroyOnHidden
-      footer={[
-        <Button key="cancel" onClick={handleCancel}>취소</Button>,
-        <Button 
-          key="confirm" 
-          type="primary" 
-          onClick={handleConfirm}
-          disabled={!cdjsInstance}
-          style={{ background: token.colorPrimary, borderColor: token.colorPrimary }}
-        >
-          {confirmText}
-        </Button>
-      ]}
+      footer={
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+          {flipControls}
+          <Space>
+            <Button onClick={handleCancel}>취소</Button>
+            <Button
+              type="primary"
+              onClick={handleConfirm}
+              disabled={!cdjsInstance}
+              style={{ background: token.colorPrimary, borderColor: token.colorPrimary }}
+            >
+              {confirmText}
+            </Button>
+          </Space>
+        </div>
+      }
     >
       <div 
         id={containerId} 

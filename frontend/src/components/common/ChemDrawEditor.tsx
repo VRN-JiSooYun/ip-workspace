@@ -1,8 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Typography, theme } from 'antd';
-import { Info } from 'lucide-react';
+import { Button, Space, Tooltip, Typography, theme } from 'antd';
+import { ArrowLeftRight, ArrowUpDown, Info } from 'lucide-react';
 import { CHEMDRAW_CONFIG } from '../../config/chemdraw';
 import { installChemDrawKoreanKeyboardBridge } from '../../utils/chemdrawKeyboard';
+import { applyChemDrawFlip } from '../../utils/chemdrawTransform';
+import type { ChemDrawFlipAxis } from '../../utils/chemdrawTransform';
 
 const { Text } = Typography;
 
@@ -264,8 +266,28 @@ const ChemDrawEditor: React.FC<ChemDrawEditorProps> = ({
     return installChemDrawKoreanKeyboardBridge(container);
   }, [active, editorInstance, containerId]);
 
+  const handleFlip = (axis: ChemDrawFlipAxis) => {
+    applyChemDrawFlip(editorInstance, axis);
+  };
+
   return (
     <>
+      <Space style={{ marginBottom: 8 }}>
+        <Tooltip title="선택 구조 좌우 반전">
+          <Button
+            icon={<ArrowLeftRight size={16} />}
+            onClick={() => handleFlip('horizontal')}
+            disabled={!editorInstance}
+          />
+        </Tooltip>
+        <Tooltip title="선택 구조 상하 반전">
+          <Button
+            icon={<ArrowUpDown size={16} />}
+            onClick={() => handleFlip('vertical')}
+            disabled={!editorInstance}
+          />
+        </Tooltip>
+      </Space>
       <div
         id={containerId}
         style={{
