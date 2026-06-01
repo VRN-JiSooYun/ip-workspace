@@ -1093,6 +1093,16 @@ const SarTable: React.FC = () => {
               }}>
                 {sarCompounds.map((item, index) => {
                   const itemStructureSettings = getGroupStructureSettings(item.groupId);
+                  const rotatedBounds = getRotatedStructureBounds(
+                    compoundCardWidth,
+                    compoundCardStructureHeight,
+                    itemStructureSettings.sarRotationDeg
+                  );
+                  const structureFitScale = Math.min(
+                    1,
+                    compoundCardWidth / rotatedBounds.width,
+                    compoundCardStructureHeight / rotatedBounds.height
+                  );
 
                   return (
                     <div
@@ -1146,7 +1156,7 @@ const SarTable: React.FC = () => {
                           className="sar-compound-structure-view"
                           showPreviewAction={false}
                           showCopyAction={false}
-                          structureStyle={{ transform: `rotate(${itemStructureSettings.sarRotationDeg}deg)` }}
+                          structureStyle={{ transform: `scale(${structureFitScale}) rotate(${itemStructureSettings.sarRotationDeg}deg)` }}
                           frameStyle={{ border: 0, background: isCompoundCardOverlapped ? 'transparent' : token.colorBgContainer, boxShadow: 'none' }}
                         />
                       </div>
