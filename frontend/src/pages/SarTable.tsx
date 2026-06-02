@@ -67,6 +67,7 @@ const SarTable: React.FC = () => {
     groups,
     groupStructureViewSettings,
     toggleGroupSelection,
+    setSelectedGroupIds,
     setSelectedSarCompoundIds,
     updateGroupStructureViewSettings,
   } = useBoardStore();
@@ -114,6 +115,7 @@ const SarTable: React.FC = () => {
 
   const [isColorActive, setIsColorActive] = useState(false);
   const [selectedRowKey, setSelectedRowKey] = useState<string | null>(null);
+  const [selectedCompoundIds, setSelectedCompoundIds] = useState<string[]>([]);
   const [hoveredRowKey, setHoveredRowKey] = useState<string | null>(null);
   const [showFilters, setShowFilters] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
@@ -158,24 +160,33 @@ const SarTable: React.FC = () => {
   useEffect(() => {
     if (sarCompounds.length === 0) {
       setSelectedRowKey(null);
+      setSelectedCompoundIds([]);
       return;
     }
 
     const hasSelectedRow = sarCompounds.some((compound) => compound.id === selectedRowKey);
     if (!hasSelectedRow && !hasUserClearedSelection) {
       setSelectedRowKey(sarCompounds[0].id);
+      setSelectedCompoundIds([sarCompounds[0].id]);
     }
   }, [hasUserClearedSelection, sarCompounds, selectedRowKey]);
 
-  const toggleCompoundSelection = React.useCallback((compoundId: string) => {
-    setSelectedRowKey((current) => {
-      if (current === compoundId) {
-        setHasUserClearedSelection(true);
-        return null;
-      }
-
+  const handleCompoundSelection = React.useCallback((compoundId: string, event?: React.MouseEvent) => {
+    if (!event?.ctrlKey && !event?.metaKey) {
+      setSelectedCompoundIds([compoundId]);
+      setSelectedRowKey(compoundId);
       setHasUserClearedSelection(false);
-      return compoundId;
+      return;
+    }
+
+    setSelectedCompoundIds((current) => {
+      const next = current.includes(compoundId)
+        ? current.filter((id) => id !== compoundId)
+        : [...current, compoundId];
+
+      setSelectedRowKey(next.includes(compoundId) ? compoundId : next[next.length - 1] ?? null);
+      setHasUserClearedSelection(next.length === 0);
+      return next;
     });
   }, []);
 
@@ -243,6 +254,8 @@ const SarTable: React.FC = () => {
     const nextCompound = sarCompounds[nextIndex];
     if (nextCompound) {
       setSelectedRowKey(nextCompound.id);
+      setSelectedCompoundIds([nextCompound.id]);
+      setHasUserClearedSelection(false);
       setHoveredRowKey(nextCompound.id);
       document.getElementById(`sar-compound-card-${nextCompound.id}`)?.scrollIntoView({
         behavior: 'smooth',
@@ -362,12 +375,18 @@ const SarTable: React.FC = () => {
     setIsStructureModalOpen(false);
   };
 
-  const handleGroupStructureToggle = (groupId: string) => {
-    const nextSelectedGroupIds = selectedGroupIds.includes(groupId)
-      ? selectedGroupIds.filter((id) => id !== groupId)
-      : [...selectedGroupIds, groupId];
+  const handleGroupStructureSelection = (groupId: string, event: React.MouseEvent) => {
+    const nextSelectedGroupIds = event.ctrlKey || event.metaKey
+      ? selectedGroupIds.includes(groupId)
+        ? selectedGroupIds.filter((id) => id !== groupId)
+        : [...selectedGroupIds, groupId]
+      : [groupId];
 
-    toggleGroupSelection(groupId);
+    if (event.ctrlKey || event.metaKey) {
+      toggleGroupSelection(groupId);
+    } else {
+      setSelectedGroupIds([groupId]);
+    }
     setSelectedSarCompoundIds(
       nextSelectedGroupIds.length > 0
         ? mockCompounds
@@ -920,6 +939,7 @@ const SarTable: React.FC = () => {
                       onChange={(v) => setPeriod(v as string)}
                     />
                     <DatePicker.RangePicker
+                      format="YYYY.MM.DD"
                       className="v-action-btn"
                       style={{ borderRadius: 12 }}
                       disabled={period !== '전체'}
@@ -956,7 +976,7 @@ const SarTable: React.FC = () => {
             scroll={undefined}
             tableLayout="fixed"
             onRow={(record) => ({
-              onClick: () => handleGroupStructureToggle(record.id),
+              onClick: (event) => handleGroupStructureSelection(record.id, event),
               style: { cursor: 'pointer' },
             })}
             rowClassName={(record) => selectedGroupIds.includes(record.id) ? 'row-selected sar-group-row-selected' : ''}
@@ -1135,10 +1155,10 @@ const SarTable: React.FC = () => {
                     <div
                       id={`sar-compound-card-${item.id}`}
                       key={item.id}
-                      onClick={() => toggleCompoundSelection(item.id)}
+                      onClick={(event) => handleCompoundSelection(item.id, event)}
                       role="option"
-                      aria-selected={selectedRowKey === item.id}
-                      className={`v-item-card sar-compound-card ${selectedRowKey === item.id ? 'selected' : ''} ${hoveredRowKey === item.id ? 'hovered' : ''}`}
+                      aria-selected={selectedCompoundIds.includes(item.id)}
+                      className={`v-item-card sar-compound-card ${selectedCompoundIds.includes(item.id) ? 'selected' : ''} ${hoveredRowKey === item.id ? 'hovered' : ''}`}
                       onMouseEnter={() => setHoveredRowKey(item.id)}
                       onMouseLeave={() => setHoveredRowKey(null)}
                       style={{
@@ -1148,15 +1168,15 @@ const SarTable: React.FC = () => {
                         cursor: 'pointer',
                         background: isCompoundCardOverlapped
                           ? 'transparent'
-                          : selectedRowKey === item.id || hoveredRowKey === item.id
-                            ? (isDarkMode ? '#111d2c' : '#e6f7ff')
+                          : selectedCompoundIds.includes(item.id) || hoveredRowKey === item.id
+                            ? (isDarkMode ? 'rgba(248, 124, 99, 0.12)' : 'rgba(248, 124, 99, 0.08)')
                             : token.colorBgContainer,
                         boxSizing: 'border-box',
                         borderColor: 'transparent',
                         marginRight: compoundCardViewMode === 'single' && index < sarCompounds.length - 1
                           ? -(compoundCardWidth * compoundCardOverlapPercent / 100)
                           : 0,
-                        zIndex: selectedRowKey === item.id || hoveredRowKey === item.id
+                        zIndex: selectedCompoundIds.includes(item.id) || hoveredRowKey === item.id
                           ? sarCompounds.length + 1
                           : index + 1,
                       }}
@@ -1274,13 +1294,13 @@ const SarTable: React.FC = () => {
               scroll={{ x: 1800, y: sarCompounds.length > 10 ? 500 : undefined }}
               onRow={(record) => ({
                 id: `sar-table-row-${record.id}`,
-                onClick: () => toggleCompoundSelection(record.id),
+                onClick: (event) => handleCompoundSelection(record.id, event),
                 onMouseEnter: () => setHoveredRowKey(record.id),
                 onMouseLeave: () => setHoveredRowKey(null)
               })}
               rowClassName={(record) => {
                 let classes = [];
-                if (record.id === selectedRowKey) classes.push('sar-row-selected');
+                if (selectedCompoundIds.includes(record.id)) classes.push('sar-row-selected');
                 if (record.id === hoveredRowKey) classes.push('sar-row-hovered');
                 return classes.join(' ');
               }}
@@ -1584,7 +1604,7 @@ const SarTable: React.FC = () => {
         }
         .sar-table .ant-table-tbody > tr.sar-row-selected > .ant-table-cell-fix-left,
         .sar-table .ant-table-tbody > tr.sar-row-selected > .ant-table-cell-fix-left-last {
-          background: color-mix(in srgb, ${token.colorPrimary} ${isDarkMode ? 34 : 22}%, ${token.colorBgContainer}) !important;
+          background: color-mix(in srgb, ${token.colorPrimary} ${isDarkMode ? 22 : 14}%, ${token.colorBgContainer}) !important;
           background-clip: padding-box !important;
           z-index: 6 !important;
         }
@@ -1596,7 +1616,7 @@ const SarTable: React.FC = () => {
         }
         .sar-table .ant-table-tbody > tr.sar-row-selected.sar-row-hovered > .ant-table-cell-fix-left,
         .sar-table .ant-table-tbody > tr.sar-row-selected.sar-row-hovered > .ant-table-cell-fix-left-last {
-          background: color-mix(in srgb, ${token.colorPrimary} ${isDarkMode ? 46 : 34}%, ${token.colorBgContainer}) !important;
+          background: color-mix(in srgb, ${token.colorPrimary} ${isDarkMode ? 32 : 22}%, ${token.colorBgContainer}) !important;
         }
         .sar-table .ant-table-thead .ant-table-cell-fix-left-last {
           box-shadow: 1px 0 0 ${isDarkMode ? '#303030' : '#e5e7eb'} !important;
@@ -1737,11 +1757,11 @@ const SarTable: React.FC = () => {
           box-shadow: none !important;
         }
         .sar-compound-card.selected:hover {
-          background-color: ${isCompoundCardOverlapped ? 'transparent' : isDarkMode ? '#111d2c' : '#e6f7ff'} !important;
+          background-color: ${isCompoundCardOverlapped ? 'transparent' : isDarkMode ? 'rgba(248, 124, 99, 0.16)' : 'rgba(248, 124, 99, 0.12)'} !important;
         }
         .sar-compound-card.hovered {
           border-color: transparent !important;
-          background-color: ${isCompoundCardOverlapped ? 'transparent' : isDarkMode ? '#111d2c' : '#e6f7ff'} !important;
+          background-color: ${isCompoundCardOverlapped ? 'transparent' : isDarkMode ? 'rgba(248, 124, 99, 0.12)' : 'rgba(248, 124, 99, 0.08)'} !important;
           transform: none;
         }
         .sar-compound-card:hover::after,

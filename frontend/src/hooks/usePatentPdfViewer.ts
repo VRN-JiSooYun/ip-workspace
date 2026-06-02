@@ -131,6 +131,7 @@ export const usePatentPdfViewer = ({
   const searchTraceLogKeysRef = React.useRef<Set<string>>(new Set());
   const isRebumpingRef = React.useRef(false);
   const lastRebumpTargetRef = React.useRef<string>('');
+  const pdfNavigationFrameRef = React.useRef<number | null>(null);
 
   const [pdfCurrentPage, setPdfCurrentPage] = React.useState<number>(1);
   const [pdfTotalPages, setPdfTotalPages] = React.useState<number>(0);
@@ -327,31 +328,46 @@ export const usePatentPdfViewer = ({
     }
 
     if (bboxCoords && bboxCoords.length >= 4) {
-      setSystemHighlights([]);
-      setActiveBBox(null);
+      setSystemHighlights((prev) => (prev.length > 0 ? [] : prev));
+      setActiveBBox((prev) => (prev ? null : prev));
       setPendingHighlight({
         pageNumber: targetPage,
         rect: bboxCoords.map(Number),
       });
     } else {
-      setSystemHighlights([]);
-      setActiveBBox(null);
-      setPendingHighlight(null);
+      setSystemHighlights((prev) => (prev.length > 0 ? [] : prev));
+      setActiveBBox((prev) => (prev ? null : prev));
+      setPendingHighlight((prev) => (prev ? null : prev));
     }
 
-    const utils = highlighterUtilsRef.current;
-    if (utils && typeof (utils as any).scrollTo === 'function') {
-      (utils as any).scrollTo(targetPage);
-      return;
+    if (pdfNavigationFrameRef.current !== null) {
+      window.cancelAnimationFrame(pdfNavigationFrameRef.current);
     }
 
-    if (utils && typeof (utils as any).goToPage === 'function') {
-      (utils as any).goToPage(targetPage);
-      return;
-    }
+    pdfNavigationFrameRef.current = window.requestAnimationFrame(() => {
+      pdfNavigationFrameRef.current = null;
+      const utils = highlighterUtilsRef.current;
+      if (utils && typeof (utils as any).scrollTo === 'function') {
+        (utils as any).scrollTo(targetPage);
+        return;
+      }
 
-    scrollToPdfPage(targetPage);
+      if (utils && typeof (utils as any).goToPage === 'function') {
+        (utils as any).goToPage(targetPage);
+        return;
+      }
+
+      scrollToPdfPage(targetPage);
+    });
   }, [debugLog, ensurePdfPageSize, scrollToPdfPage]);
+
+  React.useEffect(() => (
+    () => {
+      if (pdfNavigationFrameRef.current !== null) {
+        window.cancelAnimationFrame(pdfNavigationFrameRef.current);
+      }
+    }
+  ), []);
 
   React.useEffect(() => {
     if (!pendingHighlight) return;

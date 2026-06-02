@@ -21,6 +21,7 @@ import exampleCompound1Svg from '../assets/mol_svg/example_compound1.svg?raw';
 import exampleCompound2Svg from '../assets/mol_svg/example_compound2.svg?raw';
 import exampleCompound3Svg from '../assets/mol_svg/example_compound3.svg?raw';
 import exampleCompound4Svg from '../assets/mol_svg/example_compound4.svg?raw';
+import { formatDisplayDate } from '../utils/displayFormat';
 
 const { Title, Text } = Typography;
 const { RangePicker } = DatePicker;
@@ -103,7 +104,8 @@ const SynthesisBoard: React.FC = () => {
   const { groupStructureViewSettings } = useBoardStore();
   const [showFilters, setShowFilters] = useState(false);
   const [keyword, setKeyword] = useState('');
-  const [selectedGroupId, setSelectedGroupId] = useState<string | null>('sg1');
+  const [selectedGroupIds, setSelectedGroupIds] = useState<string[]>(['sg1']);
+  const [selectedDetailIds, setSelectedDetailIds] = useState<string[]>([]);
   const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState<SynthesisDetail | null>(null);
   const [structurePreview, setStructurePreview] = useState<{ title: string; svg: string } | null>(null);
@@ -372,14 +374,40 @@ const SynthesisBoard: React.FC = () => {
 
   const filteredDetails = useMemo(() => {
     return mockSynthesisDetails.filter(d =>
-      d.groupId === selectedGroupId &&
+      selectedGroupIds.includes(d.groupId) &&
       (d.name.toLowerCase().includes(keyword.toLowerCase()) || d.compoundId.toLowerCase().includes(keyword.toLowerCase()))
     );
-  }, [selectedGroupId, keyword]);
+  }, [selectedGroupIds, keyword]);
+
+  const handleGroupRowSelection = React.useCallback((groupId: string, event: React.MouseEvent) => {
+    if (event.ctrlKey || event.metaKey) {
+      setSelectedGroupIds((current) => (
+        current.includes(groupId)
+          ? current.filter((id) => id !== groupId)
+          : [...current, groupId]
+      ));
+      return;
+    }
+
+    setSelectedGroupIds([groupId]);
+  }, []);
+
+  const handleDetailRowSelection = React.useCallback((detailId: string, event: React.MouseEvent) => {
+    if (event.ctrlKey || event.metaKey) {
+      setSelectedDetailIds((current) => (
+        current.includes(detailId)
+          ? current.filter((id) => id !== detailId)
+          : [...current, detailId]
+      ));
+      return;
+    }
+
+    setSelectedDetailIds([detailId]);
+  }, []);
 
   const groupColumns = [
     { title: 'Num', dataIndex: 'num', key: 'num', width: 50, align: 'center' as const },
-    { title: 'Date', dataIndex: 'date', key: 'date', width: 90, align: 'center' as const, className: 'table-center-column' },
+    { title: 'Date', dataIndex: 'date', key: 'date', width: 90, align: 'center' as const, className: 'table-center-column', render: formatDisplayDate },
     { title: 'Target', dataIndex: 'target', key: 'target', width: 80, align: 'center' as const, className: 'table-center-column', render: (text: string) => <Tag color="blue" style={{ fontSize: 10 }}>{text}</Tag> },
     { title: 'Title', dataIndex: 'title', key: 'title', ellipsis: true, render: (text: string) => <Text strong style={{ fontSize: 12 }}>{text}</Text> },
     { title: '공유', dataIndex: 'share', key: 'share', width: 70, align: 'center' as const, className: 'table-center-column', render: (text: string) => <Text type="secondary" style={{ fontSize: 10 }}>{text}</Text> },
@@ -570,8 +598,8 @@ const SynthesisBoard: React.FC = () => {
         )
       )
     },
-    { title: '합성 스터디 그룹 수락일자', dataIndex: 'synthesisAcceptedDate', key: 'synthesisAcceptedDate', width: 172, align: 'center' as const, className: 'table-center-column', render: (date: string | null) => date || '-' },
-    { title: '합성 목표일', dataIndex: 'synthesisTargetDate', key: 'synthesisTargetDate', width: 104, align: 'center' as const, className: 'table-center-column' },
+    { title: '합성 스터디 그룹 수락일자', dataIndex: 'synthesisAcceptedDate', key: 'synthesisAcceptedDate', width: 172, align: 'center' as const, className: 'table-center-column', render: formatDisplayDate },
+    { title: '합성 목표일', dataIndex: 'synthesisTargetDate', key: 'synthesisTargetDate', width: 104, align: 'center' as const, className: 'table-center-column', render: formatDisplayDate },
     { title: '진행사항 비고', dataIndex: 'progressMemo', key: 'progressMemo', width: 180, ellipsis: true },
     {
       title: '완료 여부',
@@ -586,7 +614,7 @@ const SynthesisBoard: React.FC = () => {
         </Tag>
       )
     },
-    { title: '등록일', dataIndex: 'registeredDate', key: 'registeredDate', width: 96, align: 'center' as const, className: 'table-center-column' },
+    { title: '등록일', dataIndex: 'registeredDate', key: 'registeredDate', width: 96, align: 'center' as const, className: 'table-center-column', render: formatDisplayDate },
     { title: '연구노트', dataIndex: 'researchNote', key: 'researchNote', width: 108, align: 'center' as const, className: 'table-center-column' },
     { title: '리포트 자료', dataIndex: 'reportData', key: 'reportData', width: 156, ellipsis: true },
     { title: '합성 종료 이유', dataIndex: 'synthesisEndReason', key: 'synthesisEndReason', width: 164, ellipsis: true },
@@ -716,6 +744,7 @@ const SynthesisBoard: React.FC = () => {
                       onChange={(v) => setPeriod(v as string)}
                     />
                     <RangePicker
+                      format="YYYY.MM.DD"
                       style={{ borderRadius: 8 }}
                       disabled={period !== '전체'}
                     />
@@ -737,7 +766,7 @@ const SynthesisBoard: React.FC = () => {
           paddingBottom: isResponsiveToolbar ? 24 : 0
         }}
       >
-        {/* Left: Group List (Single Select) - Increased width for many columns */}
+        {/* Left: Group List - Increased width for many columns */}
         <div style={{ width: isResponsiveToolbar ? '100%' : `calc(${splitRatio}% - 6px)`, minWidth: 0 }}>
           <div className="v-table-card">
             <div className="v-table-header">
@@ -753,10 +782,10 @@ const SynthesisBoard: React.FC = () => {
               rowKey="id"
               scroll={{ x: 1200, y: !isResponsiveToolbar && currentGroups.length > 10 ? 'calc(100vh - 350px)' : undefined }}
               onRow={(record) => ({
-                onClick: () => setSelectedGroupId(record.id),
+                onClick: (event) => handleGroupRowSelection(record.id, event),
                 style: { cursor: 'pointer' }
               })}
-              rowClassName={(record) => selectedGroupId === record.id ? 'row-selected' : ''}
+              rowClassName={(record) => selectedGroupIds.includes(record.id) ? 'row-selected' : ''}
             />
           </div>
         </div>
@@ -842,9 +871,22 @@ const SynthesisBoard: React.FC = () => {
                 dataSource={filteredDetails}
                 columns={detailColumns}
                 size="small"
-                pagination={{ pageSize: 20 }}
+                pagination={{
+                  defaultPageSize: 10,
+                  showSizeChanger: true,
+                  pageSizeOptions: [10, 30, 50, 100],
+                }}
                 rowKey="id"
                 scroll={{ x: detailTableScrollX, y: !isResponsiveToolbar && filteredDetails.length > 10 ? 'calc(100vh - 350px)' : undefined }}
+                onRow={(record) => ({
+                  onClick: (event) => {
+                    const target = event.target as HTMLElement;
+                    if (target.closest('button, a, input, textarea, .ant-checkbox-wrapper, .ant-select, .ant-dropdown')) return;
+                    handleDetailRowSelection(record.id, event);
+                  },
+                  style: { cursor: 'pointer' },
+                })}
+                rowClassName={(record) => selectedDetailIds.includes(record.id) ? 'row-selected' : ''}
               />
             ) : viewMode === 'draw' ? (
               <div style={{ padding: 20, overflowY: 'auto', height: isResponsiveToolbar ? 'auto' : 'calc(100vh - 350px)' }}>

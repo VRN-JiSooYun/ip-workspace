@@ -25,6 +25,7 @@ interface BoardState {
   groups: CompoundGroup[];
   groupStructureViewSettings: Record<string, GroupStructureViewSettings>;
   toggleGroupSelection: (groupId: string) => void;
+  setSelectedGroupIds: (groupIds: string[]) => void;
   setSelectedSarCompoundIds: (compoundIds: string[]) => void;
   clearSelectedSarCompoundIds: () => void;
   updateGroupStructureViewSettings: (groupId: string, settings: Partial<GroupStructureViewSettings>) => void;
@@ -44,6 +45,7 @@ export const useBoardStore = create<BoardState>((set) => ({
       ? state.selectedGroupIds.filter(id => id !== groupId)
       : [...state.selectedGroupIds, groupId]
   })),
+  setSelectedGroupIds: (groupIds) => set({ selectedGroupIds: groupIds }),
   setSelectedSarCompoundIds: (compoundIds) => set({ selectedSarCompoundIds: compoundIds }),
   clearSelectedSarCompoundIds: () => set({ selectedSarCompoundIds: [] }),
   updateGroupStructureViewSettings: (groupId, settings) => set((state) => ({

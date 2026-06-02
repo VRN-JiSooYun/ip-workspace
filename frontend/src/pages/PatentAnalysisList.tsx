@@ -34,6 +34,7 @@ import { useUIStore } from '../store/useUIStore';
 import PageHeaderBreadcrumb from '../components/common/PageHeaderBreadcrumb';
 import ToggleTag from '../components/common/ToggleTag';
 import { mapPatentListItem, patentAnalysisApi } from '../services/patentAnalysisApi';
+import { formatDisplayDate, formatNumberWithComma } from '../utils/displayFormat';
 
 const { Text } = Typography;
 
@@ -182,7 +183,7 @@ const normalizeTotalCount = (value: unknown, fallback: number) => {
 const formatMetric = (value: unknown) => {
   const numericValue = Number(value);
   if (Number.isFinite(numericValue)) {
-    return numericValue.toFixed(2);
+    return formatNumberWithComma(numericValue, { fractionDigits: 2 });
   }
   return '-';
 };
@@ -607,7 +608,7 @@ const PatentAnalysisList: React.FC = () => {
       className: 'table-center-column',
       render: (_: unknown, __: Patent, index: number) => (
         <Text type="secondary">
-          {(currentPage - 1) * pageSize + index + 1}
+          {formatNumberWithComma((currentPage - 1) * pageSize + index + 1)}
         </Text>
       ),
     },
@@ -652,6 +653,7 @@ const PatentAnalysisList: React.FC = () => {
       width: 120,
       align: 'center' as const,
       className: 'table-center-column',
+      render: formatDisplayDate,
     },
     {
       title: '타겟',
@@ -732,6 +734,8 @@ const PatentAnalysisList: React.FC = () => {
       key: 'publicationDate',
       width: 120,
       align: 'center' as const,
+      className: 'table-center-column',
+      render: formatDisplayDate,
     },
     {
       title: '작업',
@@ -760,7 +764,7 @@ const PatentAnalysisList: React.FC = () => {
       className: 'table-center-column',
       render: (_: unknown, __: StructureSearchCompound, index: number) => (
         <Text type="secondary">
-          {(currentPage - 1) * pageSize + index + 1}
+          {formatNumberWithComma((currentPage - 1) * pageSize + index + 1)}
         </Text>
       ),
     },
@@ -835,7 +839,7 @@ const PatentAnalysisList: React.FC = () => {
       key: 'patentCount',
       width: STRUCTURE_SEARCH_COLUMN_WIDTHS.patentCount,
       align: 'center' as const,
-      render: (count: number) => <Tag color={count > 0 ? 'blue' : 'default'}>{count.toLocaleString()}건</Tag>,
+      render: (count: number) => <Tag color={count > 0 ? 'blue' : 'default'}>{formatNumberWithComma(count)}건</Tag>,
     },
     {
       title: 'SMILES',
@@ -918,7 +922,13 @@ const PatentAnalysisList: React.FC = () => {
           columns={structureSearchPatentColumns}
           dataSource={mappedPatents}
           rowKey="id"
-          pagination={mappedPatents.length > 5 ? { pageSize: 5, size: 'small' } : false}
+          pagination={mappedPatents.length > 5 ? {
+            pageSize: 5,
+            size: 'small',
+            itemRender: (page, type, originalElement) => (
+              type === 'page' ? <span>{formatNumberWithComma(page)}</span> : originalElement
+            ),
+          } : false}
           size="small"
           onRow={(record) => ({
             onClick: () => openPatentDetail(record),
@@ -930,7 +940,7 @@ const PatentAnalysisList: React.FC = () => {
   };
 
   return (
-    <div style={{ maxWidth: layoutPreset.maxWidth, margin: '0 auto', padding: `0 ${layoutPreset.sidePadding}px`, height: '100%', width: '100%', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+    <div className="patent-analysis-list-page" style={{ maxWidth: layoutPreset.maxWidth, margin: '0 auto', padding: `0 ${layoutPreset.sidePadding}px`, height: '100%', width: '100%', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', animation: 'fadeIn 0.3s ease-out' }}>
         <Card variant="borderless" className="c-card compact-filter-card" style={{ marginBottom: 12, flexShrink: 0 }}>
           <Row gutter={[12, 8]} align="middle">
@@ -1081,6 +1091,7 @@ const PatentAnalysisList: React.FC = () => {
                         allowEmpty={[true, true]}
                         value={customDateRange}
                         onChange={(range) => setCustomDateRange(range as [any, any] | null)}
+                        format="YYYY.MM.DD"
                       />
                     )}
                     <Button type="primary" onClick={applySearchFilters}>적용</Button>
@@ -1099,8 +1110,8 @@ const PatentAnalysisList: React.FC = () => {
             </Text>
             <Text type="secondary">
               {appliedStructureSmiles
-                ? `${totalPatents.toLocaleString()} compounds`
-                : `${totalPatents.toLocaleString()} patents`}
+                ? `${formatNumberWithComma(totalPatents)} compounds`
+                : `${formatNumberWithComma(totalPatents)} patents`}
             </Text>
           </div>
           {(appliedSearchText || (!appliedStructureSmiles && (appliedProjects.length > 0 || appliedPeriod !== '전체'))) && (
@@ -1118,7 +1129,7 @@ const PatentAnalysisList: React.FC = () => {
                   {appliedPeriod !== '전체' && (
                     <Tag color="purple">
                       기간: {appliedPeriod === '직접설정'
-                        ? `${appliedDateParams.dateFrom ?? '-'} ~ ${appliedDateParams.dateTo ?? '-'}`
+                        ? `${formatDisplayDate(appliedDateParams.dateFrom)} ~ ${formatDisplayDate(appliedDateParams.dateTo)}`
                         : appliedPeriod}
                     </Tag>
                   )}
@@ -1163,12 +1174,9 @@ const PatentAnalysisList: React.FC = () => {
                 total: Math.min(totalPatents, STRUCTURE_SEARCH_MAX_RESULT_WINDOW),
                 showSizeChanger: true,
                 pageSizeOptions: PATENT_ANALYSIS_PAGE_SIZE_OPTIONS.map(String),
-                showTotal: (_total, range) => {
-                  const isCapped = totalPatents > STRUCTURE_SEARCH_MAX_RESULT_WINDOW;
-                  return `${range[0]}-${range[1]} / ${totalPatents.toLocaleString()} compounds${isCapped ? ` (상위 ${STRUCTURE_SEARCH_MAX_RESULT_WINDOW.toLocaleString()}개 탐색 가능)` : ''}`;
-                },
-                position: ['bottomRight'],
-                style: { margin: '16px 0' },
+                itemRender: (page, type, originalElement) => (
+                  type === 'page' ? <span>{formatNumberWithComma(page)}</span> : originalElement
+                ),
                 onChange: (page, nextPageSize) => {
                   setCurrentPage(page);
                   setPageSize(normalizePatentAnalysisPageSize(nextPageSize));
@@ -1196,8 +1204,9 @@ const PatentAnalysisList: React.FC = () => {
                 total: totalPatents,
                 showSizeChanger: true,
                 pageSizeOptions: PATENT_ANALYSIS_PAGE_SIZE_OPTIONS.map(String),
-                position: ['bottomRight'],
-                style: { margin: '16px 0' },
+                itemRender: (page, type, originalElement) => (
+                  type === 'page' ? <span>{formatNumberWithComma(page)}</span> : originalElement
+                ),
                 onChange: (page, nextPageSize) => {
                   setCurrentPage(page);
                   setPageSize(normalizePatentAnalysisPageSize(nextPageSize));
@@ -1291,10 +1300,6 @@ const PatentAnalysisList: React.FC = () => {
         .patent-analysis-list-table .ant-table-body table {
           background: ${token.colorBgContainer} !important;
         }
-        .patent-analysis-list-table .ant-pagination {
-          padding-right: 16px;
-          box-sizing: border-box;
-        }
         .patent-analysis-structure-table .ant-table-expanded-row > .ant-table-cell {
           background: var(--content-bg) !important;
           padding: 12px 18px 18px !important;
@@ -1318,9 +1323,6 @@ const PatentAnalysisList: React.FC = () => {
         }
         .structure-patent-subtable .ant-table-tbody > tr:last-child > td {
           border-bottom: 1px solid transparent !important;
-        }
-        .structure-patent-subtable .ant-pagination {
-          margin: 10px 12px !important;
         }
         .patent-analysis-compound-structure .compound-structure-frame {
           padding: 0 !important;

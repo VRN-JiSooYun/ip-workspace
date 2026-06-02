@@ -16,7 +16,8 @@ import {
   Table,
   Badge,
   App,
-  Alert
+  Alert,
+  Pagination
 } from 'antd';
 import { 
   Plus, 
@@ -50,6 +51,7 @@ import PatentPdfToolbar from '../components/patent-analysis/pdf/PatentPdfToolbar
 import PatentPdfViewer from '../components/patent-analysis/pdf/PatentPdfViewer';
 import { usePatentPdfViewer } from '../hooks/usePatentPdfViewer';
 import { mapPatentListItem, patentAnalysisApi } from '../services/patentAnalysisApi';
+import { formatDisplayDate, formatNumberWithComma } from '../utils/displayFormat';
 
 const { Title, Text, Paragraph } = Typography;
 
@@ -58,6 +60,8 @@ const SPLIT_MIN_PERCENT = 20;
 const SPLIT_MAX_PERCENT = 70;
 const SPLIT_DEFAULT_PERCENT = 50;
 const DETAIL_STACK_BREAKPOINT = 1280;
+const RAW_DATA_DEFAULT_PAGE_SIZE = 10;
+const RAW_DATA_PAGE_SIZE_OPTIONS = [10, 30, 50, 100];
 
 // SVG 렌더링 컴포넌트
 const SvgRenderer: React.FC<{ svg: string; height?: number | string }> = ({ svg, height = '100%' }) => (
@@ -209,6 +213,10 @@ const PatentAnalysisDetail: React.FC = () => {
   const [activeCompId, setActiveCompId] = React.useState<string | null>(null);
   const [rawDataView, setRawDataView] = React.useState<'table' | 'card'>('table');
   const [cleanDataView, setCleanDataView] = React.useState<'table' | 'card'>('table');
+  const [rawCardCurrentPage, setRawCardCurrentPage] = React.useState(1);
+  const [rawCardPageSize, setRawCardPageSize] = React.useState(RAW_DATA_DEFAULT_PAGE_SIZE);
+  const [cleanCardCurrentPage, setCleanCardCurrentPage] = React.useState(1);
+  const [cleanCardPageSize, setCleanCardPageSize] = React.useState(RAW_DATA_DEFAULT_PAGE_SIZE);
   const [activeTab, setActiveTab] = React.useState<string>('summary');
   const [rGroupFilter, setRGroupFilter] = React.useState<{ key: string; smiles: string } | null>(null);
   const [previewSvg, setPreviewSvg] = React.useState<string | null>(null);
@@ -244,11 +252,6 @@ const PatentAnalysisDetail: React.FC = () => {
   const rawDataTableScrollY = React.useMemo(() => {
     return Math.max(300, viewportHeight - 470);
   }, [viewportHeight]);
-  const rawDataTablePageSize = React.useMemo(() => {
-    const estimatedRowHeight = 72;
-    const calculated = Math.floor(rawDataTableScrollY / estimatedRowHeight);
-    return Math.min(40, Math.max(10, calculated));
-  }, [rawDataTableScrollY]);
   const getRawDataTableScroll = React.useCallback((rowCount: number) => {
     const estimatedRowHeight = 160;
     const needsVerticalScroll = rowCount * estimatedRowHeight > rawDataTableScrollY;
@@ -256,6 +259,20 @@ const PatentAnalysisDetail: React.FC = () => {
       ? { x: 'max-content' as const, y: rawDataTableScrollY }
       : { x: 'max-content' as const };
   }, [rawDataTableScrollY]);
+  const paginationItemRender = React.useCallback((page: number, type: string, originalElement: React.ReactNode) => (
+    type === 'page' ? <span>{formatNumberWithComma(page)}</span> : originalElement
+  ), []);
+  const rawDataTablePagination = React.useMemo(() => ({
+    defaultPageSize: RAW_DATA_DEFAULT_PAGE_SIZE,
+    showSizeChanger: true,
+    pageSizeOptions: RAW_DATA_PAGE_SIZE_OPTIONS,
+    position: ['bottomRight' as const],
+    itemRender: paginationItemRender,
+  }), [paginationItemRender]);
+
+  useEffect(() => {
+    setRawCardCurrentPage(1);
+  }, [rGroupFilter]);
 
   useEffect(() => {
     const onResize = () => {
@@ -669,7 +686,7 @@ const PatentAnalysisDetail: React.FC = () => {
   }, [splitRatio, debugLog]);
 
   return (
-    <div style={{ maxWidth: layoutPreset.maxWidth, margin: '0 auto', padding: `0 ${layoutPreset.sidePadding}px`, flex: 1, width: '100%', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', overflow: isStackedSplitLayout ? 'auto' : 'hidden' }}>
+    <div className="patent-analysis-detail-page" style={{ maxWidth: layoutPreset.maxWidth, margin: '0 auto', padding: `0 ${layoutPreset.sidePadding}px`, flex: 1, width: '100%', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', overflow: isStackedSplitLayout ? 'auto' : 'hidden' }}>
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: isStackedSplitLayout ? 'visible' : 'hidden', animation: 'fadeIn 0.3s ease-out', paddingBottom: isStackedSplitLayout ? 24 : 8 }}>
         
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 16, padding: '0 4px', flexShrink: 0 }}>
@@ -681,7 +698,7 @@ const PatentAnalysisDetail: React.FC = () => {
             />
             <div style={{ minWidth: 0 }}>
               <Title level={4} style={{ margin: 0, lineHeight: '1.2', wordBreak: 'keep-all' }}>{displayedPatent.title}</Title>
-              <Text type="secondary" style={{ fontSize: '12px', display: 'block' }}>{displayedPatent.patentNumber} | {displayedPatent.applicant} | {displayedPatent.publicationDate}</Text>
+              <Text type="secondary" style={{ fontSize: '12px', display: 'block' }}>{displayedPatent.patentNumber} | {displayedPatent.applicant} | {formatDisplayDate(displayedPatent.publicationDate)}</Text>
             </div>
           </Space>
         </div>
@@ -998,7 +1015,7 @@ const PatentAnalysisDetail: React.FC = () => {
                       </span>
                     ),
                     children: (
-                      <div style={{ padding: 24, flex: 1, overflowY: 'auto' }}>
+                      <div className="raw-data-tab-content" style={{ padding: 24, flex: 1, overflowY: 'auto' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
                           <Title level={5} style={{ margin: 0 }}>Embodiment 화합물 목록</Title>
                           <Space>
@@ -1126,8 +1143,8 @@ const PatentAnalysisDetail: React.FC = () => {
                                   );
                                 }
                               },
-                              { title: 'Scaffold Rank', dataIndex: 'scaffold_ranking', key: 'scaffold_ranking', width: 120, align: 'center' as const, className: 'table-center-column', render: (v: any) => v ?? '-' },
                               { title: 'Example No.', dataIndex: 'compound_id', key: 'compound_id', width: 130, fixed: 'left' as const, align: 'center' as const, className: 'table-center-column' },
+                              { title: 'Scaffold Rank', dataIndex: 'scaffold_ranking', key: 'scaffold_ranking', width: 120, align: 'center' as const, className: 'table-center-column', render: (v: any) => v ?? '-' },
                               {
                                 title: 'Structure',
                                 key: 'structure',
@@ -1236,104 +1253,132 @@ const PatentAnalysisDetail: React.FC = () => {
                                     },
                                     style: { cursor: 'pointer' }
                                   })}
-                                  pagination={{ pageSize: rawDataTablePageSize, showSizeChanger: true, position: ['bottomCenter'], style: { margin: '14px 0' } }}
+                                  pagination={rawDataTablePagination}
                                 />
                               </div>
                             );
                           })()
 
                         ) : (
-                          <Row gutter={[16, 16]}>
-                            {(rGroupFilter
+                          (() => {
+                            const rawCardRows = (rGroupFilter
                               ? (patentResult.patent_compound ?? []).filter((c: any) => c.r_groups?.[rGroupFilter.key] === rGroupFilter.smiles)
                               : (patentResult.patent_compound ?? [])
-                            ).map((comp: any, idx: number) => {
-                              const compKey = String(comp.id);
-                              const pageArr: number[] = Array.isArray(comp.page) ? comp.page : [];
-                              const bboxArr: any[] = Array.isArray(comp.bbox) ? comp.bbox : [];
-                              const curIdx = pageIndices[compKey] ?? 0;
-                              const rEntries = Object.entries(comp.r_groups ?? {}) as [string, string][];
-                              
-                              return (
-                                <Col span={24} md={12} lg={8} key={`${comp.id}-${idx}`}>
-                                  <DataCardItem
-                                    title={comp.compound_id}
-                                    tags={comp.ranking ? [{ label: `Rank ${comp.ranking}`, color: 'blue' }] : []}
-                                    cornerIcon={
-                                      comp.is_human_key_compound ? (
-                                        <span style={{ fontSize: 15, cursor: 'pointer' }} title="Key Compound">🔑</span>
-                                      ) : undefined
-                                    }
-                                    imageUrl={comp.compound_svg}
-                                    imageType="svg"
-                                    imageHeight={130}
-                                    isActive={activeCompId === compKey}
-                                    onClick={() => {
-                                      setActiveCompId(compKey);
-                                      if (pageArr.length > 0) handleGoToPdf(pageArr[curIdx], bboxArr[curIdx]);
-                                    }}
-                                    onPreview={() => openSvgPreview(comp.compound_svg, comp.compound_id)}
-                                    smiles={comp.smiles}
-                                    molblock={comp.molblock}
-                                    extraInfo={
-                                      rEntries.length > 0 && (
-                                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                                          {rEntries.map(([k, v]) => (
-                                            <Tooltip key={k} title={`${k}: ${String(v ?? '')}`}>
-                                              <Tag
-                                                style={{
-                                                  fontSize: 9,
-                                                  maxWidth: 170,
-                                                  cursor: 'copy',
-                                                  overflow: 'hidden',
-                                                  textOverflow: 'ellipsis',
-                                                  whiteSpace: 'nowrap',
-                                                  display: 'inline-flex',
-                                                  alignItems: 'center',
-                                                  gap: 2
-                                                }}
-                                                onClick={(e) => {
-                                                  e.stopPropagation();
-                                                  const copiedText = `${k}: ${String(v ?? '')}`;
-                                                  navigator.clipboard.writeText(copiedText)
-                                                    .then(() => message.success(`${k} 값이 복사되었습니다.`))
-                                                    .catch(() => message.error('복사에 실패했습니다.'));
-                                                }}
-                                              >
-                                                <Text strong style={{ fontSize: 9 }}>{k}:</Text>
-                                                <span
-                                                  style={{
-                                                    maxWidth: 110,
-                                                    overflow: 'hidden',
-                                                    textOverflow: 'ellipsis',
-                                                    whiteSpace: 'nowrap'
-                                                  }}
-                                                >
-                                                  {String(v ?? '')}
-                                                </span>
-                                              </Tag>
-                                            </Tooltip>
-                                          ))}
-                                        </div>
-                                      )
-                                    }
-                                    footerText={comp.scaffold}
-                                    pagination={
-                                      pageArr.length > 0
-                                        ? {
-                                            currentIndex: curIdx,
-                                            totalCount: pageArr.length,
-                                            onPrev: () => handlePageChange(compKey, -1, pageArr, bboxArr),
-                                            onNext: () => handlePageChange(compKey, 1, pageArr, bboxArr),
-                                            pageLabel: () => `p.${pageArr[curIdx] ?? '-'}`,
+                            );
+                            const currentPage = Math.min(rawCardCurrentPage, Math.max(1, Math.ceil(rawCardRows.length / rawCardPageSize)));
+                            const pagedRawCardRows = rawCardRows.slice((currentPage - 1) * rawCardPageSize, currentPage * rawCardPageSize);
+
+                            if (rawCardRows.length === 0) {
+                              return <Empty description="Raw Data 데이터가 없습니다." />;
+                            }
+
+                            return (
+                              <div className="patent-analysis-card-view" style={{ minHeight: rawDataTableScrollY }}>
+                                <Row className="patent-analysis-card-grid" gutter={[16, 16]}>
+                                  {pagedRawCardRows.map((comp: any, idx: number) => {
+                                    const compKey = String(comp.id);
+                                    const pageArr: number[] = Array.isArray(comp.page) ? comp.page : [];
+                                    const bboxArr: any[] = Array.isArray(comp.bbox) ? comp.bbox : [];
+                                    const curIdx = pageIndices[compKey] ?? 0;
+                                    const rEntries = Object.entries(comp.r_groups ?? {}) as [string, string][];
+
+                                    return (
+                                      <Col span={24} md={12} lg={8} key={`${comp.id}-${idx}`}>
+                                        <DataCardItem
+                                          title={comp.compound_id}
+                                          tags={comp.ranking ? [{ label: `Rank ${comp.ranking}`, color: 'blue' }] : []}
+                                          cornerIcon={
+                                            comp.is_human_key_compound ? (
+                                              <span style={{ fontSize: 15, cursor: 'pointer' }} title="Key Compound">🔑</span>
+                                            ) : undefined
                                           }
-                                        : undefined
-                                    }
-                                  />
-                                </Col>
-                              );
-                            })}
-                          </Row>
+                                          imageUrl={comp.compound_svg}
+                                          imageType="svg"
+                                          imageHeight={130}
+                                          isActive={activeCompId === compKey}
+                                          onClick={() => {
+                                            setActiveCompId(compKey);
+                                            if (pageArr.length > 0) handleGoToPdf(pageArr[curIdx], bboxArr[curIdx]);
+                                          }}
+                                          onPreview={() => openSvgPreview(comp.compound_svg, comp.compound_id)}
+                                          smiles={comp.smiles}
+                                          molblock={comp.molblock}
+                                          extraInfo={
+                                            rEntries.length > 0 && (
+                                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                                                {rEntries.map(([k, v]) => (
+                                                  <Tooltip key={k} title={`${k}: ${String(v ?? '')}`}>
+                                                    <Tag
+                                                      style={{
+                                                        fontSize: 9,
+                                                        maxWidth: 170,
+                                                        cursor: 'copy',
+                                                        overflow: 'hidden',
+                                                        textOverflow: 'ellipsis',
+                                                        whiteSpace: 'nowrap',
+                                                        display: 'inline-flex',
+                                                        alignItems: 'center',
+                                                        gap: 2
+                                                      }}
+                                                      onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        const copiedText = `${k}: ${String(v ?? '')}`;
+                                                        navigator.clipboard.writeText(copiedText)
+                                                          .then(() => message.success(`${k} 값이 복사되었습니다.`))
+                                                          .catch(() => message.error('복사에 실패했습니다.'));
+                                                      }}
+                                                    >
+                                                      <Text strong style={{ fontSize: 9 }}>{k}:</Text>
+                                                      <span
+                                                        style={{
+                                                          maxWidth: 110,
+                                                          overflow: 'hidden',
+                                                          textOverflow: 'ellipsis',
+                                                          whiteSpace: 'nowrap'
+                                                        }}
+                                                      >
+                                                        {String(v ?? '')}
+                                                      </span>
+                                                    </Tag>
+                                                  </Tooltip>
+                                                ))}
+                                              </div>
+                                            )
+                                          }
+                                          footerText={comp.scaffold}
+                                          pagination={
+                                            pageArr.length > 0
+                                              ? {
+                                                  currentIndex: curIdx,
+                                                  totalCount: pageArr.length,
+                                                  onPrev: () => handlePageChange(compKey, -1, pageArr, bboxArr),
+                                                  onNext: () => handlePageChange(compKey, 1, pageArr, bboxArr),
+                                                  pageLabel: () => `p.${pageArr[curIdx] ?? '-'}`,
+                                                }
+                                              : undefined
+                                          }
+                                        />
+                                      </Col>
+                                    );
+                                  })}
+                                </Row>
+                                <Pagination
+                                  className="v-common-pagination"
+                                  size="small"
+                                  current={currentPage}
+                                  pageSize={rawCardPageSize}
+                                  total={rawCardRows.length}
+                                  showSizeChanger
+                                  pageSizeOptions={RAW_DATA_PAGE_SIZE_OPTIONS}
+                                  itemRender={paginationItemRender}
+                                  onChange={(page, pageSize) => {
+                                    setRawCardCurrentPage(page);
+                                    setRawCardPageSize(pageSize);
+                                  }}
+                                />
+                              </div>
+                            );
+                          })()
                         )}
                       </div>
                     )
@@ -1346,7 +1391,7 @@ const PatentAnalysisDetail: React.FC = () => {
                       </span>
                     ),
                     children: (
-                      <div style={{ padding: 24, flex: 1, overflowY: 'auto' }}>
+                      <div className="raw-data-tab-content" style={{ padding: 24, flex: 1, overflowY: 'auto' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
                           <Title level={5} style={{ margin: 0 }}>Clean Data 화합물 목록</Title>
                           <Space>
@@ -1615,7 +1660,7 @@ const PatentAnalysisDetail: React.FC = () => {
                                     },
                                     style: { cursor: 'pointer' }
                                   })}
-                                  pagination={{ pageSize: rawDataTablePageSize, showSizeChanger: true, position: ['bottomCenter'], style: { margin: '14px 0' } }}
+                                  pagination={rawDataTablePagination}
                                 />
                               </div>
                             );
@@ -1626,58 +1671,77 @@ const PatentAnalysisDetail: React.FC = () => {
                             if (modifiedRows.length === 0) {
                               return <Empty description="Clean Data 데이터가 없습니다." />;
                             }
+                            const currentPage = Math.min(cleanCardCurrentPage, Math.max(1, Math.ceil(modifiedRows.length / cleanCardPageSize)));
+                            const pagedModifiedRows = modifiedRows.slice((currentPage - 1) * cleanCardPageSize, currentPage * cleanCardPageSize);
+
                             return (
-                              <Row gutter={[16, 16]}>
-                                {modifiedRows.map((comp: any, idx: number) => {
-                                  const compKey = `clean-card-${comp.id}-${idx}`;
-                                  const pageArr: number[] = Array.isArray(comp.page) ? comp.page : [];
-                                  const bboxArr: any[] = Array.isArray(comp.bbox) ? comp.bbox : [];
-                                  const curIdx = pageIndices[compKey] ?? 0;
-                                  const bioEntries = Object.entries(comp.modified_bioactivity ?? {}) as [string, any][];
-                                  return (
-                                    <Col span={24} md={12} lg={8} key={compKey}>
-                                      <DataCardItem
-                                        title={comp.compound_id}
-                                        tags={comp.ranking ? [{ label: `Rank ${comp.ranking}`, color: 'blue' }] : []}
-                                        imageUrl={comp.compound_svg}
-                                        imageType="svg"
-                                        imageHeight={130}
-                                        isActive={activeCompId === compKey}
-                                        onClick={() => {
-                                          setActiveCompId(compKey);
-                                          if (pageArr.length > 0) handleGoToPdf(pageArr[curIdx], bboxArr[curIdx]);
-                                        }}
-                                        onPreview={() => openSvgPreview(comp.compound_svg, comp.compound_id)}
-                                        smiles={comp.smiles}
-                                        molblock={comp.molblock}
-                                        extraInfo={
-                                          bioEntries.length > 0 && (
-                                            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                                              {bioEntries.map(([k, v]) => (
-                                                <Text key={k} style={{ fontSize: 10 }} ellipsis={{ tooltip: `${k}: ${Array.isArray(v) ? v.join(', ') : String(v ?? '-')}` }}>
-                                                  {k}: {Array.isArray(v) ? v.join(', ') : String(v ?? '-')}
-                                                </Text>
-                                              ))}
-                                            </div>
-                                          )
-                                        }
-                                        footerText={comp.scaffold}
-                                        pagination={
-                                          pageArr.length > 0
-                                            ? {
-                                                currentIndex: curIdx,
-                                                totalCount: pageArr.length,
-                                                onPrev: () => handlePageChange(compKey, -1, pageArr, bboxArr),
-                                                onNext: () => handlePageChange(compKey, 1, pageArr, bboxArr),
-                                                pageLabel: () => `p.${pageArr[curIdx] ?? '-'}`,
-                                              }
-                                            : undefined
-                                        }
-                                      />
-                                    </Col>
-                                  );
-                                })}
-                              </Row>
+                              <div className="patent-analysis-card-view" style={{ minHeight: rawDataTableScrollY }}>
+                                <Row className="patent-analysis-card-grid" gutter={[16, 16]}>
+                                  {pagedModifiedRows.map((comp: any, idx: number) => {
+                                    const compKey = `clean-card-${comp.id}-${((currentPage - 1) * cleanCardPageSize) + idx}`;
+                                    const pageArr: number[] = Array.isArray(comp.page) ? comp.page : [];
+                                    const bboxArr: any[] = Array.isArray(comp.bbox) ? comp.bbox : [];
+                                    const curIdx = pageIndices[compKey] ?? 0;
+                                    const bioEntries = Object.entries(comp.modified_bioactivity ?? {}) as [string, any][];
+                                    return (
+                                      <Col span={24} md={12} lg={8} key={compKey}>
+                                        <DataCardItem
+                                          title={comp.compound_id}
+                                          tags={comp.ranking ? [{ label: `Rank ${comp.ranking}`, color: 'blue' }] : []}
+                                          imageUrl={comp.compound_svg}
+                                          imageType="svg"
+                                          imageHeight={130}
+                                          isActive={activeCompId === compKey}
+                                          onClick={() => {
+                                            setActiveCompId(compKey);
+                                            if (pageArr.length > 0) handleGoToPdf(pageArr[curIdx], bboxArr[curIdx]);
+                                          }}
+                                          onPreview={() => openSvgPreview(comp.compound_svg, comp.compound_id)}
+                                          smiles={comp.smiles}
+                                          molblock={comp.molblock}
+                                          extraInfo={
+                                            bioEntries.length > 0 && (
+                                              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                                {bioEntries.map(([k, v]) => (
+                                                  <Text key={k} style={{ fontSize: 10 }} ellipsis={{ tooltip: `${k}: ${Array.isArray(v) ? v.join(', ') : String(v ?? '-')}` }}>
+                                                    {k}: {Array.isArray(v) ? v.join(', ') : String(v ?? '-')}
+                                                  </Text>
+                                                ))}
+                                              </div>
+                                            )
+                                          }
+                                          footerText={comp.scaffold}
+                                          pagination={
+                                            pageArr.length > 0
+                                              ? {
+                                                  currentIndex: curIdx,
+                                                  totalCount: pageArr.length,
+                                                  onPrev: () => handlePageChange(compKey, -1, pageArr, bboxArr),
+                                                  onNext: () => handlePageChange(compKey, 1, pageArr, bboxArr),
+                                                  pageLabel: () => `p.${pageArr[curIdx] ?? '-'}`,
+                                                }
+                                              : undefined
+                                          }
+                                        />
+                                      </Col>
+                                    );
+                                  })}
+                                </Row>
+                                <Pagination
+                                  className="v-common-pagination"
+                                  size="small"
+                                  current={currentPage}
+                                  pageSize={cleanCardPageSize}
+                                  total={modifiedRows.length}
+                                  showSizeChanger
+                                  pageSizeOptions={RAW_DATA_PAGE_SIZE_OPTIONS}
+                                  itemRender={paginationItemRender}
+                                  onChange={(page, pageSize) => {
+                                    setCleanCardCurrentPage(page);
+                                    setCleanCardPageSize(pageSize);
+                                  }}
+                                />
+                              </div>
                             );
                           })()
                         )}
@@ -1912,6 +1976,28 @@ const PatentAnalysisDetail: React.FC = () => {
           padding: 14px 12px;
           transition: background-color 0.2s ease;
         }
+        .raw-data-tab-content .raw-data-embodiment-table .ant-table-tbody > tr > td:not(.ant-table-cell-fix-left):not(.ant-table-cell-fix-left-last) {
+          position: relative;
+          z-index: 1;
+        }
+        .raw-data-tab-content .raw-data-embodiment-table .ant-table-cell-fix-left,
+        .raw-data-tab-content .raw-data-embodiment-table .ant-table-cell-fix-left-last {
+          position: sticky !important;
+          background: ${token.colorBgContainer} !important;
+          background-clip: padding-box !important;
+          z-index: 20 !important;
+        }
+        .raw-data-tab-content .raw-data-embodiment-table .ant-table-thead .ant-table-cell-fix-left,
+        .raw-data-tab-content .raw-data-embodiment-table .ant-table-thead .ant-table-cell-fix-left-last {
+          position: sticky !important;
+          background: ${token.colorBgContainer} !important;
+          background-clip: padding-box !important;
+          z-index: 30 !important;
+        }
+        .raw-data-tab-content .raw-data-embodiment-table .ant-table-thead .ant-table-cell-fix-left-last,
+        .raw-data-tab-content .raw-data-embodiment-table .ant-table-tbody .ant-table-cell-fix-left-last {
+          box-shadow: 1px 0 0 ${token.colorBorderSecondary} !important;
+        }
         .raw-data-tab-content .raw-data-embodiment-table .raw-data-row-active > td {
           background: var(--table-row-selected-bg) !important;
         }
@@ -1920,6 +2006,24 @@ const PatentAnalysisDetail: React.FC = () => {
         }
         .raw-data-tab-content .raw-data-embodiment-table .raw-data-row-active:hover > td {
           background: var(--table-row-selected-hover-bg) !important;
+        }
+        .raw-data-tab-content .raw-data-embodiment-table .raw-data-row-active > .ant-table-cell-fix-left,
+        .raw-data-tab-content .raw-data-embodiment-table .raw-data-row-active > .ant-table-cell-fix-left-last {
+          background: var(--table-row-selected-bg) !important;
+          background-clip: padding-box !important;
+          z-index: 22 !important;
+        }
+        .raw-data-tab-content .raw-data-embodiment-table .ant-table-row:hover > .ant-table-cell-fix-left,
+        .raw-data-tab-content .raw-data-embodiment-table .ant-table-row:hover > .ant-table-cell-fix-left-last {
+          background: var(--table-row-hover-bg) !important;
+          background-clip: padding-box !important;
+          z-index: 22 !important;
+        }
+        .raw-data-tab-content .raw-data-embodiment-table .raw-data-row-active:hover > .ant-table-cell-fix-left,
+        .raw-data-tab-content .raw-data-embodiment-table .raw-data-row-active:hover > .ant-table-cell-fix-left-last {
+          background: var(--table-row-selected-hover-bg) !important;
+          background-clip: padding-box !important;
+          z-index: 22 !important;
         }
         .patent-structure-preview .svg-renderer-frame svg {
           max-width: calc(100% / 1.5) !important;

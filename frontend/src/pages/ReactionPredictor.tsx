@@ -43,6 +43,7 @@ import {
   type ReactionSite,
   type ReactionType,
 } from '../mocks/reactionPredictions';
+import { formatDisplayDate } from '../utils/displayFormat';
 
 const { Text, Title } = Typography;
 
@@ -71,6 +72,9 @@ const reactionProfileImages: Record<string, string> = {
 
 const getReactionProfileImage = (row: ReactionPredictionRow) =>
   reactionProfileImages[row.id] ?? oaProfileTriBromo;
+
+const formatNumberWithComma = (value: number) =>
+  String(value).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 
 const ReactionPredictor: React.FC = () => {
   const { token } = theme.useToken();
@@ -222,13 +226,14 @@ const ReactionPredictor: React.FC = () => {
       dataIndex: 'startDate',
       align: 'center',
       width: 130,
+      render: formatDisplayDate,
     },
     {
       title: 'End Date',
       dataIndex: 'endDate',
       align: 'center',
       width: 130,
-      render: (value?: string) => value || '-',
+      render: formatDisplayDate,
     },
   ];
 
@@ -325,10 +330,14 @@ const ReactionPredictor: React.FC = () => {
               rowKey="id"
               columns={columns}
               dataSource={filteredRows}
+              size="small"
               pagination={{
                 defaultPageSize: 10,
                 showSizeChanger: true,
                 pageSizeOptions: [10, 30, 50, 100],
+                itemRender: (page, type, originalElement) => (
+                  type === 'page' ? <span>{formatNumberWithComma(page)}</span> : originalElement
+                ),
               }}
               scroll={{ x: 850 }}
               rowClassName={(row) => (row.id === selectedRow?.id ? 'row-selected' : '')}

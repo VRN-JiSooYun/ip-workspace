@@ -14,6 +14,7 @@ import {
 import { getPatentAnalysisLayoutPreset } from '../config/patentAnalysisLayout';
 import PageHeaderBreadcrumb from '../components/common/PageHeaderBreadcrumb';
 import { useUIStore } from '../store/useUIStore';
+import { formatDisplayDate } from '../utils/displayFormat';
 
 const { Text, Title } = Typography;
 
@@ -289,7 +290,7 @@ const DevelopmentStatus: React.FC = () => {
                             </Tag>
                           </div>
                           <Text type="secondary" style={{ fontSize: 11 }}>
-                            {project.category} · {project.owner} · 목표 {project.targetDate}
+                            {project.category} · {project.owner} · 목표 {formatDisplayDate(project.targetDate)}
                           </Text>
                         </div>
 
@@ -372,7 +373,7 @@ const DevelopmentStatus: React.FC = () => {
                                 {project.updates.map((update) => (
                                   <Text key={update} style={{ fontSize: 12 }}>
                                     <CheckCircle2 size={13} color={token.colorSuccess} style={{ marginRight: 6, verticalAlign: -2 }} />
-                                    {update}
+                                    {formatDisplayDate(update)}
                                   </Text>
                                 ))}
                               </div>

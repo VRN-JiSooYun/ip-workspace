@@ -14,6 +14,7 @@ import { useUIStore } from '../store/useUIStore';
 import { getPatentAnalysisLayoutPreset } from '../config/patentAnalysisLayout';
 import PageHeaderBreadcrumb from '../components/common/PageHeaderBreadcrumb';
 import BenzeneIcon from '../components/common/BenzeneIcon';
+import { formatDisplayDate } from '../utils/displayFormat';
 
 const { Title, Text } = Typography;
 
@@ -52,7 +53,7 @@ const Dashboard: React.FC = () => {
       {/* Top Header Section */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
         <Title level={4} style={{ margin: 0, color: '#F87C63', fontWeight: 600 }}>
-          2025.04.14. ~ 2025.04.21.
+          {formatDisplayDate('2025.04.14')} ~ {formatDisplayDate('2025.04.21')}
         </Title>
         <Button 
           type="primary" 
@@ -128,13 +129,13 @@ const Dashboard: React.FC = () => {
             <div className="dashboard-card-content">
               <Space direction="vertical" style={{ width: '100%' }} size={8}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px' }}>
-                  <Text type="secondary">25.04.12.</Text><Text>3D PSA 12개 끝</Text>
+                  <Text type="secondary">{formatDisplayDate('25.04.12')}</Text><Text>3D PSA 12개 끝</Text>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px' }}>
-                  <Text type="secondary">25.04.19.</Text><Text>Permeability MD 5개 끝</Text>
+                  <Text type="secondary">{formatDisplayDate('25.04.19')}</Text><Text>Permeability MD 5개 끝</Text>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px' }}>
-                  <Text type="secondary">25.04.20.</Text><Text>Permeability MD 14개 끝</Text>
+                  <Text type="secondary">{formatDisplayDate('25.04.20')}</Text><Text>Permeability MD 14개 끝</Text>
                 </div>
               </Space>
             </div>

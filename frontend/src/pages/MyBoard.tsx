@@ -28,6 +28,7 @@ import ToggleTag from '../components/common/ToggleTag';
 import shareForwardIconRaw from '../assets/svg/share-forward-fill.svg?raw';
 import shareIconRaw from '../assets/svg/share.svg?raw';
 import bookmarkIconRaw from '../assets/svg/bookmark.svg?raw';
+import { formatDisplayDate } from '../utils/displayFormat';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
@@ -131,6 +132,7 @@ const MyBoard: React.FC = () => {
   const {
     selectedGroupIds,
     toggleGroupSelection,
+    setSelectedGroupIds,
     setSelectedSarCompoundIds,
     groups,
     groupStructureViewSettings,
@@ -710,6 +712,7 @@ const MyBoard: React.FC = () => {
       className: 'my-board-group-fixed-column',
       onCell: () => createFixedGroupColumnProps(MYBOARD_GROUP_COLUMN_WIDTHS.creDate),
       onHeaderCell: () => createFixedGroupColumnProps(MYBOARD_GROUP_COLUMN_WIDTHS.creDate),
+      render: formatDisplayDate,
     },
     {
       title: 'Target',
@@ -872,6 +875,15 @@ const MyBoard: React.FC = () => {
     setCompoundContextMenu(null);
   }, [canEditCompound]);
 
+  const handleGroupRowSelection = React.useCallback((groupId: string, event: React.MouseEvent) => {
+    if (event.ctrlKey || event.metaKey) {
+      toggleGroupSelection(groupId);
+      return;
+    }
+
+    setSelectedGroupIds([groupId]);
+  }, [setSelectedGroupIds, toggleGroupSelection]);
+
   const toggleDetailCompoundSelection = React.useCallback((compoundId: string) => {
     setSelectedDetailCompoundIds((prev) => (
       prev.includes(compoundId)
@@ -879,6 +891,15 @@ const MyBoard: React.FC = () => {
         : [...prev, compoundId]
     ));
   }, []);
+
+  const handleDetailCompoundRowSelection = React.useCallback((compoundId: string, event: React.MouseEvent) => {
+    if (event.ctrlKey || event.metaKey) {
+      toggleDetailCompoundSelection(compoundId);
+      return;
+    }
+
+    setSelectedDetailCompoundIds([compoundId]);
+  }, [toggleDetailCompoundSelection]);
 
   const compoundContextMenuItems: MenuProps['items'] = [
     {
@@ -1129,12 +1150,12 @@ const MyBoard: React.FC = () => {
     '필요량 (mg)': { title: '필요량 (mg)', dataIndex: 'requiredAmountMg', key: 'requiredAmountMg', width: 104, align: 'right' as const },
     '목적 (개선하고자 하는 assay)': { title: '목적 (개선하고자 하는 assay)', dataIndex: 'assayPurpose', key: 'assayPurpose', width: 260, render: renderMultilineText },
     '기대 개선 효과': { title: '기대 개선 효과', dataIndex: 'expectedEffect', key: 'expectedEffect', width: 180, render: renderMultilineText },
-    '의뢰일자': { title: '의뢰일자', dataIndex: 'requestDate', key: 'requestDate', width: 96 },
+    '의뢰일자': { title: '의뢰일자', dataIndex: 'requestDate', key: 'requestDate', width: 96, render: formatDisplayDate },
     '합성 확장 필요 정도': { title: '합성 확장 필요 정도', dataIndex: 'synthesisExpansionLevel', key: 'synthesisExpansionLevel', width: 144 },
     '의뢰 비고': { title: '의뢰 비고', dataIndex: 'requestMemo', key: 'requestMemo', width: 180, render: renderMultilineText },
     '합성 담당자': { title: '합성 담당자', dataIndex: 'synthesisOwner', key: 'synthesisOwner', width: 104 },
-    '합성 스터디 그룹 수락일자': { title: '합성 스터디 그룹 수락일자', dataIndex: 'synthesisAcceptedDate', key: 'synthesisAcceptedDate', width: 172 },
-    '합성 목표일': { title: '합성 목표일', dataIndex: 'synthesisTargetDate', key: 'synthesisTargetDate', width: 104 },
+    '합성 스터디 그룹 수락일자': { title: '합성 스터디 그룹 수락일자', dataIndex: 'synthesisAcceptedDate', key: 'synthesisAcceptedDate', width: 172, render: formatDisplayDate },
+    '합성 목표일': { title: '합성 목표일', dataIndex: 'synthesisTargetDate', key: 'synthesisTargetDate', width: 104, render: formatDisplayDate },
     '진행사항 비고': { title: '진행사항 비고', dataIndex: 'progressMemo', key: 'progressMemo', width: 180, render: renderMultilineText },
     '완료 여부': {
       title: '완료 여부',
@@ -1143,7 +1164,7 @@ const MyBoard: React.FC = () => {
       width: 88,
       render: (isCompleted: boolean) => <Tag color={isCompleted ? 'green' : 'gold'}>{isCompleted ? '완료' : '진행중'}</Tag>
     },
-    '등록일': { title: '등록일', dataIndex: 'registeredDate', key: 'registeredDate', width: 96 },
+    '등록일': { title: '등록일', dataIndex: 'registeredDate', key: 'registeredDate', width: 96, render: formatDisplayDate },
     '연구노트': { title: '연구노트', dataIndex: 'researchNote', key: 'researchNote', width: 108 },
     '리포트 자료': { title: '리포트 자료', dataIndex: 'reportData', key: 'reportData', width: 156, render: renderMultilineText },
     '합성 종료 이유': { title: '합성 종료 이유', dataIndex: 'synthesisEndReason', key: 'synthesisEndReason', width: 164, render: renderMultilineText }
@@ -1414,6 +1435,7 @@ const MyBoard: React.FC = () => {
                     <Text strong>기간:</Text>
                     <Segmented options={['3개월', '6개월', '12개월', '전체']} value={period} onChange={(v) => setPeriod(v as string)} />
                     <RangePicker
+                      format="YYYY.MM.DD"
                       style={{ borderRadius: 8 }}
                       disabled={period !== '전체'}
                     />
@@ -1545,9 +1567,9 @@ const MyBoard: React.FC = () => {
               scroll={isGroupListStructureOnly ? undefined : { x: groupTableScrollX }}
               tableLayout="fixed"
               onRow={(record) => ({
-                onClick: () => {
+                onClick: (event) => {
                   setIsLoading(true);
-                  toggleGroupSelection(record.id);
+                  handleGroupRowSelection(record.id, event);
                   setTimeout(() => setIsLoading(false), 500);
                 },
                 onContextMenu: (event) => {
@@ -1555,7 +1577,7 @@ const MyBoard: React.FC = () => {
                   event.preventDefault();
 
                   if (!selectedGroupIds.includes(record.id)) {
-                    toggleGroupSelection(record.id);
+                    setSelectedGroupIds([record.id]);
                   }
                   setGroupContextMenu({
                     open: true,
@@ -1669,26 +1691,29 @@ const MyBoard: React.FC = () => {
                 <Space>
                   {viewMode === 'table' && (
                   <>
-                    <div className="my-board-structure-setting-row" aria-label="화합물 구조 크기 설정">
-                      <Tooltip title="구조 이미지 축소">
-                        <Button
-                          size="small"
-                          icon={<Minus size={12} />}
-                          disabled={isStructureSettingsDisabled}
-                          onClick={() => changeMyBoardStructureScale(-MYBOARD_STRUCTURE_IMAGE_SCALE_STEP)}
-                        />
-                      </Tooltip>
-                      <div className="my-board-structure-setting-value">
-                        {activeStructureSettings ? `${activeStructureSettings.myBoardImageScalePercent}%` : ''}
+                    <div className="my-board-structure-setting-group" aria-label="화합물 구조 크기 설정">
+                      <span className="my-board-structure-setting-label">Scale</span>
+                      <div className="my-board-structure-setting-row">
+                        <Tooltip title="구조 이미지 축소">
+                          <Button
+                            size="small"
+                            icon={<Minus size={12} />}
+                            disabled={isStructureSettingsDisabled}
+                            onClick={() => changeMyBoardStructureScale(-MYBOARD_STRUCTURE_IMAGE_SCALE_STEP)}
+                          />
+                        </Tooltip>
+                        <div className="my-board-structure-setting-value">
+                          {activeStructureSettings ? `${activeStructureSettings.myBoardImageScalePercent}%` : ''}
+                        </div>
+                        <Tooltip title="구조 이미지 확대">
+                          <Button
+                            size="small"
+                            icon={<Plus size={12} />}
+                            disabled={isStructureSettingsDisabled}
+                            onClick={() => changeMyBoardStructureScale(MYBOARD_STRUCTURE_IMAGE_SCALE_STEP)}
+                          />
+                        </Tooltip>
                       </div>
-                      <Tooltip title="구조 이미지 확대">
-                        <Button
-                          size="small"
-                          icon={<Plus size={12} />}
-                          disabled={isStructureSettingsDisabled}
-                          onClick={() => changeMyBoardStructureScale(MYBOARD_STRUCTURE_IMAGE_SCALE_STEP)}
-                        />
-                      </Tooltip>
                     </div>
                     <Divider type="vertical" />
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -1810,7 +1835,7 @@ const MyBoard: React.FC = () => {
                     onClick: (event) => {
                       const target = event.target as HTMLElement;
                       if (target.closest('button, a, input, textarea, .ant-checkbox-wrapper, .ant-select, .ant-dropdown')) return;
-                      toggleDetailCompoundSelection(record.id);
+                      handleDetailCompoundRowSelection(record.id, event);
                     },
                     onContextMenu: (event) => {
                       event.stopPropagation();
@@ -2322,6 +2347,26 @@ const MyBoard: React.FC = () => {
           grid-template-columns: 24px 42px 24px;
           align-items: center;
           gap: 4px;
+        }
+        .my-board-structure-setting-group {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          height: 28px;
+          padding: 3px 6px;
+          border: 1px solid ${token.colorBorderSecondary};
+          border-radius: 6px;
+          background: ${token.colorBgLayout};
+          box-sizing: border-box;
+        }
+        .my-board-structure-setting-label {
+          min-width: 42px;
+          color: ${token.colorTextSecondary};
+          font-size: 10px;
+          font-weight: 600;
+          line-height: 18px;
+          text-align: left;
+          user-select: none;
         }
         .my-board-structure-setting-row .ant-btn {
           width: 24px;

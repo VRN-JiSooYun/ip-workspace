@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import ReactECharts from 'echarts-for-react';
 import dayjs from 'dayjs';
-import { Alert, App, Button, Card, Col, DatePicker, Empty, Input, InputNumber, Row, Space, Table, Tooltip, Typography, theme } from 'antd';
+import { Alert, App, Button, Card, Col, DatePicker, Empty, Input, InputNumber, Row, Space, Spin, Table, Tooltip, Typography, theme } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { BarChart3, ChevronDown, ChevronUp, Database, RefreshCw, RotateCcw, Search } from 'lucide-react';
 import PageHeaderBreadcrumb from '../components/common/PageHeaderBreadcrumb';
@@ -20,6 +20,16 @@ const SPLIT_DEFAULT_PERCENT = 60;
 const SPLIT_MIN_PERCENT = 46;
 const SPLIT_MAX_PERCENT = 72;
 const DEFAULT_DATE_RANGE_START = '1970-01-01';
+const EMPTY_PATENT_INSIGHT_STATISTICS: PatentInsightStatistics = {
+  totalCount: 0,
+  filteredCount: 0,
+  countAcrossTime: [],
+  patentPerOffice: [],
+  filingLanguageCounts: [],
+  patentTypeCounts: [],
+  patentCountByApplicant: [],
+  patentCountByTargetAndApplicant: [],
+};
 
 type StoredFilters = {
   applicant?: string;
@@ -147,15 +157,15 @@ const PatentInsight: React.FC = () => {
   const { isDarkMode } = useTheme();
   const { setHeaderContent } = useUIStore();
   const storedFilters = useMemo(readStoredFilters, []);
+  const hasLoadedInitialStatisticsRef = useRef(false);
   const splitContainerRef = useRef<HTMLDivElement | null>(null);
   const splitRafRef = useRef<number | null>(null);
 
   const [viewportWidth, setViewportWidth] = useState(() => (typeof window === 'undefined' ? 1920 : window.innerWidth));
-  const [statistics, setStatistics] = useState<PatentInsightStatistics>(mockPatentInsightStatistics);
+  const [statistics, setStatistics] = useState<PatentInsightStatistics>(EMPTY_PATENT_INSIGHT_STATISTICS);
   const [isLoading, setIsLoading] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [isUsingMockFallback, setIsUsingMockFallback] = useState(false);
   const [isViewingMockData, setIsViewingMockData] = useState(false);
   const [applicant, setApplicant] = useState(storedFilters.applicant ?? '');
   const [dateRange, setDateRange] = useState<[any, any] | null>(() => {
@@ -325,17 +335,20 @@ const PatentInsight: React.FC = () => {
         topNTarget,
       });
       setStatistics(nextStatistics);
-      setIsUsingMockFallback(false);
       setIsViewingMockData(false);
     } catch (nextError) {
-      setStatistics(mockPatentInsightStatistics);
-      setIsUsingMockFallback(true);
       setIsViewingMockData(false);
       setError(nextError instanceof Error ? nextError.message : 'Patent Insight statistics request failed.');
     } finally {
       setIsLoading(false);
     }
   }, [applicant, dateRange, topNApplicant, topNTarget]);
+
+  useEffect(() => {
+    if (hasLoadedInitialStatisticsRef.current) return;
+    hasLoadedInitialStatisticsRef.current = true;
+    void loadStatistics();
+  }, [loadStatistics]);
 
   const handleRefreshStatistics = async () => {
     setIsRefreshing(true);
@@ -353,7 +366,6 @@ const PatentInsight: React.FC = () => {
   const handleShowMockData = () => {
     setStatistics(mockPatentInsightStatistics);
     setError(null);
-    setIsUsingMockFallback(false);
     setIsViewingMockData(true);
     message.info('Mock statistics are displayed.');
   };
@@ -622,6 +634,7 @@ const PatentInsight: React.FC = () => {
               <RangePicker
                 value={dateRange}
                 onChange={(value) => setDateRange(value as [any, any] | null)}
+                format="YYYY.MM.DD"
                 allowClear
                 className="v-search-input"
                 style={{
@@ -641,7 +654,9 @@ const PatentInsight: React.FC = () => {
                 prefix={<Search size={18} color={token.colorTextTertiary} />}
                 value={applicant}
                 onChange={(event) => setApplicant(event.target.value)}
-                onPressEnter={() => void loadStatistics()}
+                onPressEnter={() => {
+                  if (!isLoading) void loadStatistics();
+                }}
                 placeholder="Applicant"
                 className="v-search-input"
                 style={{
@@ -657,8 +672,8 @@ const PatentInsight: React.FC = () => {
               >
                 상세 필터 {showAdvancedFilters ? '닫기' : '열기'}
               </Button>
-              <Button type="primary" icon={<Search size={18} />} loading={isLoading} onClick={() => void loadStatistics()} className="v-action-btn">
-                Apply
+              <Button type="primary" icon={<Search size={18} />} disabled={isLoading} onClick={() => void loadStatistics()} className="v-action-btn">
+                검색
               </Button>
             </div>
           </Col>
@@ -697,7 +712,7 @@ const PatentInsight: React.FC = () => {
                     Mock Data
                   </Button>
                   <Tooltip title="Daily statistics refresh">
-                    <Button icon={<RefreshCw size={18} />} loading={isRefreshing} onClick={handleRefreshStatistics} className="v-action-btn">
+                    <Button icon={<RefreshCw size={18} />} onClick={handleRefreshStatistics} className="v-action-btn">
                       Statistics Refresh
                     </Button>
                   </Tooltip>
@@ -708,94 +723,98 @@ const PatentInsight: React.FC = () => {
         )}
       </Card>
 
-      {error || isViewingMockData ? (
-        <Alert
-          type={isViewingMockData ? 'info' : isUsingMockFallback ? 'warning' : 'error'}
-          showIcon
-          message={isViewingMockData ? 'Mock statistics를 표시 중입니다.' : isUsingMockFallback ? 'API 요청 실패로 mock statistics를 표시 중입니다.' : 'Patent Insight API request failed.'}
-          description={isViewingMockData ? 'Apply를 누르면 현재 필터 조건으로 API 통계 조회를 다시 시도합니다.' : error}
-          style={{ marginBottom: 12 }}
-        />
-      ) : null}
+      <div className="patent-insight-results-region">
+        <Spin spinning={isLoading || isRefreshing} size="large">
+          {error || isViewingMockData ? (
+            <Alert
+              type={isViewingMockData ? 'info' : 'error'}
+              showIcon
+              message={isViewingMockData ? 'Mock statistics를 표시 중입니다.' : 'Patent Insight API request failed.'}
+              description={isViewingMockData ? '검색을 누르면 현재 필터 조건으로 API 통계 조회를 다시 시도합니다.' : error}
+              style={{ marginBottom: 12 }}
+            />
+          ) : null}
 
-      <div className="patent-insight-metric-grid">
-        <MetricCard label="Total Patent" value={statistics.totalCount} />
-        <MetricCard label="Filtered Patent" value={statistics.filteredCount} caption={applicant.trim() || dateRange ? 'Current filter result' : undefined} />
-      </div>
-
-      <div
-        ref={splitContainerRef}
-        className={`patent-insight-split${isStackedLayout ? ' patent-insight-split-stacked' : ''}`}
-      >
-        <div className="patent-insight-left" style={{ width: leftWidth }}>
-          <ChartPanel title="These Patent across time" className="patent-insight-line-panel">
-            {statistics.countAcrossTime.length > 0 ? (
-              <ReactECharts option={lineOption} theme={chartTheme} style={{ width: '100%', height: '100%' }} />
-            ) : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} />}
-          </ChartPanel>
-
-          <div className="patent-insight-small-grid">
-            <ChartPanel title="Patent per Patent Office">
-              <ReactECharts option={getBarOption(statistics.patentPerOffice.slice(0, 7))} theme={chartTheme} style={{ width: '100%', height: '100%' }} />
-            </ChartPanel>
-            <ChartPanel title="Company count">
-              <Table<PatentInsightApplicantItem>
-                className="patent-insight-company-table"
-                rowKey="applicant"
-                size="small"
-                pagination={false}
-                columns={applicantColumns}
-                dataSource={statistics.patentCountByApplicant.slice(0, topNApplicant)}
-                scroll={{ y: 190 }}
-              />
-            </ChartPanel>
-            <ChartPanel title="Filing language count">
-              <ReactECharts option={donutOption} theme={chartTheme} style={{ width: '100%', height: '100%' }} />
-            </ChartPanel>
-            <ChartPanel title="Patent per Patent Type">
-              <ReactECharts option={getBarOption(statistics.patentTypeCounts.slice(0, 7), { gridLeft: 128, labelWidth: 116 })} theme={chartTheme} style={{ width: '100%', height: '100%' }} />
-            </ChartPanel>
+          <div className="patent-insight-metric-grid">
+            <MetricCard label="Total Patent" value={statistics.totalCount} />
+            <MetricCard label="Filtered Patent" value={statistics.filteredCount} caption={applicant.trim() || dateRange ? 'Current filter result' : undefined} />
           </div>
-        </div>
 
-        <div
-          role="separator"
-          aria-orientation="vertical"
-          aria-label="Patent Insight chart area width"
-          aria-valuemin={SPLIT_MIN_PERCENT}
-          aria-valuemax={SPLIT_MAX_PERCENT}
-          aria-valuenow={Math.round(splitRatio)}
-          tabIndex={0}
-          onMouseDown={handleSplitMouseDown}
-          onDoubleClick={() => setSplitRatio(SPLIT_DEFAULT_PERCENT)}
-          onKeyDown={handleSplitKeyDown}
-          className="patent-insight-resizer"
-          style={{ display: isStackedLayout ? 'none' : 'flex' }}
-        >
-          <div />
-        </div>
-
-        <div className="patent-insight-right" style={{ width: rightWidth }}>
-          <ChartPanel
-            title="Target x Applicant heatmap"
-            extra={(
-              <Button
-                type="text"
-                size="small"
-                icon={<RotateCcw size={14} />}
-                onClick={() => setSplitRatio(SPLIT_DEFAULT_PERCENT)}
-              />
-            )}
-            className="patent-insight-heatmap-panel"
+          <div
+            ref={splitContainerRef}
+            className={`patent-insight-split${isStackedLayout ? ' patent-insight-split-stacked' : ''}`}
           >
-            <ReactECharts option={heatmapOption} theme={chartTheme} style={{ width: '100%', height: '100%' }} />
-          </ChartPanel>
-        </div>
-      </div>
+            <div className="patent-insight-left" style={{ width: leftWidth }}>
+              <ChartPanel title="These Patent across time" className="patent-insight-line-panel">
+                {statistics.countAcrossTime.length > 0 ? (
+                  <ReactECharts option={lineOption} theme={chartTheme} style={{ width: '100%', height: '100%' }} />
+                ) : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} />}
+              </ChartPanel>
 
-      <div className="patent-insight-footnote">
-        <BarChart3 size={14} />
-        <Text type="secondary">차트 split은 마우스 드래그 또는 키보드 방향키로 조정할 수 있습니다.</Text>
+              <div className="patent-insight-small-grid">
+                <ChartPanel title="Patent per Patent Office">
+                  <ReactECharts option={getBarOption(statistics.patentPerOffice.slice(0, 7))} theme={chartTheme} style={{ width: '100%', height: '100%' }} />
+                </ChartPanel>
+                <ChartPanel title="Company count">
+                  <Table<PatentInsightApplicantItem>
+                    className="patent-insight-company-table"
+                    rowKey="applicant"
+                    size="small"
+                    pagination={false}
+                    columns={applicantColumns}
+                    dataSource={statistics.patentCountByApplicant.slice(0, topNApplicant)}
+                    scroll={{ y: 190 }}
+                  />
+                </ChartPanel>
+                <ChartPanel title="Filing language count">
+                  <ReactECharts option={donutOption} theme={chartTheme} style={{ width: '100%', height: '100%' }} />
+                </ChartPanel>
+                <ChartPanel title="Patent per Patent Type">
+                  <ReactECharts option={getBarOption(statistics.patentTypeCounts.slice(0, 7), { gridLeft: 128, labelWidth: 116 })} theme={chartTheme} style={{ width: '100%', height: '100%' }} />
+                </ChartPanel>
+              </div>
+            </div>
+
+            <div
+              role="separator"
+              aria-orientation="vertical"
+              aria-label="Patent Insight chart area width"
+              aria-valuemin={SPLIT_MIN_PERCENT}
+              aria-valuemax={SPLIT_MAX_PERCENT}
+              aria-valuenow={Math.round(splitRatio)}
+              tabIndex={0}
+              onMouseDown={handleSplitMouseDown}
+              onDoubleClick={() => setSplitRatio(SPLIT_DEFAULT_PERCENT)}
+              onKeyDown={handleSplitKeyDown}
+              className="patent-insight-resizer"
+              style={{ display: isStackedLayout ? 'none' : 'flex' }}
+            >
+              <div />
+            </div>
+
+            <div className="patent-insight-right" style={{ width: rightWidth }}>
+              <ChartPanel
+                title="Target x Applicant heatmap"
+                extra={(
+                  <Button
+                    type="text"
+                    size="small"
+                    icon={<RotateCcw size={14} />}
+                    onClick={() => setSplitRatio(SPLIT_DEFAULT_PERCENT)}
+                  />
+                )}
+                className="patent-insight-heatmap-panel"
+              >
+                <ReactECharts option={heatmapOption} theme={chartTheme} style={{ width: '100%', height: '100%' }} />
+              </ChartPanel>
+            </div>
+          </div>
+
+          <div className="patent-insight-footnote">
+            <BarChart3 size={14} />
+            <Text type="secondary">차트 split은 마우스 드래그 또는 키보드 방향키로 조정할 수 있습니다.</Text>
+          </div>
+        </Spin>
       </div>
     </div>
   );

@@ -28,6 +28,24 @@
 - React Context: `contexts/*.tsx` (예: `ThemeContext.tsx`).
 - Mock 데이터: `mocks/*.ts` (예: `compounds.ts`).
 
+## Frontend Display Formatting Rules
+- 숫자 표시: 프론트엔드 화면에 표시되는 정수/소수는 기본적으로 셋 자리 comma를 적용합니다.
+  - 권장 정규식: `String(value).replace(/\B(?=(\d{3})+(?!\d))/g, ',')`
+  - 예: `1000` → `1,000`, `1234567.89` → `1,234,567.89`
+  - 예외: 특허 번호, compound ID, model ID처럼 숫자처럼 보여도 식별자인 값은 comma를 적용하지 않습니다.
+- 날짜 표시: 프론트엔드 화면에 표시되는 날짜는 기본적으로 `YYYY.mm.dd` 형식을 사용합니다.
+  - 권장 정규식 변환: `String(value).replace(/\b(\d{4})[-/.](\d{2})[-/.](\d{2})\.?(?!\d)/g, '$1.$2.$3').replace(/\b(\d{2})[-/.](\d{2})[-/.](\d{2})\.?(?!\d)/g, '20$1.$2.$3')`
+  - 예: `2026-06-02` → `2026.06.02`, `26.06.02 10:30` → `2026.06.02 10:30`
+  - API 요청/응답 payload의 날짜 형식은 서버 계약을 우선하고, 화면 표시 직전에만 `YYYY.mm.dd`로 변환합니다.
+- Pagination UX: Ant Design Table pagination은 MyBoard 그룹 상세 목록 UX를 기본값으로 맞춥니다.
+  - 기본 위치는 하단 우측이며, `ant-pagination-total-text`는 표시하지 않습니다.
+  - 기본 page size 옵션은 `[10, 30, 50, 100]`을 사용하고, 필요한 경우 `showSizeChanger: true`를 사용합니다.
+  - page number는 숫자 표시 규칙과 동일하게 셋 자리 comma를 적용합니다.
+  - 선택된 page item은 primary 색상(`#F87C63`)을 사용합니다.
+  - page item은 24px 높이와 32px 최소 폭을 기본으로 사용하고, page size select는 24px 높이를 기본으로 사용합니다.
+  - page item, 선택된 page item, prev/next control은 pill radius(`990px`)를 사용합니다.
+  - comma가 포함된 page number가 잘리지 않도록 page item은 auto width와 충분한 좌우 여백을 유지합니다.
+
 ## Testing Guidelines
 - 프론트엔드 테스트 러너는 현재 구성되어 있지 않음.
 - 프론트엔드는 Mock 데이터(`src/mocks/compounds.ts`)를 사용한 UI 기반 테스트.
