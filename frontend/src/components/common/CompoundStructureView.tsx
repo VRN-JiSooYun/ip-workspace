@@ -35,6 +35,7 @@ export interface CompoundStructureViewProps {
   showCopyAction?: boolean;
   onPreview?: () => void;
   actionPlacement?: 'rail' | 'overlay';
+  actionOverlayAnchor?: 'frame' | 'container';
   actions?: CompoundStructureAction[];
   rotationDeg?: number;
   fitRotatedBounds?: boolean;
@@ -202,12 +203,13 @@ const CompoundStructureView: React.FC<CompoundStructureViewProps> = ({
   showCopyAction = true,
   onPreview,
   actionPlacement = 'rail',
+  actionOverlayAnchor = 'frame',
   actions = [],
   rotationDeg,
   fitRotatedBounds = false,
   frameless = false,
   containerStyle,
-}) => {
+  }) => {
   const { token } = theme.useToken();
   const { message } = App.useApp();
   const copyText = getCompoundStructureCopyText({ smiles, molBlock, cdxml, svg });
@@ -253,6 +255,23 @@ const CompoundStructureView: React.FC<CompoundStructureViewProps> = ({
       },
     }] : [];
   const allActions = [...previewAction, ...copyAction, ...actions];
+  const overlayActions = actionPlacement === 'overlay' && allActions.length > 0 ? (
+    <div className="compound-structure-actions-overlay">
+      {allActions.map((action) => (
+        <Tooltip key={action.key} title={action.title}>
+          <Button
+            {...action.buttonProps}
+            className={`svg-action-btn compound-structure-action-button${action.buttonProps?.className ? ` ${action.buttonProps.className}` : ''}`}
+            size="small"
+            type="text"
+            icon={action.icon}
+            disabled={action.disabled}
+            onClick={action.onClick}
+          />
+        </Tooltip>
+      ))}
+    </div>
+  ) : null;
 
   return (
     <div
@@ -262,6 +281,7 @@ const CompoundStructureView: React.FC<CompoundStructureViewProps> = ({
         alignItems: 'center',
         justifyContent: 'center',
         gap,
+        ...(actionOverlayAnchor === 'container' ? { position: 'relative' } : {}),
         width: fullWidth ? '100%' : 'fit-content',
         margin: fullWidth ? undefined : '0 auto',
         ...(rotatedBounds ? { width: rotatedBounds.width, minHeight: rotatedBounds.height } : {}),
@@ -309,24 +329,9 @@ const CompoundStructureView: React.FC<CompoundStructureViewProps> = ({
             color={token.colorTextTertiary}
           />
         )}
-        {actionPlacement === 'overlay' && allActions.length > 0 ? (
-          <div className="compound-structure-actions-overlay">
-            {allActions.map((action) => (
-              <Tooltip key={action.key} title={action.title}>
-                <Button
-                  {...action.buttonProps}
-                  className={`svg-action-btn compound-structure-action-button${action.buttonProps?.className ? ` ${action.buttonProps.className}` : ''}`}
-                  size="small"
-                  type="text"
-                  icon={action.icon}
-                  disabled={action.disabled}
-                  onClick={action.onClick}
-                />
-              </Tooltip>
-            ))}
-          </div>
-        ) : null}
+        {actionOverlayAnchor === 'frame' ? overlayActions : null}
       </div>
+      {actionOverlayAnchor === 'container' ? overlayActions : null}
       {actionPlacement === 'rail' && allActions.length > 0 ? (
         <div className="compound-structure-actions" style={{ height: actionRailHeight ?? height }}>
           {allActions.map((action) => (

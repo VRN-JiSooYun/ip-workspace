@@ -63,7 +63,7 @@ const MYBOARD_GROUP_COLUMN_WIDTHS = {
   bookmark: 40,
   creDate: 100,
   target: 80,
-  representativeStructure: 156,
+  representativeStructure: 135,
   count: 60,
   groupOrder: 72,
   shareStatus: 56,
@@ -81,12 +81,12 @@ const MYBOARD_STRUCTURE_BASE_WIDTH = 168;
 const MYBOARD_STRUCTURE_BASE_HEIGHT = 108;
 const MYBOARD_STRUCTURE_BASE_PERCENT = 120;
 const MYBOARD_STRUCTURE_SCALE_BASE_RATIO = 0.9975;
-const MYBOARD_GROUP_STRUCTURE_WIDTH = 117;
-const MYBOARD_GROUP_STRUCTURE_HEIGHT = 87.75;
-const MYBOARD_GROUP_STRUCTURE_MAX_WIDTH = 124;
-const MYBOARD_GROUP_STRUCTURE_MAX_HEIGHT = 97;
-const MYBOARD_GROUP_STRUCTURE_ONLY_COLUMN_WIDTH = 124;
-const MYBOARD_GROUP_STRUCTURE_ONLY_PANEL_WIDTH = 136;
+const MYBOARD_GROUP_STRUCTURE_WIDTH = 130;
+const MYBOARD_GROUP_STRUCTURE_HEIGHT = 97.5;
+const MYBOARD_GROUP_STRUCTURE_MAX_WIDTH = 130;
+const MYBOARD_GROUP_STRUCTURE_MAX_HEIGHT = 97.5;
+const MYBOARD_GROUP_STRUCTURE_ONLY_COLUMN_WIDTH = 138;
+const MYBOARD_GROUP_STRUCTURE_ONLY_PANEL_WIDTH = 146;
 const MYBOARD_STRUCTURE_IMAGE_SCALE_MIN = 70;
 const MYBOARD_STRUCTURE_IMAGE_SCALE_MAX = 120;
 const MYBOARD_STRUCTURE_IMAGE_SCALE_STEP = 5;
@@ -172,6 +172,8 @@ const MyBoard: React.FC = () => {
     y: number;
     compoundId: string;
   } | null>(null);
+  const detailTableWrapperRef = React.useRef<HTMLDivElement | null>(null);
+  const [detailUniformRowHeight, setDetailUniformRowHeight] = useState<number | null>(null);
   const [groupListMode, setGroupListMode] = useState<'full' | 'structure' | 'hidden'>('full');
   const [bookmarkedGroupIds, setBookmarkedGroupIds] = useState<string[]>([]);
   const [viewportWidth, setViewportWidth] = useState<number>(() => {
@@ -625,6 +627,7 @@ const MyBoard: React.FC = () => {
           iconSize={40}
           gap={0}
           actionPlacement="overlay"
+          actionOverlayAnchor="container"
           structureStyle={{ transform: `scale(${structureFitScale}) rotate(${structureSettings.sarRotationDeg}deg)` }}
           frameStyle={{ border: 0, background: 'transparent', boxShadow: 'none', overflow: 'visible' }}
           onPreview={structureSvg ? () => {
@@ -1072,6 +1075,7 @@ const MyBoard: React.FC = () => {
             iconSize={40}
             gap={0}
             actionPlacement="overlay"
+            actionOverlayAnchor="container"
             fitRotatedBounds
             frameless
             rotationDeg={structureSettings.sarRotationDeg}
@@ -1213,6 +1217,51 @@ const MyBoard: React.FC = () => {
     () => getTableScrollWidth(styledDynamicCompoundColumns),
     [getTableScrollWidth, styledDynamicCompoundColumns]
   );
+
+  const measureDetailTableRowHeight = React.useCallback(() => {
+    const wrapper = detailTableWrapperRef.current;
+    if (!wrapper) return;
+
+    const rows = Array.from(wrapper.querySelectorAll<HTMLTableRowElement>('.my-board-detail-table .ant-table-tbody > tr.ant-table-row'));
+    if (rows.length === 0) {
+      setDetailUniformRowHeight(null);
+      return;
+    }
+
+    rows.forEach((row) => {
+      row.style.height = '';
+    });
+
+    const maxHeight = Math.ceil(Math.max(...rows.map((row) => row.getBoundingClientRect().height)));
+    setDetailUniformRowHeight((current) => (current === maxHeight ? current : maxHeight));
+  }, []);
+
+  React.useLayoutEffect(() => {
+    setDetailUniformRowHeight(null);
+    const frameId = window.requestAnimationFrame(measureDetailTableRowHeight);
+    return () => window.cancelAnimationFrame(frameId);
+  }, [
+    activeColumns,
+    columnOrder,
+    detailTableScrollX,
+    filteredCompounds,
+    isStackedSplitLayout,
+    measureDetailTableRowHeight,
+    selectedGroupIds,
+    viewMode,
+  ]);
+
+  useEffect(() => {
+    const wrapper = detailTableWrapperRef.current;
+    if (!wrapper) return undefined;
+
+    const observer = new MutationObserver(() => {
+      window.requestAnimationFrame(measureDetailTableRowHeight);
+    });
+
+    observer.observe(wrapper, { childList: true, subtree: true });
+    return () => observer.disconnect();
+  }, [measureDetailTableRowHeight]);
 
   // DRAG AND DROP LOGIC
   const [draggedItemIndex, setDraggedItemIndex] = useState<number | null>(null);
@@ -1731,45 +1780,50 @@ const MyBoard: React.FC = () => {
                   }}
                 />
               </Dropdown>
-              <Table
-                className="my-board-table my-board-detail-table"
-                dataSource={selectedGroupIds.length > 0 ? filteredCompounds : []}
-                columns={styledDynamicCompoundColumns}
-                size="small"
-                rowKey="id"
-                pagination={{
-                  defaultPageSize: 10,
-                  showSizeChanger: true,
-                  pageSizeOptions: [10, 30, 50, 100],
-                }}
-                loading={isLoading}
-                scroll={{ x: detailTableScrollX, y: isStackedSplitLayout ? undefined : 'calc(100vh - 430px)' }}
-                tableLayout="fixed"
-                onRow={(record) => ({
-                  onClick: (event) => {
-                    const target = event.target as HTMLElement;
-                    if (target.closest('button, a, input, textarea, .ant-checkbox-wrapper, .ant-select, .ant-dropdown')) return;
-                    toggleDetailCompoundSelection(record.id);
-                  },
-                  onContextMenu: (event) => {
-                    event.stopPropagation();
-                    event.preventDefault();
+              <div ref={detailTableWrapperRef}>
+                <Table
+                  className="my-board-table my-board-detail-table"
+                  dataSource={selectedGroupIds.length > 0 ? filteredCompounds : []}
+                  columns={styledDynamicCompoundColumns}
+                  size="small"
+                  rowKey="id"
+                  pagination={{
+                    defaultPageSize: 10,
+                    showSizeChanger: true,
+                    pageSizeOptions: [10, 30, 50, 100],
+                  }}
+                  loading={isLoading}
+                  scroll={{ x: detailTableScrollX, y: isStackedSplitLayout ? undefined : 'calc(100vh - 430px)' }}
+                  tableLayout="fixed"
+                  onRow={(record) => ({
+                    onClick: (event) => {
+                      const target = event.target as HTMLElement;
+                      if (target.closest('button, a, input, textarea, .ant-checkbox-wrapper, .ant-select, .ant-dropdown')) return;
+                      toggleDetailCompoundSelection(record.id);
+                    },
+                    onContextMenu: (event) => {
+                      event.stopPropagation();
+                      event.preventDefault();
 
-                    if (!selectedDetailCompoundIds.includes(record.id)) {
-                      setSelectedDetailCompoundIds([record.id]);
-                    }
-                    setCompoundContextMenu({
-                      open: true,
-                      x: event.clientX,
-                      y: event.clientY,
-                      compoundId: record.id,
-                    });
-                  },
-                  style: { cursor: 'pointer' },
-                })}
-                rowClassName={(record) => selectedDetailCompoundIds.includes(record.id) ? 'row-selected my-board-detail-row-selected' : ''}
-                locale={{ emptyText: selectedGroupIds.length === 0 ? '왼쪽 그룹 리스트에서 그룹을 선택해 주세요.' : '검색 결과가 없습니다.' }}
-              />
+                      if (!selectedDetailCompoundIds.includes(record.id)) {
+                        setSelectedDetailCompoundIds([record.id]);
+                      }
+                      setCompoundContextMenu({
+                        open: true,
+                        x: event.clientX,
+                        y: event.clientY,
+                        compoundId: record.id,
+                      });
+                    },
+                    style: {
+                      cursor: 'pointer',
+                      ...(detailUniformRowHeight ? { height: detailUniformRowHeight } : {}),
+                    },
+                  })}
+                  rowClassName={(record) => selectedDetailCompoundIds.includes(record.id) ? 'row-selected my-board-detail-row-selected' : ''}
+                  locale={{ emptyText: selectedGroupIds.length === 0 ? '왼쪽 그룹 리스트에서 그룹을 선택해 주세요.' : '검색 결과가 없습니다.' }}
+                />
+              </div>
               </>
             ) : viewMode === 'draw' ? (
               <div style={{ padding: 16 }}>
@@ -2225,7 +2279,7 @@ const MyBoard: React.FC = () => {
           padding-right: 4px !important;
         }
         .my-board-group-table .ant-table-tbody > tr > td.my-board-structure-column {
-          padding: 1px 4px !important;
+          padding: 1px 2px !important;
           line-height: 0 !important;
           vertical-align: middle !important;
         }
@@ -2298,7 +2352,7 @@ const MyBoard: React.FC = () => {
         }
         .my-board-group-table-structure-only .ant-table-container,
         .my-board-group-table-structure-only .ant-table-content {
-          overflow: hidden !important;
+          overflow: visible !important;
         }
         .my-board-structure-preview > svg {
           width: 100% !important;

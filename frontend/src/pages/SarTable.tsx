@@ -38,12 +38,12 @@ const SAR_COMPOUND_CARD_SCALE_BASE_RATIO = 0.95;
 const SAR_COMPOUND_CARD_ROTATION_STEP = 30;
 const SAR_COMPOUND_CARD_OVERLAP_MIN = 0;
 const SAR_COMPOUND_CARD_OVERLAP_MAX = 30;
-const SAR_GROUP_STRUCTURE_WIDTH = 117;
-const SAR_GROUP_STRUCTURE_HEIGHT = 87.75;
-const SAR_GROUP_STRUCTURE_MAX_WIDTH = 124;
-const SAR_GROUP_STRUCTURE_MAX_HEIGHT = 97;
-const SAR_GROUP_STRUCTURE_PANEL_WIDTH = 136;
-const SAR_GROUP_STRUCTURE_COLUMN_WIDTH = 124;
+const SAR_GROUP_STRUCTURE_WIDTH = 130;
+const SAR_GROUP_STRUCTURE_HEIGHT = 97.5;
+const SAR_GROUP_STRUCTURE_MAX_WIDTH = 130;
+const SAR_GROUP_STRUCTURE_MAX_HEIGHT = 97.5;
+const SAR_GROUP_STRUCTURE_PANEL_WIDTH = 146;
+const SAR_GROUP_STRUCTURE_COLUMN_WIDTH = 138;
 
 const getRotatedStructureBounds = (width: number, height: number, rotationDeg: number) => {
   const normalizedDeg = ((rotationDeg % 180) + 180) % 180;
@@ -436,6 +436,7 @@ const SarTable: React.FC = () => {
           justifyContent: 'center',
           minWidth: Math.ceil(rotatedBounds.width * structureFitScale),
           minHeight: Math.ceil(rotatedBounds.height * structureFitScale),
+          lineHeight: 0,
         }}
       >
         <CompoundStructureView
@@ -772,6 +773,7 @@ const SarTable: React.FC = () => {
   const compoundCardStructureHeight = compoundCardViewMode === 'twoRows'
     ? Math.round(SAR_COMPOUND_CARD_BASE_STRUCTURE_HEIGHT * compoundCardImageScale)
     : Math.round(SAR_COMPOUND_CARD_EXPANDED_STRUCTURE_HEIGHT * compoundCardImageScale);
+  const compoundCardStructureFrameSize = Math.max(compoundCardWidth, compoundCardStructureHeight);
 
   return (
     <div
@@ -1093,16 +1095,6 @@ const SarTable: React.FC = () => {
               }}>
                 {sarCompounds.map((item, index) => {
                   const itemStructureSettings = getGroupStructureSettings(item.groupId);
-                  const rotatedBounds = getRotatedStructureBounds(
-                    compoundCardWidth,
-                    compoundCardStructureHeight,
-                    itemStructureSettings.sarRotationDeg
-                  );
-                  const structureFitScale = Math.min(
-                    1,
-                    compoundCardWidth / rotatedBounds.width,
-                    compoundCardStructureHeight / rotatedBounds.height
-                  );
 
                   return (
                     <div
@@ -1135,7 +1127,7 @@ const SarTable: React.FC = () => {
                       }}
                     >
                       <div style={{
-                        height: compoundCardStructureHeight,
+                        height: compoundCardStructureFrameSize,
                         background: isCompoundCardOverlapped ? 'transparent' : token.colorBgContainer,
                         borderRadius: 10,
                         display: 'flex',
@@ -1143,22 +1135,33 @@ const SarTable: React.FC = () => {
                         justifyContent: 'center',
                         position: 'relative',
                         marginBottom: compoundCardViewMode === 'twoRows' ? 4 : 6,
-                        overflow: 'hidden',
+                        overflow: 'visible',
                       }}>
-                        <CompoundStructureView
-                          svg={item.structureSvg}
-                          title={item.name}
-                          smiles={item.smiles}
-                          molBlock={(item as any).molBlock ?? (item as any).mol_block ?? (item as any).molblock}
-                          width={compoundCardWidth}
-                          height={compoundCardStructureHeight}
-                          iconSize={48}
-                          className="sar-compound-structure-view"
-                          showPreviewAction={false}
-                          showCopyAction={false}
-                          structureStyle={{ transform: `scale(${structureFitScale}) rotate(${itemStructureSettings.sarRotationDeg}deg)` }}
-                          frameStyle={{ border: 0, background: isCompoundCardOverlapped ? 'transparent' : token.colorBgContainer, boxShadow: 'none' }}
-                        />
+                        <div
+                          className="sar-compound-structure-square-frame"
+                          style={{
+                            width: compoundCardStructureFrameSize,
+                            height: compoundCardStructureFrameSize,
+                          }}
+                        >
+                          <CompoundStructureView
+                            svg={item.structureSvg}
+                            title={item.name}
+                            smiles={item.smiles}
+                            molBlock={(item as any).molBlock ?? (item as any).mol_block ?? (item as any).molblock}
+                            width={compoundCardWidth}
+                            height={compoundCardStructureHeight}
+                            iconSize={48}
+                            className="sar-compound-structure-view"
+                            showPreviewAction={false}
+                            showCopyAction={false}
+                            structureStyle={{
+                              transform: `rotate(${itemStructureSettings.sarRotationDeg}deg)`,
+                              transformOrigin: 'center center',
+                            }}
+                            frameStyle={{ border: 0, background: isCompoundCardOverlapped ? 'transparent' : token.colorBgContainer, boxShadow: 'none', overflow: 'visible' }}
+                          />
+                        </div>
                       </div>
                       <Text strong style={{ fontSize: 11, lineHeight: '16px', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={item.name}>
                         {item.name}
@@ -1428,7 +1431,7 @@ const SarTable: React.FC = () => {
         .sar-group-structure-card {
           width: ${SAR_GROUP_STRUCTURE_PANEL_WIDTH}px;
           flex: 0 0 ${SAR_GROUP_STRUCTURE_PANEL_WIDTH}px;
-          overflow: hidden;
+          overflow: visible;
         }
         .sar-group-structure-card .ant-table-wrapper {
           margin: 0;
@@ -1448,10 +1451,12 @@ const SarTable: React.FC = () => {
         }
         .sar-group-structure-table .ant-table-content,
         .sar-group-structure-table .ant-table-body {
-          overflow-x: hidden !important;
+          overflow-x: visible !important;
         }
         .sar-group-structure-table .ant-table-tbody > tr > td {
-          padding: 8px 4px !important;
+          padding: 1px 4px !important;
+          line-height: 0 !important;
+          vertical-align: middle !important;
         }
         .sar-group-row-selected > td {
           background-color: var(--table-row-selected-bg) !important;
@@ -1521,6 +1526,7 @@ const SarTable: React.FC = () => {
         .sar-group-structure-card .ant-table-tbody .compound-structure-view {
           width: 100% !important;
           margin: 0 !important;
+          line-height: 0 !important;
         }
         .sar-group-structure-card .ant-table-tbody .compound-structure-frame {
           width: ${SAR_GROUP_STRUCTURE_WIDTH}px !important;
@@ -1529,11 +1535,22 @@ const SarTable: React.FC = () => {
           outline: 0 !important;
           box-shadow: none !important;
           overflow: visible !important;
+          line-height: 0 !important;
         }
         .sar-compound-card .compound-structure-frame {
           border: 0 !important;
           outline: 0 !important;
           box-shadow: none !important;
+          overflow: visible !important;
+        }
+        .sar-compound-card .compound-structure-view {
+          overflow: visible !important;
+        }
+        .sar-compound-structure-square-frame {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          overflow: visible;
         }
         .ant-table-tbody > tr > td {
           padding: 10px 4px !important;
@@ -1598,27 +1615,40 @@ const SarTable: React.FC = () => {
           user-select: none;
         }
         .sar-compound-card {
+          position: relative;
           border-color: transparent !important;
           box-shadow: none;
         }
+        .sar-compound-card::after {
+          content: '';
+          position: absolute;
+          inset: 0;
+          z-index: 20;
+          pointer-events: none;
+          border: 1px solid transparent;
+          border-radius: inherit;
+          box-sizing: border-box;
+        }
         .sar-compound-card:hover {
-          border-color: ${token.colorPrimary} !important;
+          border-color: transparent !important;
           background-color: ${isCompoundCardOverlapped ? 'transparent' : isDarkMode ? '#1a1a1a' : '#f9f9f9'} !important;
-          transform: translateY(-2px);
-          box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+          transform: none;
         }
         .sar-compound-card.selected {
-          border-color: ${token.colorPrimary} !important;
-          box-shadow: 0 0 0 1px ${token.colorPrimary};
+          border-color: transparent !important;
         }
         .sar-compound-card.selected:hover {
           background-color: ${isCompoundCardOverlapped ? 'transparent' : isDarkMode ? '#111d2c' : '#e6f7ff'} !important;
         }
         .sar-compound-card.hovered {
-          border-color: ${token.colorPrimary} !important;
+          border-color: transparent !important;
           background-color: ${isCompoundCardOverlapped ? 'transparent' : isDarkMode ? '#111d2c' : '#e6f7ff'} !important;
-          transform: translateY(-2px);
-          box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+          transform: none;
+        }
+        .sar-compound-card:hover::after,
+        .sar-compound-card.selected::after,
+        .sar-compound-card.hovered::after {
+          border-color: ${token.colorPrimary};
         }
         .sar-compound-card-list:focus,
         .sar-compound-card-list:focus-visible,
