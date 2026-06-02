@@ -20,6 +20,7 @@ const SPLIT_DEFAULT_PERCENT = 60;
 const SPLIT_MIN_PERCENT = 46;
 const SPLIT_MAX_PERCENT = 72;
 const DEFAULT_DATE_RANGE_START = '1970-01-01';
+const DEFAULT_TOP_N_TARGET = 20;
 const EMPTY_PATENT_INSIGHT_STATISTICS: PatentInsightStatistics = {
   totalCount: 0,
   filteredCount: 0,
@@ -173,7 +174,7 @@ const PatentInsight: React.FC = () => {
     return [dayjs(storedFilters.dateRange[0]), dayjs(storedFilters.dateRange[1])];
   });
   const [topNApplicant, setTopNApplicant] = useState(storedFilters.topNApplicant ?? 10);
-  const [topNTarget, setTopNTarget] = useState(storedFilters.topNTarget ?? 10);
+  const [topNTarget, setTopNTarget] = useState(storedFilters.topNTarget ?? DEFAULT_TOP_N_TARGET);
   const [splitRatio, setSplitRatio] = useState(readStoredSplitRatio);
   const [isResizingSplit, setIsResizingSplit] = useState(false);
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
@@ -701,7 +702,7 @@ const PatentInsight: React.FC = () => {
                   max={50}
                   step={2}
                   value={topNTarget}
-                  onChange={(value) => setTopNTarget(Number(value) || 10)}
+                  onChange={(value) => setTopNTarget(Number(value) || DEFAULT_TOP_N_TARGET)}
                   style={{ marginTop: 6, width: 96 }}
                 />
               </Col>

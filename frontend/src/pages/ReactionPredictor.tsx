@@ -31,9 +31,9 @@ import ChemDrawEditor from '../components/common/ChemDrawEditor';
 import ChemDrawModal from '../components/common/ChemDrawModal';
 import CompoundStructureView from '../components/common/CompoundStructureView';
 import BenzeneIcon from '../components/common/BenzeneIcon';
-import oaProfile022 from '../assets/reaction_predictor/oa_profile_022.png';
-import oaProfile028 from '../assets/reaction_predictor/oa_profile_028.png';
-import oaProfileTriBromo from '../assets/reaction_predictor/oa_profile_tri_bromo.png';
+import oaProfile022 from '../assets/reaction_predictor/oa_profile_022.svg';
+import oaProfile028 from '../assets/reaction_predictor/oa_profile_028.svg';
+import oaProfileTriBromo from '../assets/reaction_predictor/oa_profile_tri_bromo.svg';
 import { useResponsiveLayout } from '../hooks/useResponsiveLayout';
 import { useUIStore } from '../store/useUIStore';
 import {

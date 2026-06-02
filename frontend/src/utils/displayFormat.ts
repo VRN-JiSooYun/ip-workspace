@@ -20,7 +20,18 @@ export const formatDisplayDate = (value: unknown) => {
   const text = String(value).trim();
   if (!text || text === '-') return '-';
 
+  const normalizeDateTime = (
+    _: string,
+    year: string,
+    month: string,
+    day: string,
+    hour: string,
+    minute: string,
+  ) => `${year.length === 2 ? `20${year}` : year}.${month}.${day} ${hour}:${minute}`;
+
   return text
+    .replace(/\b(\d{4})[-/.](\d{2})[-/.](\d{2})\.?[T\s]+(\d{2}):(\d{2})(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:?\d{2})?(?!\d)/g, normalizeDateTime)
+    .replace(/\b(\d{2})[-/.](\d{2})[-/.](\d{2})\.?[T\s]+(\d{2}):(\d{2})(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:?\d{2})?(?!\d)/g, normalizeDateTime)
     .replace(/\b(\d{4})[-/.](\d{2})[-/.](\d{2})\.?(?!\d)/g, '$1.$2.$3')
     .replace(/\b(\d{2})[-/.](\d{2})[-/.](\d{2})\.?(?!\d)/g, '20$1.$2.$3');
 };
