@@ -46,6 +46,11 @@ declare module '*.svg?raw' {
   export default content;
 }
 
+declare module '*.png' {
+  const src: string;
+  export default src;
+}
+
 interface ImportMetaEnv {
   readonly PROD: boolean;
   readonly VITE_API_URL?: string;

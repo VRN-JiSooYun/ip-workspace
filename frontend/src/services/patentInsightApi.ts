@@ -106,7 +106,7 @@ const normalizeHeatmapItems = (value: unknown): PatentInsightHeatmapItem[] => {
   if (!Array.isArray(value)) return [];
 
   return value
-    .map((item, index) => {
+    .map((item, index): PatentInsightHeatmapItem | null => {
       if (!item || typeof item !== 'object') return null;
       const row = item as Record<string, unknown>;
       const target = getName(row, ['target', 'target_name', 'Target'], `Target ${index + 1}`);
