@@ -33,9 +33,9 @@ import { formatDisplayDate } from '../utils/displayFormat';
 const { Title, Text } = Typography;
 const { Option } = Select;
 const { RangePicker } = DatePicker;
-const MYBOARD_SPLIT_MIN_PERCENT = 30;
-const MYBOARD_SPLIT_MAX_PERCENT = 70;
-const MYBOARD_SPLIT_DEFAULT_PERCENT = 50;
+const MYBOARD_SPLIT_MIN_PERCENT = 20;
+const MYBOARD_SPLIT_MAX_PERCENT = 80;
+const MYBOARD_SPLIT_DEFAULT_PERCENT = 30;
 const MYBOARD_SHARE_STATUS_COLORS = {
   '공유 하는중': '#F87C63',
   '공유 받는중': '#1677ff',
