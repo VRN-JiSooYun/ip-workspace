@@ -188,6 +188,7 @@ const MyBoard: React.FC = () => {
   const isGroupListStructureOnly = groupListMode === 'structure';
   const isGroupListHidden = groupListMode === 'hidden';
   const [splitRatio, setSplitRatio] = useState<number>(MYBOARD_SPLIT_DEFAULT_PERCENT);
+  const [splitLeftWidth, setSplitLeftWidth] = useState<number | null>(null);
   const [isResizingSplit, setIsResizingSplit] = useState(false);
   const splitContainerRef = React.useRef<HTMLDivElement | null>(null);
   const groupListTableCardRef = React.useRef<HTMLDivElement | null>(null);
@@ -211,27 +212,53 @@ const MyBoard: React.FC = () => {
     );
     return Math.max(longestTitleWidth, MYBOARD_GROUP_TITLE_MIN_WIDTH);
   }, [visibleGroupRows]);
+  const clampSplitRatio = React.useCallback((value: number) => {
+    return Math.min(Math.max(value, MYBOARD_SPLIT_MIN_PERCENT), MYBOARD_SPLIT_MAX_PERCENT);
+  }, []);
+  const getSplitWidthFromRatio = React.useCallback((ratio: number, containerWidth: number) => {
+    return Math.max((containerWidth * clampSplitRatio(ratio)) / 100 - 6, 0);
+  }, [clampSplitRatio]);
+  const clampSplitLeftWidth = React.useCallback((width: number, containerWidth: number) => {
+    const minWidth = getSplitWidthFromRatio(MYBOARD_SPLIT_MIN_PERCENT, containerWidth);
+    const maxWidth = getSplitWidthFromRatio(MYBOARD_SPLIT_MAX_PERCENT, containerWidth);
+
+    return Math.min(Math.max(width, minWidth), maxWidth);
+  }, [getSplitWidthFromRatio]);
+  const applySplitRatio = React.useCallback((ratio: number) => {
+    const nextRatio = clampSplitRatio(ratio);
+    const container = splitContainerRef.current;
+
+    setSplitRatio(nextRatio);
+
+    if (!container) {
+      setSplitLeftWidth(null);
+      return;
+    }
+
+    const containerWidth = container.getBoundingClientRect().width;
+    if (containerWidth <= 0) return;
+
+    setSplitLeftWidth(getSplitWidthFromRatio(nextRatio, containerWidth));
+  }, [clampSplitRatio, getSplitWidthFromRatio]);
   const detailTableEstimatedWidth = React.useMemo(() => {
     if (isStackedSplitLayout || isGroupListHidden) {
       return Math.max(viewportWidth - layoutPreset.sidePadding * 2 - 24, 320);
     }
 
     const availableWidth = Math.max(viewportWidth - layoutPreset.sidePadding * 2 - 12, 320);
-    return Math.max(availableWidth * ((100 - splitRatio) / 100), 320);
-  }, [isGroupListHidden, isStackedSplitLayout, layoutPreset.sidePadding, splitRatio, viewportWidth]);
+    const leftWidth = splitLeftWidth ?? getSplitWidthFromRatio(splitRatio, availableWidth);
+
+    return Math.max(availableWidth - leftWidth - 12, 320);
+  }, [getSplitWidthFromRatio, isGroupListHidden, isStackedSplitLayout, layoutPreset.sidePadding, splitLeftWidth, splitRatio, viewportWidth]);
   const groupTableTitleWidth = React.useMemo(() => {
     const estimatedContainerWidth = isStackedSplitLayout
       ? Math.max(viewportWidth - layoutPreset.sidePadding * 2 - 24, 320)
-      : Math.max((viewportWidth - layoutPreset.sidePadding * 2 - 12) * (splitRatio / 100), 260);
+      : Math.max(splitLeftWidth ?? getSplitWidthFromRatio(splitRatio, viewportWidth - layoutPreset.sidePadding * 2 - 12), 260);
     const containerWidth = groupListTableWidth > 0 ? Math.max(groupListTableWidth - 2, 260) : estimatedContainerWidth;
     const availableTitleWidth = Math.max(containerWidth - MYBOARD_GROUP_FIXED_COLUMN_WIDTH, MYBOARD_GROUP_TITLE_MIN_WIDTH);
 
     return Math.round(availableTitleWidth);
-  }, [groupListTableWidth, isStackedSplitLayout, layoutPreset.sidePadding, splitRatio, viewportWidth]);
-
-  const clampSplitRatio = React.useCallback((value: number) => {
-    return Math.min(Math.max(value, MYBOARD_SPLIT_MIN_PERCENT), MYBOARD_SPLIT_MAX_PERCENT);
-  }, []);
+  }, [getSplitWidthFromRatio, groupListTableWidth, isStackedSplitLayout, layoutPreset.sidePadding, splitLeftWidth, splitRatio, viewportWidth]);
 
   const getViewToggleButtonStyle = (mode: 'table' | 'draw' | 'tree'): React.CSSProperties => {
     const isActive = viewMode === mode;
@@ -275,18 +302,34 @@ const MyBoard: React.FC = () => {
   React.useEffect(() => {
     const raw = window.localStorage.getItem(splitStorageKey);
     if (!raw) {
-      setSplitRatio(MYBOARD_SPLIT_DEFAULT_PERCENT);
+      applySplitRatio(MYBOARD_SPLIT_DEFAULT_PERCENT);
       return;
     }
     const parsed = Number(raw);
     if (Number.isFinite(parsed)) {
-      setSplitRatio(clampSplitRatio(parsed));
+      applySplitRatio(parsed);
     }
-  }, [clampSplitRatio]);
+  }, [applySplitRatio]);
 
   React.useEffect(() => {
     window.localStorage.setItem(splitStorageKey, String(splitRatio));
   }, [splitRatio]);
+
+  React.useEffect(() => {
+    const container = splitContainerRef.current;
+    if (
+      !container ||
+      splitLeftWidth !== null ||
+      isStackedSplitLayout ||
+      isGroupListHidden ||
+      isGroupListStructureOnly
+    ) return;
+
+    const containerWidth = container.getBoundingClientRect().width;
+    if (containerWidth <= 0) return;
+
+    setSplitLeftWidth(getSplitWidthFromRatio(splitRatio, containerWidth));
+  }, [getSplitWidthFromRatio, isGroupListHidden, isGroupListStructureOnly, isStackedSplitLayout, splitLeftWidth, splitRatio]);
 
   React.useEffect(() => {
     const element = groupListTableCardRef.current;
@@ -309,9 +352,12 @@ const MyBoard: React.FC = () => {
     if (!container) return;
     const rect = container.getBoundingClientRect();
     if (rect.width <= 0) return;
-    const nextRatio = ((clientX - rect.left) / rect.width) * 100;
+    const nextWidth = clampSplitLeftWidth(clientX - rect.left - 6, rect.width);
+    const nextRatio = ((nextWidth + 6) / rect.width) * 100;
+
+    setSplitLeftWidth(nextWidth);
     setSplitRatio(clampSplitRatio(nextRatio));
-  }, [clampSplitRatio]);
+  }, [clampSplitLeftWidth, clampSplitRatio]);
 
   const stopSplitResize = React.useCallback(() => {
     setIsResizingSplit(false);
@@ -359,29 +405,29 @@ const MyBoard: React.FC = () => {
     const step = 2;
     if (event.key === 'ArrowLeft') {
       event.preventDefault();
-      setSplitRatio(prev => clampSplitRatio(prev - step));
+      applySplitRatio(splitRatio - step);
       return;
     }
     if (event.key === 'ArrowRight') {
       event.preventDefault();
-      setSplitRatio(prev => clampSplitRatio(prev + step));
+      applySplitRatio(splitRatio + step);
       return;
     }
     if (event.key === 'Home') {
       event.preventDefault();
-      setSplitRatio(MYBOARD_SPLIT_MIN_PERCENT);
+      applySplitRatio(MYBOARD_SPLIT_MIN_PERCENT);
       return;
     }
     if (event.key === 'End') {
       event.preventDefault();
-      setSplitRatio(MYBOARD_SPLIT_MAX_PERCENT);
+      applySplitRatio(MYBOARD_SPLIT_MAX_PERCENT);
       return;
     }
     if (event.key === 'Enter' || event.key === ' ') {
       event.preventDefault();
-      setSplitRatio(MYBOARD_SPLIT_DEFAULT_PERCENT);
+      applySplitRatio(MYBOARD_SPLIT_DEFAULT_PERCENT);
     }
-  }, [clampSplitRatio]);
+  }, [applySplitRatio, splitRatio]);
 
   const autoFitGroupTableWidth = React.useMemo(() => {
     return MYBOARD_GROUP_FIXED_COLUMN_WIDTH + contentFitGroupTitleWidth + 24;
@@ -398,9 +444,11 @@ const MyBoard: React.FC = () => {
     const containerWidth = container.getBoundingClientRect().width;
     if (containerWidth <= 0) return;
 
-    const nextRatio = ((autoFitGroupTableWidth + 6) / containerWidth) * 100;
+    const nextWidth = clampSplitLeftWidth(autoFitGroupTableWidth, containerWidth);
+    const nextRatio = ((nextWidth + 6) / containerWidth) * 100;
+    setSplitLeftWidth(nextWidth);
     setSplitRatio(clampSplitRatio(nextRatio));
-  }, [autoFitGroupTableWidth, clampSplitRatio, isGroupListFull, isStackedSplitLayout, stopSplitResize]);
+  }, [autoFitGroupTableWidth, clampSplitLeftWidth, clampSplitRatio, isGroupListFull, isStackedSplitLayout, stopSplitResize]);
 
   const alwaysColumnKeys = React.useMemo(() => [
     '순번', '그룹 번호', '프로젝트', '물질 번호 (VRN)', '화합물 구조', '단계', '출처', '디자인 비고', 'MolProp1', 'MolProp2'
@@ -1460,12 +1508,16 @@ const MyBoard: React.FC = () => {
         {!isGroupListHidden && (
         <div
           style={{
+            flex: isStackedSplitLayout
+              ? undefined
+              : isGroupListStructureOnly
+                ? `0 0 ${MYBOARD_GROUP_STRUCTURE_ONLY_PANEL_WIDTH}px`
+                : `0 0 ${typeof splitLeftWidth === 'number' ? `${splitLeftWidth}px` : `calc(${splitRatio}% - 6px)`}`,
             width: isStackedSplitLayout
               ? '100%'
               : isGroupListStructureOnly
                 ? MYBOARD_GROUP_STRUCTURE_ONLY_PANEL_WIDTH
-                : `calc(${splitRatio}% - 6px)`,
-            flex: isGroupListStructureOnly && !isStackedSplitLayout ? `0 0 ${MYBOARD_GROUP_STRUCTURE_ONLY_PANEL_WIDTH}px` : undefined,
+                : splitLeftWidth ?? `calc(${splitRatio}% - 6px)`,
             minWidth: 0,
             transition: isResizingSplit ? 'none' : 'width 0.2s ease, flex-basis 0.2s ease'
           }}
