@@ -1062,6 +1062,11 @@ const MyBoard: React.FC = () => {
         const structureScale = (structureSettings.myBoardImageScalePercent / MYBOARD_STRUCTURE_BASE_PERCENT) * MYBOARD_STRUCTURE_SCALE_BASE_RATIO;
         const structureWidth = Math.round(MYBOARD_STRUCTURE_BASE_WIDTH * structureScale);
         const structureHeight = Math.round(MYBOARD_STRUCTURE_BASE_HEIGHT * structureScale);
+        const rotatedStructureBounds = getRotatedStructureBounds(
+          structureWidth,
+          structureHeight,
+          structureSettings.sarRotationDeg
+        );
 
         return (
           <CompoundStructureView
@@ -1076,9 +1081,12 @@ const MyBoard: React.FC = () => {
             gap={0}
             actionPlacement="overlay"
             actionOverlayAnchor="container"
-            fitRotatedBounds
             frameless
             rotationDeg={structureSettings.sarRotationDeg}
+            containerStyle={{
+              minWidth: rotatedStructureBounds.width,
+              minHeight: rotatedStructureBounds.height,
+            }}
             onPreview={displaySvg ? () => {
               setStructurePreview({
                 title: record.compoundId || record.name || 'Structure',
@@ -1228,12 +1236,14 @@ const MyBoard: React.FC = () => {
       return;
     }
 
+    const maxHeight = Math.ceil(Math.max(...rows.map((row) => {
+      const cellHeights = Array.from(row.cells).map((cell) => cell.scrollHeight);
+      return Math.max(row.scrollHeight, ...cellHeights);
+    })));
     rows.forEach((row) => {
-      row.style.height = '';
+      row.style.height = `${maxHeight}px`;
     });
-
-    const maxHeight = Math.ceil(Math.max(...rows.map((row) => row.getBoundingClientRect().height)));
-    setDetailUniformRowHeight((current) => (current === maxHeight ? current : maxHeight));
+    setDetailUniformRowHeight(maxHeight);
   }, []);
 
   React.useLayoutEffect(() => {
@@ -1245,6 +1255,7 @@ const MyBoard: React.FC = () => {
     columnOrder,
     detailTableScrollX,
     filteredCompounds,
+    groupStructureViewSettings,
     isStackedSplitLayout,
     measureDetailTableRowHeight,
     selectedGroupIds,
@@ -2273,6 +2284,9 @@ const MyBoard: React.FC = () => {
         }
         .my-board-detail-table .ant-table-tbody > tr > td.my-board-structure-column {
           padding: 4px !important;
+          line-height: 0 !important;
+          overflow: visible !important;
+          vertical-align: middle !important;
         }
         .my-board-detail-table .ant-table-thead > tr > th.my-board-structure-column {
           padding-left: 4px !important;
