@@ -1,8 +1,9 @@
-import { Controller, Get, Param, Query, Res } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query, Res } from '@nestjs/common';
 import { Response } from 'express';
 import { CompoundSearchQueryDto } from './dto/compound-search-query.dto';
 import { EmbodimentListQueryDto } from './dto/embodiment-list-query.dto';
 import { PatentDetailQueryDto } from './dto/patent-detail-query.dto';
+import { PatentInsightStatisticsDto } from './dto/patent-insight-statistics.dto';
 import { PatentListQueryDto } from './dto/patent-list-query.dto';
 import { PatentAnalysisService } from './patent-analysis.service';
 
@@ -23,6 +24,16 @@ export class PatentAnalysisController {
   @Get('compounds/:compoundId/patents')
   getPatentsByCompoundId(@Param('compoundId') compoundId: string) {
     return this.patentAnalysisService.getPatentsByCompoundId(compoundId);
+  }
+
+  @Post('insight/statistics')
+  getPatentInsightStatistics(@Body() body: PatentInsightStatisticsDto) {
+    return this.patentAnalysisService.getPatentInsightStatistics(body);
+  }
+
+  @Post('insight/refresh')
+  refreshPatentInsightStatistics() {
+    return this.patentAnalysisService.refreshPatentInsightStatistics();
   }
 
   @Get(':publicationNumber')

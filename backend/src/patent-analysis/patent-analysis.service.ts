@@ -1,8 +1,10 @@
-import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadGatewayException, BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { HttpService } from '@nestjs/axios';
 import { ConfigService } from '@nestjs/config';
 import { CompoundSearchQueryDto } from './dto/compound-search-query.dto';
 import { EmbodimentListQueryDto } from './dto/embodiment-list-query.dto';
 import { PatentDetailQueryDto } from './dto/patent-detail-query.dto';
+import { PatentInsightStatisticsDto } from './dto/patent-insight-statistics.dto';
 import { PatentListQueryDto } from './dto/patent-list-query.dto';
 import { PatentAnalysisHelperClient } from './patent-analysis-helper.client';
 import {
@@ -164,6 +166,7 @@ export class PatentAnalysisService {
 
   constructor(
     private readonly helperClient: PatentAnalysisHelperClient,
+    private readonly httpService: HttpService,
     private readonly configService: ConfigService,
   ) {}
 
@@ -355,6 +358,24 @@ export class PatentAnalysisService {
     };
   }
 
+  async getPatentInsightStatistics(body: PatentInsightStatisticsDto) {
+    return this.callPatentInsightApi(
+      '/get_all_statistics/',
+      {
+        applicant: body.applicant ?? '',
+        from_date: body.from_date ?? '',
+        to_date: body.to_date ?? '',
+        top_n_applicant: body.top_n_applicant,
+        top_n_target: body.top_n_target,
+      },
+      'GET',
+    );
+  }
+
+  async refreshPatentInsightStatistics() {
+    return this.callPatentInsightApi('/patent_statistics_refresh/', {});
+  }
+
   private getOwnerId(ownerId?: string): string {
     return (
       ownerId ??
@@ -504,6 +525,59 @@ export class PatentAnalysisService {
       size,
       owner_id: query.ownerId,
     });
+  }
+
+  private async callPatentInsightApi(
+    path: string,
+    body: Record<string, unknown>,
+    method: 'GET' | 'POST' = 'POST',
+  ) {
+    const baseUrl = this.configService.get<string>(
+      'patentAnalysis.insightApiUrl',
+      'http://172.16.1.210:8000',
+    ).replace(/\/$/, '');
+    const timeoutMs = this.configService.get<number>('httpTimeoutMs', 30000);
+
+    try {
+      const url = `${baseUrl}${path}`;
+      if (method === 'GET') {
+        const response = await this.httpService.axiosRef.get(url, {
+          params: body,
+          timeout: timeoutMs,
+        });
+        return response.data;
+      }
+
+      const response = await this.httpService.axiosRef.post(url, body, {
+        timeout: timeoutMs,
+      });
+      return response.data;
+    } catch (error) {
+      const errorRecord = asRecord(error);
+      const responseRecord = asRecord(errorRecord?.response);
+      const upstreamStatus = responseRecord?.status;
+      const upstreamData = responseRecord?.data;
+      const detail = {
+        upstreamUrl: `${baseUrl}${path}`,
+        method,
+        upstreamStatus,
+        upstreamData,
+        errorMessage: error instanceof Error ? error.message : 'Unknown error',
+      };
+
+      this.logger.error('[PatentInsight] upstream request failed', JSON.stringify(detail));
+
+      if (error instanceof Error) {
+        throw new BadGatewayException({
+          message: 'Failed to call patent insight API',
+          detail,
+        });
+      }
+      throw new BadGatewayException({
+        message: 'Unknown patent insight API error',
+        detail,
+      });
+    }
   }
 
   private toStructureSearchCompoundRow(

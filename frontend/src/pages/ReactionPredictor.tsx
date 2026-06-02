@@ -31,6 +31,9 @@ import ChemDrawEditor from '../components/common/ChemDrawEditor';
 import ChemDrawModal from '../components/common/ChemDrawModal';
 import CompoundStructureView from '../components/common/CompoundStructureView';
 import BenzeneIcon from '../components/common/BenzeneIcon';
+import oaProfile022 from '../assets/reaction_predictor/oa_profile_022.png';
+import oaProfile028 from '../assets/reaction_predictor/oa_profile_028.png';
+import oaProfileTriBromo from '../assets/reaction_predictor/oa_profile_tri_bromo.png';
 import { useResponsiveLayout } from '../hooks/useResponsiveLayout';
 import { useUIStore } from '../store/useUIStore';
 import {
@@ -60,12 +63,14 @@ const checkStatusMeta: Record<ConfidenceCheck['status'], { className: string; la
   fail: { className: 'reaction-check-fail', label: 'FAIL' },
 };
 
-const MoleculePreview: React.FC<{ svg?: string }> = ({ svg }) => (
-  <div
-    className="reaction-molecule-preview"
-    dangerouslySetInnerHTML={svg ? { __html: svg } : undefined}
-  />
-);
+const reactionProfileImages: Record<string, string> = {
+  'rp-001': oaProfileTriBromo,
+  'rp-002': oaProfile028,
+  'rp-003': oaProfile022,
+};
+
+const getReactionProfileImage = (row: ReactionPredictionRow) =>
+  reactionProfileImages[row.id] ?? oaProfileTriBromo;
 
 const ReactionPredictor: React.FC = () => {
   const { token } = theme.useToken();
@@ -340,20 +345,22 @@ const ReactionPredictor: React.FC = () => {
                 <Card className="c-card reaction-summary-card" variant="borderless">
                   <div className="reaction-section-title">
                     <Sparkles size={16} />
-                    <span>ΔΔG‡ Profile</span>
+                    <span>ΔG‡OA Profile</span>
                   </div>
-                  <MoleculePreview svg={selectedRow.moleculeSvg} />
-                  <div className="reaction-site-list">
-                    {selectedRow.sites.map((site) => (
-                      <div
-                        key={`${selectedRow.id}-${site.site}`}
-                        className={site.site === selectedRow.majorSite.replace(`-${site.leavingGroup}`, '') ? 'reaction-site-pill reaction-site-pill-major' : 'reaction-site-pill'}
-                      >
-                        <span>{site.site}</span>
-                        <strong>{site.deltaG !== undefined ? `${site.deltaG.toFixed(1)} kJ/mol` : '-'}</strong>
-                      </div>
-                    ))}
-                  </div>
+                  {selectedRow.status === 'calculating' ? (
+                    <div className="reaction-profile-loading">
+                      <Sparkles size={22} />
+                      <Text strong>Calculating...</Text>
+                      <Text type="secondary">ΔG‡OA profile is being generated.</Text>
+                    </div>
+                  ) : (
+                    <div className="reaction-profile-image-frame">
+                      <img
+                        src={getReactionProfileImage(selectedRow)}
+                        alt={`${selectedRow.name} ΔG‡OA profile`}
+                      />
+                    </div>
+                  )}
                 </Card>
 
                 <Card className="c-card reaction-summary-card" variant="borderless">

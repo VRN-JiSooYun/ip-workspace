@@ -12,6 +12,7 @@ import ChemSpace3D from './pages/ChemSpace3D';
 import ReactionPredictor from './pages/ReactionPredictor';
 import PatentAnalysisList from './pages/PatentAnalysisList';
 import PatentAnalysisDetail from './pages/PatentAnalysisDetail';
+import PatentInsight from './pages/PatentInsight';
 import DevelopmentStatus from './pages/DevelopmentStatus';
 import EmptyPage from './pages/EmptyPage';
 
@@ -91,6 +92,7 @@ const App: React.FC = () => {
               <Route path="/patents/write" element={<EmptyPage title="My 특허 쓰기" breadcrumb={[{ label: 'Documents' }, { label: 'Patents' }, { label: 'My 특허 쓰기' }]} />} />
               <Route path="/patents/analysis" element={<PatentAnalysisList />} />
               <Route path="/patents/analysis/:id" element={<PatentAnalysisDetail />} />
+              <Route path="/patents/insight" element={<PatentInsight />} />
               <Route path="/patents/manage" element={<EmptyPage title="My 특허 관리" breadcrumb={[{ label: 'Documents' }, { label: 'Patents' }, { label: 'My 특허 관리' }]} />} />
               <Route path="/papers/manage" element={<EmptyPage title="My 논문 관리" breadcrumb={[{ label: 'Documents' }, { label: 'Papers' }, { label: 'My 논문 관리' }]} />} />
               <Route path="/conferences" element={<EmptyPage title="Conferences" breadcrumb={[{ label: 'Documents' }, { label: 'Conferences' }]} />} />

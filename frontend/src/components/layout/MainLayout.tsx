@@ -108,7 +108,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
       key: 'documents',
       label: 'Documents',
       icon: <FileText size={22} />,
-      activeKeys: ['documents', 'patents', 'patent-write', 'patent-analysis', 'patent-manage', 'papers', 'paper-manage', 'conferences'],
+      activeKeys: ['documents', 'patents', 'patent-write', 'patent-analysis', 'patent-insight', 'patent-manage', 'papers', 'paper-manage', 'conferences'],
       menu: {
         items: [
           {
@@ -119,6 +119,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
             children: [
               { key: 'patent-write', label: renderMiniDropdownLabel('My 특허 쓰기'), title: '', onClick: () => navigate('/patents/write') },
               { key: 'patent-analysis', label: renderMiniDropdownLabel('My 특허 분석'), title: '', onClick: () => navigate('/patents/analysis') },
+              { key: 'patent-insight', label: renderMiniDropdownLabel('Insight'), title: '', onClick: () => navigate('/patents/insight') },
               { key: 'patent-manage', label: renderMiniDropdownLabel('My 특허 관리'), title: '', onClick: () => navigate('/patents/manage') },
             ],
           },
@@ -182,7 +183,8 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
     if (path === '/clustering') return 'clustering';
     if (path === '/reaction-predictor') return 'reaction-predictor';
     if (path === '/patents/write') return 'patent-write';
-    if (path === '/patents/analysis') return 'patent-analysis';
+    if (path === '/patents/analysis' || path.startsWith('/patents/analysis/')) return 'patent-analysis';
+    if (path === '/patents/insight') return 'patent-insight';
     if (path === '/patents/manage') return 'patent-manage';
     if (path === '/papers/manage') return 'paper-manage';
     if (path === '/conferences') return 'conferences';
@@ -387,6 +389,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                     children: [
                       { key: 'patent-write', label: 'My 특허 쓰기', onClick: () => navigate('/patents/write') },
                       { key: 'patent-analysis', label: 'My 특허 분석', onClick: () => navigate('/patents/analysis') },
+                      { key: 'patent-insight', label: 'Insight', onClick: () => navigate('/patents/insight') },
                       { key: 'patent-manage', label: 'My 특허 관리', onClick: () => navigate('/patents/manage') },
                     ]
                   },

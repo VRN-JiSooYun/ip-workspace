@@ -611,6 +611,7 @@ const MyBoard: React.FC = () => {
           gap: 0,
           minWidth: Math.ceil(rotatedBounds.width * structureFitScale),
           minHeight: Math.ceil(rotatedBounds.height * structureFitScale),
+          lineHeight: 0,
         }}
       >
         <CompoundStructureView
@@ -2224,7 +2225,14 @@ const MyBoard: React.FC = () => {
           padding-right: 4px !important;
         }
         .my-board-group-table .ant-table-tbody > tr > td.my-board-structure-column {
-          padding: 4px !important;
+          padding: 1px 4px !important;
+          line-height: 0 !important;
+          vertical-align: middle !important;
+        }
+        .my-board-group-table .ant-table-tbody .my-board-representative-structure,
+        .my-board-group-table .ant-table-tbody .my-board-representative-structure .compound-structure-view,
+        .my-board-group-table .ant-table-tbody .my-board-representative-structure .compound-structure-frame {
+          line-height: 0 !important;
         }
         .my-board-group-table .ant-table-thead > tr > th.my-board-structure-column {
           padding-left: 4px !important;
@@ -2334,7 +2342,7 @@ const MyBoard: React.FC = () => {
           display: inline-flex;
           align-items: center;
           justify-content: center;
-          color: ${token.colorTextTertiary};
+          color: ${token.colorTextQuaternary};
           border: 1px solid transparent;
           transition: background-color 0.16s ease, color 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease;
         }
@@ -2346,22 +2354,52 @@ const MyBoard: React.FC = () => {
           -webkit-mask: url("${bookmarkIconMaskUrl}") center / contain no-repeat;
           mask: url("${bookmarkIconMaskUrl}") center / contain no-repeat;
         }
+        .my-board-bookmark-button:hover .my-board-bookmark-icon,
+        .my-board-bookmark-button:focus .my-board-bookmark-icon,
+        .my-board-bookmark-button:focus-visible .my-board-bookmark-icon,
+        .my-board-bookmark-button:active .my-board-bookmark-icon {
+          color: inherit !important;
+          background-color: currentColor !important;
+        }
+        .my-board-bookmark-button:not(.active):hover .my-board-bookmark-icon,
+        .my-board-bookmark-button:not(.active):focus .my-board-bookmark-icon,
+        .my-board-bookmark-button:not(.active):focus-visible .my-board-bookmark-icon,
+        .my-board-bookmark-button:not(.active):active .my-board-bookmark-icon {
+          color: ${token.colorTextQuaternary} !important;
+          background-color: ${token.colorTextQuaternary} !important;
+        }
+        .my-board-bookmark-button.active:hover .my-board-bookmark-icon,
+        .my-board-bookmark-button.active:focus .my-board-bookmark-icon,
+        .my-board-bookmark-button.active:focus-visible .my-board-bookmark-icon,
+        .my-board-bookmark-button.active:active .my-board-bookmark-icon {
+          color: ${token.colorPrimary} !important;
+          background-color: ${token.colorPrimary} !important;
+        }
         .my-board-bookmark-button.active {
           color: ${token.colorPrimary};
-          background: color-mix(in srgb, ${token.colorPrimary} 18%, ${token.colorBgContainer});
-          border-color: ${token.colorPrimary};
-          box-shadow: inset 0 0 0 1px ${token.colorPrimary};
+          background: transparent !important;
+          border-color: transparent;
+          box-shadow: none;
+          outline: 0;
         }
         .my-board-bookmark-button:hover {
-          color: ${token.colorPrimary};
-          background: ${token.colorPrimaryBg};
+          color: ${token.colorTextQuaternary};
+          background: transparent !important;
+        }
+        .my-board-bookmark-button:focus,
+        .my-board-bookmark-button:focus-visible,
+        .my-board-bookmark-button:active {
+          background: transparent !important;
+          box-shadow: none !important;
+          outline: 0 !important;
         }
         .my-board-bookmark-button.active:hover,
         .my-board-bookmark-button.active:focus-visible {
           color: ${token.colorPrimary};
-          background: color-mix(in srgb, ${token.colorPrimary} 24%, ${token.colorBgContainer});
-          border-color: ${token.colorPrimary};
-          box-shadow: inset 0 0 0 1px ${token.colorPrimary};
+          background: transparent !important;
+          border-color: transparent;
+          box-shadow: none;
+          outline: 0;
         }
         .canvas-card:hover { border-color: ${token.colorPrimary} !important; transform: translateY(-4px); box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
         .cdd-clipboard-icon-container, .CDW_Logo, .cdd-logo { display: none !important; }

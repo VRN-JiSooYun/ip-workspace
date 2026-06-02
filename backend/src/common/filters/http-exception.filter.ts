@@ -27,10 +27,17 @@ export class HttpExceptionFilter implements ExceptionFilter {
             'message' in exceptionResponse
           ? (exceptionResponse as { message: string | string[] }).message
           : 'Internal server error';
+    const detail =
+      exceptionResponse &&
+      typeof exceptionResponse === 'object' &&
+      'detail' in exceptionResponse
+        ? (exceptionResponse as { detail: unknown }).detail
+        : undefined;
 
     response.status(status).json({
       statusCode: status,
       message,
+      ...(detail !== undefined ? { detail } : {}),
       timestamp: new Date().toISOString(),
     });
   }
