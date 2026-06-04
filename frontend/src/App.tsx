@@ -79,7 +79,10 @@ const App: React.FC = () => {
             <Routes>
               <Route path="/" element={<Navigate to="/dashboard" replace />} />
               <Route path="/dashboard" element={<Dashboard />} />
+              <Route path="/design" element={<MyBoard />} />
+              <Route path="/synthesis" element={<SynthesisBoard />} />
               <Route path="/myboard" element={<MyBoard />} />
+              <Route path="/compounds/search" element={<EmptyPage title="Search" breadcrumb={[{ label: 'Compounds' }, { label: 'Search' }]} />} />
               <Route path="/my-tree" element={<EmptyPage title="My tree" breadcrumb={[{ label: 'Compounds' }, { label: 'My tree' }]} />} />
               <Route path="/chem-space" element={<ChemSpace />} />
               <Route path="/chem-space-3d" element={<ChemSpace3D />} />

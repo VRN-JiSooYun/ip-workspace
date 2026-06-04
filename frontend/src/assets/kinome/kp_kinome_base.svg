@@ -1,0 +1,111 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 780 960">
+  <rect width="780" height="960" fill="#fff"/>
+  <style>
+    .fam{font:800 24px Arial,sans-serif;fill:#111827}
+    .gene{font:600 6.7px Arial,sans-serif;fill:#4b5563}
+    .branch{fill:none;stroke-linecap:round}
+    .agc{stroke:#f05b57}.camk{stroke:#f2c230}.ck1{stroke:#a8ddb5}.ste{stroke:#7472b8}.tkl{stroke:#5bbf8a}.tk{stroke:#0d61b8}.cmgc{stroke:#b84aa5}.other{stroke:#55c3d6}.atypical{stroke:#8bb8e8}
+  </style>
+  <path d="M386 932 C396 812 400 690 394 548 C392 474 392 410 392 332" fill="none" stroke="#8d969f" stroke-width="18" stroke-linecap="round"/>
+  <g opacity=".18" stroke-width="8">
+    <path class="branch agc" d="M388 366 C304 332 210 286 94 204"/>
+    <path class="branch agc" d="M300 328 C234 308 166 278 82 230"/>
+    <path class="branch agc" d="M340 348 C258 370 206 360 132 312"/>
+    <path class="branch camk" d="M392 340 C360 260 316 178 250 88"/>
+    <path class="branch camk" d="M356 246 C304 214 248 166 192 112"/>
+    <path class="branch camk" d="M346 266 C276 246 208 214 132 158"/>
+    <path class="branch other" d="M390 392 C436 370 492 340 558 286"/>
+    <path class="branch other" d="M408 428 C456 414 504 384 566 332"/>
+    <path class="branch other" d="M386 438 C334 434 280 422 222 396"/>
+    <path class="branch cmgc" d="M412 398 C486 374 580 332 706 260"/>
+    <path class="branch cmgc" d="M482 374 C540 402 604 416 736 396"/>
+    <path class="branch cmgc" d="M516 354 C574 316 638 294 712 298"/>
+    <path class="branch tk" d="M406 452 C482 526 568 604 736 608"/>
+    <path class="branch tk" d="M468 524 C526 600 588 678 706 736"/>
+    <path class="branch tk" d="M470 528 C532 556 604 552 752 498"/>
+    <path class="branch tkl" d="M386 486 C374 560 356 662 332 774"/>
+    <path class="branch tkl" d="M372 582 C418 566 480 536 534 488"/>
+    <path class="branch tkl" d="M348 660 C414 642 486 610 552 548"/>
+    <path class="branch ste" d="M370 452 C306 500 226 548 96 596"/>
+    <path class="branch ste" d="M318 492 C252 518 182 522 110 552"/>
+    <path class="branch ste" d="M330 506 C258 574 214 628 146 720"/>
+    <path class="branch ck1" d="M358 414 C264 398 166 406 58 424"/>
+    <path class="branch ck1" d="M294 404 C230 440 162 472 94 514"/>
+  </g>
+  <g opacity=".85" stroke-width="1.55">
+    <path class="branch camk" d="M392 340 C323 236 323 236 322 65"/><text class="gene" x="322" y="61" text-anchor="middle">CAMK1</text>
+    <path class="branch camk" d="M392 340 C310 246 310 246 277 65"/><text class="gene" x="277" y="61" text-anchor="middle">CAMK2A</text>
+    <path class="branch camk" d="M392 340 C287 257 287 257 229 70"/><text class="gene" x="229" y="66" text-anchor="middle">CAMK2B</text>
+    <path class="branch camk" d="M392 340 C263 271 263 271 178 80"/><text class="gene" x="178" y="76" text-anchor="middle">CAMK4</text>
+    <path class="branch camk" d="M392 340 C285 267 285 267 158 117"/><text class="gene" x="158" y="113" text-anchor="middle">CHEK1</text>
+    <path class="branch camk" d="M392 340 C312 255 312 255 203 130"/><text class="gene" x="203" y="126" text-anchor="middle">CHEK2</text>
+    <path class="branch camk" d="M392 340 C339 246 339 246 248 136"/><text class="gene" x="248" y="132" text-anchor="middle">MARK1</text>
+    <path class="branch camk" d="M392 340 C363 239 363 239 294 129"/><text class="gene" x="294" y="125" text-anchor="middle">MARK2</text>
+    <path class="branch camk" d="M392 340 C376 245 376 245 342 109"/><text class="gene" x="342" y="105" text-anchor="middle">AMPKA1</text>
+    <path class="branch camk" d="M392 340 C363 264 363 264 337 159"/><text class="gene" x="337" y="155" text-anchor="middle">MAPKAPK2</text>
+    <path class="branch camk" d="M392 340 C340 276 340 276 291 185"/><text class="gene" x="291" y="181" text-anchor="middle">SIK1</text>
+    <path class="branch camk" d="M392 340 C307 285 307 285 239 196"/><text class="gene" x="239" y="192" text-anchor="middle">SIK2</text>
+    <path class="branch agc" d="M388 366 C247 251 247 251 38 167"/><text class="gene" x="38" y="163" text-anchor="middle">AKT1</text>
+    <path class="branch agc" d="M388 366 C242 270 242 270 37 211"/><text class="gene" x="37" y="207" text-anchor="middle">AKT2</text>
+    <path class="branch agc" d="M388 366 C231 290 231 290 55 260"/><text class="gene" x="55" y="256" text-anchor="middle">PKCA</text>
+    <path class="branch agc" d="M388 366 C237 310 237 310 91 300"/><text class="gene" x="91" y="296" text-anchor="middle">PKCB</text>
+    <path class="branch agc" d="M388 366 C262 317 262 317 137 284"/><text class="gene" x="137" y="280" text-anchor="middle">PKCD</text>
+    <path class="branch agc" d="M388 366 C287 320 287 320 174 253"/><text class="gene" x="174" y="249" text-anchor="middle">PKCE</text>
+    <path class="branch agc" d="M388 366 C314 325 314 325 204 222"/><text class="gene" x="204" y="218" text-anchor="middle">PKACA</text>
+    <path class="branch agc" d="M388 366 C302 348 302 348 166 338"/><text class="gene" x="166" y="334" text-anchor="middle">SGK1</text>
+    <path class="branch ck1" d="M358 414 C238 404 238 404 28 383"/><text class="gene" x="28" y="379" text-anchor="middle">CSNK1A1</text>
+    <path class="branch ck1" d="M358 414 C235 421 235 421 36 430"/><text class="gene" x="36" y="426" text-anchor="middle">CSNK1D</text>
+    <path class="branch ck1" d="M358 414 C240 440 240 440 58 477"/><text class="gene" x="58" y="473" text-anchor="middle">CSNK1E</text>
+    <path class="branch ck1" d="M358 414 C260 454 260 454 108 501"/><text class="gene" x="108" y="497" text-anchor="middle">VRK1</text>
+    <path class="branch ck1" d="M358 414 C284 456 284 456 154 490"/><text class="gene" x="154" y="486" text-anchor="middle">TTBK1</text>
+    <path class="branch ste" d="M370 452 C238 523 238 523 34 560"/><text class="gene" x="34" y="556" text-anchor="middle">MAP3K1</text>
+    <path class="branch ste" d="M370 452 C228 548 228 548 48 616"/><text class="gene" x="48" y="612" text-anchor="middle">MAP3K5</text>
+    <path class="branch ste" d="M370 452 C241 569 241 569 93 670"/><text class="gene" x="93" y="666" text-anchor="middle">MAP2K1</text>
+    <path class="branch ste" d="M370 452 C276 559 276 559 148 706"/><text class="gene" x="148" y="702" text-anchor="middle">PAK1</text>
+    <path class="branch ste" d="M370 452 C301 527 301 527 209 674"/><text class="gene" x="209" y="670" text-anchor="middle">STK3</text>
+    <path class="branch tkl" d="M386 486 C346 626 346 626 302 787"/><text class="gene" x="302" y="783" text-anchor="middle">BRAF</text>
+    <path class="branch tkl" d="M386 486 C381 632 381 632 357 792"/><text class="gene" x="357" y="788" text-anchor="middle">RAF1</text>
+    <path class="branch tkl" d="M386 486 C412 624 412 624 420 748"/><text class="gene" x="420" y="744" text-anchor="middle">IRAK4</text>
+    <path class="branch tkl" d="M386 486 C441 594 441 594 482 676"/><text class="gene" x="482" y="672" text-anchor="middle">RIPK2</text>
+    <path class="branch tkl" d="M386 486 C468 566 468 566 532 600"/><text class="gene" x="532" y="596" text-anchor="middle">MAP3K7</text>
+    <path class="branch tk" d="M406 452 C530 565 530 565 566 735"/><text class="gene" x="566" y="731" text-anchor="middle">KDR</text>
+    <path class="branch tk" d="M406 452 C570 560 570 560 626 756"/><text class="gene" x="626" y="752" text-anchor="middle">FLT3</text>
+    <path class="branch tk" d="M406 452 C616 546 616 546 690 744"/><text class="gene" x="690" y="740" text-anchor="middle">EGFR</text>
+    <path class="branch tk" d="M406 452 C638 514 638 514 745 682"/><text class="gene" x="745" y="678" text-anchor="middle">FGFR3</text>
+    <path class="branch tk" d="M406 452 C648 470 648 470 752 600"/><text class="gene" x="752" y="596" text-anchor="middle">MET</text>
+    <path class="branch tk" d="M406 452 C620 448 620 448 728 520"/><text class="gene" x="728" y="516" text-anchor="middle">JAK2</text>
+    <path class="branch tk" d="M406 452 C584 462 584 462 678 550"/><text class="gene" x="678" y="546" text-anchor="middle">SRC</text>
+    <path class="branch cmgc" d="M412 398 C536 319 536 319 702 223"/><text class="gene" x="702" y="219" text-anchor="middle">CDK2</text>
+    <path class="branch cmgc" d="M412 398 C558 342 558 342 743 292"/><text class="gene" x="743" y="288" text-anchor="middle">CDK5</text>
+    <path class="branch cmgc" d="M412 398 C580 370 580 370 746 368"/><text class="gene" x="746" y="364" text-anchor="middle">GSK3B</text>
+    <path class="branch cmgc" d="M412 398 C562 400 562 400 704 431"/><text class="gene" x="704" y="427" text-anchor="middle">MAPK14</text>
+    <path class="branch cmgc" d="M412 398 C516 416 516 416 620 460"/><text class="gene" x="620" y="456" text-anchor="middle">ERK2</text>
+    <path class="branch other" d="M390 392 C436 370 436 370 506 322"/><text class="gene" x="506" y="318" text-anchor="middle">AURKA</text>
+    <path class="branch other" d="M390 392 C444 396 444 396 516 390"/><text class="gene" x="516" y="386" text-anchor="middle">AURKB</text>
+    <path class="branch other" d="M390 392 C426 420 426 420 470 456"/><text class="gene" x="470" y="452" text-anchor="middle">PLK1</text>
+  </g>
+  <g class="atypical" stroke-width="1.2" fill="none">
+    <path d="M8 932 L772 932"/><path d="M118 932 L118 878 M216 932 L216 884 M548 932 L548 876 M670 932 L670 884"/>
+    <path d="M112 878 v-28 h18 v28 M206 884 v-34 h18 v34 M538 876 v-30 h18 v30 M660 884 v-34 h18 v34"/>
+  </g>
+  <text class="fam" x="278" y="70" text-anchor="middle">CAMK</text>
+  <text class="fam" x="92" y="190" text-anchor="middle">AGC</text>
+  <text class="fam" x="46" y="406" text-anchor="middle">CK1</text>
+  <text class="fam" x="92" y="594" text-anchor="middle">STE</text>
+  <text class="fam" x="344" y="784" text-anchor="middle">TKL</text>
+  <text class="fam" x="712" y="604" text-anchor="middle">TK</text>
+  <text class="fam" x="724" y="250" text-anchor="middle">CMGC</text>
+  <text class="fam" x="62" y="926" text-anchor="middle">Atypical</text>
+  <g font-family="Arial,sans-serif" font-size="11" fill="#111827">
+    <text x="24" y="726" font-weight="800">Branch Color</text>
+    <rect x="24" y="736" width="12" height="12" fill="#f05b57"/><text x="42" y="746">AGC</text>
+    <rect x="24" y="754" width="12" height="12" fill="#8bb8e8"/><text x="42" y="764">Atypical</text>
+    <rect x="24" y="772" width="12" height="12" fill="#f2c230"/><text x="42" y="782">CAMK</text>
+    <rect x="24" y="790" width="12" height="12" fill="#a8ddb5"/><text x="42" y="800">CK1</text>
+    <rect x="24" y="808" width="12" height="12" fill="#b84aa5"/><text x="42" y="818">CMGC</text>
+    <rect x="24" y="826" width="12" height="12" fill="#55c3d6"/><text x="42" y="836">Other</text>
+    <rect x="24" y="844" width="12" height="12" fill="#7472b8"/><text x="42" y="854">STE</text>
+    <rect x="24" y="862" width="12" height="12" fill="#0d61b8"/><text x="42" y="872">TK</text>
+    <rect x="24" y="880" width="12" height="12" fill="#5bbf8a"/><text x="42" y="890">TKL</text>
+  </g>
+</svg>

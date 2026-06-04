@@ -174,9 +174,7 @@ const SynthesisBoard: React.FC = () => {
     setHeaderContent(
       <PageHeaderBreadcrumb 
         items={[
-          { label: 'Compounds' },
-          { label: 'My board', onClick: () => navigate('/myboard') },
-          { label: '합성 보드' }
+          { label: 'Synthesis' }
         ]} 
       />
     );

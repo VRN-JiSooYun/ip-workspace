@@ -91,18 +91,18 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
       onClick: () => navigate('/dashboard'),
     },
     {
-      key: 'compounds',
-      label: 'Compounds',
-      icon: <BenzeneIcon size={22} />,
-      activeKeys: ['compounds', 'myboard', 'my-tree', 'chem-space', 'clustering'],
-      menu: {
-        items: [
-          { key: 'myboard', label: renderMiniDropdownLabel('My board'), title: '', onClick: () => navigate('/myboard') },
-          { key: 'my-tree', label: renderMiniDropdownLabel('My tree'), title: '', onClick: () => navigate('/my-tree') },
-          { key: 'chem-space', label: renderMiniDropdownLabel('Chemical space'), title: '', onClick: () => navigate('/chem-space') },
-          { key: 'clustering', label: renderMiniDropdownLabel('Clustering'), title: '', onClick: () => navigate('/clustering') },
-        ],
-      },
+      key: 'design',
+      label: 'Design',
+      icon: <Palette size={22} />,
+      activeKeys: ['design', 'myboard'],
+      onClick: () => navigate('/design'),
+    },
+    {
+      key: 'synthesis',
+      label: 'Synthesis',
+      icon: <Microscope size={22} />,
+      activeKeys: ['synthesis'],
+      onClick: () => navigate('/synthesis'),
     },
     {
       key: 'documents',
@@ -137,22 +137,34 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
       },
     },
     {
-      key: 'pdbs',
-      label: 'PDBs',
-      icon: <Microscope size={22} />,
-      onClick: () => navigate('/pdbs'),
+      key: 'compounds',
+      label: 'Compounds',
+      icon: <BenzeneIcon size={22} />,
+      activeKeys: ['compounds', 'compound-search', 'chem-space', 'clustering'],
+      menu: {
+        items: [
+          { key: 'compound-search', label: renderMiniDropdownLabel('Search'), title: '', onClick: () => navigate('/compounds/search') },
+          { key: 'chem-space', label: renderMiniDropdownLabel('Chemical space'), title: '', onClick: () => navigate('/chem-space') },
+          { key: 'clustering', label: renderMiniDropdownLabel('Clustering'), title: '', onClick: () => navigate('/clustering') },
+        ],
+      },
+    },
+    {
+      key: 'tools',
+      label: 'Tools',
+      icon: <FlaskConical size={22} />,
+      activeKeys: ['tools', 'reaction-predictor'],
+      menu: {
+        items: [
+          { key: 'reaction-predictor', label: renderMiniDropdownLabel('Reaction Predictor'), title: '', onClick: () => navigate('/reaction-predictor') },
+        ],
+      },
     },
     {
       key: 'universal-search',
       label: '통합검색',
       icon: <Search size={22} />,
       onClick: () => navigate('/universal-search'),
-    },
-    {
-      key: 'reaction-predictor',
-      label: 'Reaction Predictor',
-      icon: <FlaskConical size={22} />,
-      onClick: () => navigate('/reaction-predictor'),
     },
   ];
 
@@ -175,10 +187,10 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
   const getSelectedKey = () => {
     const path = location.pathname;
     if (path === '/dashboard') return 'dashboard';
-    if (path === '/myboard') return 'myboard';
-    if (path === '/myboard/sar-table' || path === '/sar-table') return 'myboard';
-    if (path === '/myboard/synthesis-board' || path === '/synthesis-board') return 'myboard';
-    if (path === '/my-tree') return 'my-tree';
+    if (path === '/design' || path === '/myboard') return 'design';
+    if (path === '/synthesis' || path === '/myboard/synthesis-board' || path === '/synthesis-board') return 'synthesis';
+    if (path === '/myboard/sar-table' || path === '/sar-table') return 'design';
+    if (path === '/compounds/search' || path === '/my-tree') return 'compound-search';
     if (path === '/chem-space') return 'chem-space';
     if (path === '/clustering') return 'clustering';
     if (path === '/reaction-predictor') return 'reaction-predictor';
@@ -188,7 +200,6 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
     if (path === '/patents/manage') return 'patent-manage';
     if (path === '/papers/manage') return 'paper-manage';
     if (path === '/conferences') return 'conferences';
-    if (path === '/pdbs') return 'pdbs';
     if (path === '/universal-search') return 'universal-search';
     if (path === '/development-status') return 'development-status';
     if (path === '/contact') return 'contact';
@@ -365,16 +376,16 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                 onClick: () => navigate('/dashboard')
               },
               {
-                key: 'compounds',
-                icon: renderSidebarIcon(<BenzeneIcon size={22} />),
-                label: <span style={{ fontWeight: 600 }}>Compounds</span>,
-                popupClassName: 'app-sidebar-popup-menu',
-                children: [
-                  { key: 'myboard', label: 'My board', onClick: () => navigate('/myboard') },
-                  { key: 'my-tree', label: 'My tree', onClick: () => navigate('/my-tree') },
-                  { key: 'chem-space', label: 'Chemical space', onClick: () => navigate('/chem-space') },
-                  { key: 'clustering', label: 'Clustering', onClick: () => navigate('/clustering') },
-                ],
+                key: 'design',
+                icon: renderSidebarIcon(<Palette size={22} />),
+                label: <span style={{ fontWeight: 600 }}>Design</span>,
+                onClick: () => navigate('/design')
+              },
+              {
+                key: 'synthesis',
+                icon: renderSidebarIcon(<Microscope size={22} />),
+                label: <span style={{ fontWeight: 600 }}>Synthesis</span>,
+                onClick: () => navigate('/synthesis')
               },
               {
                 key: 'documents',
@@ -405,22 +416,30 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                 ],
               },
               {
-                key: 'pdbs',
-                icon: renderSidebarIcon(<Microscope size={22} />),
-                label: <span style={{ fontWeight: 600 }}>PDBs</span>,
-                onClick: () => navigate('/pdbs')
+                key: 'compounds',
+                icon: renderSidebarIcon(<BenzeneIcon size={22} />),
+                label: <span style={{ fontWeight: 600 }}>Compounds</span>,
+                popupClassName: 'app-sidebar-popup-menu',
+                children: [
+                  { key: 'compound-search', label: 'Search', onClick: () => navigate('/compounds/search') },
+                  { key: 'chem-space', label: 'Chemical space', onClick: () => navigate('/chem-space') },
+                  { key: 'clustering', label: 'Clustering', onClick: () => navigate('/clustering') },
+                ],
+              },
+              {
+                key: 'tools',
+                icon: renderSidebarIcon(<FlaskConical size={22} />),
+                label: <span style={{ fontWeight: 600 }}>Tools</span>,
+                popupClassName: 'app-sidebar-popup-menu',
+                children: [
+                  { key: 'reaction-predictor', label: 'Reaction Predictor', onClick: () => navigate('/reaction-predictor') },
+                ],
               },
               {
                 key: 'universal-search',
                 icon: renderSidebarIcon(<Search size={22} />),
                 label: <span style={{ fontWeight: 600 }}>통합검색</span>,
                 onClick: () => navigate('/universal-search')
-              },
-              {
-                key: 'reaction-predictor',
-                icon: renderSidebarIcon(<FlaskConical size={22} />),
-                label: <span style={{ fontWeight: 600 }}>Reaction Predictor</span>,
-                onClick: () => navigate('/reaction-predictor')
               },
               ]}
             />

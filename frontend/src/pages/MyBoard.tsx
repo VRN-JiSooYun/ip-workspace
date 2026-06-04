@@ -8,11 +8,11 @@ import type { MenuProps } from 'antd';
 import {
   Search, Plus, Filter, Settings, List as ListIcon,
   Image as ImageIcon, GitBranch, Info, ChevronDown, ChevronUp, Beaker,
-  Activity, Share2, GripVertical, Upload as UploadIcon, FileText,
-  PanelLeftClose, PanelLeftOpen, Copy, Trash2, Combine, Edit3, MoveRight, Minus
+  Activity, GripVertical, Upload as UploadIcon, FileText,
+  PanelLeftClose, PanelLeftOpen, Copy, Trash2, Combine, Edit3, MoveRight, Minus, ArrowRight
 } from 'lucide-react';
 import { DEFAULT_GROUP_STRUCTURE_VIEW_SETTINGS, useBoardStore } from '../store/useBoardStore';
-import { mockCompounds, type Compound } from '../mocks/compounds';
+import { mockCompounds, type Compound, type CompoundQuickViewerAssetType } from '../mocks/compounds';
 import { useUserStore } from '../store/useUserStore';
 import RadarChart from '../components/charts/RadarChart';
 import dayjs from 'dayjs';
@@ -25,6 +25,7 @@ import ChemDrawEditor from '../components/common/ChemDrawEditor';
 import BenzeneIcon from '../components/common/BenzeneIcon';
 import CompoundStructureView, { getRotatedStructureBounds } from '../components/common/CompoundStructureView';
 import ToggleTag from '../components/common/ToggleTag';
+import QuickViewerPanel from '../components/myboard/QuickViewerPanel';
 import shareForwardIconRaw from '../assets/svg/share-forward-fill.svg?raw';
 import shareIconRaw from '../assets/svg/share.svg?raw';
 import bookmarkIconRaw from '../assets/svg/bookmark.svg?raw';
@@ -110,6 +111,7 @@ const MYBOARD_CENTER_COLUMN_KEYS = new Set([
   'project',
   'compoundId',
   'structure',
+  'quickViewerAssets',
   'experimentStage',
   'designSource',
   'props1',
@@ -154,6 +156,10 @@ const MyBoard: React.FC = () => {
   const [designSmiles, setDesignSmiles] = useState('');
   const [searchedSvg, setSearchedSvg] = useState<string | null>(null);
   const [structurePreview, setStructurePreview] = useState<{ title: string; svg: string } | null>(null);
+  const [quickViewer, setQuickViewer] = useState<{
+    compound: Compound;
+    activeType: CompoundQuickViewerAssetType;
+  } | null>(null);
   const [showFilters, setShowFilters] = useState(false);
   const [viewMode, setViewMode] = useState<'table' | 'draw' | 'tree'>('table');
   const [assignedGroupIds, setAssignedGroupIds] = useState<string[]>([]);
@@ -285,8 +291,7 @@ const MyBoard: React.FC = () => {
     setHeaderContent(
       <PageHeaderBreadcrumb 
         items={[
-          { label: 'Compounds' },
-          { label: 'My Board' }
+          { label: 'Design' }
         ]} 
       />
     );
@@ -451,7 +456,7 @@ const MyBoard: React.FC = () => {
   }, [autoFitGroupTableWidth, clampSplitLeftWidth, clampSplitRatio, isGroupListFull, isStackedSplitLayout, stopSplitResize]);
 
   const alwaysColumnKeys = React.useMemo(() => [
-    '순번', '그룹 번호', '프로젝트', '물질 번호 (VRN)', '화합물 구조', '단계', '출처', '디자인 비고', 'MolProp1', 'MolProp2'
+    '순번', '그룹 번호', '프로젝트', '물질 번호 (VRN)', '화합물 구조', '데이터', '단계', '출처', '디자인 비고', 'MolProp1', 'MolProp2'
   ], []);
   const designColumnKeys = React.useMemo(() => [
     '디자인 번호', '필요량 (mg)', '목적 (개선하고자 하는 assay)', '기대 개선 효과', '의뢰일자', '합성 확장 필요 정도', '의뢰 비고'
@@ -1166,6 +1171,41 @@ const MyBoard: React.FC = () => {
         );
       }
     },
+    '데이터': {
+      title: '데이터',
+      dataIndex: 'quickViewerAssets',
+      key: 'quickViewerAssets',
+      width: 112,
+      align: 'center' as const,
+      render: (_: unknown, record: Compound) => {
+        const assets = record.quickViewerAssets ?? [];
+
+        if (assets.length === 0) {
+          return <Text type="secondary">-</Text>;
+        }
+
+        return (
+          <div className="my-board-data-tags">
+            {assets.map(asset => (
+              <button
+                key={asset.type}
+                type="button"
+                className={`my-board-data-tag my-board-data-tag-${asset.type}`}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setQuickViewer({
+                    compound: record,
+                    activeType: asset.type,
+                  });
+                }}
+              >
+                {asset.label}
+              </button>
+            ))}
+          </div>
+        );
+      },
+    },
     '단계': {
       title: '단계',
       dataIndex: 'experimentStage',
@@ -1430,6 +1470,21 @@ const MyBoard: React.FC = () => {
               </Button>
               <Button icon={<BenzeneIcon size={18} />} onClick={() => setIsStructureModalOpen(true)} className="v-action-btn">구조 검색</Button>
             </div>
+          </Col>
+          <Col flex={isStackedSplitLayout ? '1 1 100%' : 'none'}>
+            <Button
+              type="primary"
+              icon={<ArrowRight size={18} />}
+              iconPosition="end"
+              disabled={sarTargetCount === 0}
+              style={{ ...getCompoundActionButtonStyle(sarTargetCount > 0), minWidth: 117, width: isStackedSplitLayout ? '100%' : undefined }}
+              onClick={() => {
+                setSelectedSarCompoundIds(filteredCompounds.map((compound) => compound.id));
+                navigate('/myboard/sar-table');
+              }}
+            >
+              SAR table
+            </Button>
           </Col>
         </Row>
         {showFilters && (
@@ -1723,19 +1778,6 @@ const MyBoard: React.FC = () => {
                     onClick={handleOpenCompoundEdit}
                   >
                     Edit
-                  </Button>
-                  <Button
-                    type="primary"
-                    size="small"
-                    icon={<Share2 size={14} />}
-                    disabled={sarTargetCount === 0}
-                    style={{ background: token.colorPrimary, borderColor: token.colorPrimary }}
-                    onClick={() => {
-                      setSelectedSarCompoundIds(filteredCompounds.map((compound) => compound.id));
-                      navigate('/myboard/sar-table');
-                    }}
-                  >
-                    SAR Table로 보기 ({sarTargetCount})
                   </Button>
                 </Space>
               </div>
@@ -2342,6 +2384,14 @@ const MyBoard: React.FC = () => {
           />
         ) : null}
       </Modal>
+      <QuickViewerPanel
+        compound={quickViewer?.compound ?? null}
+        activeType={quickViewer?.activeType ?? null}
+        onActiveTypeChange={(activeType) => {
+          setQuickViewer(prev => prev ? { ...prev, activeType } : prev);
+        }}
+        onClose={() => setQuickViewer(null)}
+      />
       <style>{`
         .ant-table-tbody > tr:hover > td {
           background-color: var(--table-row-hover-bg) !important;
@@ -2368,6 +2418,188 @@ const MyBoard: React.FC = () => {
         .my-board-detail-table .ant-table-thead > tr > th.my-board-structure-column {
           padding-left: 4px !important;
           padding-right: 4px !important;
+        }
+        .my-board-data-tags {
+          display: flex;
+          flex-wrap: wrap;
+          justify-content: center;
+          gap: 4px;
+          min-width: 0;
+        }
+        .my-board-data-tag {
+          height: 20px;
+          min-width: 24px;
+          padding: 0 7px;
+          border: 1px solid ${token.colorBorderSecondary};
+          border-radius: 999px;
+          background: ${token.colorBgLayout};
+          color: ${token.colorTextSecondary};
+          font-size: 10px;
+          font-weight: 700;
+          line-height: 18px;
+          cursor: pointer;
+          transition: color 0.16s ease, background-color 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease;
+        }
+        .my-board-data-tag:hover {
+          color: ${token.colorPrimary};
+          border-color: ${token.colorPrimary};
+          background: ${token.colorPrimaryBg};
+        }
+        .my-board-data-tag-kp {
+          color: #FFFFFF;
+          border-color: #F87C63;
+          background: #F87C63;
+          box-shadow: 0 2px 6px rgba(248, 124, 99, 0.24);
+        }
+        .my-board-data-tag-kp:hover {
+          color: #FFFFFF;
+          border-color: #E96B53;
+          background: #E96B53;
+        }
+        .quick-viewer-panel {
+          position: fixed;
+          top: 92px;
+          right: 0;
+          bottom: 24px;
+          width: clamp(420px, 25vw, 560px);
+          z-index: 1050;
+          display: flex;
+          flex-direction: column;
+          background: ${token.colorBgContainer};
+          border-left: 1px solid ${token.colorBorderSecondary};
+          box-shadow: -18px 0 42px rgba(15, 23, 42, 0.18);
+          transform: translateX(calc(100% + 24px));
+          transition: transform 0.22s ease;
+          pointer-events: none;
+        }
+        .quick-viewer-panel-open {
+          transform: translateX(0);
+          pointer-events: auto;
+        }
+        .quick-viewer-header {
+          height: 56px;
+          padding: 12px 14px;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          border-bottom: 1px solid ${token.colorBorderSecondary};
+          box-sizing: border-box;
+        }
+        .quick-viewer-title {
+          display: block;
+          color: ${token.colorText};
+          font-size: 15px;
+          font-weight: 800;
+          line-height: 18px;
+        }
+        .quick-viewer-subtitle {
+          display: block;
+          color: ${token.colorTextSecondary};
+          font-size: 11px;
+          line-height: 14px;
+        }
+        .quick-viewer-tabs {
+          display: grid;
+          grid-template-columns: repeat(4, minmax(0, 1fr));
+          gap: 6px;
+          padding: 10px 14px;
+          border-bottom: 1px solid ${token.colorBorderSecondary};
+          background: ${token.colorBgLayout};
+        }
+        .quick-viewer-tab {
+          height: 28px;
+          border: 1px solid ${token.colorBorderSecondary};
+          border-radius: 999px;
+          background: ${token.colorBgContainer};
+          color: ${token.colorTextSecondary};
+          font-size: 11px;
+          font-weight: 700;
+          cursor: pointer;
+        }
+        .quick-viewer-tab:disabled {
+          opacity: 0.42;
+          cursor: not-allowed;
+        }
+        .quick-viewer-tab-active {
+          border-color: #F87C63;
+          background: #F87C63;
+          color: #FFFFFF;
+        }
+        .quick-viewer-body {
+          min-height: 0;
+          flex: 1;
+          overflow: auto;
+          padding: 14px;
+          background: ${token.colorBgContainer};
+        }
+        .quick-viewer-result-row {
+          display: flex;
+          justify-content: flex-end;
+          margin-bottom: 10px;
+        }
+        .quick-viewer-result-select {
+          width: min(100%, 260px);
+        }
+        .quick-viewer-kinome-stage,
+        .quick-viewer-placeholder-stage {
+          width: 100%;
+          min-height: 360px;
+          border: 1px solid ${token.colorBorderSecondary};
+          border-radius: 8px;
+          background: #FFFFFF;
+          overflow: hidden;
+        }
+        .quick-viewer-kinome-svg,
+        .quick-viewer-pdb-svg {
+          display: block;
+          width: 100%;
+          height: auto;
+        }
+        .quick-viewer-placeholder-stage {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+        .quick-viewer-cta {
+          height: 34px;
+          margin-top: 12px;
+          border-radius: 6px;
+          font-weight: 800;
+        }
+        .quick-viewer-info-table {
+          margin-top: 12px;
+          border: 1px solid ${token.colorBorderSecondary};
+          border-radius: 8px;
+          overflow: hidden;
+        }
+        .quick-viewer-info-row {
+          min-height: 30px;
+          padding: 7px 10px;
+          display: grid;
+          grid-template-columns: minmax(90px, 0.45fr) minmax(0, 1fr);
+          gap: 8px;
+          align-items: center;
+          border-bottom: 1px solid ${token.colorBorderSecondary};
+          font-size: 11px;
+        }
+        .quick-viewer-info-row:last-child {
+          border-bottom: 0;
+        }
+        .quick-viewer-info-row span {
+          color: ${token.colorTextSecondary};
+        }
+        .quick-viewer-info-row strong {
+          color: ${token.colorText};
+          font-weight: 800;
+          text-align: right;
+          overflow-wrap: anywhere;
+        }
+        @media (max-width: 720px) {
+          .quick-viewer-panel {
+            top: 72px;
+            bottom: 0;
+            width: min(100vw, 420px);
+          }
         }
         .my-board-group-table .ant-table-tbody > tr > td.my-board-structure-column {
           padding: 1px 2px !important;

@@ -4,6 +4,7 @@ import exampleCompound3Svg from '../assets/mol_svg/example_compound3.svg?raw';
 import exampleCompound4Svg from '../assets/mol_svg/example_compound4.svg?raw';
 import myBoardGroup4Svg from '../assets/mol_svg/myboard_group4.svg?raw';
 import myBoardGroup5Svg from '../assets/mol_svg/myboard_group5.svg?raw';
+import type { KinaseFamily, KinomeLayoutId } from '../data/kinomeTree';
 
 export interface CompoundGroup {
   id: string;
@@ -44,6 +45,29 @@ export interface SARData {
   };
 }
 
+export type CompoundQuickViewerAssetType = 'pdb' | 'docking' | 'md' | 'kp';
+
+export interface KinomeProfilePoint {
+  gene: string;
+  family: KinaseFamily;
+  inhibition: number;
+  x?: number;
+  y?: number;
+}
+
+export interface CompoundQuickViewerAsset {
+  type: CompoundQuickViewerAssetType;
+  label: 'PDB' | 'Docking' | 'MD' | 'KP';
+  resultCount?: number;
+  payload?: {
+    title?: string;
+    assay?: string;
+    layout?: KinomeLayoutId;
+    points?: KinomeProfilePoint[];
+    infoRows?: Array<{ label: string; value: string | number }>;
+  };
+}
+
 export interface Compound {
   id: string;
   groupId: string;
@@ -80,6 +104,7 @@ export interface Compound {
   reportData?: string;
   synthesisEndReason?: string;
   experimentStage?: number;
+  quickViewerAssets?: CompoundQuickViewerAsset[];
   sar?: SARData;
 }
 
@@ -148,6 +173,83 @@ const createSarData = (seed: number): SARData => ({
   },
 });
 
+const createKinomeProfilePoints = (seed: number, layout: KinomeLayoutId): KinomeProfilePoint[] => {
+  const offset = seed % 9;
+  const basePoints: KinomeProfilePoint[] = [
+    { gene: 'EGFR', family: 'TK', inhibition: 96 - offset },
+    { gene: 'MET', family: 'TK', inhibition: 92 - (offset % 4) },
+    { gene: 'FGFR3', family: 'TK', inhibition: 78 + (offset % 8) },
+    { gene: 'AURKB', family: 'Other', inhibition: 66 + (offset % 10) },
+    { gene: 'CDK2', family: 'CMGC', inhibition: 72 - (offset % 6) },
+    { gene: 'MAPK14', family: 'CMGC', inhibition: 58 + (offset % 12) },
+    { gene: 'AKT1', family: 'AGC', inhibition: 61 + (offset % 16) },
+    { gene: 'CAMK2A', family: 'CAMK', inhibition: 46 + (offset % 18) },
+    { gene: 'BRAF', family: 'TKL', inhibition: 52 + (offset % 13) },
+  ];
+
+  if (layout === 'coral-sample') {
+    return [
+      ...basePoints,
+      { gene: 'SRC', family: 'TK', inhibition: 83 - (offset % 5) },
+      { gene: 'RAF1', family: 'TKL', inhibition: 76 + (offset % 6) },
+      { gene: 'PAK1', family: 'STE', inhibition: 49 + (offset % 18) },
+      { gene: 'PKCA', family: 'AGC', inhibition: 88 - (offset % 6) },
+      { gene: 'CHEK1', family: 'CAMK', inhibition: 55 + (offset % 16) },
+      { gene: 'PIK3CA', family: 'Atypical', inhibition: 64 + (offset % 17) },
+    ];
+  }
+
+  return [
+    ...basePoints,
+    { gene: 'KDR', family: 'TK', inhibition: 84 - (offset % 7) },
+    { gene: 'FLT3', family: 'TK', inhibition: 72 + (offset % 9) },
+    { gene: 'JAK2', family: 'TK', inhibition: 68 + (offset % 11) },
+    { gene: 'RAF1', family: 'TKL', inhibition: 74 - (offset % 5) },
+    { gene: 'MAP2K1', family: 'STE', inhibition: 44 + (offset % 14) },
+    { gene: 'PIK3CA', family: 'Atypical', inhibition: 62 + (offset % 18) },
+  ];
+};
+
+const createQuickViewerAssets = (seed: number, compoundId: string): CompoundQuickViewerAsset[] => {
+  const assets: CompoundQuickViewerAsset[] = [];
+
+  if (seed % 5 === 0 || seed % 4 === 1) {
+    const layout: KinomeLayoutId = seed % 10 === 0 ? 'coral-sample' : 'kp-sample';
+
+    assets.push({
+      type: 'kp',
+      label: 'KP',
+      resultCount: 1 + (seed % 3),
+      payload: {
+        title: `${compoundId} kinase profiling`,
+        assay: 'DiscoverX KINOMEscan, 1 uM',
+        layout,
+        points: createKinomeProfilePoints(seed, layout),
+        infoRows: [
+          { label: 'Assay', value: 'KINOMEscan' },
+          { label: 'Concentration', value: '1 uM' },
+          { label: 'Coverage', value: `${260 + (seed % 6) * 12} kinases` },
+          { label: 'Strong hits', value: `${3 + (seed % 4)} targets` },
+        ],
+      },
+    });
+  }
+
+  if (seed % 4 === 0) {
+    assets.push({ type: 'pdb', label: 'PDB', resultCount: 2 + (seed % 3) });
+  }
+
+  if (seed % 2 === 0) {
+    assets.push({ type: 'docking', label: 'Docking', resultCount: 4 + (seed % 5) });
+  }
+
+  if (seed % 3 === 0) {
+    assets.push({ type: 'md', label: 'MD', resultCount: 1 + (seed % 2) });
+  }
+
+  return assets;
+};
+
 const createMockCompound = (
   seed: number,
   groupId: string,
@@ -158,12 +260,13 @@ const createMockCompound = (
   const dateDay = String((seed % 24) + 1).padStart(2, '0');
   const source = designSources[seed % designSources.length];
   const isCompleted = seed % 5 === 0;
+  const compoundId = `VNA240${String(140 + seed).padStart(3, '0')}`;
 
   return {
     id: `c${seed}`,
     groupId,
-    compoundId: `VNA240${String(140 + seed).padStart(3, '0')}`,
-    name: `VNA240${String(140 + seed).padStart(3, '0')}`,
+    compoundId,
+    name: compoundId,
     source: 'Manual',
     smiles: [
       'CCN(CC)C(=O)C1=CC=CC=C1',
@@ -200,6 +303,7 @@ const createMockCompound = (
     reportData: isCompleted ? 'HPLC/NMR 확인' : '예상 MS 등록',
     synthesisEndReason: isCompleted ? '목표 물질 확보' : '-',
     experimentStage: (seed % 5) + 1,
+    quickViewerAssets: createQuickViewerAssets(seed, compoundId),
     sar: createSarData(seed),
   };
 };
@@ -243,7 +347,8 @@ export const mockCompounds: Compound[] = [
     researchNote: 'ELN-2026-051',
     reportData: 'LCMS 확인',
     synthesisEndReason: '-',
-    experimentStage: 2
+    experimentStage: 2,
+    quickViewerAssets: createQuickViewerAssets(60, 'VNA240137')
   },
   {
     id: 'c2', groupId: 'g3', compoundId: 'VNA240138', name: 'VNA240138', source: 'Manual', smiles: 'CN(C)C(=O)C1=CC=CC=C1', creDate: '2025.03.21', project: 'cMET', shareStatus: '공유함', designSource: 'Patent',
@@ -277,7 +382,8 @@ export const mockCompounds: Compound[] = [
     researchNote: 'ELN-2026-052',
     reportData: '예상 MS 등록',
     synthesisEndReason: '-',
-    experimentStage: 1
+    experimentStage: 1,
+    quickViewerAssets: createQuickViewerAssets(22, 'VNA240138')
   },
   {
     id: 'c3', groupId: 'g3', compoundId: 'VNA240139', name: 'VNA240139', source: 'Manual', smiles: 'C1=CC=C(C=C1)S(=O)(=O)N', creDate: '2024.12.15', project: 'cMET', shareStatus: '공유받음', designSource: 'Paper',
@@ -311,7 +417,8 @@ export const mockCompounds: Compound[] = [
     researchNote: 'ELN-2026-053',
     reportData: 'NMR 예정',
     synthesisEndReason: '-',
-    experimentStage: 3
+    experimentStage: 3,
+    quickViewerAssets: createQuickViewerAssets(25, 'VNA240139')
   },
   {
     id: 'c4', groupId: 'g3', compoundId: 'VNA240140', name: 'VNA240140', source: 'Manual', smiles: 'CC1=CC=C(C=C1)C(=O)N', creDate: '2025.01.28', project: 'cMET', shareStatus: '내 물질', designSource: 'FBDD',
@@ -345,7 +452,8 @@ export const mockCompounds: Compound[] = [
     researchNote: 'ELN-2026-054',
     reportData: 'HPLC purity 97%',
     synthesisEndReason: '목표 물질 확보',
-    experimentStage: 5
+    experimentStage: 5,
+    quickViewerAssets: createQuickViewerAssets(12, 'VNA240140')
   },
   ...Array.from({ length: 3 }, (_, index) =>
     createMockCompound(index + 33, 'g3', 'cMET', 'D-cMET', 'Tepotinib 변형 SAR')
@@ -386,6 +494,7 @@ export const mockCompounds: Compound[] = [
     reportData: 'mock only',
     synthesisEndReason: '-',
     experimentStage: 1,
+    quickViewerAssets: createQuickViewerAssets(45, 'VNA260601001'),
     sar: createSarData(41),
   },
   {
@@ -424,6 +533,7 @@ export const mockCompounds: Compound[] = [
     reportData: 'mock only',
     synthesisEndReason: '-',
     experimentStage: 1,
+    quickViewerAssets: createQuickViewerAssets(44, 'VNA260601002'),
     sar: createSarData(42),
   },
 ];
