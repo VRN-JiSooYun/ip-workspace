@@ -6,49 +6,9 @@ import { installChemDrawKoreanKeyboardBridge } from '../../utils/chemdrawKeyboar
 import { commitChemDrawActiveInput, waitForChemDrawEditorReady } from '../../utils/chemdrawCommit';
 import { applyChemDrawFlip } from '../../utils/chemdrawTransform';
 import type { ChemDrawFlipAxis } from '../../utils/chemdrawTransform';
+import { installCanvasReadbackPatch } from '../../utils/canvasReadback';
 
 const { Text } = Typography;
-
-let canvasContextPatchUsers = 0;
-let restoreCanvasContextPatch: (() => void) | null = null;
-
-const installCanvasReadbackPatch = () => {
-  if (typeof window === 'undefined') {
-    return () => {};
-  }
-
-  canvasContextPatchUsers += 1;
-  if (!restoreCanvasContextPatch) {
-    const originalGetContext = HTMLCanvasElement.prototype.getContext;
-
-    HTMLCanvasElement.prototype.getContext = function patchedGetContext(
-      this: HTMLCanvasElement,
-      contextId: string,
-      options?: any
-    ) {
-      if (contextId === '2d') {
-        return originalGetContext.call(this, contextId, {
-          ...(options || {}),
-          willReadFrequently: true,
-        });
-      }
-
-      return originalGetContext.call(this, contextId as any, options);
-    } as typeof HTMLCanvasElement.prototype.getContext;
-
-    restoreCanvasContextPatch = () => {
-      HTMLCanvasElement.prototype.getContext = originalGetContext;
-      restoreCanvasContextPatch = null;
-    };
-  }
-
-  return () => {
-    canvasContextPatchUsers = Math.max(0, canvasContextPatchUsers - 1);
-    if (canvasContextPatchUsers === 0) {
-      restoreCanvasContextPatch?.();
-    }
-  };
-};
 
 interface ChemDrawEditorProps {
   active: boolean;

@@ -1,10 +1,13 @@
 import './suppressWarnings';
+import { installCanvasReadbackPatch } from './utils/canvasReadback';
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { ThemeProvider } from './contexts/ThemeContext';
 import App from './App';
 import './index.css';
 import 'echarts-gl'; // Import globally once to prevent component registration warnings
+
+installCanvasReadbackPatch();
 
 const roots = new Map<Element, any>();
 const originalCreateRoot = ReactDOM.createRoot;

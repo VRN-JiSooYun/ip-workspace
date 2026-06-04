@@ -4,6 +4,7 @@ import exampleCompound3Svg from '../assets/mol_svg/example_compound3.svg?raw';
 import exampleCompound4Svg from '../assets/mol_svg/example_compound4.svg?raw';
 import myBoardGroup4Svg from '../assets/mol_svg/myboard_group4.svg?raw';
 import myBoardGroup5Svg from '../assets/mol_svg/myboard_group5.svg?raw';
+import exampleCompoundsCsv from './Example_compounds.csv?raw';
 import type { KinaseFamily, KinomeLayoutId } from '../data/kinomeTree';
 
 export interface CompoundGroup {
@@ -76,6 +77,11 @@ export interface Compound {
   source: string;
   smiles: string;
   structureSvg?: string;
+  rdkitSvg?: string;
+  rdkitSvgCache?: Record<string, string>;
+  molBlock?: string;
+  mol_block?: string;
+  molblock?: string;
   draw?: string;
   creDate: string;
   manager?: string;
@@ -108,31 +114,84 @@ export interface Compound {
   sar?: SARData;
 }
 
-export const mockGroups: CompoundGroup[] = [
-  { id: 'g1', name: 'FGFR 나의 디자인', type: 'my designs', count: 11, creDate: '2026.04.20', target: 'FGFR', shareStatus: '공유 하는중' },
-  { id: 'g2', name: 'HER2 활성 증가', type: 'my designs', count: 17, creDate: '2026.04.18', target: 'HER2', shareStatus: '공유 안함' },
-  { id: 'g3', name: 'cMET Tepotinib 변형', type: 'my designs', count: 7, creDate: '2026.04.15', target: 'cMET', shareStatus: '공유 받는중' },
-  {
-    id: 'g4',
-    name: 'C1 테스트',
-    type: 'my compounds',
-    count: 1,
-    creDate: '2026.06.01',
-    target: '-',
-    shareStatus: '공유 안함',
-  },
-  {
-    id: 'g5',
-    name: 'CC1 테스트',
-    type: 'my compounds',
-    count: 1,
-    creDate: '2026.06.01',
-    target: '-',
-    shareStatus: '공유 안함',
-  },
-];
+interface ExampleCompoundCsvRow {
+  group: string;
+  index: number;
+  smiles: string;
+}
+
+const parseExampleCompoundsCsv = (csv: string): ExampleCompoundCsvRow[] => (
+  csv
+    .trim()
+    .split(/\r?\n/)
+    .slice(1)
+    .map((line) => {
+      const [group, index, ...smilesParts] = line.split(',');
+      return {
+        group: group.trim(),
+        index: Number(index),
+        smiles: smilesParts.join(',').trim(),
+      };
+    })
+    .filter((row) => row.group && Number.isFinite(row.index) && row.smiles)
+);
+
+const exampleCompoundRows = parseExampleCompoundsCsv(exampleCompoundsCsv);
+const exampleGroupProjectMap: Record<string, string> = {
+  Group1: 'EGFR',
+  Group2: 'ALK',
+  Group3: 'Macrocycle',
+  Group4: 'Pyrimidine',
+};
+const exampleGroupShareStatuses: Array<CompoundGroup['shareStatus']> = ['공유 하는중', '공유 안함', '공유 받는중'];
+const getExampleGroupNumber = (group: string) => Number(group.match(/\d+/)?.[0] ?? 0);
+const getExampleGroupId = (group: string) => `g${getExampleGroupNumber(group) || group}`;
+const getExampleGroupProject = (group: string) => exampleGroupProjectMap[group] ?? group;
+const getExampleCompoundId = (row: ExampleCompoundCsvRow) => {
+  const groupNumber = String(getExampleGroupNumber(row.group)).padStart(2, '0');
+  return `VNA-G${groupNumber}-${String(row.index).padStart(3, '0')}`;
+};
+
+export const mockGroups: CompoundGroup[] = Array.from(
+  exampleCompoundRows.reduce<Map<string, ExampleCompoundCsvRow[]>>((acc, row) => {
+    acc.set(row.group, [...(acc.get(row.group) ?? []), row]);
+    return acc;
+  }, new Map())
+).map(([group, rows], index) => ({
+  id: getExampleGroupId(group),
+  name: `${group} ${getExampleGroupProject(group)} SAR`,
+  type: 'my designs',
+  count: rows.length,
+  creDate: `2026.04.${String(20 - index).padStart(2, '0')}`,
+  target: getExampleGroupProject(group),
+  shareStatus: exampleGroupShareStatuses[index % exampleGroupShareStatuses.length],
+}));
 
 const structureSvgs = [exampleCompound1Svg, exampleCompound2Svg, exampleCompound3Svg, exampleCompound4Svg];
+const sampleSmiles = [
+  'COc1cc2ncnc(Nc3ccc(OCCN4CCOCC4)cc3)c2cc1OC',
+  'COc1cc2ncnc(Nc3ccc(OCCN4CCN(C)CC4)cc3)c2cc1OC',
+  'COc1cc2ncnc(Nc3ccc(OCCN4CCCC4)cc3)c2cc1OC',
+  'COc1cc2ncnc(Nc3ccc(OCCN4CCCCC4)cc3)c2cc1OC',
+  'COc1cc2ncnc(Nc3ccc(OCCCN4CCOCC4)cc3)c2cc1OC',
+  'COc1cc2ncnc(Nc3ccc(OCCCN4CCN(C)CC4)cc3)c2cc1OC',
+  'COc1cc2ncnc(Nc3ccc(OCCN4CCSCC4)cc3)c2cc1OC',
+  'COc1cc2ncnc(Nc3ccc(OCCN4CC(O)CC4)cc3)c2cc1OC',
+  'COc1cc2ncnc(Nc3ccc(OCCN4CC(F)CC4)cc3)c2cc1OC',
+  'COc1cc2ncnc(Nc3ccc(OCCNC4CCCCC4)cc3)c2cc1OC',
+  'COc1cc2ncnc(Nc3cc(F)c(OCCN4CCOCC4)cc3)c2cc1OC',
+  'COc1cc2ncnc(Nc3cc(Cl)c(OCCN4CCOCC4)cc3)c2cc1OC',
+  'COc1cc2ncnc(Nc3cc(C)c(OCCN4CCOCC4)cc3)c2cc1OC',
+  'COc1cc2ncnc(Nc3cc(OC)c(OCCN4CCOCC4)cc3)c2cc1OC',
+  'COc1cc2ncnc(Nc3cc(F)c(OCCN4CCN(C)CC4)cc3)c2cc1OC',
+  'COc1cc2ncnc(Nc3cc(Cl)c(OCCN4CCN(C)CC4)cc3)c2cc1OC',
+  'COc1cc2ncnc(Nc3cc(F)c(OCCCN4CCOCC4)cc3)c2cc1OC',
+  'COc1cc2ncnc(Nc3cc(Cl)c(OCCCN4CCOCC4)cc3)c2cc1OC',
+  'COc1cc2ncnc(Nc3cc(F)c(OCCN4CCCC4)cc3)c2cc1OC',
+  'COc1cc2ncnc(Nc3cc(Cl)c(OCCN4CCCC4)cc3)c2cc1OC',
+  'CC1=CC(=C(C=C1N2CCC(CC2)N3CCN(CC3)C)OC)NC4=NC=C(C(=N4)NC5=C(C6=NC=CN=C6C=C5)P(=O)(C)C)Br',
+  'C1CC1(C(=O)NC2=CC=C(C=C2)OC3=C4C=C(NC4=NC=C3)C(=O)NCCN5CCOCC5)C(=O)NC6=CC=C(C=C6)F',
+];
 const designSources = ['내 머리', '동료 머리', 'Patent', 'Paper', 'FBDD', 'ELN'];
 const synthesisOwners = ['문태훈', '윤지수', '김서연', '박도현'];
 const myBoardGroup4Cdxml = "<?xml version=\"1.0\" encoding=\"UTF-8\" ?>\n<!DOCTYPE CDXML SYSTEM \"http://www.cambridgesoft.com/xml/cdxml.dtd\" >\n<CDXML\n CreationProgram=\"ChemDraw JS 2.0.0.7\"\n Name=\"ACS Document 1996\"\n BoundingBox=\"145.19 96.40 422.81 192.27\"\n WindowPosition=\"0 0\"\n WindowSize=\"0 0\"\n FractionalWidths=\"yes\"\n InterpretChemically=\"yes\"\n ShowAtomQuery=\"yes\"\n ShowAtomStereo=\"no\"\n ShowAtomEnhancedStereo=\"yes\"\n ShowAtomNumber=\"no\"\n ShowResidueID=\"no\"\n ShowBondQuery=\"yes\"\n ShowBondRxn=\"yes\"\n ShowBondStereo=\"no\"\n ShowTerminalCarbonLabels=\"no\"\n ShowNonTerminalCarbonLabels=\"no\"\n HideImplicitHydrogens=\"no\"\n Magnification=\"666\"\n LabelFont=\"24\"\n LabelSize=\"10\"\n LabelFace=\"96\"\n CaptionFont=\"24\"\n CaptionSize=\"10\"\n HashSpacing=\"2.50\"\n MarginWidth=\"1.60\"\n LineWidth=\"0.60\"\n BoldWidth=\"2\"\n BondLength=\"14.40\"\n BondSpacing=\"18\"\n ChainAngle=\"120\"\n LabelJustification=\"Auto\"\n CaptionJustification=\"Left\"\n AminoAcidTermini=\"HOH\"\n ShowSequenceTermini=\"yes\"\n ShowSequenceBonds=\"yes\"\n ShowSequenceUnlinkedBranches=\"no\"\n ResidueWrapCount=\"40\"\n ResidueBlockCount=\"10\"\n ResidueZigZag=\"yes\"\n NumberResidueBlocks=\"no\"\n PrintMargins=\"36 36 36 36\"\n MacPrintInfo=\"0003000001200120000000000B6608A0FF84FF880BE309180367052703FC0002000001200120000000000B6608A0000100000064000000010001010100000001270F000100010000000000000000000000000002001901900000000000400000000000000000000100000000000000000000000000000000\"\n ChemPropName=\"\"\n ChemPropFormula=\"Chemical Formula: \"\n ChemPropExactMass=\"Exact Mass: \"\n ChemPropMolWt=\"Molecular Weight: \"\n ChemPropMOverZ=\"m/z: \"\n ChemPropAnalysis=\"Elemental Analysis: \"\n ChemPropBoilingPt=\"Boiling Point: \"\n ChemPropMeltingPt=\"Melting Point: \"\n ChemPropCritTemp=\"Critical Temp: \"\n ChemPropCritPres=\"Critical Pres: \"\n ChemPropCritVol=\"Critical Vol: \"\n ChemPropGibbs=\"Gibbs Energy: \"\n ChemPropLogP=\"Log P: \"\n ChemPropMR=\"MR: \"\n ChemPropHenry=\"Henry&apos;s Law: \"\n ChemPropEForm=\"Heat of Form: \"\n ChemProptPSA=\"tPSA: \"\n ChemPropID=\"\"\n ChemPropFragmentLabel=\"\"\n color=\"0\"\n bgcolor=\"1\"\n RxnAutonumberStart=\"1\"\n RxnAutonumberConditions=\"no\"\n RxnAutonumberStyle=\"Roman\"\n RxnAutonumberFormat=\"(#)\"\n><colortable>\n<color r=\"1\" g=\"1\" b=\"1\"/>\n<color r=\"0\" g=\"0\" b=\"0\"/>\n<color r=\"1\" g=\"0\" b=\"0\"/>\n<color r=\"1\" g=\"1\" b=\"0\"/>\n<color r=\"0\" g=\"1\" b=\"0\"/>\n<color r=\"0\" g=\"1\" b=\"1\"/>\n<color r=\"0\" g=\"0\" b=\"1\"/>\n<color r=\"1\" g=\"0\" b=\"1\"/>\n</colortable><fonttable>\n<font id=\"24\" charset=\"utf-8\" name=\"Arial\"/>\n</fonttable><page\n id=\"96\"\n BoundingBox=\"0 0 568 288.67\"\n Width=\"568\"\n Height=\"288.67\"\n HeaderPosition=\"36\"\n FooterPosition=\"36\"\n PageOverlap=\"0\"\n PrintTrimMarks=\"yes\"\n HeightPages=\"1\"\n WidthPages=\"1\"\n DrawingSpace=\"poster\"\n><fragment\n id=\"94\"\n BoundingBox=\"145.19 96.40 422.81 192.27\"\n Z=\"1\"\n><n\n id=\"1\"\n p=\"230.27 191.97\"\n Z=\"2\"\n AS=\"N\"\n/><n\n id=\"2\"\n p=\"215.87 191.97\"\n Z=\"3\"\n AS=\"N\"\n/><n\n id=\"3\"\n p=\"223.07 179.50\"\n Z=\"4\"\n AS=\"N\"\n/><n\n id=\"4\"\n p=\"235.54 172.30\"\n Z=\"5\"\n AS=\"N\"\n/><n\n id=\"5\"\n p=\"235.54 157.90\"\n Z=\"6\"\n Element=\"8\"\n NumHydrogens=\"0\"\n NeedsClean=\"yes\"\n AS=\"N\"\n><t\n p=\"231.65 161.51\"\n BoundingBox=\"231.65 152.88 239.43 161.51\"\n LabelJustification=\"Left\"\n><s font=\"24\" size=\"10\" color=\"0\" face=\"96\">O</s></t></n><n\n id=\"6\"\n p=\"248.01 179.50\"\n Z=\"7\"\n Element=\"7\"\n NumHydrogens=\"1\"\n NeedsClean=\"yes\"\n AS=\"N\"\n><t\n p=\"244.40 183.11\"\n BoundingBox=\"244.40 174.48 251.62 192.15\"\n LabelJustification=\"Left\"\n LabelAlignment=\"Below\"\n LineStarts=\"2 3\"\n><s font=\"24\" size=\"10\" color=\"0\" face=\"96\">NH</s></t></n><n\n id=\"7\"\n p=\"260.48 172.30\"\n Z=\"8\"\n AS=\"N\"\n/><n\n id=\"8\"\n p=\"260.48 157.90\"\n Z=\"9\"\n AS=\"N\"\n/><n\n id=\"9\"\n p=\"272.95 150.70\"\n Z=\"10\"\n AS=\"N\"\n/><n\n id=\"10\"\n p=\"285.42 157.90\"\n Z=\"11\"\n AS=\"N\"\n/><n\n id=\"11\"\n p=\"285.42 172.30\"\n Z=\"12\"\n AS=\"N\"\n/><n\n id=\"12\"\n p=\"272.95 179.50\"\n Z=\"13\"\n AS=\"N\"\n/><n\n id=\"13\"\n p=\"297.89 150.70\"\n Z=\"14\"\n Element=\"8\"\n NumHydrogens=\"0\"\n NeedsClean=\"yes\"\n AS=\"N\"\n><t\n p=\"294 154.31\"\n BoundingBox=\"294 145.68 301.78 154.31\"\n LabelJustification=\"Left\"\n><s font=\"24\" size=\"10\" color=\"0\" face=\"96\">O</s></t></n><n\n id=\"14\"\n p=\"297.89 136.30\"\n Z=\"15\"\n AS=\"N\"\n/><n\n id=\"15\"\n p=\"310.36 129.10\"\n Z=\"16\"\n AS=\"N\"\n/><n\n id=\"16\"\n p=\"324.06 133.55\"\n Z=\"17\"\n AS=\"N\"\n/><n\n id=\"17\"\n p=\"332.52 121.90\"\n Z=\"18\"\n AS=\"N\"\n/><n\n id=\"18\"\n p=\"324.06 110.25\"\n Z=\"19\"\n Element=\"7\"\n NumHydrogens=\"1\"\n NeedsClean=\"yes\"\n AS=\"N\"\n><t\n p=\"320.45 105.03\"\n BoundingBox=\"320.45 96.40 327.67 114.06\"\n LabelJustification=\"Left\"\n LabelAlignment=\"Above\"\n LineStarts=\"2 4\"\n><s font=\"24\" size=\"10\" color=\"0\" face=\"96\">NH</s></t></n><n\n id=\"19\"\n p=\"310.36 114.70\"\n Z=\"20\"\n AS=\"N\"\n/><n\n id=\"20\"\n p=\"297.89 107.50\"\n Z=\"21\"\n Element=\"7\"\n NumHydrogens=\"0\"\n NeedsClean=\"yes\"\n AS=\"N\"\n><t\n p=\"294.28 111.11\"\n BoundingBox=\"294.28 102.48 301.50 111.31\"\n LabelJustification=\"Left\"\n><s font=\"24\" size=\"10\" color=\"0\" face=\"96\">N</s></t></n><n\n id=\"21\"\n p=\"285.42 114.70\"\n Z=\"22\"\n AS=\"N\"\n/><n\n id=\"22\"\n p=\"285.42 129.10\"\n Z=\"23\"\n AS=\"N\"\n/><n\n id=\"23\"\n p=\"346.92 121.90\"\n Z=\"24\"\n AS=\"N\"\n/><n\n id=\"24\"\n p=\"354.12 109.43\"\n Z=\"25\"\n Element=\"8\"\n NumHydrogens=\"0\"\n NeedsClean=\"yes\"\n AS=\"N\"\n><t\n p=\"350.23 113.04\"\n BoundingBox=\"350.23 104.41 358.01 113.04\"\n LabelJustification=\"Left\"\n><s font=\"24\" size=\"10\" color=\"0\" face=\"96\">O</s></t></n><n\n id=\"25\"\n p=\"354.12 134.37\"\n Z=\"26\"\n Element=\"7\"\n NumHydrogens=\"1\"\n NeedsClean=\"yes\"\n AS=\"N\"\n><t\n p=\"357.73 137.98\"\n BoundingBox=\"343.29 129.35 357.73 138.18\"\n LabelJustification=\"Right\"\n Justification=\"Right\"\n LabelAlignment=\"Right\"\n><s font=\"24\" size=\"10\" color=\"0\" face=\"96\">NH</s></t></n><n\n id=\"26\"\n p=\"368.52 134.37\"\n Z=\"27\"\n AS=\"N\"\n/><n\n id=\"27\"\n p=\"375.72 146.84\"\n Z=\"28\"\n AS=\"N\"\n/><n\n id=\"28\"\n p=\"390.12 146.84\"\n Z=\"29\"\n Element=\"7\"\n NumHydrogens=\"0\"\n NeedsClean=\"yes\"\n AS=\"N\"\n><t\n p=\"386.51 150.45\"\n BoundingBox=\"386.51 141.82 393.73 150.65\"\n LabelJustification=\"Left\"\n><s font=\"24\" size=\"10\" color=\"0\" face=\"96\">N</s></t></n><n\n id=\"29\"\n p=\"397.32 134.37\"\n Z=\"30\"\n AS=\"N\"\n/><n\n id=\"30\"\n p=\"411.72 134.37\"\n Z=\"31\"\n AS=\"N\"\n/><n\n id=\"31\"\n p=\"418.92 146.84\"\n Z=\"32\"\n Element=\"8\"\n NumHydrogens=\"0\"\n NeedsClean=\"yes\"\n AS=\"N\"\n><t\n p=\"415.03 150.45\"\n BoundingBox=\"415.03 141.82 422.81 150.45\"\n LabelJustification=\"Left\"\n><s font=\"24\" size=\"10\" color=\"0\" face=\"96\">O</s></t></n><n\n id=\"32\"\n p=\"411.72 159.31\"\n Z=\"33\"\n AS=\"N\"\n/><n\n id=\"33\"\n p=\"397.32 159.31\"\n Z=\"34\"\n AS=\"N\"\n/><n\n id=\"34\"\n p=\"210.60 172.30\"\n Z=\"35\"\n AS=\"N\"\n/><n\n id=\"35\"\n p=\"210.60 157.90\"\n Z=\"36\"\n Element=\"8\"\n NumHydrogens=\"0\"\n NeedsClean=\"yes\"\n AS=\"N\"\n><t\n p=\"206.71 161.51\"\n BoundingBox=\"206.71 152.88 214.49 161.51\"\n LabelJustification=\"Left\"\n><s font=\"24\" size=\"10\" color=\"0\" face=\"96\">O</s></t></n><n\n id=\"36\"\n p=\"198.13 179.50\"\n Z=\"37\"\n Element=\"7\"\n NumHydrogens=\"1\"\n NeedsClean=\"yes\"\n AS=\"N\"\n><t\n p=\"194.52 183.11\"\n BoundingBox=\"194.52 174.48 201.74 192.15\"\n LabelJustification=\"Left\"\n LabelAlignment=\"Below\"\n LineStarts=\"2 3\"\n><s font=\"24\" size=\"10\" color=\"0\" face=\"96\">NH</s></t></n><n\n id=\"37\"\n p=\"185.66 172.30\"\n Z=\"38\"\n AS=\"N\"\n/><n\n id=\"38\"\n p=\"173.18 179.50\"\n Z=\"39\"\n AS=\"N\"\n/><n\n id=\"39\"\n p=\"160.71 172.30\"\n Z=\"40\"\n AS=\"N\"\n/><n\n id=\"40\"\n p=\"160.71 157.90\"\n Z=\"41\"\n AS=\"N\"\n/><n\n id=\"41\"\n p=\"173.18 150.70\"\n Z=\"42\"\n AS=\"N\"\n/><n\n id=\"42\"\n p=\"185.66 157.90\"\n Z=\"43\"\n AS=\"N\"\n/><n\n id=\"43\"\n p=\"148.24 150.70\"\n Z=\"44\"\n Element=\"9\"\n NumHydrogens=\"0\"\n NeedsClean=\"yes\"\n AS=\"N\"\n><t\n p=\"145.19 154.31\"\n BoundingBox=\"145.19 145.68 151.30 154.51\"\n LabelJustification=\"Left\"\n><s font=\"24\" size=\"10\" color=\"0\" face=\"96\">F</s></t></n><b\n id=\"45\"\n Z=\"45\"\n B=\"1\"\n E=\"2\"\n BS=\"N\"\n/><b\n id=\"46\"\n Z=\"46\"\n B=\"2\"\n E=\"3\"\n BS=\"N\"\n/><b\n id=\"47\"\n Z=\"47\"\n B=\"1\"\n E=\"3\"\n BS=\"N\"\n/><b\n id=\"48\"\n Z=\"48\"\n B=\"3\"\n E=\"4\"\n BS=\"N\"\n/><b\n id=\"49\"\n Z=\"49\"\n B=\"4\"\n E=\"5\"\n Order=\"2\"\n BS=\"N\"\n/><b\n id=\"50\"\n Z=\"50\"\n B=\"4\"\n E=\"6\"\n BS=\"N\"\n/><b\n id=\"51\"\n Z=\"51\"\n B=\"6\"\n E=\"7\"\n BS=\"N\"\n/><b\n id=\"52\"\n Z=\"52\"\n B=\"7\"\n E=\"8\"\n Order=\"2\"\n BS=\"N\"\n BondCircularOrdering=\"51 57 53 0\"\n/><b\n id=\"53\"\n Z=\"53\"\n B=\"8\"\n E=\"9\"\n BS=\"N\"\n/><b\n id=\"54\"\n Z=\"54\"\n B=\"9\"\n E=\"10\"\n Order=\"2\"\n BS=\"N\"\n BondCircularOrdering=\"0 53 55 58\"\n/><b\n id=\"55\"\n Z=\"55\"\n B=\"10\"\n E=\"11\"\n BS=\"N\"\n/><b\n id=\"56\"\n Z=\"56\"\n B=\"11\"\n E=\"12\"\n Order=\"2\"\n BS=\"N\"\n BondCircularOrdering=\"0 55 57 0\"\n/><b\n id=\"57\"\n Z=\"57\"\n B=\"7\"\n E=\"12\"\n BS=\"N\"\n/><b\n id=\"58\"\n Z=\"58\"\n B=\"10\"\n E=\"13\"\n BS=\"N\"\n/><b\n id=\"59\"\n Z=\"59\"\n B=\"13\"\n E=\"14\"\n BS=\"N\"\n/><b\n id=\"60\"\n Z=\"60\"\n B=\"14\"\n E=\"15\"\n Order=\"2\"\n BS=\"N\"\n BondCircularOrdering=\"69 59 61 65\"\n/><b\n id=\"61\"\n Z=\"61\"\n B=\"15\"\n E=\"16\"\n BS=\"N\"\n/><b\n id=\"62\"\n Z=\"62\"\n B=\"16\"\n E=\"17\"\n Order=\"2\"\n BS=\"N\"\n BondCircularOrdering=\"61 0 70 63\"\n/><b\n id=\"63\"\n Z=\"63\"\n B=\"17\"\n E=\"18\"\n BS=\"N\"\n/><b\n id=\"64\"\n Z=\"64\"\n B=\"18\"\n E=\"19\"\n BS=\"N\"\n/><b\n id=\"65\"\n Z=\"65\"\n B=\"15\"\n E=\"19\"\n BS=\"N\"\n/><b\n id=\"66\"\n Z=\"66\"\n B=\"19\"\n E=\"20\"\n Order=\"2\"\n BS=\"N\"\n BondCircularOrdering=\"65 64 0 67\"\n/><b\n id=\"67\"\n Z=\"67\"\n B=\"20\"\n E=\"21\"\n BS=\"N\"\n/><b\n id=\"68\"\n Z=\"68\"\n B=\"21\"\n E=\"22\"\n Order=\"2\"\n BS=\"N\"\n BondCircularOrdering=\"67 0 0 69\"\n/><b\n id=\"69\"\n Z=\"69\"\n B=\"14\"\n E=\"22\"\n BS=\"N\"\n/><b\n id=\"70\"\n Z=\"70\"\n B=\"17\"\n E=\"23\"\n BS=\"N\"\n/><b\n id=\"71\"\n Z=\"71\"\n B=\"23\"\n E=\"24\"\n Order=\"2\"\n BS=\"N\"\n/><b\n id=\"72\"\n Z=\"72\"\n B=\"23\"\n E=\"25\"\n BS=\"N\"\n/><b\n id=\"73\"\n Z=\"73\"\n B=\"25\"\n E=\"26\"\n BS=\"N\"\n/><b\n id=\"74\"\n Z=\"74\"\n B=\"26\"\n E=\"27\"\n BS=\"N\"\n/><b\n id=\"75\"\n Z=\"75\"\n B=\"27\"\n E=\"28\"\n BS=\"N\"\n/><b\n id=\"76\"\n Z=\"76\"\n B=\"28\"\n E=\"29\"\n BS=\"N\"\n/><b\n id=\"77\"\n Z=\"77\"\n B=\"29\"\n E=\"30\"\n BS=\"N\"\n/><b\n id=\"78\"\n Z=\"78\"\n B=\"30\"\n E=\"31\"\n BS=\"N\"\n/><b\n id=\"79\"\n Z=\"79\"\n B=\"31\"\n E=\"32\"\n BS=\"N\"\n/><b\n id=\"80\"\n Z=\"80\"\n B=\"32\"\n E=\"33\"\n BS=\"N\"\n/><b\n id=\"81\"\n Z=\"81\"\n B=\"28\"\n E=\"33\"\n BS=\"N\"\n/><b\n id=\"82\"\n Z=\"82\"\n B=\"3\"\n E=\"34\"\n BS=\"N\"\n/><b\n id=\"83\"\n Z=\"83\"\n B=\"34\"\n E=\"35\"\n Order=\"2\"\n BS=\"N\"\n/><b\n id=\"84\"\n Z=\"84\"\n B=\"34\"\n E=\"36\"\n BS=\"N\"\n/><b\n id=\"85\"\n Z=\"85\"\n B=\"36\"\n E=\"37\"\n BS=\"N\"\n/><b\n id=\"86\"\n Z=\"86\"\n B=\"37\"\n E=\"38\"\n Order=\"2\"\n BS=\"N\"\n BondCircularOrdering=\"85 91 87 0\"\n/><b\n id=\"87\"\n Z=\"87\"\n B=\"38\"\n E=\"39\"\n BS=\"N\"\n/><b\n id=\"88\"\n Z=\"88\"\n B=\"39\"\n E=\"40\"\n Order=\"2\"\n BS=\"N\"\n BondCircularOrdering=\"0 87 89 92\"\n/><b\n id=\"89\"\n Z=\"89\"\n B=\"40\"\n E=\"41\"\n BS=\"N\"\n/><b\n id=\"90\"\n Z=\"90\"\n B=\"41\"\n E=\"42\"\n Order=\"2\"\n BS=\"N\"\n BondCircularOrdering=\"0 89 91 0\"\n/><b\n id=\"91\"\n Z=\"91\"\n B=\"37\"\n E=\"42\"\n BS=\"N\"\n/><b\n id=\"92\"\n Z=\"92\"\n B=\"40\"\n E=\"43\"\n BS=\"N\"\n/></fragment></page></CDXML>";
@@ -173,48 +232,48 @@ const createSarData = (seed: number): SARData => ({
   },
 });
 
-const createKinomeProfilePoints = (seed: number, layout: KinomeLayoutId): KinomeProfilePoint[] => {
+const createKinomeProfilePoints = (seed: number): KinomeProfilePoint[] => {
   const offset = seed % 9;
   const basePoints: KinomeProfilePoint[] = [
     { gene: 'EGFR', family: 'TK', inhibition: 96 - offset },
     { gene: 'MET', family: 'TK', inhibition: 92 - (offset % 4) },
     { gene: 'FGFR3', family: 'TK', inhibition: 78 + (offset % 8) },
-    { gene: 'AURKB', family: 'Other', inhibition: 66 + (offset % 10) },
-    { gene: 'CDK2', family: 'CMGC', inhibition: 72 - (offset % 6) },
-    { gene: 'MAPK14', family: 'CMGC', inhibition: 58 + (offset % 12) },
-    { gene: 'AKT1', family: 'AGC', inhibition: 61 + (offset % 16) },
-    { gene: 'CAMK2A', family: 'CAMK', inhibition: 46 + (offset % 18) },
-    { gene: 'BRAF', family: 'TKL', inhibition: 52 + (offset % 13) },
-  ];
-
-  if (layout === 'coral-sample') {
-    return [
-      ...basePoints,
-      { gene: 'SRC', family: 'TK', inhibition: 83 - (offset % 5) },
-      { gene: 'RAF1', family: 'TKL', inhibition: 76 + (offset % 6) },
-      { gene: 'PAK1', family: 'STE', inhibition: 49 + (offset % 18) },
-      { gene: 'PKCA', family: 'AGC', inhibition: 88 - (offset % 6) },
-      { gene: 'CHEK1', family: 'CAMK', inhibition: 55 + (offset % 16) },
-      { gene: 'PIK3CA', family: 'Atypical', inhibition: 64 + (offset % 17) },
-    ];
-  }
-
-  return [
-    ...basePoints,
     { gene: 'KDR', family: 'TK', inhibition: 84 - (offset % 7) },
     { gene: 'FLT3', family: 'TK', inhibition: 72 + (offset % 9) },
     { gene: 'JAK2', family: 'TK', inhibition: 68 + (offset % 11) },
-    { gene: 'RAF1', family: 'TKL', inhibition: 74 - (offset % 5) },
+    { gene: 'SRC', family: 'TK', inhibition: 83 - (offset % 5) },
+    { gene: 'ABL1', family: 'TK', inhibition: 74 + (offset % 8) },
+    { gene: 'ALK', family: 'TK', inhibition: 63 + (offset % 12) },
+    { gene: 'BTK', family: 'TK', inhibition: 57 + (offset % 14) },
+    { gene: 'RAF1', family: 'TKL', inhibition: 76 + (offset % 6) },
+    { gene: 'BRAF', family: 'TKL', inhibition: 52 + (offset % 13) },
+    { gene: 'IRAK4', family: 'TKL', inhibition: 48 + (offset % 18) },
+    { gene: 'PAK1', family: 'STE', inhibition: 49 + (offset % 18) },
     { gene: 'MAP2K1', family: 'STE', inhibition: 44 + (offset % 14) },
-    { gene: 'PIK3CA', family: 'Atypical', inhibition: 62 + (offset % 18) },
+    { gene: 'CDK2', family: 'CMGC', inhibition: 72 - (offset % 6) },
+    { gene: 'CDK5', family: 'CMGC', inhibition: 59 + (offset % 16) },
+    { gene: 'GSK3B', family: 'CMGC', inhibition: 64 + (offset % 15) },
+    { gene: 'MAPK14', family: 'CMGC', inhibition: 58 + (offset % 12) },
+    { gene: 'AKT1', family: 'AGC', inhibition: 61 + (offset % 16) },
+    { gene: 'PKCA', family: 'AGC', inhibition: 88 - (offset % 6) },
+    { gene: 'SGK1', family: 'AGC', inhibition: 60 + (offset % 17) },
+    { gene: 'CAMK2A', family: 'CAMK', inhibition: 46 + (offset % 18) },
+    { gene: 'CHEK1', family: 'CAMK', inhibition: 55 + (offset % 16) },
+    { gene: 'CSNK1D', family: 'CK1', inhibition: 51 + (offset % 15) },
+    { gene: 'PLK1', family: 'Other', inhibition: 66 + (offset % 10) },
+    { gene: 'RIOK1', family: 'Atypical', inhibition: 64 + (offset % 17) },
   ];
+
+  return basePoints
+    .filter((_, index) => (index + seed) % 3 !== 1)
+    .slice(0, 18);
 };
 
 const createQuickViewerAssets = (seed: number, compoundId: string): CompoundQuickViewerAsset[] => {
   const assets: CompoundQuickViewerAsset[] = [];
 
   if (seed % 5 === 0 || seed % 4 === 1) {
-    const layout: KinomeLayoutId = seed % 10 === 0 ? 'coral-sample' : 'kp-sample';
+    const layout: KinomeLayoutId = 'coral-basetree';
 
     assets.push({
       type: 'kp',
@@ -224,7 +283,7 @@ const createQuickViewerAssets = (seed: number, compoundId: string): CompoundQuic
         title: `${compoundId} kinase profiling`,
         assay: 'DiscoverX KINOMEscan, 1 uM',
         layout,
-        points: createKinomeProfilePoints(seed, layout),
+        points: createKinomeProfilePoints(seed),
         infoRows: [
           { label: 'Assay', value: 'KINOMEscan' },
           { label: 'Concentration', value: '1 uM' },
@@ -256,11 +315,13 @@ const createMockCompound = (
   project: string,
   designNoPrefix: string,
   memoBase: string,
+  compoundIdOverride?: string,
+  smilesOverride?: string,
 ): Compound => {
   const dateDay = String((seed % 24) + 1).padStart(2, '0');
   const source = designSources[seed % designSources.length];
   const isCompleted = seed % 5 === 0;
-  const compoundId = `VNA240${String(140 + seed).padStart(3, '0')}`;
+  const compoundId = compoundIdOverride ?? `VNA240${String(140 + seed).padStart(3, '0')}`;
 
   return {
     id: `c${seed}`,
@@ -268,13 +329,7 @@ const createMockCompound = (
     compoundId,
     name: compoundId,
     source: 'Manual',
-    smiles: [
-      'CCN(CC)C(=O)C1=CC=CC=C1',
-      'COC1=CC=C(NC(=O)C2CC2)C=C1',
-      'CC1=NC=C(C=C1)C(=O)N2CCOCC2',
-      'CN1CCN(CC1)C2=NC=CC=N2',
-      'CCOC(=O)N1CCC(CC1)C2=CC=CC=C2',
-    ][seed % 5],
+    smiles: smilesOverride ?? sampleSmiles[seed % sampleSmiles.length],
     structureSvg: structureSvgs[seed % structureSvgs.length],
     creDate: `2026.04.${dateDay}`,
     manager: synthesisOwners[seed % synthesisOwners.length],
@@ -308,7 +363,7 @@ const createMockCompound = (
   };
 };
 
-export const mockCompounds: Compound[] = [
+const legacyMockCompounds: Compound[] = [
   ...Array.from({ length: 11 }, (_, index) =>
     createMockCompound(index + 5, 'g1', 'FGFR', 'D-FGFR', 'FGFR hinge binder SAR')
   ),
@@ -316,7 +371,7 @@ export const mockCompounds: Compound[] = [
     createMockCompound(index + 16, 'g2', 'HER2', 'D-HER2', 'HER2 활성 증가 scaffold')
   ),
   {
-    id: 'c1', groupId: 'g3', compoundId: 'VNA240137', name: 'VNA240137', source: 'Manual', smiles: 'CC(C)CC(C(=O)O)N', creDate: '2025.04.10', project: 'cMET', shareStatus: '내 물질', designSource: '내 머리',
+    id: 'c1', groupId: 'g3', compoundId: 'VNA240137', name: 'VNA240137', source: 'Manual', smiles: sampleSmiles[0], creDate: '2025.04.10', project: 'cMET', shareStatus: '내 물질', designSource: '내 머리',
     structureSvg: exampleCompound1Svg,
     sar: {
       enzyme: { wt: 0.22, d1228n: 0.19, f1250k: 0.07, wt_f1250k: 3.0 },
@@ -351,7 +406,7 @@ export const mockCompounds: Compound[] = [
     quickViewerAssets: createQuickViewerAssets(60, 'VNA240137')
   },
   {
-    id: 'c2', groupId: 'g3', compoundId: 'VNA240138', name: 'VNA240138', source: 'Manual', smiles: 'CN(C)C(=O)C1=CC=CC=C1', creDate: '2025.03.21', project: 'cMET', shareStatus: '공유함', designSource: 'Patent',
+    id: 'c2', groupId: 'g3', compoundId: 'VNA240138', name: 'VNA240138', source: 'Manual', smiles: sampleSmiles[1], creDate: '2025.03.21', project: 'cMET', shareStatus: '공유함', designSource: 'Patent',
     structureSvg: exampleCompound2Svg,
     sar: {
       enzyme: { wt: 0.02, d1228n: 0.35, f1250k: 0.17, wt_f1250k: 0.1 },
@@ -386,7 +441,7 @@ export const mockCompounds: Compound[] = [
     quickViewerAssets: createQuickViewerAssets(22, 'VNA240138')
   },
   {
-    id: 'c3', groupId: 'g3', compoundId: 'VNA240139', name: 'VNA240139', source: 'Manual', smiles: 'C1=CC=C(C=C1)S(=O)(=O)N', creDate: '2024.12.15', project: 'cMET', shareStatus: '공유받음', designSource: 'Paper',
+    id: 'c3', groupId: 'g3', compoundId: 'VNA240139', name: 'VNA240139', source: 'Manual', smiles: sampleSmiles[2], creDate: '2024.12.15', project: 'cMET', shareStatus: '공유받음', designSource: 'Paper',
     structureSvg: exampleCompound3Svg,
     sar: {
       enzyme: { wt: 1.25, d1228n: 0.99, f1250k: 0.03, wt_f1250k: 34.8 },
@@ -421,7 +476,7 @@ export const mockCompounds: Compound[] = [
     quickViewerAssets: createQuickViewerAssets(25, 'VNA240139')
   },
   {
-    id: 'c4', groupId: 'g3', compoundId: 'VNA240140', name: 'VNA240140', source: 'Manual', smiles: 'CC1=CC=C(C=C1)C(=O)N', creDate: '2025.01.28', project: 'cMET', shareStatus: '내 물질', designSource: 'FBDD',
+    id: 'c4', groupId: 'g3', compoundId: 'VNA240140', name: 'VNA240140', source: 'Manual', smiles: sampleSmiles[3], creDate: '2025.01.28', project: 'cMET', shareStatus: '내 물질', designSource: 'FBDD',
     structureSvg: exampleCompound4Svg,
     sar: {
       enzyme: { wt: 0.48, d1228n: 0.42, f1250k: 0.12, wt_f1250k: 4.7 },
@@ -464,7 +519,7 @@ export const mockCompounds: Compound[] = [
     compoundId: 'VNA260601001',
     name: 'VNA260601001',
     source: 'Manual',
-    smiles: 'C1CC1(C(=O)NC2=CC=C(C=C2)OC3=C4C=C(NC4=NC=C3)C(=O)NCCN5CCOCC5)C(=O)NC6=CC=C(C=C6)F',
+    smiles: sampleSmiles[21],
     structureSvg: myBoardGroup4Svg,
     draw: myBoardGroup4Cdxml,
     creDate: '2026.06.01',
@@ -503,7 +558,7 @@ export const mockCompounds: Compound[] = [
     compoundId: 'VNA260601002',
     name: 'VNA260601002',
     source: 'Manual',
-    smiles: 'CC1=CC(=C(C=C1N2CCC(CC2)N3CCN(CC3)C)OC)NC4=NC=C(C(=N4)NC5=C(C6=NC=CN=C6C=C5)P(=O)(C)C)Br',
+    smiles: sampleSmiles[20],
     structureSvg: myBoardGroup5Svg,
     draw: myBoardGroup5Cdxml,
     creDate: '2026.06.01',
@@ -537,3 +592,17 @@ export const mockCompounds: Compound[] = [
     sar: createSarData(42),
   },
 ];
+
+export const mockCompounds: Compound[] = exampleCompoundRows.map((row, rowIndex) => {
+  const seed = rowIndex + 1;
+  const project = getExampleGroupProject(row.group);
+  return createMockCompound(
+    seed,
+    getExampleGroupId(row.group),
+    project,
+    `D-${row.group}`,
+    `${row.group} ${project} SAR`,
+    getExampleCompoundId(row),
+    row.smiles
+  );
+});

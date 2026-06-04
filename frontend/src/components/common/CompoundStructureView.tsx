@@ -1,9 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { App, Button, Tooltip, theme } from 'antd';
+import { App, Button, Skeleton, Tooltip, theme } from 'antd';
 import type { ButtonProps } from 'antd';
 import { Copy, Search } from 'lucide-react';
 import BenzeneIcon from './BenzeneIcon';
 import { CHEMDRAW_CONFIG } from '../../config/chemdraw';
+import { createRdkitSvgCacheKey, renderRdkitSvg } from '../../services/structureRendering';
+import { installCanvasReadbackPatch } from '../../utils/canvasReadback';
 
 export interface CompoundStructureAction {
   key: string;
@@ -16,6 +18,8 @@ export interface CompoundStructureAction {
 
 export interface CompoundStructureViewProps {
   svg?: string | null;
+  rdkitSvg?: string | null;
+  rdkitSvgCache?: Record<string, string> | null;
   title?: string;
   smiles?: string | null;
   molBlock?: string | null;
@@ -30,10 +34,11 @@ export interface CompoundStructureViewProps {
   frameStyle?: React.CSSProperties;
   svgClassName?: string;
   structureStyle?: React.CSSProperties;
+  structureFitMode?: 'stretch' | 'contain';
   fullWidth?: boolean;
   showPreviewAction?: boolean;
   showCopyAction?: boolean;
-  onPreview?: () => void;
+  onPreview?: (svg?: string) => void;
   actionPlacement?: 'rail' | 'overlay';
   actionOverlayAnchor?: 'frame' | 'container';
   actions?: CompoundStructureAction[];
@@ -41,6 +46,11 @@ export interface CompoundStructureViewProps {
   fitRotatedBounds?: boolean;
   frameless?: boolean;
   containerStyle?: React.CSSProperties;
+  preferRdkitSvg?: boolean;
+  rdkitAngleDeg?: number;
+  rdkitScalePercent?: number;
+  rdkitMinSize?: [number, number];
+  onStructureGenerated?: (data: { molBlock: string; svg: string; cacheKey: string }) => void;
 }
 
 export const getRotatedStructureBounds = (width: number, height: number, rotationDeg: number) => {
@@ -123,6 +133,7 @@ const ChemDrawStructurePreview: React.FC<{
 
   useEffect(() => {
     let isDisposed = false;
+    const restoreReadbackPatch = installCanvasReadbackPatch();
 
     const attachPreview = async () => {
       try {
@@ -172,6 +183,7 @@ const ChemDrawStructurePreview: React.FC<{
       if (container) {
         container.innerHTML = '';
       }
+      restoreReadbackPatch();
     };
   }, [cdxml, containerId, molBlock, smiles, structureKey]);
 
@@ -184,6 +196,8 @@ const ChemDrawStructurePreview: React.FC<{
 
 const CompoundStructureView: React.FC<CompoundStructureViewProps> = ({
   svg,
+  rdkitSvg,
+  rdkitSvgCache,
   title = 'Structure',
   smiles,
   molBlock,
@@ -198,6 +212,7 @@ const CompoundStructureView: React.FC<CompoundStructureViewProps> = ({
   frameStyle,
   svgClassName,
   structureStyle,
+  structureFitMode = 'stretch',
   fullWidth = false,
   showPreviewAction = true,
   showCopyAction = true,
@@ -209,11 +224,39 @@ const CompoundStructureView: React.FC<CompoundStructureViewProps> = ({
   fitRotatedBounds = false,
   frameless = false,
   containerStyle,
-  }) => {
+  preferRdkitSvg = false,
+  rdkitAngleDeg = 0,
+  rdkitScalePercent = 100,
+  rdkitMinSize,
+  onStructureGenerated,
+}) => {
   const { token } = theme.useToken();
   const { message } = App.useApp();
-  const copyText = getCompoundStructureCopyText({ smiles, molBlock, cdxml, svg });
-  const hasRenderableChemData = !!(cdxml || molBlock || smiles);
+  const [generatedStructure, setGeneratedStructure] = useState<{ molBlock: string; svg: string; cacheKey: string } | null>(null);
+  const [isRdkitLoading, setIsRdkitLoading] = useState(false);
+  const [hasRdkitRenderFailed, setHasRdkitRenderFailed] = useState(false);
+  const onStructureGeneratedRef = React.useRef(onStructureGenerated);
+  const displayMolBlock = generatedStructure?.molBlock || molBlock;
+  const normalizedSmiles = smiles?.trim() || '';
+  const rdkitMinSizeWidth = rdkitMinSize?.[0];
+  const rdkitMinSizeHeight = rdkitMinSize?.[1];
+  const expectedRdkitSourceKey = displayMolBlock?.trim() || (normalizedSmiles ? `SMILES:${normalizedSmiles}` : '');
+  const expectedRdkitSvgKey = expectedRdkitSourceKey
+    ? createRdkitSvgCacheKey({
+      molBlock: expectedRdkitSourceKey,
+      angleDeg: rdkitAngleDeg,
+      scalePercent: rdkitScalePercent,
+      minSize: rdkitMinSizeWidth != null && rdkitMinSizeHeight != null ? [rdkitMinSizeWidth, rdkitMinSizeHeight] : undefined,
+    })
+    : '';
+  const cachedRdkitSvg = expectedRdkitSvgKey ? rdkitSvgCache?.[expectedRdkitSvgKey] : undefined;
+  const generatedSvg = generatedStructure?.cacheKey === expectedRdkitSvgKey ? generatedStructure.svg : null;
+  const displaySvg = preferRdkitSvg
+    ? generatedSvg || cachedRdkitSvg || null
+    : generatedStructure?.svg || cachedRdkitSvg || rdkitSvg || svg;
+  const copyText = getCompoundStructureCopyText({ smiles, molBlock: displayMolBlock, cdxml, svg: displaySvg });
+  const hasRenderableChemData = preferRdkitSvg ? false : !!(cdxml || displayMolBlock || smiles);
+  const shouldShowRdkitSkeleton = preferRdkitSvg && isRdkitLoading && !displaySvg;
   const shouldFitRotatedBounds = fitRotatedBounds && typeof width === 'number' && typeof height === 'number';
   const rotatedBounds = shouldFitRotatedBounds
     ? getRotatedStructureBounds(width, height, rotationDeg ?? 0)
@@ -226,14 +269,80 @@ const CompoundStructureView: React.FC<CompoundStructureViewProps> = ({
     ...(rotationDeg == null ? {} : { transform: `rotate(${rotationDeg}deg)` }),
     ...structureStyle,
   };
+  const structureSvgClassName = [
+    'compound-structure-svg',
+    structureFitMode === 'contain' ? 'compound-structure-svg-contain' : '',
+    svgClassName ?? '',
+  ].filter(Boolean).join(' ');
+  const rdkitRenderKey = useMemo(
+    () => JSON.stringify({
+      preferRdkitSvg,
+      smiles: smiles?.trim() || '',
+      molBlock: molBlock?.trim() || '',
+      angle: rdkitAngleDeg,
+      scale: rdkitScalePercent,
+      minSize: rdkitMinSizeWidth != null && rdkitMinSizeHeight != null ? [rdkitMinSizeWidth, rdkitMinSizeHeight] : undefined,
+    }),
+    [molBlock, preferRdkitSvg, rdkitAngleDeg, rdkitMinSizeHeight, rdkitMinSizeWidth, rdkitScalePercent, smiles]
+  );
 
-  const previewAction: CompoundStructureAction[] = showPreviewAction && svg && onPreview ? [{
+  useEffect(() => {
+    onStructureGeneratedRef.current = onStructureGenerated;
+  }, [onStructureGenerated]);
+
+  useEffect(() => {
+    if (!preferRdkitSvg || !(smiles?.trim() || molBlock?.trim())) {
+      setGeneratedStructure(null);
+      setIsRdkitLoading(false);
+      setHasRdkitRenderFailed(false);
+      return;
+    }
+    if (cachedRdkitSvg) {
+      setGeneratedStructure(null);
+      setIsRdkitLoading(false);
+      setHasRdkitRenderFailed(false);
+      return;
+    }
+
+    let isDisposed = false;
+    setIsRdkitLoading(true);
+    setHasRdkitRenderFailed(false);
+    setGeneratedStructure(null);
+
+    void renderRdkitSvg({
+      smiles,
+      molBlock,
+      angleDeg: rdkitAngleDeg,
+      scalePercent: rdkitScalePercent,
+      minSize: rdkitMinSizeWidth != null && rdkitMinSizeHeight != null ? [rdkitMinSizeWidth, rdkitMinSizeHeight] : undefined,
+    })
+      .then((data) => {
+        if (isDisposed) return;
+        setGeneratedStructure(data);
+        setIsRdkitLoading(false);
+        setHasRdkitRenderFailed(false);
+        onStructureGeneratedRef.current?.(data);
+      })
+      .catch(() => {
+        if (!isDisposed) {
+          setGeneratedStructure(null);
+          setIsRdkitLoading(false);
+          setHasRdkitRenderFailed(true);
+        }
+      });
+
+    return () => {
+      isDisposed = true;
+    };
+  }, [cachedRdkitSvg, molBlock, preferRdkitSvg, rdkitAngleDeg, rdkitMinSizeHeight, rdkitMinSizeWidth, rdkitRenderKey, rdkitScalePercent, smiles]);
+
+  const previewAction: CompoundStructureAction[] = showPreviewAction && displaySvg && onPreview ? [{
     key: 'preview',
     title: '크게 보기',
     icon: <Search size={14} />,
     onClick: (event: React.MouseEvent<HTMLElement>) => {
       event.stopPropagation();
-      onPreview();
+      onPreview(displaySvg || undefined);
     },
   }] : [];
   const copyAction: CompoundStructureAction[] = showCopyAction && copyText ? [{
@@ -305,9 +414,9 @@ const CompoundStructureView: React.FC<CompoundStructureViewProps> = ({
           ...mergedFrameStyle,
         }}
         >
-        {svg ? (
+        {displaySvg ? (
           <div
-            className={`compound-structure-svg${svgClassName ? ` ${svgClassName}` : ''}`}
+            className={structureSvgClassName}
             style={{
               width: '100%',
               height: '100%',
@@ -317,12 +426,39 @@ const CompoundStructureView: React.FC<CompoundStructureViewProps> = ({
               transformOrigin: 'center',
               ...mergedStructureStyle,
             }}
-            dangerouslySetInnerHTML={{ __html: svg }}
+            dangerouslySetInnerHTML={{ __html: displaySvg }}
           />
+        ) : shouldShowRdkitSkeleton ? (
+          <div
+            className="compound-structure-skeleton"
+            style={{
+              width: '100%',
+              height: '100%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: 8,
+              boxSizing: 'border-box',
+            }}
+          >
+            <Skeleton.Node
+              active
+              style={{
+                width: '100%',
+                height: '100%',
+                minWidth: 0,
+              }}
+            />
+          </div>
         ) : hasRenderableChemData ? (
           <div style={{ width: '100%', height: '100%', transformOrigin: 'center', ...mergedStructureStyle }}>
             <ChemDrawStructurePreview cdxml={cdxml} molBlock={molBlock} smiles={smiles} />
           </div>
+        ) : preferRdkitSvg && hasRdkitRenderFailed ? (
+          <BenzeneIcon
+            size={iconSize ?? (typeof width === 'number' && typeof height === 'number' ? Math.min(width, height) * 0.34 : 24)}
+            color={token.colorTextQuaternary}
+          />
         ) : (
           <BenzeneIcon
             size={iconSize ?? (typeof width === 'number' && typeof height === 'number' ? Math.min(width, height) * 0.42 : 28)}

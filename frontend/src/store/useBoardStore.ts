@@ -22,12 +22,15 @@ export const DEFAULT_GROUP_STRUCTURE_VIEW_SETTINGS: GroupStructureViewSettings =
 interface BoardState {
   selectedGroupIds: string[];
   selectedSarCompoundIds: string[];
+  hiddenCompoundIds: string[];
   groups: CompoundGroup[];
   groupStructureViewSettings: Record<string, GroupStructureViewSettings>;
   toggleGroupSelection: (groupId: string) => void;
   setSelectedGroupIds: (groupIds: string[]) => void;
   setSelectedSarCompoundIds: (compoundIds: string[]) => void;
   clearSelectedSarCompoundIds: () => void;
+  hideCompounds: (compoundIds: string[]) => void;
+  unhideCompounds: (compoundIds: string[]) => void;
   updateGroupStructureViewSettings: (groupId: string, settings: Partial<GroupStructureViewSettings>) => void;
   addGroup: (group: CompoundGroup) => void;
   mergeGroups: (groupIds: string[], name: string) => void;
@@ -38,6 +41,7 @@ interface BoardState {
 export const useBoardStore = create<BoardState>((set) => ({
   selectedGroupIds: [],
   selectedSarCompoundIds: [],
+  hiddenCompoundIds: [],
   groups: mockGroups,
   groupStructureViewSettings: {},
   toggleGroupSelection: (groupId) => set((state) => ({
@@ -48,6 +52,13 @@ export const useBoardStore = create<BoardState>((set) => ({
   setSelectedGroupIds: (groupIds) => set({ selectedGroupIds: groupIds }),
   setSelectedSarCompoundIds: (compoundIds) => set({ selectedSarCompoundIds: compoundIds }),
   clearSelectedSarCompoundIds: () => set({ selectedSarCompoundIds: [] }),
+  hideCompounds: (compoundIds) => set((state) => ({
+    hiddenCompoundIds: Array.from(new Set([...state.hiddenCompoundIds, ...compoundIds])),
+    selectedSarCompoundIds: state.selectedSarCompoundIds.filter((compoundId) => !compoundIds.includes(compoundId)),
+  })),
+  unhideCompounds: (compoundIds) => set((state) => ({
+    hiddenCompoundIds: state.hiddenCompoundIds.filter((compoundId) => !compoundIds.includes(compoundId)),
+  })),
   updateGroupStructureViewSettings: (groupId, settings) => set((state) => ({
     groupStructureViewSettings: {
       ...state.groupStructureViewSettings,

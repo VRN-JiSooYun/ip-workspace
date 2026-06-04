@@ -469,6 +469,22 @@ span.ant-typography {
   display: block;
 }
 
+.compound-structure-svg-contain svg {
+  width: auto !important;
+  height: auto !important;
+  max-width: 100% !important;
+  max-height: 100% !important;
+  display: block;
+  flex: 0 0 auto;
+}
+
+.compound-structure-skeleton .ant-skeleton,
+.compound-structure-skeleton .ant-skeleton-element,
+.compound-structure-skeleton .ant-skeleton-image {
+  width: 100% !important;
+  height: 100% !important;
+}
+
 .compound-structure-actions {
   display: flex;
   flex-direction: column;

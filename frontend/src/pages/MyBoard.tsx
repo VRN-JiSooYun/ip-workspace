@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Row, Col, Card, Table, Button, Input,
-  Space, Typography, Modal, Form, Tag, List, Select, DatePicker, Avatar, Divider, Upload, Segmented, theme, Tooltip, Dropdown
+  Space, Typography, Modal, Form, Tag, List, Select, DatePicker, Avatar, Divider, Upload, Segmented, theme, Tooltip, Dropdown, App as AntApp
 } from 'antd';
 import type { MenuProps } from 'antd';
 import {
@@ -23,12 +23,13 @@ import WhiteboardEditor from '../components/board/WhiteboardEditor';
 import ChemDrawModal from '../components/common/ChemDrawModal';
 import ChemDrawEditor from '../components/common/ChemDrawEditor';
 import BenzeneIcon from '../components/common/BenzeneIcon';
-import CompoundStructureView, { getRotatedStructureBounds } from '../components/common/CompoundStructureView';
+import CompoundStructureView from '../components/common/CompoundStructureView';
 import ToggleTag from '../components/common/ToggleTag';
 import QuickViewerPanel from '../components/myboard/QuickViewerPanel';
 import shareForwardIconRaw from '../assets/svg/share-forward-fill.svg?raw';
 import shareIconRaw from '../assets/svg/share.svg?raw';
 import bookmarkIconRaw from '../assets/svg/bookmark.svg?raw';
+import eyeOffIcon from '../assets/svg/eye-off.svg';
 import { formatDisplayDate } from '../utils/displayFormat';
 
 const { Title, Text } = Typography;
@@ -85,8 +86,6 @@ const MYBOARD_STRUCTURE_BASE_PERCENT = 120;
 const MYBOARD_STRUCTURE_SCALE_BASE_RATIO = 0.9975;
 const MYBOARD_GROUP_STRUCTURE_WIDTH = 130;
 const MYBOARD_GROUP_STRUCTURE_HEIGHT = 97.5;
-const MYBOARD_GROUP_STRUCTURE_MAX_WIDTH = 130;
-const MYBOARD_GROUP_STRUCTURE_MAX_HEIGHT = 97.5;
 const MYBOARD_GROUP_STRUCTURE_ONLY_COLUMN_WIDTH = 138;
 const MYBOARD_GROUP_STRUCTURE_ONLY_PANEL_WIDTH = 146;
 const MYBOARD_STRUCTURE_IMAGE_SCALE_MIN = 70;
@@ -130,12 +129,15 @@ const MYBOARD_CENTER_COLUMN_KEYS = new Set([
 const MyBoard: React.FC = () => {
   const navigate = useNavigate();
   const { token } = theme.useToken();
+  const { modal } = AntApp.useApp();
   const { setHeaderContent } = useUIStore();
   const {
     selectedGroupIds,
+    hiddenCompoundIds,
     toggleGroupSelection,
     setSelectedGroupIds,
     setSelectedSarCompoundIds,
+    hideCompounds,
     groups,
     groupStructureViewSettings,
     updateGroupStructureViewSettings,
@@ -148,10 +150,12 @@ const MyBoard: React.FC = () => {
   const [isDesignModalOpen, setIsDesignModalOpen] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [isStructureModalOpen, setIsStructureModalOpen] = useState(false);
+  const [isQuickAddModalOpen, setIsQuickAddModalOpen] = useState(false);
   const [isMergeGroupModalOpen, setIsMergeGroupModalOpen] = useState(false);
   const [isCompoundGroupSelectModalOpen, setIsCompoundGroupSelectModalOpen] = useState(false);
   const [isCompoundEditModalOpen, setIsCompoundEditModalOpen] = useState(false);
   const [mergeGroupName, setMergeGroupName] = useState('');
+  const [quickAddCode, setQuickAddCode] = useState('');
   const [cdjsInstance, setCdjsInstance] = useState<any>(null);
   const [designSmiles, setDesignSmiles] = useState('');
   const [searchedSvg, setSearchedSvg] = useState<string | null>(null);
@@ -162,6 +166,7 @@ const MyBoard: React.FC = () => {
   } | null>(null);
   const [showFilters, setShowFilters] = useState(false);
   const [viewMode, setViewMode] = useState<'table' | 'draw' | 'tree'>('table');
+  const [detailCompoundTypeFilter, setDetailCompoundTypeFilter] = useState<'all' | 'design' | 'compound'>('all');
   const [assignedGroupIds, setAssignedGroupIds] = useState<string[]>([]);
   const [compoundRows, setCompoundRows] = useState<Compound[]>(mockCompounds);
   const [selectedDetailCompoundIds, setSelectedDetailCompoundIds] = useState<React.Key[]>([]);
@@ -188,6 +193,40 @@ const MyBoard: React.FC = () => {
     if (typeof window === 'undefined') return 1920;
     return window.innerWidth;
   });
+  const handleCompoundStructureGenerated = React.useCallback((
+    compoundId: string,
+    data: { molBlock: string; svg: string; cacheKey: string }
+  ) => {
+    const applyGeneratedStructure = (compound: Compound): Compound => {
+      const nextCache = {
+        ...(compound.rdkitSvgCache ?? {}),
+        [data.cacheKey]: data.svg,
+      };
+
+      return {
+        ...compound,
+        molBlock: compound.molBlock || data.molBlock || undefined,
+        rdkitSvg: compound.rdkitSvg || data.svg,
+        rdkitSvgCache: nextCache,
+      };
+    };
+
+    setCompoundRows((prevRows) => prevRows.map((compound) => (
+      compound.id === compoundId ? applyGeneratedStructure(compound) : compound
+    )));
+
+    const mockCompound = mockCompounds.find((compound) => compound.id === compoundId);
+    if (mockCompound) {
+      if (!mockCompound.molBlock && data.molBlock) {
+        mockCompound.molBlock = data.molBlock;
+      }
+      mockCompound.rdkitSvg = mockCompound.rdkitSvg || data.svg;
+      mockCompound.rdkitSvgCache = {
+        ...(mockCompound.rdkitSvgCache ?? {}),
+        [data.cacheKey]: data.svg,
+      };
+    }
+  }, []);
   const layoutPreset = React.useMemo(() => getPatentAnalysisLayoutPreset(viewportWidth), [viewportWidth]);
   const isStackedSplitLayout = viewportWidth <= 1100;
   const isGroupListFull = groupListMode === 'full';
@@ -593,11 +632,15 @@ const MyBoard: React.FC = () => {
   const filteredCompounds = React.useMemo(() => {
     return compoundRows
       .filter((compound) => {
+        const isSynthesized = Boolean(compound.isCompleted || compound.status === '합성완료');
         // If it's a structure search results mode, don't filter out by the keyword string
         const matchesKeyword = keyword === 'Structure Search Result' ||
           compound.name.toLowerCase().includes(keyword.toLowerCase()) ||
           compound.smiles.toLowerCase().includes(keyword.toLowerCase());
 
+        if (hiddenCompoundIds.includes(compound.id)) return false;
+        if (detailCompoundTypeFilter === 'design' && isSynthesized) return false;
+        if (detailCompoundTypeFilter === 'compound' && !isSynthesized) return false;
         if (selectedGroupIds.length > 0 && !selectedGroupIds.includes(compound.groupId)) return false;
         if (!selectedProjects.includes('ALL') && compound.project && !selectedProjects.includes(compound.project)) return false;
         if (!selectedShares.includes('ALL') && compound.shareStatus && !selectedShares.includes(compound.shareStatus)) return false;
@@ -612,7 +655,7 @@ const MyBoard: React.FC = () => {
         if (aGroupOrder !== bGroupOrder) return aGroupOrder - bGroupOrder;
         return compoundRows.indexOf(a) - compoundRows.indexOf(b);
       });
-  }, [compoundRows, keyword, selectedGroupIds, selectedGroupOrderMap, selectedProjects, selectedShares, selectedSources]);
+  }, [compoundRows, detailCompoundTypeFilter, hiddenCompoundIds, keyword, selectedGroupIds, selectedGroupOrderMap, selectedProjects, selectedShares, selectedSources]);
 
   const sarTargetCount = selectedGroupIds.length > 0 ? filteredCompounds.length : 0;
   const selectedDetailCompoundKeys = React.useMemo(
@@ -646,16 +689,6 @@ const MyBoard: React.FC = () => {
     const representativeCompound = firstCompoundByGroupId[record.id];
     const structureSvg = representativeCompound?.structureSvg;
     const structureSettings = getGroupStructureSettings(record.id);
-    const rotatedBounds = getRotatedStructureBounds(
-      MYBOARD_GROUP_STRUCTURE_WIDTH,
-      MYBOARD_GROUP_STRUCTURE_HEIGHT,
-      structureSettings.sarRotationDeg
-    );
-    const structureFitScale = Math.min(
-      1,
-      MYBOARD_GROUP_STRUCTURE_MAX_WIDTH / rotatedBounds.width,
-      MYBOARD_GROUP_STRUCTURE_MAX_HEIGHT / rotatedBounds.height
-    );
 
     return (
       <div
@@ -666,13 +699,15 @@ const MyBoard: React.FC = () => {
           alignItems: 'center',
           justifyContent: 'center',
           gap: 0,
-          minWidth: Math.ceil(rotatedBounds.width * structureFitScale),
-          minHeight: Math.ceil(rotatedBounds.height * structureFitScale),
+          minWidth: MYBOARD_GROUP_STRUCTURE_WIDTH,
+          minHeight: MYBOARD_GROUP_STRUCTURE_HEIGHT,
           lineHeight: 0,
         }}
       >
         <CompoundStructureView
           svg={structureSvg}
+          rdkitSvg={(representativeCompound as any)?.rdkitSvg}
+          rdkitSvgCache={(representativeCompound as any)?.rdkitSvgCache}
           title={representativeCompound?.compoundId || representativeCompound?.name || 'Structure'}
           smiles={representativeCompound?.smiles}
           molBlock={(representativeCompound as any)?.molBlock ?? (representativeCompound as any)?.mol_block ?? (representativeCompound as any)?.molblock}
@@ -683,14 +718,21 @@ const MyBoard: React.FC = () => {
           gap={0}
           actionPlacement="overlay"
           actionOverlayAnchor="container"
-          structureStyle={{ transform: `scale(${structureFitScale}) rotate(${structureSettings.sarRotationDeg}deg)` }}
+          preferRdkitSvg
+          rdkitAngleDeg={structureSettings.sarRotationDeg}
+          rdkitScalePercent={structureSettings.myBoardImageScalePercent}
+          rdkitMinSize={[MYBOARD_GROUP_STRUCTURE_WIDTH, MYBOARD_GROUP_STRUCTURE_HEIGHT]}
+          onStructureGenerated={(data) => {
+            if (representativeCompound?.id) handleCompoundStructureGenerated(representativeCompound.id, data);
+          }}
           frameStyle={{ border: 0, background: 'transparent', boxShadow: 'none', overflow: 'visible' }}
-          onPreview={structureSvg ? () => {
+          onPreview={(previewSvg) => {
+            if (!previewSvg) return;
             setStructurePreview({
               title: representativeCompound?.compoundId || representativeCompound?.name || 'Structure',
-              svg: structureSvg,
+              svg: previewSvg,
             });
-          } : undefined}
+          }}
         />
       </div>
     );
@@ -891,6 +933,7 @@ const MyBoard: React.FC = () => {
   const canAddCompound = selectedGroupIds.length > 0;
   const canDeleteCompound = hasSelectedDetailCompounds;
   const canEditCompound = selectedDetailCompoundIds.length === 1;
+  const canHideCompound = hasSelectedDetailCompounds;
 
   const getCompoundActionButtonStyle = React.useCallback((enabled: boolean): React.CSSProperties => ({
     background: enabled ? token.colorPrimary : token.colorBgLayout,
@@ -907,7 +950,7 @@ const MyBoard: React.FC = () => {
 
   const handleDeleteSelectedCompounds = React.useCallback(() => {
     if (!canDeleteCompound) return;
-    Modal.confirm({
+    modal.confirm({
       title: '화합물 삭제',
       content: `선택한 ${selectedDetailCompoundIds.length}개의 화합물을 삭제하시겠습니까?`,
       okText: '삭제',
@@ -920,7 +963,65 @@ const MyBoard: React.FC = () => {
         setCompoundContextMenu(null);
       },
     });
-  }, [canDeleteCompound, selectedDetailCompoundIds]);
+  }, [canDeleteCompound, modal, selectedDetailCompoundIds]);
+
+  const handleHideSelectedCompounds = React.useCallback(() => {
+    if (!canHideCompound) return;
+    hideCompounds(selectedDetailCompoundIds.map(String));
+    setSelectedDetailCompoundIds([]);
+    setCompoundContextMenu(null);
+  }, [canHideCompound, hideCompounds, selectedDetailCompoundIds]);
+
+  const handleQuickAddCompound = React.useCallback(() => {
+    const compoundCode = quickAddCode.trim();
+    const targetGroupId = selectedGroupIds[0];
+    if (!compoundCode || !targetGroupId) return;
+
+    const timestamp = Date.now();
+    const targetGroup = groups.find((group) => group.id === targetGroupId);
+    const newCompound: Compound = {
+      id: `quick-${targetGroupId}-${timestamp}`,
+      groupId: targetGroupId,
+      compoundId: compoundCode,
+      name: compoundCode,
+      source: 'Manual',
+      smiles: '',
+      creDate: formatDisplayDate(new Date().toISOString()),
+      manager: currentUser?.name ?? '문태훈',
+      status: '디자인',
+      project: targetGroup?.target && targetGroup.target !== '-' ? targetGroup.target : 'Unassigned',
+      shareStatus: '내 물질',
+      designSource: 'Quick add',
+      properties1: [50, 50, 50, 50],
+      properties2: [50, 50, 50, 50],
+      requiredCalcs: [],
+      designNo: `D-${compoundCode}`,
+      designMemo: 'Quick add로 등록된 내부 화합물 코드',
+      requiredAmountMg: 10,
+      assayPurpose: '내부 화합물 코드 기반 quick add',
+      expectedEffect: '-',
+      requestDate: formatDisplayDate(new Date().toISOString()),
+      synthesisExpansionLevel: '하',
+      requestMemo: '-',
+      synthesisOwner: currentUser?.name ?? '문태훈',
+      synthesisAcceptedDate: '-',
+      synthesisTargetDate: '-',
+      progressMemo: 'quick add',
+      isCompleted: false,
+      registeredDate: formatDisplayDate(new Date().toISOString()),
+      researchNote: '-',
+      reportData: '-',
+      synthesisEndReason: '-',
+      experimentStage: 1,
+      quickViewerAssets: [],
+    };
+
+    setCompoundRows((prev) => [newCompound, ...prev]);
+    mockCompounds.unshift(newCompound);
+    setSelectedDetailCompoundIds([newCompound.id]);
+    setQuickAddCode('');
+    setIsQuickAddModalOpen(false);
+  }, [currentUser?.name, groups, quickAddCode, selectedGroupIds]);
 
   const handleOpenCompoundEdit = React.useCallback(() => {
     if (!canEditCompound) return;
@@ -984,6 +1085,12 @@ const MyBoard: React.FC = () => {
       disabled: !canEditCompound,
     },
     {
+      key: 'hide',
+      icon: <span className="my-board-action-icon my-board-action-icon-eye-off" aria-hidden="true" />,
+      label: '숨기기',
+      disabled: !canHideCompound,
+    },
+    {
       type: 'divider',
     },
     {
@@ -1015,6 +1122,11 @@ const MyBoard: React.FC = () => {
 
     if (key === 'edit') {
       handleOpenCompoundEdit();
+      return;
+    }
+
+    if (key === 'hide') {
+      handleHideSelectedCompounds();
       return;
     }
 
@@ -1082,7 +1194,7 @@ const MyBoard: React.FC = () => {
     if (key === 'delete') {
       if (contextGroupIds.length === 0) return;
       const compoundCount = getGroupCompoundCount(contextGroupIds);
-      Modal.confirm({
+      modal.confirm({
         title: '그룹 삭제',
         content: `총 ${contextGroupIds.length}개의 그룹(${compoundCount}개의 화합물)을 삭제 하시겠습니까?`,
         okText: '삭제',
@@ -1136,15 +1248,12 @@ const MyBoard: React.FC = () => {
         const structureScale = (structureSettings.myBoardImageScalePercent / MYBOARD_STRUCTURE_BASE_PERCENT) * MYBOARD_STRUCTURE_SCALE_BASE_RATIO;
         const structureWidth = Math.round(MYBOARD_STRUCTURE_BASE_WIDTH * structureScale);
         const structureHeight = Math.round(MYBOARD_STRUCTURE_BASE_HEIGHT * structureScale);
-        const rotatedStructureBounds = getRotatedStructureBounds(
-          structureWidth,
-          structureHeight,
-          structureSettings.sarRotationDeg
-        );
 
         return (
           <CompoundStructureView
             svg={displaySvg}
+            rdkitSvg={record.rdkitSvg}
+            rdkitSvgCache={record.rdkitSvgCache}
             title={record.compoundId || record.name || 'Structure'}
             smiles={record.smiles}
             molBlock={record.molBlock ?? record.mol_block ?? record.molblock}
@@ -1156,17 +1265,18 @@ const MyBoard: React.FC = () => {
             actionPlacement="overlay"
             actionOverlayAnchor="container"
             frameless
-            rotationDeg={structureSettings.sarRotationDeg}
-            containerStyle={{
-              minWidth: rotatedStructureBounds.width,
-              minHeight: rotatedStructureBounds.height,
-            }}
-            onPreview={displaySvg ? () => {
+            preferRdkitSvg
+            rdkitAngleDeg={structureSettings.sarRotationDeg}
+            rdkitScalePercent={structureSettings.myBoardImageScalePercent}
+            rdkitMinSize={[structureWidth, structureHeight]}
+            onStructureGenerated={(data) => handleCompoundStructureGenerated(record.id, data)}
+            onPreview={(previewSvg) => {
+              if (!previewSvg) return;
               setStructurePreview({
                 title: record.compoundId || record.name || 'Structure',
-                svg: displaySvg,
+                svg: previewSvg,
               });
-            } : undefined}
+            }}
           />
         );
       }
@@ -1748,7 +1858,17 @@ const MyBoard: React.FC = () => {
                   </Tooltip>
                 )}
                 <Text strong style={{ color: token.colorPrimary }}>그룹 상세 목록</Text>
-                <Space>
+                <Space wrap size={8}>
+                  <Button
+                    type="primary"
+                    size="small"
+                    icon={<Plus size={14} />}
+                    disabled={!canAddCompound}
+                    style={getCompoundActionButtonStyle(canAddCompound)}
+                    onClick={() => setIsQuickAddModalOpen(true)}
+                  >
+                    Quick add
+                  </Button>
                   <Button
                     type="primary"
                     size="small"
@@ -1758,6 +1878,30 @@ const MyBoard: React.FC = () => {
                     onClick={() => setIsDesignModalOpen(true)}
                   >
                     Add
+                  </Button>
+                  <Button
+                    type={detailCompoundTypeFilter === 'design' ? 'primary' : 'default'}
+                    size="small"
+                    onClick={() => setDetailCompoundTypeFilter((value) => value === 'design' ? 'all' : 'design')}
+                  >
+                    Design
+                  </Button>
+                  <Button
+                    type={detailCompoundTypeFilter === 'compound' ? 'primary' : 'default'}
+                    size="small"
+                    onClick={() => setDetailCompoundTypeFilter((value) => value === 'compound' ? 'all' : 'compound')}
+                  >
+                    Compound
+                  </Button>
+                  <Button
+                    type="primary"
+                    size="small"
+                    icon={<span className="my-board-action-icon my-board-action-icon-eye-off" aria-hidden="true" />}
+                    disabled={!canHideCompound}
+                    style={getCompoundActionButtonStyle(canHideCompound)}
+                    onClick={handleHideSelectedCompounds}
+                  >
+                    숨기기
                   </Button>
                   <Button
                     type="primary"
@@ -2105,6 +2249,35 @@ const MyBoard: React.FC = () => {
             </Text>
           </Form>
         ) : null}
+      </Modal>
+
+      <Modal
+        title="Quick add"
+        open={isQuickAddModalOpen}
+        onCancel={() => {
+          setIsQuickAddModalOpen(false);
+          setQuickAddCode('');
+        }}
+        onOk={handleQuickAddCompound}
+        okText="추가"
+        cancelText="취소"
+        okButtonProps={{ disabled: !quickAddCode.trim() || selectedGroupIds.length === 0 }}
+      >
+        <Form layout="vertical" style={{ marginTop: 16 }}>
+          <Form.Item label="내부 화합물 코드 번호" required>
+            <Input
+              autoFocus
+              placeholder="예: VNA-G01-001"
+              value={quickAddCode}
+              onChange={(event) => setQuickAddCode(event.target.value)}
+              onPressEnter={() => {
+                if (quickAddCode.trim() && selectedGroupIds.length > 0) {
+                  handleQuickAddCompound();
+                }
+              }}
+            />
+          </Form.Item>
+        </Form>
       </Modal>
 
       {/* Create Design Modal */}
@@ -2529,21 +2702,22 @@ const MyBoard: React.FC = () => {
           min-height: 0;
           flex: 1;
           overflow: auto;
-          padding: 14px;
+          padding: 10px;
           background: ${token.colorBgContainer};
         }
         .quick-viewer-result-row {
           display: flex;
           justify-content: flex-end;
-          margin-bottom: 10px;
+          margin-bottom: 6px;
         }
         .quick-viewer-result-select {
           width: min(100%, 260px);
         }
         .quick-viewer-kinome-stage,
         .quick-viewer-placeholder-stage {
+          position: relative;
           width: 100%;
-          min-height: 360px;
+          min-height: 0;
           border: 1px solid ${token.colorBorderSecondary};
           border-radius: 8px;
           background: #FFFFFF;
@@ -2555,6 +2729,59 @@ const MyBoard: React.FC = () => {
           width: 100%;
           height: auto;
         }
+        .quick-viewer-zoom-button {
+          position: absolute;
+          top: 8px;
+          right: 8px;
+          width: 28px;
+          height: 28px;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          border-radius: 999px;
+          border-color: ${token.colorBorderSecondary};
+          background: ${token.colorBgContainer};
+          color: ${token.colorTextSecondary};
+          box-shadow: 0 4px 12px rgba(15, 23, 42, 0.14);
+        }
+        .quick-viewer-zoom-button:hover {
+          border-color: ${token.colorPrimary};
+          color: ${token.colorPrimary};
+        }
+        .quick-viewer-kinome-modal .ant-modal-body {
+          padding: 12px;
+        }
+        .quick-viewer-kinome-modal-stage {
+          width: 100%;
+          max-height: min(78vh, 820px);
+          overflow: auto;
+          scrollbar-width: thin;
+          scrollbar-color: ${token.colorBorder} ${token.colorBgContainer};
+          border: 1px solid ${token.colorBorderSecondary};
+          border-radius: 8px;
+          background: ${token.colorBgContainer};
+        }
+        .quick-viewer-kinome-modal-stage::-webkit-scrollbar {
+          width: 10px;
+          height: 10px;
+        }
+        .quick-viewer-kinome-modal-stage::-webkit-scrollbar-track {
+          background: ${token.colorBgContainer};
+        }
+        .quick-viewer-kinome-modal-stage::-webkit-scrollbar-thumb {
+          background: ${token.colorBorder};
+          border: 2px solid ${token.colorBgContainer};
+          border-radius: 999px;
+        }
+        .quick-viewer-kinome-modal-stage::-webkit-scrollbar-thumb:hover {
+          background: ${token.colorTextTertiary};
+        }
+        .quick-viewer-kinome-modal-svg {
+          display: block;
+          width: 100%;
+          min-width: 1240px;
+          height: auto;
+        }
         .quick-viewer-placeholder-stage {
           display: flex;
           align-items: center;
@@ -2562,12 +2789,12 @@ const MyBoard: React.FC = () => {
         }
         .quick-viewer-cta {
           height: 34px;
-          margin-top: 12px;
+          margin-top: 8px;
           border-radius: 6px;
           font-weight: 800;
         }
         .quick-viewer-info-table {
-          margin-top: 12px;
+          margin-top: 8px;
           border: 1px solid ${token.colorBorderSecondary};
           border-radius: 8px;
           overflow: hidden;
@@ -2661,6 +2888,17 @@ const MyBoard: React.FC = () => {
           align-items: center;
           justify-content: center;
           border-radius: 2px;
+        }
+        .my-board-action-icon {
+          display: block;
+          width: 14px;
+          height: 14px;
+          pointer-events: none;
+        }
+        .my-board-action-icon-eye-off {
+          background: currentColor;
+          mask: url(${eyeOffIcon}) center / contain no-repeat;
+          -webkit-mask: url(${eyeOffIcon}) center / contain no-repeat;
         }
         .my-board-structure-setting-value {
           height: 20px;
