@@ -38,6 +38,9 @@ const { RangePicker } = DatePicker;
 const MYBOARD_SPLIT_MIN_PERCENT = 20;
 const MYBOARD_SPLIT_MAX_PERCENT = 80;
 const MYBOARD_SPLIT_DEFAULT_PERCENT = 30;
+const MYBOARD_QUICK_VIEWER_MIN_WIDTH = 360;
+const MYBOARD_QUICK_VIEWER_MAX_WIDTH = 868;
+const MYBOARD_QUICK_VIEWER_DEFAULT_WIDTH = 460;
 const MYBOARD_SHARE_STATUS_COLORS = {
   '공유 하는중': '#F87C63',
   '공유 받는중': '#1677ff',
@@ -71,6 +74,11 @@ const MYBOARD_GROUP_COLUMN_WIDTHS = {
   groupOrder: 72,
   shareStatus: 56,
 } as const;
+const MYBOARD_DATA_LEFT_ASSET_TYPES = new Set<CompoundQuickViewerAssetType>(['kp']);
+const MYBOARD_DATA_RIGHT_ASSET_ORDER: CompoundQuickViewerAssetType[] = ['pdb', 'docking', 'md'];
+const MYBOARD_DATA_RIGHT_ASSET_ORDER_INDEX = new Map(
+  MYBOARD_DATA_RIGHT_ASSET_ORDER.map((assetType, index) => [assetType, index])
+);
 const createFixedGroupColumnStyle = (width: number): React.CSSProperties => ({
   width,
   minWidth: width,
@@ -239,6 +247,11 @@ const MyBoard: React.FC = () => {
   const groupListTableCardRef = React.useRef<HTMLDivElement | null>(null);
   const splitRafRef = React.useRef<number | null>(null);
   const splitStorageKey = 'my-board-split:group-detail';
+  const [quickViewerWidth, setQuickViewerWidth] = useState(MYBOARD_QUICK_VIEWER_DEFAULT_WIDTH);
+  const [isResizingQuickViewer, setIsResizingQuickViewer] = useState(false);
+  const quickViewerPaneRef = React.useRef<HTMLDivElement | null>(null);
+  const quickViewerResizeRafRef = React.useRef<number | null>(null);
+  const quickViewerStorageKey = 'my-board-split:quick-viewer';
   const [groupListTableWidth, setGroupListTableWidth] = useState(0);
   const visibleGroupRows = React.useMemo(
     () => [...groups]
@@ -360,6 +373,23 @@ const MyBoard: React.FC = () => {
   }, [splitRatio]);
 
   React.useEffect(() => {
+    const raw = window.localStorage.getItem(quickViewerStorageKey);
+    if (!raw) return;
+
+    const parsed = Number(raw);
+    if (!Number.isFinite(parsed)) return;
+
+    setQuickViewerWidth(Math.min(
+      Math.max(parsed, MYBOARD_QUICK_VIEWER_MIN_WIDTH),
+      MYBOARD_QUICK_VIEWER_MAX_WIDTH
+    ));
+  }, []);
+
+  React.useEffect(() => {
+    window.localStorage.setItem(quickViewerStorageKey, String(quickViewerWidth));
+  }, [quickViewerWidth]);
+
+  React.useEffect(() => {
     const container = splitContainerRef.current;
     if (
       !container ||
@@ -472,6 +502,82 @@ const MyBoard: React.FC = () => {
       applySplitRatio(MYBOARD_SPLIT_DEFAULT_PERCENT);
     }
   }, [applySplitRatio, splitRatio]);
+
+  const stopQuickViewerResize = React.useCallback(() => {
+    setIsResizingQuickViewer(false);
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
+  }, []);
+
+  const updateQuickViewerWidthFromClientX = React.useCallback((clientX: number) => {
+    const availableWidth = Math.max(viewportWidth - layoutPreset.sidePadding * 2, 320);
+    const maxWidth = Math.min(MYBOARD_QUICK_VIEWER_MAX_WIDTH, Math.max(availableWidth - 360, MYBOARD_QUICK_VIEWER_MIN_WIDTH));
+    const paneRight = quickViewerPaneRef.current?.getBoundingClientRect().right ?? window.innerWidth - layoutPreset.sidePadding;
+    const nextWidth = Math.min(
+      Math.max(paneRight - clientX, MYBOARD_QUICK_VIEWER_MIN_WIDTH),
+      maxWidth
+    );
+
+    setQuickViewerWidth(nextWidth);
+  }, [layoutPreset.sidePadding, viewportWidth]);
+
+  React.useEffect(() => {
+    if (!isResizingQuickViewer) return;
+
+    const onMouseMove = (event: MouseEvent) => {
+      if (quickViewerResizeRafRef.current) {
+        window.cancelAnimationFrame(quickViewerResizeRafRef.current);
+      }
+      quickViewerResizeRafRef.current = window.requestAnimationFrame(() => {
+        updateQuickViewerWidthFromClientX(event.clientX);
+      });
+    };
+    const onMouseUp = () => {
+      stopQuickViewerResize();
+    };
+
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+
+    return () => {
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+      if (quickViewerResizeRafRef.current) {
+        window.cancelAnimationFrame(quickViewerResizeRafRef.current);
+        quickViewerResizeRafRef.current = null;
+      }
+    };
+  }, [isResizingQuickViewer, stopQuickViewerResize, updateQuickViewerWidthFromClientX]);
+
+  const handleQuickViewerResizeMouseDown = React.useCallback((event: React.MouseEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    setIsResizingQuickViewer(true);
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+  }, []);
+
+  const handleQuickViewerResizeKeyDown = React.useCallback((event: React.KeyboardEvent<HTMLDivElement>) => {
+    const step = 24;
+    if (event.key === 'ArrowLeft') {
+      event.preventDefault();
+      setQuickViewerWidth((width) => Math.min(width + step, MYBOARD_QUICK_VIEWER_MAX_WIDTH));
+      return;
+    }
+    if (event.key === 'ArrowRight') {
+      event.preventDefault();
+      setQuickViewerWidth((width) => Math.max(width - step, MYBOARD_QUICK_VIEWER_MIN_WIDTH));
+      return;
+    }
+    if (event.key === 'Home') {
+      event.preventDefault();
+      setQuickViewerWidth(MYBOARD_QUICK_VIEWER_MIN_WIDTH);
+      return;
+    }
+    if (event.key === 'End') {
+      event.preventDefault();
+      setQuickViewerWidth(MYBOARD_QUICK_VIEWER_MAX_WIDTH);
+    }
+  }, []);
 
   const autoFitGroupTableWidth = React.useMemo(() => {
     return MYBOARD_GROUP_FIXED_COLUMN_WIDTH + contentFitGroupTitleWidth + 24;
@@ -632,15 +738,16 @@ const MyBoard: React.FC = () => {
   const filteredCompounds = React.useMemo(() => {
     return compoundRows
       .filter((compound) => {
-        const isSynthesized = Boolean(compound.isCompleted || compound.status === '합성완료');
+        const hasCompoundId = compound.compoundId.trim().length > 0;
         // If it's a structure search results mode, don't filter out by the keyword string
         const matchesKeyword = keyword === 'Structure Search Result' ||
           compound.name.toLowerCase().includes(keyword.toLowerCase()) ||
+          compound.compoundId.toLowerCase().includes(keyword.toLowerCase()) ||
           compound.smiles.toLowerCase().includes(keyword.toLowerCase());
 
         if (hiddenCompoundIds.includes(compound.id)) return false;
-        if (detailCompoundTypeFilter === 'design' && isSynthesized) return false;
-        if (detailCompoundTypeFilter === 'compound' && !isSynthesized) return false;
+        if (detailCompoundTypeFilter === 'design' && hasCompoundId) return false;
+        if (detailCompoundTypeFilter === 'compound' && !hasCompoundId) return false;
         if (selectedGroupIds.length > 0 && !selectedGroupIds.includes(compound.groupId)) return false;
         if (!selectedProjects.includes('ALL') && compound.project && !selectedProjects.includes(compound.project)) return false;
         if (!selectedShares.includes('ALL') && compound.shareStatus && !selectedShares.includes(compound.shareStatus)) return false;
@@ -1285,7 +1392,7 @@ const MyBoard: React.FC = () => {
       title: '데이터',
       dataIndex: 'quickViewerAssets',
       key: 'quickViewerAssets',
-      width: 112,
+      width: 108,
       align: 'center' as const,
       render: (_: unknown, record: Compound) => {
         const assets = record.quickViewerAssets ?? [];
@@ -1294,24 +1401,43 @@ const MyBoard: React.FC = () => {
           return <Text type="secondary">-</Text>;
         }
 
+        const leftAssets = assets.filter(asset => MYBOARD_DATA_LEFT_ASSET_TYPES.has(asset.type));
+        const rightAssets = assets
+          .filter(asset => !MYBOARD_DATA_LEFT_ASSET_TYPES.has(asset.type))
+          .sort((first, second) => (
+            (MYBOARD_DATA_RIGHT_ASSET_ORDER_INDEX.get(first.type) ?? Number.MAX_SAFE_INTEGER)
+            - (MYBOARD_DATA_RIGHT_ASSET_ORDER_INDEX.get(second.type) ?? Number.MAX_SAFE_INTEGER)
+          ));
+        const hasBothSides = leftAssets.length > 0 && rightAssets.length > 0;
+        const renderAssetButton = (asset: NonNullable<Compound['quickViewerAssets']>[number]) => (
+          <button
+            key={asset.type}
+            type="button"
+            className={`my-board-data-tag my-board-data-tag-${asset.type}`}
+            onClick={(event) => {
+              event.stopPropagation();
+              setQuickViewer({
+                compound: record,
+                activeType: asset.type,
+              });
+            }}
+          >
+            {asset.label}
+          </button>
+        );
+
         return (
-          <div className="my-board-data-tags">
-            {assets.map(asset => (
-              <button
-                key={asset.type}
-                type="button"
-                className={`my-board-data-tag my-board-data-tag-${asset.type}`}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  setQuickViewer({
-                    compound: record,
-                    activeType: asset.type,
-                  });
-                }}
-              >
-                {asset.label}
-              </button>
-            ))}
+          <div className={`my-board-data-tags ${hasBothSides ? 'my-board-data-tags-split' : 'my-board-data-tags-centered'}`}>
+            {leftAssets.length > 0 && (
+              <div className="my-board-data-tag-group my-board-data-tag-group-left">
+                {leftAssets.map(renderAssetButton)}
+              </div>
+            )}
+            {rightAssets.length > 0 && (
+              <div className="my-board-data-tag-group my-board-data-tag-group-right">
+                {rightAssets.map(renderAssetButton)}
+              </div>
+            )}
           </div>
         );
       },
@@ -1534,7 +1660,7 @@ const MyBoard: React.FC = () => {
 
   return (
     <div
-      className="gx-main-content"
+      className="gx-main-content my-board-page"
       style={{
         maxWidth: layoutPreset.maxWidth,
         margin: '0 auto',
@@ -1543,9 +1669,11 @@ const MyBoard: React.FC = () => {
         boxSizing: 'border-box',
         height: '100%',
         overflowY: isStackedSplitLayout ? 'auto' : 'visible',
-        overflowX: 'hidden'
+        overflowX: isStackedSplitLayout ? 'visible' : 'hidden'
       }}
     >
+      <div className={`my-board-workspace ${quickViewer ? 'my-board-workspace-with-viewer' : ''}`}>
+        <div className="my-board-workspace-main">
       {/* Local Filter Card (Condensed) */}
       <Card variant="borderless" className="c-card compact-filter-card" style={{ marginBottom: 12 }}>
         <Row gutter={[12, 8]} align="middle">
@@ -2114,6 +2242,43 @@ const MyBoard: React.FC = () => {
           </div>
         </div>
       </div>
+        </div>
+        {quickViewer && (
+          <>
+            <div
+              role="separator"
+              aria-orientation="vertical"
+              aria-label="Quick viewer 너비 조절"
+              aria-valuemin={MYBOARD_QUICK_VIEWER_MIN_WIDTH}
+              aria-valuemax={MYBOARD_QUICK_VIEWER_MAX_WIDTH}
+              aria-valuenow={Math.round(quickViewerWidth)}
+              tabIndex={0}
+              className="my-board-quick-viewer-resizer"
+              onMouseDown={handleQuickViewerResizeMouseDown}
+              onKeyDown={handleQuickViewerResizeKeyDown}
+            >
+              <div className="my-board-quick-viewer-resizer-bar" />
+            </div>
+            <div
+              ref={quickViewerPaneRef}
+              className="my-board-quick-viewer-pane"
+              style={{
+                flexBasis: isStackedSplitLayout ? undefined : quickViewerWidth,
+                width: isStackedSplitLayout ? '100%' : quickViewerWidth,
+              }}
+            >
+              <QuickViewerPanel
+                compound={quickViewer.compound}
+                activeType={quickViewer.activeType}
+                onActiveTypeChange={(activeType) => {
+                  setQuickViewer(prev => prev ? { ...prev, activeType } : prev);
+                }}
+                onClose={() => setQuickViewer(null)}
+              />
+            </div>
+          </>
+        )}
+      </div>
 
       {/* Create Group Modal */}
       <Modal
@@ -2557,14 +2722,6 @@ const MyBoard: React.FC = () => {
           />
         ) : null}
       </Modal>
-      <QuickViewerPanel
-        compound={quickViewer?.compound ?? null}
-        activeType={quickViewer?.activeType ?? null}
-        onActiveTypeChange={(activeType) => {
-          setQuickViewer(prev => prev ? { ...prev, activeType } : prev);
-        }}
-        onClose={() => setQuickViewer(null)}
-      />
       <style>{`
         .ant-table-tbody > tr:hover > td {
           background-color: var(--table-row-hover-bg) !important;
@@ -2592,17 +2749,86 @@ const MyBoard: React.FC = () => {
           padding-left: 4px !important;
           padding-right: 4px !important;
         }
+        .my-board-group-table:not(.my-board-group-table-structure-only) .ant-table-container,
+        .my-board-group-table:not(.my-board-group-table-structure-only) .ant-table-content,
+        .my-board-detail-table .ant-table-container,
+        .my-board-detail-table .ant-table-content {
+          min-width: 0;
+          overflow-x: auto !important;
+          overscroll-behavior-x: contain;
+          -webkit-overflow-scrolling: touch;
+        }
+        .my-board-detail-table .ant-table-body {
+          overflow-x: auto !important;
+        }
+        .my-board-page,
+        .my-board-page .ant-table-body,
+        .my-board-page .ant-table-content,
+        .quick-viewer-body {
+          scrollbar-width: thin;
+          scrollbar-color: ${token.colorBorder} ${token.colorBgContainer};
+        }
+        .my-board-page::-webkit-scrollbar,
+        .my-board-page .ant-table-body::-webkit-scrollbar,
+        .my-board-page .ant-table-content::-webkit-scrollbar,
+        .quick-viewer-body::-webkit-scrollbar {
+          width: 10px;
+          height: 10px;
+        }
+        .my-board-page::-webkit-scrollbar-track,
+        .my-board-page .ant-table-body::-webkit-scrollbar-track,
+        .my-board-page .ant-table-content::-webkit-scrollbar-track,
+        .quick-viewer-body::-webkit-scrollbar-track {
+          background: ${token.colorBgContainer};
+        }
+        .my-board-page::-webkit-scrollbar-thumb,
+        .my-board-page .ant-table-body::-webkit-scrollbar-thumb,
+        .my-board-page .ant-table-content::-webkit-scrollbar-thumb,
+        .quick-viewer-body::-webkit-scrollbar-thumb {
+          background: ${token.colorBorder};
+          border: 2px solid ${token.colorBgContainer};
+          border-radius: 999px;
+        }
+        .my-board-page::-webkit-scrollbar-thumb:hover,
+        .my-board-page .ant-table-body::-webkit-scrollbar-thumb:hover,
+        .my-board-page .ant-table-content::-webkit-scrollbar-thumb:hover,
+        .quick-viewer-body::-webkit-scrollbar-thumb:hover {
+          background: ${token.colorTextTertiary};
+        }
         .my-board-data-tags {
           display: flex;
-          flex-wrap: wrap;
+          width: 100%;
+          min-width: 0;
+        }
+        .my-board-data-tags-split {
           justify-content: center;
+          align-items: center;
+          gap: 4px;
+        }
+        .my-board-data-tags-centered {
+          justify-content: center;
+          align-items: center;
+        }
+        .my-board-data-tag-group {
+          display: flex;
+          flex-wrap: nowrap;
+          align-items: center;
           gap: 4px;
           min-width: 0;
+        }
+        .my-board-data-tag-group-left {
+          justify-content: flex-start;
+        }
+        .my-board-data-tag-group-right {
+          flex-direction: column;
+          justify-content: flex-end;
+          gap: 3px;
         }
         .my-board-data-tag {
           height: 20px;
           min-width: 24px;
           padding: 0 7px;
+          flex: 0 0 auto;
           border: 1px solid ${token.colorBorderSecondary};
           border-radius: 999px;
           background: ${token.colorBgLayout};
@@ -2610,6 +2836,7 @@ const MyBoard: React.FC = () => {
           font-size: 10px;
           font-weight: 700;
           line-height: 18px;
+          white-space: nowrap;
           cursor: pointer;
           transition: color 0.16s ease, background-color 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease;
         }
@@ -2619,34 +2846,66 @@ const MyBoard: React.FC = () => {
           background: ${token.colorPrimaryBg};
         }
         .my-board-data-tag-kp {
-          color: #FFFFFF;
-          border-color: #F87C63;
-          background: #F87C63;
-          box-shadow: 0 2px 6px rgba(248, 124, 99, 0.24);
+          min-width: 28px;
         }
-        .my-board-data-tag-kp:hover {
-          color: #FFFFFF;
-          border-color: #E96B53;
-          background: #E96B53;
+        .my-board-workspace {
+          display: flex;
+          align-items: flex-start;
+          gap: 0;
+          width: 100%;
+          min-width: 0;
+        }
+        .my-board-workspace-main {
+          flex: 1 1 auto;
+          min-width: 0;
+          transition: flex-basis 0.18s ease, width 0.18s ease;
+        }
+        .my-board-quick-viewer-resizer {
+          width: 14px;
+          flex: 0 0 14px;
+          align-self: stretch;
+          min-height: calc(100vh - 132px);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          cursor: col-resize;
+          outline: none;
+        }
+        .my-board-quick-viewer-resizer-bar {
+          width: 4px;
+          height: 88px;
+          border-radius: 999px;
+          background: ${isResizingQuickViewer ? token.colorPrimary : token.colorBorder};
+          transition: background-color 0.16s ease, height 0.16s ease;
+        }
+        .my-board-quick-viewer-resizer:hover .my-board-quick-viewer-resizer-bar,
+        .my-board-quick-viewer-resizer:focus-visible .my-board-quick-viewer-resizer-bar {
+          background: ${token.colorPrimary};
+          height: 112px;
+        }
+        .my-board-quick-viewer-pane {
+          flex: 0 0 auto;
+          min-width: ${MYBOARD_QUICK_VIEWER_MIN_WIDTH}px;
+          max-width: ${MYBOARD_QUICK_VIEWER_MAX_WIDTH}px;
+          height: calc(100vh - 132px);
+          min-height: 520px;
+          position: sticky;
+          top: 0;
+          overflow: hidden;
+          box-sizing: border-box;
         }
         .quick-viewer-panel {
-          position: fixed;
-          top: 92px;
-          right: 0;
-          bottom: 24px;
-          width: clamp(420px, 25vw, 560px);
-          z-index: 1050;
+          width: 100%;
+          height: 100%;
           display: flex;
           flex-direction: column;
           background: ${token.colorBgContainer};
-          border-left: 1px solid ${token.colorBorderSecondary};
-          box-shadow: -18px 0 42px rgba(15, 23, 42, 0.18);
-          transform: translateX(calc(100% + 24px));
-          transition: transform 0.22s ease;
-          pointer-events: none;
+          border: 1px solid ${token.colorBorderSecondary};
+          border-radius: 8px;
+          box-shadow: -6px 0 18px rgba(15, 23, 42, 0.08);
+          overflow: hidden;
         }
         .quick-viewer-panel-open {
-          transform: translateX(0);
           pointer-events: auto;
         }
         .quick-viewer-header {
@@ -2722,6 +2981,64 @@ const MyBoard: React.FC = () => {
           border-radius: 8px;
           background: #FFFFFF;
           overflow: hidden;
+        }
+        .quick-viewer-molstar-stage {
+          position: relative;
+          width: 100%;
+          height: clamp(320px, 52vh, 560px);
+          min-height: 320px;
+          border: 1px solid ${token.colorBorderSecondary};
+          border-radius: 8px;
+          background: #05070A;
+          overflow: hidden;
+        }
+        .quick-viewer-molstar-canvas {
+          position: absolute;
+          inset: 0;
+          display: block;
+          width: 100%;
+          height: 100%;
+          outline: none;
+        }
+        .quick-viewer-molstar-overlay {
+          position: absolute;
+          inset: 0;
+          z-index: 2;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 16px;
+          background: color-mix(in srgb, ${token.colorBgContainer} 76%, transparent);
+        }
+        .quick-viewer-molstar-overlay-error {
+          align-items: flex-start;
+          padding-top: 18px;
+        }
+        .quick-viewer-molstar-loading {
+          display: inline-flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 10px;
+          color: ${token.colorTextSecondary};
+          font-size: 12px;
+          font-weight: 500;
+          line-height: 1.4;
+        }
+        .quick-viewer-molstar-tooltip {
+          position: absolute;
+          z-index: 3;
+          max-width: min(280px, calc(100% - 24px));
+          padding: 7px 9px;
+          border: 1px solid ${token.colorBorderSecondary};
+          border-radius: 6px;
+          background: color-mix(in srgb, ${token.colorBgContainer} 94%, transparent);
+          box-shadow: 0 8px 22px rgba(15, 23, 42, 0.18);
+          color: ${token.colorText};
+          font-size: 11px;
+          font-weight: 500;
+          line-height: 1.35;
+          white-space: pre-line;
+          pointer-events: none;
         }
         .quick-viewer-kinome-svg,
         .quick-viewer-pdb-svg {
@@ -2821,11 +3138,34 @@ const MyBoard: React.FC = () => {
           text-align: right;
           overflow-wrap: anywhere;
         }
-        @media (max-width: 720px) {
+        @media (max-width: 1100px) {
+          .my-board-workspace {
+            display: block;
+          }
+          .my-board-quick-viewer-resizer {
+            display: none;
+          }
+          .my-board-quick-viewer-pane {
+            position: fixed;
+            inset: 0;
+            z-index: 1200;
+            width: 100vw !important;
+            height: 100vh;
+            max-width: none;
+            min-width: 0;
+            min-height: 0;
+            background: ${token.colorBgContainer};
+            padding: 0;
+          }
           .quick-viewer-panel {
-            top: 72px;
-            bottom: 0;
-            width: min(100vw, 420px);
+            width: 100%;
+            height: 100%;
+            border: 0;
+            border-radius: 0;
+          }
+          .quick-viewer-molstar-stage {
+            height: calc(100vh - 210px);
+            min-height: 360px;
           }
         }
         .my-board-group-table .ant-table-tbody > tr > td.my-board-structure-column {

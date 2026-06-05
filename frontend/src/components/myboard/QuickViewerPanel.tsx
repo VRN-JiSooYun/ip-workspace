@@ -9,6 +9,7 @@ import type {
 } from '../../mocks/compounds';
 import { KINOME_LAYOUTS } from '../../data/kinomeTree';
 import coralBasetreeSvg from '../../assets/kinome/coral_basetree.svg';
+import MolstarStructureViewer, { type MolstarStructureFormat } from './MolstarStructureViewer';
 
 const { Text } = Typography;
 
@@ -19,6 +20,7 @@ const QUICK_VIEWER_LABELS: Record<CompoundQuickViewerAssetType, string> = {
   docking: 'Docking',
   md: 'MD',
 };
+const VORA_EXTERNAL_URL = 'https://voronoi.app/vora/';
 
 const getPointRadius = (inhibition: number) => Math.max(4, Math.min(13, inhibition / 8));
 const getPointOpacity = (inhibition: number) => Math.max(0.28, Math.min(0.95, inhibition / 100));
@@ -47,6 +49,19 @@ const getAsset = (
 ) => {
   const assets = compound?.quickViewerAssets ?? [];
   return assets.find(asset => asset.type === activeType) ?? assets[0] ?? null;
+};
+
+const inferStructureFormat = (structureUrl: string): MolstarStructureFormat => (
+  structureUrl.toLowerCase().endsWith('.pdb') ? 'pdb' : 'mmcif'
+);
+
+const getVoraPdbUrl = (pdbId?: string) => {
+  if (!pdbId) return VORA_EXTERNAL_URL;
+
+  const url = new URL(VORA_EXTERNAL_URL);
+  url.searchParams.set('pdb', pdbId.toLowerCase());
+
+  return url.toString();
 };
 
 const KinomeTreeViewer: React.FC<{ asset: CompoundQuickViewerAsset; compound: Compound }> = ({ asset, compound }) => {
@@ -165,40 +180,65 @@ const KinomeTreeViewer: React.FC<{ asset: CompoundQuickViewerAsset; compound: Co
   );
 };
 
-const PlaceholderViewer: React.FC<{ asset: CompoundQuickViewerAsset; compound: Compound }> = ({ asset, compound }) => (
-  <div className="quick-viewer-placeholder">
-    <div className="quick-viewer-result-row">
-      <Select
-        size="small"
-        value={`${compound.compoundId} ${asset.label} result`}
-        options={[{ value: `${compound.compoundId} ${asset.label} result`, label: `${compound.compoundId} ${asset.label} result` }]}
-        className="quick-viewer-result-select"
-      />
-    </div>
-    <div className="quick-viewer-placeholder-stage">
-      {asset.type === 'pdb' ? (
-        <svg viewBox="0 0 320 260" className="quick-viewer-pdb-svg" aria-label="PDB preview">
-          <rect width="320" height="260" fill="#F8FAFC" />
-          <path d="M58 176 C92 84 142 74 168 132 S238 210 276 88" fill="none" stroke="#53B6A8" strokeWidth="12" strokeLinecap="round" />
-          <path d="M74 120 C132 176 170 62 236 126" fill="none" stroke="#F87C63" strokeWidth="10" strokeLinecap="round" />
-          <path d="M102 198 C144 126 212 216 250 150" fill="none" stroke="#5B7CFA" strokeWidth="8" strokeLinecap="round" />
-          <circle cx="156" cy="136" r="14" fill="#FFC857" opacity="0.85" />
-          <circle cx="220" cy="152" r="10" fill="#A855F7" opacity="0.7" />
-        </svg>
+const PlaceholderViewer: React.FC<{ asset: CompoundQuickViewerAsset; compound: Compound }> = ({ asset, compound }) => {
+  const compoundLabel = compound.compoundId || compound.name;
+  const structureUrl = asset.payload?.structureUrl;
+  const structureFormat = asset.payload?.structureFormat ?? (structureUrl ? inferStructureFormat(structureUrl) : 'mmcif');
+  const resultTitle = asset.payload?.title ?? `${compoundLabel} ${asset.label} result`;
+  const ctaHref = asset.type === 'pdb' ? getVoraPdbUrl(asset.payload?.pdbId) : undefined;
+
+  return (
+    <div className="quick-viewer-placeholder">
+      <div className="quick-viewer-result-row">
+        <Select
+          size="small"
+          value={resultTitle}
+          options={[{ value: resultTitle, label: resultTitle }]}
+          className="quick-viewer-result-select"
+        />
+      </div>
+      {asset.type === 'pdb' && structureUrl ? (
+        <MolstarStructureViewer
+          structureUrl={structureUrl}
+          format={structureFormat}
+          title={resultTitle}
+        />
       ) : (
-        <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={`${asset.label} preview`} />
+        <div className="quick-viewer-placeholder-stage">
+          {asset.type === 'pdb' ? (
+            <svg viewBox="0 0 320 260" className="quick-viewer-pdb-svg" aria-label="PDB preview">
+              <rect width="320" height="260" fill="#F8FAFC" />
+              <path d="M58 176 C92 84 142 74 168 132 S238 210 276 88" fill="none" stroke="#53B6A8" strokeWidth="12" strokeLinecap="round" />
+              <path d="M74 120 C132 176 170 62 236 126" fill="none" stroke="#F87C63" strokeWidth="10" strokeLinecap="round" />
+              <path d="M102 198 C144 126 212 216 250 150" fill="none" stroke="#5B7CFA" strokeWidth="8" strokeLinecap="round" />
+              <circle cx="156" cy="136" r="14" fill="#FFC857" opacity="0.85" />
+              <circle cx="220" cy="152" r="10" fill="#A855F7" opacity="0.7" />
+            </svg>
+          ) : (
+            <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={`${asset.label} preview`} />
+          )}
+        </div>
       )}
+      <Button
+        type="primary"
+        block
+        className="quick-viewer-cta"
+        href={ctaHref}
+        target={ctaHref ? '_blank' : undefined}
+        rel={ctaHref ? 'noopener noreferrer' : undefined}
+      >
+        {asset.type === 'pdb' ? 'VORA 가기' : '결과 페이지 가기'}
+      </Button>
+      <div className="quick-viewer-info-table">
+        <div className="quick-viewer-info-row"><span>Compound</span><strong>{compoundLabel}</strong></div>
+        {asset.payload?.pdbId ? <div className="quick-viewer-info-row"><span>PDB ID</span><strong>{asset.payload.pdbId}</strong></div> : null}
+        {asset.payload?.sourceLabel ? <div className="quick-viewer-info-row"><span>Source</span><strong>{asset.payload.sourceLabel}</strong></div> : null}
+        <div className="quick-viewer-info-row"><span>Result</span><strong>{asset.resultCount ?? 1}</strong></div>
+        <div className="quick-viewer-info-row"><span>Format</span><strong>{asset.type === 'pdb' ? structureFormat.toUpperCase() : 'Mock'}</strong></div>
+      </div>
     </div>
-    <Button type="primary" block className="quick-viewer-cta">
-      {asset.type === 'pdb' ? 'VORA 가기' : '결과 페이지 가기'}
-    </Button>
-    <div className="quick-viewer-info-table">
-      <div className="quick-viewer-info-row"><span>Compound</span><strong>{compound.compoundId}</strong></div>
-      <div className="quick-viewer-info-row"><span>Result</span><strong>{asset.resultCount ?? 1}</strong></div>
-      <div className="quick-viewer-info-row"><span>Status</span><strong>Mock ready</strong></div>
-    </div>
-  </div>
-);
+  );
+};
 
 interface QuickViewerPanelProps {
   compound: Compound | null;

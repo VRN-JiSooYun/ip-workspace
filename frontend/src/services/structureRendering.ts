@@ -6,6 +6,8 @@ const smilesToMolBlockCache = new Map<string, string>();
 const smilesToMolBlockInFlight = new Map<string, Promise<string>>();
 const rdkitSvgCache = new Map<string, string>();
 const rdkitSvgRequestCache = new Map<string, Promise<{ molBlock: string; svg: string; cacheKey: string }>>();
+const rdkitClusterCache = new Map<string, RdkitClusterResult>();
+const rdkitClusterRequestCache = new Map<string, Promise<RdkitClusterResult>>();
 let molBlockConversionQueue = Promise.resolve();
 
 const loadChemDrawScript = (() => {
@@ -187,6 +189,30 @@ export interface RdkitDrawOptions {
   minSize?: [number, number];
 }
 
+export type RdkitClusterHighlightMode = 'com' | 'diff';
+
+export interface RdkitClusterCompoundInput {
+  id: string;
+  compoundId?: string;
+  name?: string;
+  molBlock?: string | null;
+  smiles?: string | null;
+}
+
+export interface RdkitClusterRenderedCompound {
+  id: string;
+  svg: string;
+  clusterId?: string | number | null;
+  highlightAtoms?: number[];
+  substructure?: string | null;
+  highlightColor?: string | null;
+}
+
+export interface RdkitClusterResult {
+  cacheKey: string;
+  compounds: RdkitClusterRenderedCompound[];
+}
+
 const normalizeMinSize = (minSize?: [number, number]): [number, number] | undefined => {
   if (!minSize) return undefined;
 
@@ -218,6 +244,35 @@ export const createRdkitSvgCacheKey = ({
     angle: normalizedAngle,
     scale: normalizedScale,
     minSize: normalizedMinSize,
+  });
+};
+
+const createRdkitClusterCacheKey = ({
+  compounds,
+  mode,
+  angleDeg = 0,
+  scalePercent = 100,
+  minSize,
+}: {
+  compounds: RdkitClusterCompoundInput[];
+  mode: RdkitClusterHighlightMode;
+  angleDeg?: number;
+  scalePercent?: number;
+  minSize?: [number, number];
+}) => {
+  const normalizedAngle = ((Math.round(angleDeg) % 360) + 360) % 360;
+  const normalizedScale = Math.max(40, Math.min(180, Math.round(scalePercent)));
+  const normalizedMinSize = normalizeMinSize(minSize);
+
+  return JSON.stringify({
+    mode,
+    angle: normalizedAngle,
+    scale: normalizedScale,
+    minSize: normalizedMinSize,
+    compounds: compounds.map((compound) => ({
+      id: compound.id,
+      source: compound.molBlock?.trim() || (compound.smiles?.trim() ? `SMILES:${compound.smiles.trim()}` : ''),
+    })),
   });
 };
 
@@ -300,5 +355,119 @@ export const renderRdkitSvg = async ({
     });
 
   rdkitSvgRequestCache.set(cacheKey, requestPromise);
+  return requestPromise;
+};
+
+export const renderRdkitClusterSvgs = async ({
+  compounds,
+  mode,
+  angleDeg = 0,
+  scalePercent = 100,
+  minSize,
+}: {
+  compounds: RdkitClusterCompoundInput[];
+  mode: RdkitClusterHighlightMode;
+  angleDeg?: number;
+  scalePercent?: number;
+  minSize?: [number, number];
+}) => {
+  const normalizedCompounds = compounds
+    .map((compound) => {
+      const normalizedMolBlock = compound.molBlock?.trim() || '';
+      const normalizedSmiles = compound.smiles?.trim() || '';
+      const requestMolBlock = normalizedMolBlock && isLikelyMolBlock(normalizedMolBlock) ? normalizedMolBlock : '';
+
+      return {
+        ...compound,
+        molBlock: requestMolBlock,
+        smiles: normalizedSmiles,
+      };
+    })
+    .filter((compound) => compound.molBlock || compound.smiles);
+
+  if (normalizedCompounds.length === 0) {
+    throw new Error('RDKit cluster 요청에 사용할 구조 데이터가 없습니다.');
+  }
+
+  const cacheKey = createRdkitClusterCacheKey({
+    compounds: normalizedCompounds,
+    mode,
+    angleDeg,
+    scalePercent,
+    minSize,
+  });
+  const cached = rdkitClusterCache.get(cacheKey);
+  if (cached) return cached;
+
+  const pendingRequest = rdkitClusterRequestCache.get(cacheKey);
+  if (pendingRequest) return pendingRequest;
+
+  const normalizedAngle = ((Math.round(angleDeg) % 360) + 360) % 360;
+  const normalizedScale = Math.max(40, Math.min(180, Math.round(scalePercent)));
+  const normalizedMinSize = normalizeMinSize(minSize);
+  const fixedBondLength = Math.max(18, Math.round(42 * (normalizedScale / 100)));
+  const requestPromise = fetch(`${getRdkitApiBaseUrl()}/cluster`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      data: normalizedCompounds.map((compound) => ({
+        id: compound.id,
+        compound_id: compound.compoundId,
+        name: compound.name,
+        ...(compound.molBlock ? { molblock: compound.molBlock } : { SMILES: compound.smiles }),
+      })),
+      scaffold_align: true,
+      reverse_highlighting: mode === 'diff',
+      highlight_alpha: mode === 'diff' ? 0.62 : 0.48,
+      group_by: 'cluster_id',
+      angle: normalizedAngle,
+      fixed_bond_length: fixedBondLength,
+      min_size: normalizedMinSize,
+      transparent_bg: true,
+      abbrev_option: 1,
+    }),
+  })
+    .then(async (response) => {
+      if (!response.ok) {
+        throw new Error(`RDKit cluster API 요청 실패 (${response.status})`);
+      }
+
+      const result = await response.json();
+      if (result.error) {
+        throw new Error(result.error);
+      }
+      if (!result.groups || typeof result.groups !== 'object') {
+        throw new Error('RDKit cluster 결과가 비어 있습니다.');
+      }
+
+      const compounds = Object.values(result.groups)
+        .flatMap((items) => Array.isArray(items) ? items : [])
+        .map((item: any): RdkitClusterRenderedCompound | null => {
+          const id = typeof item.id === 'string' ? item.id : '';
+          const svg = typeof item.svg === 'string' ? item.svg : '';
+          if (!id || !svg) return null;
+
+          return {
+            id,
+            svg,
+            clusterId: item.cluster_id,
+            highlightAtoms: Array.isArray(item.highlight_atoms) ? item.highlight_atoms : undefined,
+            substructure: typeof item.substructure === 'string' ? item.substructure : null,
+            highlightColor: typeof item.highlight_color === 'string' ? item.highlight_color : null,
+          };
+        })
+        .filter((item): item is RdkitClusterRenderedCompound => item !== null);
+
+      const clusterResult = { cacheKey, compounds };
+      rdkitClusterCache.set(cacheKey, clusterResult);
+      return clusterResult;
+    })
+    .finally(() => {
+      if (rdkitClusterRequestCache.get(cacheKey) === requestPromise) {
+        rdkitClusterRequestCache.delete(cacheKey);
+      }
+    });
+
+  rdkitClusterRequestCache.set(cacheKey, requestPromise);
   return requestPromise;
 };

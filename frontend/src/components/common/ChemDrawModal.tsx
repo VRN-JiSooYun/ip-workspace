@@ -261,14 +261,14 @@ const ChemDrawModal: React.FC<ChemDrawModalProps> = ({
 
   const flipControls = (
     <Space direction="vertical">
-      <Tooltip title="선택 구조 좌우 반전">
+      <Tooltip title="선택 구조 좌우 반전" placement="left">
         <Button
           icon={<ArrowLeftRight size={16} />}
           onClick={() => handleFlip('horizontal')}
           disabled={!cdjsInstance}
         />
       </Tooltip>
-      <Tooltip title="선택 구조 상하 반전">
+      <Tooltip title="선택 구조 상하 반전" placement="left">
         <Button
           icon={<ArrowUpDown size={16} />}
           onClick={() => handleFlip('vertical')}

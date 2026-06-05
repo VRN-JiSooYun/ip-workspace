@@ -66,6 +66,10 @@ export interface CompoundQuickViewerAsset {
     layout?: KinomeLayoutId;
     points?: KinomeProfilePoint[];
     infoRows?: Array<{ label: string; value: string | number }>;
+    structureUrl?: string;
+    structureFormat?: 'mmcif' | 'pdb';
+    pdbId?: string;
+    sourceLabel?: string;
   };
 }
 
@@ -295,7 +299,18 @@ const createQuickViewerAssets = (seed: number, compoundId: string): CompoundQuic
   }
 
   if (seed % 4 === 0) {
-    assets.push({ type: 'pdb', label: 'PDB', resultCount: 2 + (seed % 3) });
+    assets.push({
+      type: 'pdb',
+      label: 'PDB',
+      resultCount: 2 + (seed % 3),
+      payload: {
+        title: `${compoundId} PDB 6LUB`,
+        structureUrl: '/quick_viewer/6LUB.cif',
+        structureFormat: 'mmcif',
+        pdbId: '6LUB',
+        sourceLabel: 'local sample',
+      },
+    });
   }
 
   if (seed % 2 === 0) {
@@ -322,12 +337,13 @@ const createMockCompound = (
   const source = designSources[seed % designSources.length];
   const isCompleted = seed % 5 === 0;
   const compoundId = compoundIdOverride ?? `VNA240${String(140 + seed).padStart(3, '0')}`;
+  const designName = `${designNoPrefix}-${String(seed).padStart(3, '0')}`;
 
   return {
     id: `c${seed}`,
     groupId,
     compoundId,
-    name: compoundId,
+    name: compoundId || designName,
     source: 'Manual',
     smiles: smilesOverride ?? sampleSmiles[seed % sampleSmiles.length],
     structureSvg: structureSvgs[seed % structureSvgs.length],
@@ -340,7 +356,7 @@ const createMockCompound = (
     properties1: [45 + (seed % 5) * 8, 35 + (seed % 7) * 7, 50 + (seed % 6) * 6, 42 + (seed % 8) * 5],
     properties2: [52 + (seed % 6) * 6, 40 + (seed % 5) * 9, 48 + (seed % 7) * 6, 38 + (seed % 6) * 7],
     requiredCalcs: seed % 2 === 0 ? ['3D TPSA QM', 'Solubility QM'] : ['Permeability MD', '특허성'],
-    designNo: `${designNoPrefix}-${String(seed).padStart(3, '0')}`,
+    designNo: designName,
     designMemo: `${memoBase} - ${source} 기반 ${seed % 2 === 0 ? '극성 조정' : '치환기 확장'} 후보`,
     requiredAmountMg: 10 + (seed % 5) * 5,
     assayPurpose: `${project} 활성 및 ADME profile 확인`,
@@ -358,7 +374,7 @@ const createMockCompound = (
     reportData: isCompleted ? 'HPLC/NMR 확인' : '예상 MS 등록',
     synthesisEndReason: isCompleted ? '목표 물질 확보' : '-',
     experimentStage: (seed % 5) + 1,
-    quickViewerAssets: createQuickViewerAssets(seed, compoundId),
+    quickViewerAssets: createQuickViewerAssets(seed, compoundId || designName),
     sar: createSarData(seed),
   };
 };
@@ -596,13 +612,15 @@ const legacyMockCompounds: Compound[] = [
 export const mockCompounds: Compound[] = exampleCompoundRows.map((row, rowIndex) => {
   const seed = rowIndex + 1;
   const project = getExampleGroupProject(row.group);
+  const compoundId = seed % 6 === 0 ? getExampleCompoundId(row) : '';
+
   return createMockCompound(
     seed,
     getExampleGroupId(row.group),
     project,
     `D-${row.group}`,
     `${row.group} ${project} SAR`,
-    getExampleCompoundId(row),
+    compoundId,
     row.smiles
   );
 });

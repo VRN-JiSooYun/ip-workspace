@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Typography, Row, Col, Card, Table, Button, Input,
-  Space, Modal, Form, Tag, Select, DatePicker, Avatar, Divider, Segmented, Tooltip, theme
+  Space, Modal, Form, Tag, Select, DatePicker, Avatar, Divider, Segmented, Tooltip, theme, Spin
 } from 'antd';
 import {
   Search, ChevronDown, ChevronUp,
@@ -10,7 +10,7 @@ import {
   PanelLeftClose, PanelLeftOpen, Minus, Plus, RotateCcw, RotateCw, Pin
 } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
-import { mockCompounds } from '../mocks/compounds';
+import { mockCompounds, type Compound, type CompoundQuickViewerAssetType } from '../mocks/compounds';
 import { useBoardStore } from '../store/useBoardStore';
 import { DEFAULT_GROUP_STRUCTURE_VIEW_SETTINGS, type SarHighlightMode } from '../store/useBoardStore';
 import { getPatentAnalysisLayoutPreset } from '../config/patentAnalysisLayout';
@@ -21,6 +21,8 @@ import BenzeneIcon from '../components/common/BenzeneIcon';
 import ChemDrawModal from '../components/common/ChemDrawModal';
 import ToggleTag from '../components/common/ToggleTag';
 import CompoundStructureView from '../components/common/CompoundStructureView';
+import QuickViewerPanel from '../components/myboard/QuickViewerPanel';
+import { renderRdkitClusterSvgs, type RdkitClusterHighlightMode } from '../services/structureRendering';
 import arrowDivideIcon from '../assets/svg/arrow-divide.svg';
 import arrowMergeIcon from '../assets/svg/arrow-merge.svg';
 
@@ -44,6 +46,19 @@ const SAR_GROUP_STRUCTURE_WIDTH = 130;
 const SAR_GROUP_STRUCTURE_HEIGHT = 97.5;
 const SAR_GROUP_STRUCTURE_PANEL_WIDTH = 146;
 const SAR_GROUP_STRUCTURE_COLUMN_WIDTH = 138;
+const SAR_TABLE_ROW_HEIGHT = 34;
+const SAR_TABLE_MIN_VISIBLE_ROWS = 10;
+const SAR_TABLE_SCROLLBAR_GUTTER_HEIGHT = 18;
+const SAR_TABLE_BODY_MIN_HEIGHT =
+  SAR_TABLE_ROW_HEIGHT * SAR_TABLE_MIN_VISIBLE_ROWS + SAR_TABLE_SCROLLBAR_GUTTER_HEIGHT;
+const SAR_DATA_LEFT_ASSET_TYPES = new Set<CompoundQuickViewerAssetType>(['kp']);
+const SAR_DATA_RIGHT_ASSET_ORDER: CompoundQuickViewerAssetType[] = ['pdb', 'docking', 'md'];
+const SAR_DATA_RIGHT_ASSET_ORDER_INDEX = new Map(
+  SAR_DATA_RIGHT_ASSET_ORDER.map((assetType, index) => [assetType, index])
+);
+const SAR_QUICK_VIEWER_MIN_WIDTH = 360;
+const SAR_QUICK_VIEWER_MAX_WIDTH = 868;
+const SAR_QUICK_VIEWER_DEFAULT_WIDTH = 460;
 
 const SarTable: React.FC = () => {
   const navigate = useNavigate();
@@ -140,6 +155,21 @@ const SarTable: React.FC = () => {
     if (typeof window === 'undefined') return 1920;
     return window.innerWidth;
   });
+  const [sarTableBodyHeight, setSarTableBodyHeight] = useState(SAR_TABLE_BODY_MIN_HEIGHT);
+  const [clusterSvgByCompoundId, setClusterSvgByCompoundId] = useState<Record<string, string>>({});
+  const [isClusterLoading, setIsClusterLoading] = useState(false);
+  const [clusterError, setClusterError] = useState<string | null>(null);
+  const [quickViewer, setQuickViewer] = useState<{
+    compound: Compound;
+    activeType: CompoundQuickViewerAssetType;
+  } | null>(null);
+  const [quickViewerWidth, setQuickViewerWidth] = useState(SAR_QUICK_VIEWER_DEFAULT_WIDTH);
+  const [isResizingQuickViewer, setIsResizingQuickViewer] = useState(false);
+  const sarTableCardRef = React.useRef<HTMLDivElement | null>(null);
+  const clusterRequestSeqRef = React.useRef(0);
+  const quickViewerPaneRef = React.useRef<HTMLDivElement | null>(null);
+  const quickViewerResizeRafRef = React.useRef<number | null>(null);
+  const quickViewerStorageKey = 'sar-table-split:quick-viewer';
   const layoutPreset = useMemo(() => getPatentAnalysisLayoutPreset(viewportWidth), [viewportWidth]);
   const isResponsiveToolbar = viewportWidth <= 1100;
   const pinnedCompoundIdSet = useMemo(() => new Set(pinnedCompoundIds), [pinnedCompoundIds]);
@@ -175,6 +205,45 @@ const SarTable: React.FC = () => {
     if (!activeStructureSettingsGroupId) return;
     updateGroupStructureViewSettings(activeStructureSettingsGroupId, settings);
   };
+  const renderSarDataButtons = React.useCallback((compound: Compound) => {
+    const assets = compound.quickViewerAssets ?? [];
+
+    if (assets.length === 0) {
+      return null;
+    }
+
+    const orderedAssets = [
+      ...assets.filter(asset => SAR_DATA_LEFT_ASSET_TYPES.has(asset.type)),
+      ...assets
+        .filter(asset => !SAR_DATA_LEFT_ASSET_TYPES.has(asset.type))
+        .sort((first, second) => (
+          (SAR_DATA_RIGHT_ASSET_ORDER_INDEX.get(first.type) ?? Number.MAX_SAFE_INTEGER)
+          - (SAR_DATA_RIGHT_ASSET_ORDER_INDEX.get(second.type) ?? Number.MAX_SAFE_INTEGER)
+        )),
+    ];
+    const renderAssetButton = (asset: NonNullable<Compound['quickViewerAssets']>[number]) => (
+      <button
+        key={asset.type}
+        type="button"
+        className={`sar-compound-data-tag sar-compound-data-tag-${asset.type}`}
+        onClick={(event) => {
+          event.stopPropagation();
+          setQuickViewer({
+            compound,
+            activeType: asset.type,
+          });
+        }}
+      >
+        {asset.label}
+      </button>
+    );
+
+    return (
+      <div className="sar-compound-data-tags">
+        {orderedAssets.map(renderAssetButton)}
+      </div>
+    );
+  }, []);
   const getGroupStructureSettings = React.useCallback((groupId: string) => ({
     ...DEFAULT_GROUP_STRUCTURE_VIEW_SETTINGS,
     ...groupStructureViewSettings[groupId],
@@ -249,6 +318,155 @@ const SarTable: React.FC = () => {
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
   }, []);
+
+  useEffect(() => {
+    const raw = window.localStorage.getItem(quickViewerStorageKey);
+    if (!raw) return;
+
+    const parsed = Number(raw);
+    if (!Number.isFinite(parsed)) return;
+
+    setQuickViewerWidth(Math.min(
+      Math.max(parsed, SAR_QUICK_VIEWER_MIN_WIDTH),
+      SAR_QUICK_VIEWER_MAX_WIDTH
+    ));
+  }, []);
+
+  useEffect(() => {
+    window.localStorage.setItem(quickViewerStorageKey, String(quickViewerWidth));
+  }, [quickViewerWidth]);
+
+  const stopQuickViewerResize = React.useCallback(() => {
+    setIsResizingQuickViewer(false);
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
+  }, []);
+
+  const updateQuickViewerWidthFromClientX = React.useCallback((clientX: number) => {
+    const availableWidth = Math.max(viewportWidth - layoutPreset.sidePadding * 2, 320);
+    const maxWidth = Math.min(SAR_QUICK_VIEWER_MAX_WIDTH, Math.max(availableWidth - 360, SAR_QUICK_VIEWER_MIN_WIDTH));
+    const paneRight = quickViewerPaneRef.current?.getBoundingClientRect().right ?? window.innerWidth - layoutPreset.sidePadding;
+    const nextWidth = Math.min(
+      Math.max(paneRight - clientX, SAR_QUICK_VIEWER_MIN_WIDTH),
+      maxWidth
+    );
+
+    setQuickViewerWidth(nextWidth);
+  }, [layoutPreset.sidePadding, viewportWidth]);
+
+  useEffect(() => {
+    if (!isResizingQuickViewer) return;
+
+    const onMouseMove = (event: MouseEvent) => {
+      if (quickViewerResizeRafRef.current) {
+        window.cancelAnimationFrame(quickViewerResizeRafRef.current);
+      }
+      quickViewerResizeRafRef.current = window.requestAnimationFrame(() => {
+        updateQuickViewerWidthFromClientX(event.clientX);
+      });
+    };
+    const onMouseUp = () => {
+      stopQuickViewerResize();
+    };
+
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+
+    return () => {
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+      if (quickViewerResizeRafRef.current) {
+        window.cancelAnimationFrame(quickViewerResizeRafRef.current);
+        quickViewerResizeRafRef.current = null;
+      }
+    };
+  }, [isResizingQuickViewer, stopQuickViewerResize, updateQuickViewerWidthFromClientX]);
+
+  const handleQuickViewerResizeMouseDown = React.useCallback((event: React.MouseEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    setIsResizingQuickViewer(true);
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+  }, []);
+
+  const handleQuickViewerResizeKeyDown = React.useCallback((event: React.KeyboardEvent<HTMLDivElement>) => {
+    const step = 24;
+    if (event.key === 'ArrowLeft') {
+      event.preventDefault();
+      setQuickViewerWidth((width) => Math.min(width + step, SAR_QUICK_VIEWER_MAX_WIDTH));
+      return;
+    }
+    if (event.key === 'ArrowRight') {
+      event.preventDefault();
+      setQuickViewerWidth((width) => Math.max(width - step, SAR_QUICK_VIEWER_MIN_WIDTH));
+      return;
+    }
+    if (event.key === 'Home') {
+      event.preventDefault();
+      setQuickViewerWidth(SAR_QUICK_VIEWER_MIN_WIDTH);
+      return;
+    }
+    if (event.key === 'End') {
+      event.preventDefault();
+      setQuickViewerWidth(SAR_QUICK_VIEWER_MAX_WIDTH);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    let frameId = 0;
+    const updateSarTableBodyHeight = () => {
+      window.cancelAnimationFrame(frameId);
+      frameId = window.requestAnimationFrame(() => {
+        const tableCard = sarTableCardRef.current;
+        if (!tableCard) return;
+
+        const pageElement = tableCard.closest<HTMLElement>('.sar-page');
+        const pageRect = pageElement?.getBoundingClientRect();
+        const pageStyle = pageElement ? window.getComputedStyle(pageElement) : null;
+        const pagePaddingBottom = pageStyle ? Number.parseFloat(pageStyle.paddingBottom) || 0 : 0;
+        const tableBodyRect = tableCard
+          .querySelector<HTMLElement>('.ant-table-body')
+          ?.getBoundingClientRect();
+        const tableContentBottom = (pageRect?.bottom ?? window.innerHeight) - pagePaddingBottom - 1;
+        const tableBodyTop = tableBodyRect?.top ?? tableCard.getBoundingClientRect().top;
+        const availableHeight = tableContentBottom - tableBodyTop;
+        const nextHeight = Math.max(SAR_TABLE_BODY_MIN_HEIGHT, Math.floor(availableHeight));
+
+        setSarTableBodyHeight((currentHeight) => (
+          currentHeight === nextHeight ? currentHeight : nextHeight
+        ));
+      });
+    };
+
+    updateSarTableBodyHeight();
+    window.addEventListener('resize', updateSarTableBodyHeight);
+
+    const resizeObserver = typeof ResizeObserver === 'undefined'
+      ? null
+      : new ResizeObserver(updateSarTableBodyHeight);
+
+    if (resizeObserver) {
+      resizeObserver.observe(document.body);
+      if (sarTableCardRef.current?.parentElement) {
+        resizeObserver.observe(sarTableCardRef.current.parentElement);
+      }
+    }
+
+    return () => {
+      window.cancelAnimationFrame(frameId);
+      window.removeEventListener('resize', updateSarTableBodyHeight);
+      resizeObserver?.disconnect();
+    };
+  }, [
+    compoundCardViewMode,
+    displaySarCompounds.length,
+    isCompoundStructureCollapsed,
+    isGroupStructureCollapsed,
+    showFilters,
+    viewportWidth,
+  ]);
 
   const selectCompoundByKeyboard = (key: string) => {
     if (displaySarCompounds.length === 0) return false;
@@ -856,6 +1074,66 @@ const SarTable: React.FC = () => {
   const sarScrollbarThumb = isDarkMode ? '#4b5563' : '#c4cbd3';
   const sarScrollbarThumbHover = isDarkMode ? '#6b7280' : '#9aa3aa';
   const sarScrollbarTrack = isDarkMode ? '#1f1f1f' : '#f8f9fa';
+  const activeSarHighlightMode = activeStructureSettings?.sarHighlightMode ?? 'off';
+  const clusterHighlightMode = activeSarHighlightMode === 'com' || activeSarHighlightMode === 'diff'
+    ? activeSarHighlightMode
+    : null;
+
+  useEffect(() => {
+    const requestSeq = clusterRequestSeqRef.current + 1;
+    clusterRequestSeqRef.current = requestSeq;
+
+    if (!clusterHighlightMode || isStructureSettingsDisabled || displaySarCompounds.length === 0) {
+      setClusterSvgByCompoundId({});
+      setIsClusterLoading(false);
+      setClusterError(null);
+      return;
+    }
+
+    setIsClusterLoading(true);
+    setClusterError(null);
+    setClusterSvgByCompoundId({});
+
+    void renderRdkitClusterSvgs({
+      compounds: displaySarCompounds.map((compound) => ({
+        id: compound.id,
+        compoundId: compound.compoundId,
+        name: compound.name,
+        smiles: compound.smiles,
+        molBlock: (compound as any).molBlock ?? (compound as any).mol_block ?? (compound as any).molblock,
+      })),
+      mode: clusterHighlightMode as RdkitClusterHighlightMode,
+      angleDeg: activeStructureSettings?.sarRotationDeg ?? DEFAULT_GROUP_STRUCTURE_VIEW_SETTINGS.sarRotationDeg,
+      scalePercent: activeStructureSettings?.sarImageScalePercent ?? DEFAULT_GROUP_STRUCTURE_VIEW_SETTINGS.sarImageScalePercent,
+      minSize: [compoundCardStructureFrameSize, compoundCardStructureFrameSize],
+    })
+      .then((result) => {
+        if (clusterRequestSeqRef.current !== requestSeq) return;
+
+        setClusterSvgByCompoundId(
+          result.compounds.reduce<Record<string, string>>((acc, compound) => {
+            acc[compound.id] = compound.svg;
+            return acc;
+          }, {})
+        );
+        setIsClusterLoading(false);
+        setClusterError(null);
+      })
+      .catch((error) => {
+        if (clusterRequestSeqRef.current !== requestSeq) return;
+
+        setClusterSvgByCompoundId({});
+        setIsClusterLoading(false);
+        setClusterError(error instanceof Error ? error.message : 'RDKit cluster 요청에 실패했습니다.');
+      });
+  }, [
+    activeStructureSettings?.sarImageScalePercent,
+    activeStructureSettings?.sarRotationDeg,
+    clusterHighlightMode,
+    compoundCardStructureFrameSize,
+    displaySarCompounds,
+    isStructureSettingsDisabled,
+  ]);
 
   return (
     <div
@@ -872,6 +1150,8 @@ const SarTable: React.FC = () => {
         boxSizing: 'border-box'
       }}
     >
+      <div className={`sar-workspace ${quickViewer ? 'sar-workspace-with-viewer' : ''}`}>
+        <div className="sar-workspace-main">
       {/* Search & Filter Header (MyBoard Layout) */}
       <Card variant="borderless" className="c-card compact-filter-card" style={{ marginBottom: 12 }}>
         <Row gutter={[12, 8]} align="middle">
@@ -1068,6 +1348,13 @@ const SarTable: React.FC = () => {
                     { label: <Tooltip title="끄기">Off</Tooltip>, value: 'off' },
                   ]}
                 />
+                {isClusterLoading ? (
+                  <Spin size="small" />
+                ) : clusterError ? (
+                  <Tooltip title={clusterError}>
+                    <Text type="danger" style={{ fontSize: 11 }}>Cluster error</Text>
+                  </Tooltip>
+                ) : null}
               </Space>
               <Space size={8}>
                 {!isCompoundStructureCollapsed && (
@@ -1201,6 +1488,8 @@ const SarTable: React.FC = () => {
                   const itemStructureSettings = getGroupStructureSettings(item.groupId);
                   const isPinnedCompound = pinnedCompoundIdSet.has(item.id);
                   const pinnedOrder = pinnedCompoundOrderMap[item.id] ?? 0;
+                  const clusterSvg = clusterHighlightMode ? clusterSvgByCompoundId[item.id] : null;
+                  const isClusterStructureLoading = Boolean(clusterHighlightMode && isClusterLoading && !clusterSvg);
 
                   return (
                     <div
@@ -1269,30 +1558,38 @@ const SarTable: React.FC = () => {
                             height: compoundCardStructureFrameSize,
                           }}
                         >
-                          <CompoundStructureView
-                            svg={item.structureSvg}
-                            rdkitSvg={(item as any).rdkitSvg}
-                            rdkitSvgCache={(item as any).rdkitSvgCache}
-                            title={item.name}
-                            smiles={item.smiles}
-                            molBlock={(item as any).molBlock ?? (item as any).mol_block ?? (item as any).molblock}
-                            width={compoundCardStructureFrameSize}
-                            height={compoundCardStructureFrameSize}
-                            iconSize={48}
-                            className="sar-compound-structure-view"
-                            svgClassName="sar-structure-svg"
-                            structureFitMode="contain"
-                            showPreviewAction={false}
-                            showCopyAction={false}
-                            preferRdkitSvg
-                            rdkitAngleDeg={itemStructureSettings.sarRotationDeg}
-                            rdkitScalePercent={itemStructureSettings.sarImageScalePercent}
-                            rdkitMinSize={[compoundCardStructureFrameSize, compoundCardStructureFrameSize]}
-                            onStructureGenerated={(data) => handleCompoundStructureGenerated(item.id, data)}
-                            structureStyle={{ transformOrigin: 'center center' }}
-                            frameStyle={{ border: 0, background: isPinnedCompound || !isCompoundCardOverlapped ? token.colorBgContainer : 'transparent', boxShadow: 'none', overflow: 'visible' }}
-                          />
+                          {isClusterStructureLoading ? (
+                            <div className="sar-compound-cluster-placeholder">
+                              <Spin size="small" />
+                            </div>
+                          ) : (
+                            <CompoundStructureView
+                              svg={item.structureSvg}
+                              renderedSvgOverride={clusterSvg}
+                              rdkitSvg={(item as any).rdkitSvg}
+                              rdkitSvgCache={(item as any).rdkitSvgCache}
+                              title={item.name}
+                              smiles={item.smiles}
+                              molBlock={(item as any).molBlock ?? (item as any).mol_block ?? (item as any).molblock}
+                              width={compoundCardStructureFrameSize}
+                              height={compoundCardStructureFrameSize}
+                              iconSize={48}
+                              className="sar-compound-structure-view"
+                              svgClassName="sar-structure-svg"
+                              structureFitMode="contain"
+                              showPreviewAction={false}
+                              showCopyAction={false}
+                              preferRdkitSvg
+                              rdkitAngleDeg={itemStructureSettings.sarRotationDeg}
+                              rdkitScalePercent={itemStructureSettings.sarImageScalePercent}
+                              rdkitMinSize={[compoundCardStructureFrameSize, compoundCardStructureFrameSize]}
+                              onStructureGenerated={(data) => handleCompoundStructureGenerated(item.id, data)}
+                              structureStyle={{ transformOrigin: 'center center' }}
+                              frameStyle={{ border: 0, background: isPinnedCompound || !isCompoundCardOverlapped ? token.colorBgContainer : 'transparent', boxShadow: 'none', overflow: 'visible' }}
+                            />
+                          )}
                         </div>
+                        {renderSarDataButtons(item)}
                       </div>
                       <Text strong className="sar-compound-card-name" style={{ fontSize: 11, lineHeight: '16px', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', paddingBottom: 4, boxSizing: 'border-box' }} title={item.name}>
                         {item.name}
@@ -1306,7 +1603,10 @@ const SarTable: React.FC = () => {
           </div>
 
           {/* Main SAR Table (Multi-level Header) */}
-          <div className={`v-table-card sar-table-card ${isColorActive ? 'sar-table-card-color-active' : ''}`}>
+          <div
+            ref={sarTableCardRef}
+            className={`v-table-card sar-table-card ${isColorActive ? 'sar-table-card-color-active' : ''}`}
+          >
             <div className="v-table-header">
               <Space>
                 <Tooltip title={isColorActive ? 'Color scale 끄기' : 'Color scale 켜기'}>
@@ -1362,7 +1662,7 @@ const SarTable: React.FC = () => {
               rowKey="id"
               size="small"
               pagination={false}
-              scroll={{ x: 1800, y: displaySarCompounds.length > 10 ? 500 : undefined }}
+              scroll={{ x: 1800, y: sarTableBodyHeight }}
               onRow={(record) => ({
                 id: `sar-table-row-${record.id}`,
                 onClick: (event) => handleCompoundSelection(record.id, event),
@@ -1379,6 +1679,43 @@ const SarTable: React.FC = () => {
             />
           </div>
         </div>
+      </div>
+        </div>
+        {quickViewer && (
+          <>
+            <div
+              role="separator"
+              aria-orientation="vertical"
+              aria-label="Quick viewer 너비 조절"
+              aria-valuemin={SAR_QUICK_VIEWER_MIN_WIDTH}
+              aria-valuemax={SAR_QUICK_VIEWER_MAX_WIDTH}
+              aria-valuenow={Math.round(quickViewerWidth)}
+              tabIndex={0}
+              className="sar-quick-viewer-resizer"
+              onMouseDown={handleQuickViewerResizeMouseDown}
+              onKeyDown={handleQuickViewerResizeKeyDown}
+            >
+              <div className="sar-quick-viewer-resizer-bar" />
+            </div>
+            <div
+              ref={quickViewerPaneRef}
+              className="sar-quick-viewer-pane"
+              style={{
+                flexBasis: isResponsiveToolbar ? undefined : quickViewerWidth,
+                width: isResponsiveToolbar ? '100%' : quickViewerWidth,
+              }}
+            >
+              <QuickViewerPanel
+                compound={quickViewer.compound}
+                activeType={quickViewer.activeType}
+                onActiveTypeChange={(activeType) => {
+                  setQuickViewer(prev => prev ? { ...prev, activeType } : prev);
+                }}
+                onClose={() => setQuickViewer(null)}
+              />
+            </div>
+          </>
+        )}
       </div>
 
       {/* Table Settings Modal */}
@@ -1570,7 +1907,6 @@ const SarTable: React.FC = () => {
           min-width: 0;
           width: 100%;
           max-width: 100%;
-          padding-right: 12px;
           box-sizing: border-box;
         }
         .sar-compound-panel,
@@ -1791,6 +2127,320 @@ const SarTable: React.FC = () => {
           align-items: center;
           justify-content: center;
           overflow: visible;
+        }
+        .sar-compound-data-tags {
+          position: absolute;
+          left: 0;
+          right: 0;
+          bottom: 2px;
+          z-index: 3;
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          gap: 4px;
+          height: 22px;
+          width: 100%;
+          min-width: 0;
+          pointer-events: none;
+        }
+        .sar-compound-data-tag {
+          height: 20px;
+          min-width: 24px;
+          padding: 0 7px;
+          flex: 0 0 auto;
+          pointer-events: auto;
+          border: 1px solid ${token.colorBorderSecondary};
+          border-radius: 999px;
+          background: color-mix(in srgb, ${token.colorBgContainer} 92%, transparent);
+          color: ${token.colorTextSecondary};
+          font-size: 10px;
+          font-weight: 700;
+          line-height: 18px;
+          white-space: nowrap;
+          cursor: pointer;
+          transition: color 0.16s ease, background-color 0.16s ease, border-color 0.16s ease;
+        }
+        .sar-compound-data-tag:hover {
+          color: ${token.colorPrimary};
+          border-color: ${token.colorPrimary};
+          background: ${token.colorPrimaryBg};
+        }
+        .sar-compound-data-tag-kp {
+          min-width: 28px;
+        }
+        .sar-compound-cluster-placeholder {
+          width: 100%;
+          height: 100%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          border-radius: 8px;
+          background: ${isDarkMode ? 'rgba(255, 255, 255, 0.04)' : 'rgba(15, 23, 42, 0.03)'};
+        }
+        .sar-workspace {
+          display: flex;
+          align-items: flex-start;
+          gap: 0;
+          width: 100%;
+          min-width: 0;
+        }
+        .sar-workspace-main {
+          flex: 1 1 auto;
+          min-width: 0;
+          transition: flex-basis 0.18s ease, width 0.18s ease;
+        }
+        .sar-quick-viewer-resizer {
+          width: 14px;
+          flex: 0 0 14px;
+          align-self: stretch;
+          min-height: calc(100vh - 132px);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          cursor: col-resize;
+          outline: none;
+        }
+        .sar-quick-viewer-resizer-bar {
+          width: 4px;
+          height: 88px;
+          border-radius: 999px;
+          background: ${isResizingQuickViewer ? token.colorPrimary : token.colorBorder};
+          transition: background-color 0.16s ease, height 0.16s ease;
+        }
+        .sar-quick-viewer-resizer:hover .sar-quick-viewer-resizer-bar,
+        .sar-quick-viewer-resizer:focus-visible .sar-quick-viewer-resizer-bar {
+          background: ${token.colorPrimary};
+          height: 112px;
+        }
+        .sar-quick-viewer-pane {
+          flex: 0 0 auto;
+          min-width: ${SAR_QUICK_VIEWER_MIN_WIDTH}px;
+          max-width: ${SAR_QUICK_VIEWER_MAX_WIDTH}px;
+          height: calc(100vh - 132px);
+          min-height: 520px;
+          position: sticky;
+          top: 0;
+          overflow: hidden;
+          box-sizing: border-box;
+        }
+        .sar-quick-viewer-pane .quick-viewer-panel {
+          width: 100%;
+          height: 100%;
+          display: flex;
+          flex-direction: column;
+          background: ${token.colorBgContainer};
+          border: 1px solid ${token.colorBorderSecondary};
+          border-radius: 8px;
+          box-shadow: -10px 0 28px rgba(15, 23, 42, 0.16);
+          overflow: hidden;
+        }
+        .sar-quick-viewer-pane .quick-viewer-header {
+          height: 56px;
+          padding: 12px 14px;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          border-bottom: 1px solid ${token.colorBorderSecondary};
+          box-sizing: border-box;
+        }
+        .sar-quick-viewer-pane .quick-viewer-title {
+          display: block;
+          color: ${token.colorText};
+          font-size: 15px;
+          font-weight: 800;
+          line-height: 18px;
+        }
+        .sar-quick-viewer-pane .quick-viewer-subtitle {
+          display: block;
+          color: ${token.colorTextSecondary};
+          font-size: 11px;
+          line-height: 14px;
+        }
+        .sar-quick-viewer-pane .quick-viewer-tabs {
+          display: grid;
+          grid-template-columns: repeat(4, minmax(0, 1fr));
+          gap: 6px;
+          padding: 10px 14px;
+          border-bottom: 1px solid ${token.colorBorderSecondary};
+          background: ${token.colorBgLayout};
+        }
+        .sar-quick-viewer-pane .quick-viewer-tab {
+          height: 28px;
+          border: 1px solid ${token.colorBorderSecondary};
+          border-radius: 999px;
+          background: ${token.colorBgContainer};
+          color: ${token.colorTextSecondary};
+          font-size: 11px;
+          font-weight: 700;
+          cursor: pointer;
+        }
+        .sar-quick-viewer-pane .quick-viewer-tab:disabled {
+          opacity: 0.42;
+          cursor: not-allowed;
+        }
+        .sar-quick-viewer-pane .quick-viewer-tab-active {
+          border-color: #F87C63;
+          background: #F87C63;
+          color: #FFFFFF;
+        }
+        .sar-quick-viewer-pane .quick-viewer-body {
+          min-height: 0;
+          flex: 1;
+          overflow: auto;
+          padding: 10px;
+          background: ${token.colorBgContainer};
+        }
+        .sar-quick-viewer-pane .quick-viewer-result-row {
+          display: flex;
+          justify-content: flex-end;
+          margin-bottom: 6px;
+        }
+        .sar-quick-viewer-pane .quick-viewer-result-select {
+          width: min(100%, 260px);
+        }
+        .sar-quick-viewer-pane .quick-viewer-kinome-stage,
+        .sar-quick-viewer-pane .quick-viewer-placeholder-stage,
+        .sar-quick-viewer-pane .quick-viewer-molstar-stage {
+          position: relative;
+          width: 100%;
+          min-height: 320px;
+          border: 1px solid ${token.colorBorderSecondary};
+          border-radius: 8px;
+          background: #FFFFFF;
+          overflow: hidden;
+        }
+        .sar-quick-viewer-pane .quick-viewer-molstar-stage {
+          height: clamp(320px, 52vh, 560px);
+          background: #05070A;
+        }
+        .sar-quick-viewer-pane .quick-viewer-molstar-canvas {
+          position: absolute;
+          inset: 0;
+          display: block;
+          width: 100%;
+          height: 100%;
+          outline: none;
+        }
+        .sar-quick-viewer-pane .quick-viewer-molstar-overlay {
+          position: absolute;
+          inset: 0;
+          z-index: 2;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 16px;
+          background: color-mix(in srgb, ${token.colorBgContainer} 76%, transparent);
+        }
+        .sar-quick-viewer-pane .quick-viewer-molstar-loading {
+          display: inline-flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 10px;
+          color: ${token.colorTextSecondary};
+          font-size: 12px;
+          font-weight: 500;
+        }
+        .sar-quick-viewer-pane .quick-viewer-molstar-tooltip {
+          position: absolute;
+          z-index: 3;
+          max-width: min(280px, calc(100% - 24px));
+          padding: 7px 9px;
+          border: 1px solid ${token.colorBorderSecondary};
+          border-radius: 6px;
+          background: color-mix(in srgb, ${token.colorBgContainer} 94%, transparent);
+          box-shadow: 0 8px 22px rgba(15, 23, 42, 0.18);
+          color: ${token.colorText};
+          font-size: 11px;
+          font-weight: 500;
+          line-height: 1.35;
+          white-space: pre-line;
+          pointer-events: none;
+        }
+        .sar-quick-viewer-pane .quick-viewer-kinome-svg,
+        .sar-quick-viewer-pane .quick-viewer-pdb-svg {
+          display: block;
+          width: 100%;
+          height: auto;
+        }
+        .sar-quick-viewer-pane .quick-viewer-placeholder-stage {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+        .sar-quick-viewer-pane .quick-viewer-zoom-button {
+          position: absolute;
+          top: 8px;
+          right: 8px;
+          width: 28px;
+          height: 28px;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          border-radius: 999px;
+          border-color: ${token.colorBorderSecondary};
+          background: ${token.colorBgContainer};
+          color: ${token.colorTextSecondary};
+          box-shadow: 0 4px 12px rgba(15, 23, 42, 0.14);
+        }
+        .sar-quick-viewer-pane .quick-viewer-zoom-button:hover {
+          border-color: ${token.colorPrimary};
+          color: ${token.colorPrimary};
+        }
+        .sar-quick-viewer-pane .quick-viewer-cta {
+          margin-top: 10px;
+          height: 34px;
+          font-weight: 700;
+        }
+        .sar-quick-viewer-pane .quick-viewer-info-table {
+          margin-top: 8px;
+          border: 1px solid ${token.colorBorderSecondary};
+          border-radius: 8px;
+          overflow: hidden;
+        }
+        .sar-quick-viewer-pane .quick-viewer-info-row {
+          min-height: 30px;
+          padding: 7px 10px;
+          display: grid;
+          grid-template-columns: minmax(90px, 0.45fr) minmax(0, 1fr);
+          gap: 8px;
+          align-items: center;
+          border-bottom: 1px solid ${token.colorBorderSecondary};
+          font-size: 11px;
+        }
+        .sar-quick-viewer-pane .quick-viewer-info-row:last-child {
+          border-bottom: 0;
+        }
+        .sar-quick-viewer-pane .quick-viewer-info-row span {
+          color: ${token.colorTextSecondary};
+        }
+        .sar-quick-viewer-pane .quick-viewer-info-row strong {
+          color: ${token.colorText};
+          font-weight: 800;
+          text-align: right;
+          overflow-wrap: anywhere;
+        }
+        @media (max-width: 1100px) {
+          .sar-workspace {
+            display: block;
+          }
+          .sar-quick-viewer-resizer {
+            display: none;
+          }
+          .sar-quick-viewer-pane {
+            position: fixed;
+            inset: 0;
+            width: 100vw;
+            height: 100vh;
+            max-width: none;
+            min-width: 0;
+            min-height: 0;
+            z-index: 1200;
+            background: ${token.colorBgContainer};
+          }
+          .sar-quick-viewer-pane .quick-viewer-panel {
+            border: 0;
+            border-radius: 0;
+          }
         }
         .ant-table-tbody > tr > td {
           padding: 10px 4px !important;
@@ -2048,10 +2698,8 @@ const SarTable: React.FC = () => {
         .sar-table-card .ant-table-content::-webkit-scrollbar-thumb:hover {
           background-color: ${sarScrollbarThumbHover};
         }
-        .sar-table-card {
-          margin-bottom: 24px;
-        }
         .sar-table-card .ant-table-body {
+          height: ${sarTableBodyHeight}px;
           padding-bottom: 18px;
           box-sizing: border-box;
           scrollbar-gutter: stable;

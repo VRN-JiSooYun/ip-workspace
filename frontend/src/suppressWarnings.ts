@@ -18,6 +18,10 @@ const shouldSuppressConsoleMessage = (args: any[]) => {
     'Dependent image isn\'t ready yet',
     'wasmUrl API parameter is provided',
     'jbig2_nowasm_fallback.js',
+    'The return value does not contain any draft, please use \'rawReturn()\' to wrap the return value to improve performance.',
+    'performance warning: READ-usage buffer was read back without waiting on a fence.',
+    'GL_INVALID_VALUE: glMapBufferRange: Mapped range does not fit into buffer dimensions.',
+    'Added non-passive event listener to a scroll-blocking \'wheel\' event.',
   ].some((pattern) => message.includes(pattern));
 };
 

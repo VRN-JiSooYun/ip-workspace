@@ -18,6 +18,7 @@ export interface CompoundStructureAction {
 
 export interface CompoundStructureViewProps {
   svg?: string | null;
+  renderedSvgOverride?: string | null;
   rdkitSvg?: string | null;
   rdkitSvgCache?: Record<string, string> | null;
   title?: string;
@@ -196,6 +197,7 @@ const ChemDrawStructurePreview: React.FC<{
 
 const CompoundStructureView: React.FC<CompoundStructureViewProps> = ({
   svg,
+  renderedSvgOverride,
   rdkitSvg,
   rdkitSvgCache,
   title = 'Structure',
@@ -251,9 +253,9 @@ const CompoundStructureView: React.FC<CompoundStructureViewProps> = ({
     : '';
   const cachedRdkitSvg = expectedRdkitSvgKey ? rdkitSvgCache?.[expectedRdkitSvgKey] : undefined;
   const generatedSvg = generatedStructure?.cacheKey === expectedRdkitSvgKey ? generatedStructure.svg : null;
-  const displaySvg = preferRdkitSvg
+  const displaySvg = renderedSvgOverride || (preferRdkitSvg
     ? generatedSvg || cachedRdkitSvg || null
-    : generatedStructure?.svg || cachedRdkitSvg || rdkitSvg || svg;
+    : generatedStructure?.svg || cachedRdkitSvg || rdkitSvg || svg);
   const copyText = getCompoundStructureCopyText({ smiles, molBlock: displayMolBlock, cdxml, svg: displaySvg });
   const hasRenderableChemData = preferRdkitSvg ? false : !!(cdxml || displayMolBlock || smiles);
   const shouldShowRdkitSkeleton = preferRdkitSvg && isRdkitLoading && !displaySvg;
@@ -277,13 +279,14 @@ const CompoundStructureView: React.FC<CompoundStructureViewProps> = ({
   const rdkitRenderKey = useMemo(
     () => JSON.stringify({
       preferRdkitSvg,
+      renderedSvgOverride: renderedSvgOverride?.trim() ? 'override' : '',
       smiles: smiles?.trim() || '',
       molBlock: molBlock?.trim() || '',
       angle: rdkitAngleDeg,
       scale: rdkitScalePercent,
       minSize: rdkitMinSizeWidth != null && rdkitMinSizeHeight != null ? [rdkitMinSizeWidth, rdkitMinSizeHeight] : undefined,
     }),
-    [molBlock, preferRdkitSvg, rdkitAngleDeg, rdkitMinSizeHeight, rdkitMinSizeWidth, rdkitScalePercent, smiles]
+    [molBlock, preferRdkitSvg, rdkitAngleDeg, rdkitMinSizeHeight, rdkitMinSizeWidth, rdkitScalePercent, renderedSvgOverride, smiles]
   );
 
   useEffect(() => {
@@ -291,7 +294,7 @@ const CompoundStructureView: React.FC<CompoundStructureViewProps> = ({
   }, [onStructureGenerated]);
 
   useEffect(() => {
-    if (!preferRdkitSvg || !(smiles?.trim() || molBlock?.trim())) {
+    if (renderedSvgOverride || !preferRdkitSvg || !(smiles?.trim() || molBlock?.trim())) {
       setGeneratedStructure(null);
       setIsRdkitLoading(false);
       setHasRdkitRenderFailed(false);
@@ -334,7 +337,7 @@ const CompoundStructureView: React.FC<CompoundStructureViewProps> = ({
     return () => {
       isDisposed = true;
     };
-  }, [cachedRdkitSvg, molBlock, preferRdkitSvg, rdkitAngleDeg, rdkitMinSizeHeight, rdkitMinSizeWidth, rdkitRenderKey, rdkitScalePercent, smiles]);
+  }, [cachedRdkitSvg, molBlock, preferRdkitSvg, rdkitAngleDeg, rdkitMinSizeHeight, rdkitMinSizeWidth, rdkitRenderKey, rdkitScalePercent, renderedSvgOverride, smiles]);
 
   const previewAction: CompoundStructureAction[] = showPreviewAction && displaySvg && onPreview ? [{
     key: 'preview',
