@@ -200,6 +200,9 @@ const SarTable: React.FC = () => {
         ...groupStructureViewSettings[activeStructureSettingsGroupId],
       }
     : null;
+  const sarPinnedRowColor = isDarkMode ? '#60A5FA' : '#2563EB';
+  const sarPinnedRowBg = isDarkMode ? 'rgba(96, 165, 250, 0.16)' : 'rgba(37, 99, 235, 0.08)';
+  const sarPinnedRowHoverBg = isDarkMode ? 'rgba(96, 165, 250, 0.24)' : 'rgba(37, 99, 235, 0.14)';
   const isStructureSettingsDisabled = !activeStructureSettingsGroupId;
   const updateActiveStructureSettings = (settings: Partial<typeof DEFAULT_GROUP_STRUCTURE_VIEW_SETTINGS>) => {
     if (!activeStructureSettingsGroupId) return;
@@ -1507,9 +1510,7 @@ const SarTable: React.FC = () => {
                         padding: 0,
                         textAlign: 'center',
                         cursor: 'pointer',
-                        background: isPinnedCompound
-                          ? token.colorBgContainer
-                          : isCompoundCardOverlapped
+                        background: isCompoundCardOverlapped
                             ? 'transparent'
                             : selectedCompoundIds.includes(item.id) || hoveredRowKey === item.id
                             ? (isDarkMode ? 'rgba(248, 124, 99, 0.12)' : 'rgba(248, 124, 99, 0.08)')
@@ -1530,7 +1531,7 @@ const SarTable: React.FC = () => {
                     >
                       <div style={{
                         height: compoundCardStructureFrameSize,
-                        background: isPinnedCompound || !isCompoundCardOverlapped ? token.colorBgContainer : 'transparent',
+                        background: !isCompoundCardOverlapped ? token.colorBgContainer : 'transparent',
                         borderRadius: 10,
                         display: 'flex',
                         alignItems: 'center',
@@ -1585,7 +1586,7 @@ const SarTable: React.FC = () => {
                               rdkitMinSize={[compoundCardStructureFrameSize, compoundCardStructureFrameSize]}
                               onStructureGenerated={(data) => handleCompoundStructureGenerated(item.id, data)}
                               structureStyle={{ transformOrigin: 'center center' }}
-                              frameStyle={{ border: 0, background: isPinnedCompound || !isCompoundCardOverlapped ? token.colorBgContainer : 'transparent', boxShadow: 'none', overflow: 'visible' }}
+                              frameStyle={{ border: 0, background: !isCompoundCardOverlapped ? token.colorBgContainer : 'transparent', boxShadow: 'none', overflow: 'visible' }}
                             />
                           )}
                         </div>
@@ -2032,15 +2033,15 @@ const SarTable: React.FC = () => {
           background-color: var(--table-row-selected-hover-bg) !important;
         }
         .sar-row-pinned td {
-          background-color: var(--table-row-hover-bg) !important;
+          background-color: ${sarPinnedRowBg} !important;
         }
         .sar-row-pinned.sar-row-hovered td,
         .sar-row-pinned.sar-row-selected td,
         .sar-row-pinned.sar-row-selected.sar-row-hovered td {
-          background-color: var(--table-row-hover-bg) !important;
+          background-color: ${sarPinnedRowHoverBg} !important;
         }
         .sar-row-pinned > td:first-child {
-          box-shadow: inset 3px 0 0 ${token.colorPrimary};
+          box-shadow: inset 3px 0 0 ${sarPinnedRowColor};
         }
         .sar-table .ant-table-thead > tr > th,
         .sar-table .ant-table-thead > tr > td {
@@ -2086,14 +2087,19 @@ const SarTable: React.FC = () => {
           background: color-mix(in srgb, ${token.colorPrimary} ${isDarkMode ? 32 : 22}%, ${token.colorBgContainer}) !important;
         }
         .sar-table .ant-table-tbody > tr.sar-row-pinned > .ant-table-cell-fix-left,
-        .sar-table .ant-table-tbody > tr.sar-row-pinned > .ant-table-cell-fix-left-last,
+        .sar-table .ant-table-tbody > tr.sar-row-pinned > .ant-table-cell-fix-left-last {
+          background: ${sarPinnedRowBg} !important;
+          background-clip: padding-box !important;
+          box-shadow: inset 3px 0 0 ${sarPinnedRowColor};
+          z-index: 7 !important;
+        }
         .sar-table .ant-table-tbody > tr.sar-row-pinned.sar-row-hovered > .ant-table-cell-fix-left,
         .sar-table .ant-table-tbody > tr.sar-row-pinned.sar-row-hovered > .ant-table-cell-fix-left-last,
         .sar-table .ant-table-tbody > tr.sar-row-pinned.sar-row-selected > .ant-table-cell-fix-left,
         .sar-table .ant-table-tbody > tr.sar-row-pinned.sar-row-selected > .ant-table-cell-fix-left-last {
-          background: color-mix(in srgb, ${token.colorPrimary} ${isDarkMode ? 18 : 12}%, ${token.colorBgContainer}) !important;
+          background: ${sarPinnedRowHoverBg} !important;
           background-clip: padding-box !important;
-          box-shadow: inset 3px 0 0 ${token.colorPrimary};
+          box-shadow: inset 3px 0 0 ${sarPinnedRowColor};
           z-index: 7 !important;
         }
         .sar-table .ant-table-thead .ant-table-cell-fix-left-last {
@@ -2605,46 +2611,22 @@ const SarTable: React.FC = () => {
           transform: none;
         }
         .sar-compound-card.pinned {
-          background-color: ${token.colorBgContainer} !important;
-          box-shadow: ${isDarkMode ? '8px 0 14px rgba(0, 0, 0, 0.34)' : '8px 0 14px rgba(15, 23, 42, 0.12)'} !important;
-        }
-        .sar-compound-card.pinned::before {
-          content: '';
-          position: absolute;
-          top: 0;
-          right: -${Math.max(SAR_COMPOUND_CARD_GAP, SAR_COMPOUND_CARD_GRID_COLUMN_GAP)}px;
-          bottom: 0;
-          width: ${Math.max(SAR_COMPOUND_CARD_GAP, SAR_COMPOUND_CARD_GRID_COLUMN_GAP)}px;
-          z-index: 10;
-          background: ${token.colorBgContainer};
-          pointer-events: none;
+          box-shadow: none !important;
         }
         .sar-compound-card.pinned .sar-compound-card-name {
           position: relative;
           z-index: 25;
-          background: ${token.colorBgContainer};
-          border-radius: 0 0 8px 8px;
-          margin: 0 2px 2px;
-        }
-        .sar-compound-card.pinned.hovered,
-        .sar-compound-card.pinned:hover {
-          background-color: ${isDarkMode ? 'color-mix(in srgb, #F87C63 12%, #1f1f1f)' : 'color-mix(in srgb, #F87C63 8%, #ffffff)'} !important;
-        }
-        .sar-compound-card.pinned.hovered .sar-compound-card-name,
-        .sar-compound-card.pinned:hover .sar-compound-card-name {
-          background: ${isDarkMode ? 'color-mix(in srgb, #F87C63 12%, #1f1f1f)' : 'color-mix(in srgb, #F87C63 8%, #ffffff)'};
         }
         .sar-compound-card:hover::after,
         .sar-compound-card.selected::after,
-        .sar-compound-card.hovered::after,
-        .sar-compound-card.pinned::after {
+        .sar-compound-card.hovered::after {
           border-color: ${token.colorPrimary};
         }
         .sar-compound-pin-badge {
           position: absolute;
           top: 6px;
           left: 6px;
-          z-index: 30;
+          z-index: 60;
           width: 20px;
           height: 20px;
           border-radius: 999px;

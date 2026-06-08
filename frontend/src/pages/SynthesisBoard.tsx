@@ -54,6 +54,19 @@ interface SynthesisDetail {
   completeDate: string | null;
 }
 
+function getRangeSelectionIds<T extends { id: string }>(rows: T[], anchorId: string | null, targetId: string) {
+  if (!anchorId) return [targetId];
+
+  const anchorIndex = rows.findIndex((row) => row.id === anchorId);
+  const targetIndex = rows.findIndex((row) => row.id === targetId);
+
+  if (anchorIndex < 0 || targetIndex < 0) return [targetId];
+
+  const startIndex = Math.min(anchorIndex, targetIndex);
+  const endIndex = Math.max(anchorIndex, targetIndex);
+  return rows.slice(startIndex, endIndex + 1).map((row) => row.id);
+}
+
 const ManagerComparisonPopup = ({ record, currentMgrName }: { record: any, currentMgrName?: string }) => {
   const { token } = theme.useToken();
   return (
@@ -121,6 +134,8 @@ const SynthesisBoard: React.FC = () => {
   const splitContainerRef = React.useRef<HTMLDivElement | null>(null);
   const splitRafRef = React.useRef<number | null>(null);
   const splitStorageKey = 'synthesis-board-split:group-detail';
+  const groupSelectionAnchorRef = React.useRef<string | null>(selectedGroupIds[0] ?? null);
+  const detailSelectionAnchorRef = React.useRef<string | null>(null);
 
   const clampSplitRatio = React.useCallback((value: number) => {
     return Math.min(Math.max(value, SYNTHESIS_SPLIT_MIN_PERCENT), SYNTHESIS_SPLIT_MAX_PERCENT);
@@ -287,7 +302,7 @@ const SynthesisBoard: React.FC = () => {
     setSplitRatio(SYNTHESIS_SPLIT_DEFAULT_PERCENT);
   }, []);
 
-  const currentGroups = [
+  const currentGroups = useMemo(() => [
     {
       id: 'sg1', num: 1, date: '2026.04.10', type: 'My Designs', target: 'FGFR', title: 'Leucine series A',
       share: '공유함', ing: 2, done: 1, unassigned: 2, total: 5,
@@ -321,7 +336,7 @@ const SynthesisBoard: React.FC = () => {
         { name: '담당자7', count: 3, ing: 0, done: 3 }
       ]
     },
-  ];
+  ], []);
 
   const mockSynthesisDetails: SynthesisDetail[] = [
     // Designs items
@@ -377,31 +392,73 @@ const SynthesisBoard: React.FC = () => {
     );
   }, [selectedGroupIds, keyword]);
 
+  React.useEffect(() => {
+    const visibleIds = new Set(currentGroups.map((group) => group.id));
+    if (groupSelectionAnchorRef.current && !visibleIds.has(groupSelectionAnchorRef.current)) {
+      groupSelectionAnchorRef.current = null;
+    }
+  }, [currentGroups]);
+
+  React.useEffect(() => {
+    const visibleIds = new Set(filteredDetails.map((detail) => detail.id));
+    if (detailSelectionAnchorRef.current && !visibleIds.has(detailSelectionAnchorRef.current)) {
+      detailSelectionAnchorRef.current = null;
+    }
+  }, [filteredDetails]);
+
   const handleGroupRowSelection = React.useCallback((groupId: string, event: React.MouseEvent) => {
+    if (event.shiftKey) {
+      event.preventDefault();
+      const rangeIds = getRangeSelectionIds(currentGroups, groupSelectionAnchorRef.current, groupId);
+      if (event.ctrlKey || event.metaKey) {
+        setSelectedGroupIds((current) => Array.from(new Set([...current, ...rangeIds])));
+      } else {
+        setSelectedGroupIds(rangeIds);
+      }
+      groupSelectionAnchorRef.current = groupSelectionAnchorRef.current ?? groupId;
+      return;
+    }
+
     if (event.ctrlKey || event.metaKey) {
       setSelectedGroupIds((current) => (
         current.includes(groupId)
           ? current.filter((id) => id !== groupId)
           : [...current, groupId]
       ));
+      groupSelectionAnchorRef.current = groupId;
       return;
     }
 
     setSelectedGroupIds([groupId]);
-  }, []);
+    groupSelectionAnchorRef.current = groupId;
+  }, [currentGroups]);
 
   const handleDetailRowSelection = React.useCallback((detailId: string, event: React.MouseEvent) => {
+    if (event.shiftKey) {
+      event.preventDefault();
+      const rangeIds = getRangeSelectionIds(filteredDetails, detailSelectionAnchorRef.current, detailId);
+      if (event.ctrlKey || event.metaKey) {
+        setSelectedDetailIds((current) => Array.from(new Set([...current, ...rangeIds])));
+      } else {
+        setSelectedDetailIds(rangeIds);
+      }
+      detailSelectionAnchorRef.current = detailSelectionAnchorRef.current ?? detailId;
+      return;
+    }
+
     if (event.ctrlKey || event.metaKey) {
       setSelectedDetailIds((current) => (
         current.includes(detailId)
           ? current.filter((id) => id !== detailId)
           : [...current, detailId]
       ));
+      detailSelectionAnchorRef.current = detailId;
       return;
     }
 
     setSelectedDetailIds([detailId]);
-  }, []);
+    detailSelectionAnchorRef.current = detailId;
+  }, [filteredDetails]);
 
   const groupColumns = [
     { title: 'Num', dataIndex: 'num', key: 'num', width: 50, align: 'center' as const },

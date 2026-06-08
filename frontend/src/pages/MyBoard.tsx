@@ -107,6 +107,18 @@ const estimateGroupTitleTextWidth = (text: string) => {
   }, 0);
   return Math.ceil(textWidth + 28);
 };
+function getRangeSelectionIds<T extends { id: string }>(rows: T[], anchorId: string | null, targetId: string) {
+  if (!anchorId) return [targetId];
+
+  const anchorIndex = rows.findIndex((row) => row.id === anchorId);
+  const targetIndex = rows.findIndex((row) => row.id === targetId);
+
+  if (anchorIndex < 0 || targetIndex < 0) return [targetId];
+
+  const startIndex = Math.min(anchorIndex, targetIndex);
+  const endIndex = Math.max(anchorIndex, targetIndex);
+  return rows.slice(startIndex, endIndex + 1).map((row) => row.id);
+}
 const MYBOARD_CENTER_COLUMN_KEYS = new Set([
   'creDate',
   'target',
@@ -253,6 +265,8 @@ const MyBoard: React.FC = () => {
   const quickViewerResizeRafRef = React.useRef<number | null>(null);
   const quickViewerStorageKey = 'my-board-split:quick-viewer';
   const [groupListTableWidth, setGroupListTableWidth] = useState(0);
+  const groupSelectionAnchorRef = React.useRef<string | null>(null);
+  const detailSelectionAnchorRef = React.useRef<string | null>(null);
   const visibleGroupRows = React.useMemo(
     () => [...groups]
       .sort((a, b) => {
@@ -781,7 +795,17 @@ const MyBoard: React.FC = () => {
   React.useEffect(() => {
     const visibleIds = new Set(filteredCompounds.map((compound) => compound.id));
     setSelectedDetailCompoundIds((prev) => prev.filter((id) => visibleIds.has(String(id))));
+    if (detailSelectionAnchorRef.current && !visibleIds.has(detailSelectionAnchorRef.current)) {
+      detailSelectionAnchorRef.current = null;
+    }
   }, [filteredCompounds]);
+
+  React.useEffect(() => {
+    const visibleIds = new Set(visibleGroupRows.map((group) => group.id));
+    if (groupSelectionAnchorRef.current && !visibleIds.has(groupSelectionAnchorRef.current)) {
+      groupSelectionAnchorRef.current = null;
+    }
+  }, [visibleGroupRows]);
 
   const firstCompoundByGroupId = React.useMemo(() => {
     return compoundRows.reduce<Record<string, Compound>>((acc, compound) => {
@@ -1126,6 +1150,7 @@ const MyBoard: React.FC = () => {
     setCompoundRows((prev) => [newCompound, ...prev]);
     mockCompounds.unshift(newCompound);
     setSelectedDetailCompoundIds([newCompound.id]);
+    detailSelectionAnchorRef.current = newCompound.id;
     setQuickAddCode('');
     setIsQuickAddModalOpen(false);
   }, [currentUser?.name, groups, quickAddCode, selectedGroupIds]);
@@ -1137,13 +1162,27 @@ const MyBoard: React.FC = () => {
   }, [canEditCompound]);
 
   const handleGroupRowSelection = React.useCallback((groupId: string, event: React.MouseEvent) => {
+    if (event.shiftKey) {
+      event.preventDefault();
+      const rangeIds = getRangeSelectionIds(visibleGroupRows, groupSelectionAnchorRef.current, groupId);
+      if (event.ctrlKey || event.metaKey) {
+        setSelectedGroupIds(Array.from(new Set([...selectedGroupIds, ...rangeIds])));
+      } else {
+        setSelectedGroupIds(rangeIds);
+      }
+      groupSelectionAnchorRef.current = groupSelectionAnchorRef.current ?? groupId;
+      return;
+    }
+
     if (event.ctrlKey || event.metaKey) {
       toggleGroupSelection(groupId);
+      groupSelectionAnchorRef.current = groupId;
       return;
     }
 
     setSelectedGroupIds([groupId]);
-  }, [setSelectedGroupIds, toggleGroupSelection]);
+    groupSelectionAnchorRef.current = groupId;
+  }, [selectedGroupIds, setSelectedGroupIds, toggleGroupSelection, visibleGroupRows]);
 
   const toggleDetailCompoundSelection = React.useCallback((compoundId: string) => {
     setSelectedDetailCompoundIds((prev) => (
@@ -1154,13 +1193,27 @@ const MyBoard: React.FC = () => {
   }, []);
 
   const handleDetailCompoundRowSelection = React.useCallback((compoundId: string, event: React.MouseEvent) => {
+    if (event.shiftKey) {
+      event.preventDefault();
+      const rangeIds = getRangeSelectionIds(filteredCompounds, detailSelectionAnchorRef.current, compoundId);
+      if (event.ctrlKey || event.metaKey) {
+        setSelectedDetailCompoundIds((prev) => Array.from(new Set([...prev.map(String), ...rangeIds])));
+      } else {
+        setSelectedDetailCompoundIds(rangeIds);
+      }
+      detailSelectionAnchorRef.current = detailSelectionAnchorRef.current ?? compoundId;
+      return;
+    }
+
     if (event.ctrlKey || event.metaKey) {
       toggleDetailCompoundSelection(compoundId);
+      detailSelectionAnchorRef.current = compoundId;
       return;
     }
 
     setSelectedDetailCompoundIds([compoundId]);
-  }, [toggleDetailCompoundSelection]);
+    detailSelectionAnchorRef.current = compoundId;
+  }, [filteredCompounds, toggleDetailCompoundSelection]);
 
   const compoundContextMenuItems: MenuProps['items'] = [
     {
@@ -1924,6 +1977,7 @@ const MyBoard: React.FC = () => {
                   if (!selectedGroupIds.includes(record.id)) {
                     setSelectedGroupIds([record.id]);
                   }
+                  groupSelectionAnchorRef.current = record.id;
                   setGroupContextMenu({
                     open: true,
                     x: event.clientX,
@@ -2210,6 +2264,7 @@ const MyBoard: React.FC = () => {
                       if (!selectedDetailCompoundIds.includes(record.id)) {
                         setSelectedDetailCompoundIds([record.id]);
                       }
+                      detailSelectionAnchorRef.current = record.id;
                       setCompoundContextMenu({
                         open: true,
                         x: event.clientX,
