@@ -7,6 +7,7 @@ import { commitChemDrawActiveInput, waitForChemDrawEditorReady } from '../../uti
 import { applyChemDrawFlip } from '../../utils/chemdrawTransform';
 import type { ChemDrawFlipAxis } from '../../utils/chemdrawTransform';
 import { installCanvasReadbackPatch } from '../../utils/canvasReadback';
+import { installPassiveWheelListenerPatch } from '../../utils/passiveWheelListenerPatch';
 
 const { Text } = Typography;
 
@@ -53,6 +54,7 @@ const ChemDrawModal: React.FC<ChemDrawModalProps> = ({
     }
 
     const restoreReadbackPatch = installCanvasReadbackPatch();
+    const restorePassiveWheelPatch = installPassiveWheelListenerPatch();
     let isDisposed = false;
 
     const loadChemDraw = () => {
@@ -147,6 +149,7 @@ const ChemDrawModal: React.FC<ChemDrawModalProps> = ({
       isDisposed = true;
       setCdjsInstance(null);
       restoreReadbackPatch();
+      restorePassiveWheelPatch();
     };
   }, [open, containerId, initialCdxml, initialSmiles, initialMolblock]);
 

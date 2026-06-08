@@ -520,7 +520,7 @@ const PatentAnalysisList: React.FC = () => {
           }
           return;
         }
-        const mappedPatents = response.items.map((item, index) =>
+        const mappedPatents = response.items.slice(0, rowOffsetPageSize).map((item, index) =>
           mapPatentListItem(item, (currentPage - 1) * rowOffsetPageSize + index)
         );
         setStructureCompounds([]);
@@ -1103,7 +1103,7 @@ const PatentAnalysisList: React.FC = () => {
           )}
         </Card>
 
-        <div className="v-table-card patent-analysis-table-card" style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+        <div className="v-table-card patent-analysis-table-card" style={{ flex: '0 0 auto', display: 'flex', flexDirection: 'column', maxHeight: '100%' }}>
           <div className="v-table-header patent-analysis-table-header" style={{ flexWrap: 'wrap', gap: 12 }}>
             <Text strong style={{ color: token.colorPrimary }}>
               {appliedStructureSmiles ? '구조 검색 Compound 목록' : '특허 분석 리스트'}
@@ -1267,6 +1267,15 @@ const PatentAnalysisList: React.FC = () => {
         }
         .patent-analysis-table-header {
           min-height: 48px;
+        }
+        .patent-analysis-table-card {
+          flex-grow: 0;
+        }
+        .patent-analysis-list-table {
+          flex: 0 0 auto !important;
+        }
+        .patent-analysis-list-table .ant-pagination {
+          margin: 12px 16px !important;
         }
         .patent-analysis-list-table .ant-table-container {
           border: 1px solid ${token.colorBorderSecondary};

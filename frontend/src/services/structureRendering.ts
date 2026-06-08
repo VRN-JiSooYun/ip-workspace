@@ -1,6 +1,7 @@
 import { CHEMDRAW_CONFIG } from '../config/chemdraw';
 import { waitForChemDrawEditorReady } from '../utils/chemdrawCommit';
 import { installCanvasReadbackPatch } from '../utils/canvasReadback';
+import { installPassiveWheelListenerPatch } from '../utils/passiveWheelListenerPatch';
 
 const smilesToMolBlockCache = new Map<string, string>();
 const smilesToMolBlockInFlight = new Map<string, Promise<string>>();
@@ -105,6 +106,7 @@ export const convertSmilesToMolBlock = async (smiles: string) => {
     if (queuedCached) return queuedCached;
 
     const restoreReadbackPatch = installCanvasReadbackPatch();
+    const restorePassiveWheelPatch = installPassiveWheelListenerPatch();
     let container: HTMLDivElement | null = null;
 
     try {
@@ -167,6 +169,7 @@ export const convertSmilesToMolBlock = async (smiles: string) => {
     } finally {
       container?.remove();
       restoreReadbackPatch();
+      restorePassiveWheelPatch();
     }
   };
 

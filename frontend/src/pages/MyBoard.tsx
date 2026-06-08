@@ -29,7 +29,7 @@ import QuickViewerPanel from '../components/myboard/QuickViewerPanel';
 import shareForwardIconRaw from '../assets/svg/share-forward-fill.svg?raw';
 import shareIconRaw from '../assets/svg/share.svg?raw';
 import bookmarkIconRaw from '../assets/svg/bookmark.svg?raw';
-import eyeOffIcon from '../assets/svg/eye-off.svg';
+import eyeOffIconRaw from '../assets/svg/eye-off.svg?raw';
 import { formatDisplayDate } from '../utils/displayFormat';
 
 const { Title, Text } = Typography;
@@ -49,6 +49,7 @@ const createSvgMaskUrl = (svg: string) => `data:image/svg+xml;charset=utf-8,${en
 const shareForwardIconMaskUrl = createSvgMaskUrl(shareForwardIconRaw);
 const shareIconMaskUrl = createSvgMaskUrl(shareIconRaw);
 const bookmarkIconMaskUrl = createSvgMaskUrl(bookmarkIconRaw);
+const eyeOffIconMaskUrl = createSvgMaskUrl(eyeOffIconRaw);
 const MYBOARD_RESPONSIVE_TEXT_COLUMN_KEYS = new Set([
   'designMemo',
   'assayPurpose',
@@ -66,12 +67,12 @@ const MYBOARD_RESPONSIVE_TEXT_COLUMN_MIN_WIDTH = 220;
 const MYBOARD_RESPONSIVE_TEXT_COLUMN_MAX_WIDTH = 420;
 const MYBOARD_GROUP_TITLE_MIN_WIDTH = 120;
 const MYBOARD_GROUP_COLUMN_WIDTHS = {
-  bookmark: 40,
+  sequence: 48,
   creDate: 100,
   target: 80,
   representativeStructure: 135,
   count: 60,
-  groupOrder: 72,
+  groupOrder: 52,
   shareStatus: 56,
 } as const;
 const MYBOARD_DATA_LEFT_ASSET_TYPES = new Set<CompoundQuickViewerAssetType>(['kp']);
@@ -258,7 +259,7 @@ const MyBoard: React.FC = () => {
   const splitContainerRef = React.useRef<HTMLDivElement | null>(null);
   const groupListTableCardRef = React.useRef<HTMLDivElement | null>(null);
   const splitRafRef = React.useRef<number | null>(null);
-  const splitStorageKey = 'my-board-split:group-detail';
+  const hasAppliedInitialSplitRef = React.useRef(false);
   const [quickViewerWidth, setQuickViewerWidth] = useState(MYBOARD_QUICK_VIEWER_DEFAULT_WIDTH);
   const [isResizingQuickViewer, setIsResizingQuickViewer] = useState(false);
   const quickViewerPaneRef = React.useRef<HTMLDivElement | null>(null);
@@ -331,6 +332,33 @@ const MyBoard: React.FC = () => {
 
     return Math.round(availableTitleWidth);
   }, [getSplitWidthFromRatio, groupListTableWidth, isStackedSplitLayout, layoutPreset.sidePadding, splitLeftWidth, splitRatio, viewportWidth]);
+  const autoFitGroupTableWidth = React.useMemo(() => {
+    return MYBOARD_GROUP_FIXED_COLUMN_WIDTH + contentFitGroupTitleWidth + 24;
+  }, [contentFitGroupTitleWidth]);
+  const applyDefaultGroupListSplit = React.useCallback((options?: { fallbackToPercent?: boolean }) => {
+    const fallbackToPercent = options?.fallbackToPercent ?? true;
+    const container = splitContainerRef.current;
+    if (!container || isStackedSplitLayout || !isGroupListFull) {
+      if (fallbackToPercent) {
+        applySplitRatio(MYBOARD_SPLIT_DEFAULT_PERCENT);
+      }
+      return false;
+    }
+
+    const containerWidth = container.getBoundingClientRect().width;
+    if (containerWidth <= 0) {
+      if (fallbackToPercent) {
+        applySplitRatio(MYBOARD_SPLIT_DEFAULT_PERCENT);
+      }
+      return false;
+    }
+
+    const nextWidth = clampSplitLeftWidth(autoFitGroupTableWidth, containerWidth);
+    const nextRatio = ((nextWidth + 6) / containerWidth) * 100;
+    setSplitLeftWidth(nextWidth);
+    setSplitRatio(clampSplitRatio(nextRatio));
+    return true;
+  }, [applySplitRatio, autoFitGroupTableWidth, clampSplitLeftWidth, clampSplitRatio, isGroupListFull, isStackedSplitLayout]);
 
   const getViewToggleButtonStyle = (mode: 'table' | 'draw' | 'tree'): React.CSSProperties => {
     const isActive = viewMode === mode;
@@ -370,21 +398,28 @@ const MyBoard: React.FC = () => {
     return () => window.removeEventListener('resize', onResize);
   }, []);
 
-  React.useEffect(() => {
-    const raw = window.localStorage.getItem(splitStorageKey);
-    if (!raw) {
-      applySplitRatio(MYBOARD_SPLIT_DEFAULT_PERCENT);
-      return;
-    }
-    const parsed = Number(raw);
-    if (Number.isFinite(parsed)) {
-      applySplitRatio(parsed);
-    }
-  }, [applySplitRatio]);
+  React.useLayoutEffect(() => {
+    if (hasAppliedInitialSplitRef.current) return;
+    let frameId = 0;
+    let attemptCount = 0;
 
-  React.useEffect(() => {
-    window.localStorage.setItem(splitStorageKey, String(splitRatio));
-  }, [splitRatio]);
+    const applyInitialSplit = () => {
+      const didApply = applyDefaultGroupListSplit({ fallbackToPercent: false });
+      if (didApply) {
+        hasAppliedInitialSplitRef.current = true;
+        return;
+      }
+
+      attemptCount += 1;
+      if (attemptCount < 10) {
+        frameId = window.requestAnimationFrame(applyInitialSplit);
+      }
+    };
+
+    frameId = window.requestAnimationFrame(applyInitialSplit);
+
+    return () => window.cancelAnimationFrame(frameId);
+  }, [applyDefaultGroupListSplit]);
 
   React.useEffect(() => {
     const raw = window.localStorage.getItem(quickViewerStorageKey);
@@ -513,9 +548,9 @@ const MyBoard: React.FC = () => {
     }
     if (event.key === 'Enter' || event.key === ' ') {
       event.preventDefault();
-      applySplitRatio(MYBOARD_SPLIT_DEFAULT_PERCENT);
+      applyDefaultGroupListSplit();
     }
-  }, [applySplitRatio, splitRatio]);
+  }, [applyDefaultGroupListSplit, applySplitRatio, splitRatio]);
 
   const stopQuickViewerResize = React.useCallback(() => {
     setIsResizingQuickViewer(false);
@@ -593,26 +628,13 @@ const MyBoard: React.FC = () => {
     }
   }, []);
 
-  const autoFitGroupTableWidth = React.useMemo(() => {
-    return MYBOARD_GROUP_FIXED_COLUMN_WIDTH + contentFitGroupTitleWidth + 24;
-  }, [contentFitGroupTitleWidth]);
-
   const fitGroupListToTableData = React.useCallback((event?: React.MouseEvent<HTMLDivElement>) => {
     event?.preventDefault();
     event?.stopPropagation();
     stopSplitResize();
 
-    const container = splitContainerRef.current;
-    if (!container || isStackedSplitLayout || !isGroupListFull) return;
-
-    const containerWidth = container.getBoundingClientRect().width;
-    if (containerWidth <= 0) return;
-
-    const nextWidth = clampSplitLeftWidth(autoFitGroupTableWidth, containerWidth);
-    const nextRatio = ((nextWidth + 6) / containerWidth) * 100;
-    setSplitLeftWidth(nextWidth);
-    setSplitRatio(clampSplitRatio(nextRatio));
-  }, [autoFitGroupTableWidth, clampSplitLeftWidth, clampSplitRatio, isGroupListFull, isStackedSplitLayout, stopSplitResize]);
+    applyDefaultGroupListSplit();
+  }, [applyDefaultGroupListSplit, stopSplitResize]);
 
   const alwaysColumnKeys = React.useMemo(() => [
     '순번', '그룹 번호', '프로젝트', '물질 번호 (VRN)', '화합물 구조', '데이터', '단계', '출처', '디자인 비고', 'MolProp1', 'MolProp2'
@@ -816,14 +838,44 @@ const MyBoard: React.FC = () => {
     }, {});
   }, [compoundRows]);
 
+  const toggleBookmarkedGroup = React.useCallback((groupId: string) => {
+    setBookmarkedGroupIds((prev) => (
+      prev.includes(groupId)
+        ? prev.filter((id) => id !== groupId)
+        : [groupId, ...prev]
+    ));
+  }, []);
+
+  const renderGroupBookmarkButton = React.useCallback((groupId: string) => {
+    const isBookmarked = bookmarkedGroupIds.includes(groupId);
+
+    return (
+      <Tooltip title={isBookmarked ? '상단 고정 해제' : '상단 고정'}>
+        <Button
+          size="small"
+          type="text"
+          aria-label={isBookmarked ? '상단 고정 해제' : '상단 고정'}
+          className={`my-board-bookmark-button${isBookmarked ? ' active' : ''}`}
+          onClick={(event) => {
+            event.stopPropagation();
+            toggleBookmarkedGroup(groupId);
+          }}
+        >
+          <span className="my-board-bookmark-icon" />
+        </Button>
+      </Tooltip>
+    );
+  }, [bookmarkedGroupIds, toggleBookmarkedGroup]);
+
   const renderRepresentativeStructure = (_: any, record: any) => {
     const representativeCompound = firstCompoundByGroupId[record.id];
     const structureSvg = representativeCompound?.structureSvg;
     const structureSettings = getGroupStructureSettings(record.id);
+    const isBookmarked = bookmarkedGroupIds.includes(record.id);
 
     return (
       <div
-        className="my-board-representative-structure"
+        className={`my-board-representative-structure${isBookmarked ? ' is-bookmarked' : ''}`}
         style={{
           margin: '0 auto',
           display: 'inline-flex',
@@ -833,8 +885,12 @@ const MyBoard: React.FC = () => {
           minWidth: MYBOARD_GROUP_STRUCTURE_WIDTH,
           minHeight: MYBOARD_GROUP_STRUCTURE_HEIGHT,
           lineHeight: 0,
+          position: 'relative',
         }}
       >
+        <div className="my-board-structure-bookmark">
+          {renderGroupBookmarkButton(record.id)}
+        </div>
         <CompoundStructureView
           svg={structureSvg}
           rdkitSvg={(representativeCompound as any)?.rdkitSvg}
@@ -879,55 +935,17 @@ const MyBoard: React.FC = () => {
     );
   };
 
-  const toggleBookmarkedGroup = React.useCallback((groupId: string) => {
-    setBookmarkedGroupIds((prev) => (
-      prev.includes(groupId)
-        ? prev.filter((id) => id !== groupId)
-        : [groupId, ...prev]
-    ));
-  }, []);
-
   const groupColumns = [
     {
-      title: '',
-      dataIndex: 'id',
-      key: 'bookmark',
-      width: MYBOARD_GROUP_COLUMN_WIDTHS.bookmark,
-      minWidth: MYBOARD_GROUP_COLUMN_WIDTHS.bookmark,
+      title: '순번',
+      key: 'sequence',
+      width: MYBOARD_GROUP_COLUMN_WIDTHS.sequence,
+      minWidth: MYBOARD_GROUP_COLUMN_WIDTHS.sequence,
       align: 'center' as const,
       className: 'my-board-group-fixed-column',
-      onCell: (record: any) => ({
-        ...createFixedGroupColumnProps(MYBOARD_GROUP_COLUMN_WIDTHS.bookmark),
-        onClick: (event: React.MouseEvent<HTMLElement>) => {
-          event.stopPropagation();
-          toggleBookmarkedGroup(record.id);
-        },
-        style: {
-          ...createFixedGroupColumnStyle(MYBOARD_GROUP_COLUMN_WIDTHS.bookmark),
-          cursor: 'pointer',
-        },
-      }),
-      onHeaderCell: () => createFixedGroupColumnProps(MYBOARD_GROUP_COLUMN_WIDTHS.bookmark),
-      render: (groupId: string) => {
-        const isBookmarked = bookmarkedGroupIds.includes(groupId);
-
-        return (
-          <Tooltip title={isBookmarked ? '상단 고정 해제' : '상단 고정'}>
-            <Button
-              size="small"
-              type="text"
-              aria-label={isBookmarked ? '상단 고정 해제' : '상단 고정'}
-              className={`my-board-bookmark-button${isBookmarked ? ' active' : ''}`}
-              onClick={(event) => {
-                event.stopPropagation();
-                toggleBookmarkedGroup(groupId);
-              }}
-            >
-              <span className="my-board-bookmark-icon" />
-            </Button>
-          </Tooltip>
-        );
-      },
+      onCell: () => createFixedGroupColumnProps(MYBOARD_GROUP_COLUMN_WIDTHS.sequence),
+      onHeaderCell: () => createFixedGroupColumnProps(MYBOARD_GROUP_COLUMN_WIDTHS.sequence),
+      render: (_: any, __: any, index: number) => String(index + 1).replace(/\B(?=(\d{3})+(?!\d))/g, ','),
     },
     {
       title: 'Date',
@@ -975,7 +993,7 @@ const MyBoard: React.FC = () => {
       onHeaderCell: () => createFixedGroupColumnProps(MYBOARD_GROUP_COLUMN_WIDTHS.count),
     },
     {
-      title: '그룹 번호',
+      title: '그룹',
       dataIndex: 'id',
       key: 'groupOrder',
       width: MYBOARD_GROUP_COLUMN_WIDTHS.groupOrder,
@@ -2954,10 +2972,10 @@ const MyBoard: React.FC = () => {
           height: 100%;
           display: flex;
           flex-direction: column;
-          background: ${token.colorBgContainer};
-          border: 1px solid ${token.colorBorderSecondary};
-          border-radius: 8px;
-          box-shadow: -6px 0 18px rgba(15, 23, 42, 0.08);
+          background: var(--card-bg);
+          border: 1px solid var(--c-card-border);
+          border-radius: 12px;
+          box-shadow: none;
           overflow: hidden;
         }
         .quick-viewer-panel-open {
@@ -2969,7 +2987,7 @@ const MyBoard: React.FC = () => {
           display: flex;
           align-items: center;
           justify-content: space-between;
-          border-bottom: 1px solid ${token.colorBorderSecondary};
+          border-bottom: 1px solid var(--c-card-border);
           box-sizing: border-box;
         }
         .quick-viewer-title {
@@ -2990,8 +3008,8 @@ const MyBoard: React.FC = () => {
           grid-template-columns: repeat(4, minmax(0, 1fr));
           gap: 6px;
           padding: 10px 14px;
-          border-bottom: 1px solid ${token.colorBorderSecondary};
-          background: ${token.colorBgLayout};
+          border-bottom: 1px solid var(--c-card-border);
+          background: var(--bg-color);
         }
         .quick-viewer-tab {
           height: 28px;
@@ -3017,7 +3035,7 @@ const MyBoard: React.FC = () => {
           flex: 1;
           overflow: auto;
           padding: 10px;
-          background: ${token.colorBgContainer};
+          background: var(--card-bg);
         }
         .quick-viewer-result-row {
           display: flex;
@@ -3292,8 +3310,8 @@ const MyBoard: React.FC = () => {
         }
         .my-board-action-icon-eye-off {
           background: currentColor;
-          mask: url(${eyeOffIcon}) center / contain no-repeat;
-          -webkit-mask: url(${eyeOffIcon}) center / contain no-repeat;
+          mask: url("${eyeOffIconMaskUrl}") center / contain no-repeat;
+          -webkit-mask: url("${eyeOffIconMaskUrl}") center / contain no-repeat;
         }
         .my-board-structure-setting-value {
           height: 20px;
@@ -3365,20 +3383,41 @@ const MyBoard: React.FC = () => {
         .my-board-settings-modal .ant-modal-body::-webkit-scrollbar-thumb:hover {
           background-color: ${token.colorTextQuaternary};
         }
+        .my-board-structure-bookmark {
+          position: absolute;
+          top: 2px;
+          left: 2px;
+          z-index: 12;
+          line-height: 1;
+          opacity: 0;
+          pointer-events: none;
+          transition: opacity 0.16s ease;
+        }
+        .my-board-representative-structure:hover .my-board-structure-bookmark,
+        .my-board-representative-structure.is-bookmarked .my-board-structure-bookmark {
+          opacity: 1;
+          pointer-events: auto;
+        }
         .my-board-bookmark-button {
-          width: 24px;
-          height: 24px;
+          width: 16px;
+          min-width: 16px;
+          height: 16px;
           padding: 0;
           display: inline-flex;
           align-items: center;
           justify-content: center;
           color: ${token.colorTextQuaternary};
           border: 1px solid transparent;
+          border-radius: 4px;
           transition: background-color 0.16s ease, color 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease;
         }
+        .my-board-structure-bookmark .my-board-bookmark-button {
+          background: color-mix(in srgb, ${token.colorBgContainer} 88%, transparent) !important;
+          backdrop-filter: blur(2px);
+        }
         .my-board-bookmark-icon {
-          width: 14px;
-          height: 14px;
+          width: 12px;
+          height: 12px;
           display: inline-block;
           background-color: currentColor;
           -webkit-mask: url("${bookmarkIconMaskUrl}") center / contain no-repeat;
@@ -3430,6 +3469,16 @@ const MyBoard: React.FC = () => {
           border-color: transparent;
           box-shadow: none;
           outline: 0;
+        }
+        .my-board-structure-bookmark .my-board-bookmark-button,
+        .my-board-structure-bookmark .my-board-bookmark-button:hover,
+        .my-board-structure-bookmark .my-board-bookmark-button:focus,
+        .my-board-structure-bookmark .my-board-bookmark-button:focus-visible,
+        .my-board-structure-bookmark .my-board-bookmark-button:active,
+        .my-board-structure-bookmark .my-board-bookmark-button.active,
+        .my-board-structure-bookmark .my-board-bookmark-button.active:hover,
+        .my-board-structure-bookmark .my-board-bookmark-button.active:focus-visible {
+          background: color-mix(in srgb, ${token.colorBgContainer} 88%, transparent) !important;
         }
         .canvas-card:hover { border-color: ${token.colorPrimary} !important; transform: translateY(-4px); box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
         .cdd-clipboard-icon-container, .CDW_Logo, .cdd-logo { display: none !important; }

@@ -1,11 +1,12 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { App, Button, Skeleton, Tooltip, theme } from 'antd';
 import type { ButtonProps } from 'antd';
-import { Copy, Search } from 'lucide-react';
+import { Copy, Image as ImageIcon, Search } from 'lucide-react';
 import BenzeneIcon from './BenzeneIcon';
 import { CHEMDRAW_CONFIG } from '../../config/chemdraw';
 import { createRdkitSvgCacheKey, renderRdkitSvg } from '../../services/structureRendering';
 import { installCanvasReadbackPatch } from '../../utils/canvasReadback';
+import { installPassiveWheelListenerPatch } from '../../utils/passiveWheelListenerPatch';
 
 export interface CompoundStructureAction {
   key: string;
@@ -39,6 +40,7 @@ export interface CompoundStructureViewProps {
   fullWidth?: boolean;
   showPreviewAction?: boolean;
   showCopyAction?: boolean;
+  showCopyImageAction?: boolean;
   onPreview?: (svg?: string) => void;
   actionPlacement?: 'rail' | 'overlay';
   actionOverlayAnchor?: 'frame' | 'container';
@@ -81,6 +83,93 @@ export const getCompoundStructureCopyText = (params: {
   const svg = typeof params.svg === 'string' ? params.svg.trim() : '';
 
   return smiles || molBlock || cdxml || svg;
+};
+
+const getSvgImageSize = (svg: string) => {
+  const fallback = { width: 512, height: 512 };
+
+  try {
+    const doc = new DOMParser().parseFromString(svg, 'image/svg+xml');
+    const root = doc.documentElement;
+    const width = Number.parseFloat(root.getAttribute('width') || '');
+    const height = Number.parseFloat(root.getAttribute('height') || '');
+
+    if (Number.isFinite(width) && width > 0 && Number.isFinite(height) && height > 0) {
+      return { width: Math.ceil(width), height: Math.ceil(height) };
+    }
+
+    const viewBox = root.getAttribute('viewBox')?.trim().split(/\s+/).map(Number);
+    if (viewBox && viewBox.length === 4) {
+      const [, , viewBoxWidth, viewBoxHeight] = viewBox;
+      if (Number.isFinite(viewBoxWidth) && viewBoxWidth > 0 && Number.isFinite(viewBoxHeight) && viewBoxHeight > 0) {
+        return { width: Math.ceil(viewBoxWidth), height: Math.ceil(viewBoxHeight) };
+      }
+    }
+  } catch {
+    return fallback;
+  }
+
+  return fallback;
+};
+
+const svgToPngBlob = (svg: string) => new Promise<Blob>((resolve, reject) => {
+  if (typeof window === 'undefined') {
+    reject(new Error('Window is not available'));
+    return;
+  }
+
+  const { width, height } = getSvgImageSize(svg);
+  const canvas = document.createElement('canvas');
+  const scale = 2;
+  canvas.width = Math.max(1, Math.ceil(width * scale));
+  canvas.height = Math.max(1, Math.ceil(height * scale));
+
+  const context = canvas.getContext('2d');
+  if (!context) {
+    reject(new Error('Canvas context is not available'));
+    return;
+  }
+
+  const image = new window.Image();
+  const svgBlob = new Blob([svg], { type: 'image/svg+xml;charset=utf-8' });
+  const url = URL.createObjectURL(svgBlob);
+
+  image.onload = () => {
+    try {
+      context.clearRect(0, 0, canvas.width, canvas.height);
+      context.drawImage(image, 0, 0, canvas.width, canvas.height);
+      canvas.toBlob((blob) => {
+        URL.revokeObjectURL(url);
+        if (blob) {
+          resolve(blob);
+        } else {
+          reject(new Error('PNG image creation failed'));
+        }
+      }, 'image/png');
+    } catch (error) {
+      URL.revokeObjectURL(url);
+      reject(error);
+    }
+  };
+
+  image.onerror = () => {
+    URL.revokeObjectURL(url);
+    reject(new Error('SVG image loading failed'));
+  };
+  image.src = url;
+});
+
+const copySvgImageToClipboard = async (svg: string) => {
+  const ClipboardItemConstructor = (window as any).ClipboardItem;
+
+  if (!navigator.clipboard?.write || !ClipboardItemConstructor) {
+    throw new Error('이미지 클립보드를 지원하지 않는 브라우저입니다.');
+  }
+
+  const pngBlob = await svgToPngBlob(svg);
+  await navigator.clipboard.write([
+    new ClipboardItemConstructor({ 'image/png': pngBlob }),
+  ]);
 };
 
 const loadChemDrawScript = (() => {
@@ -135,6 +224,7 @@ const ChemDrawStructurePreview: React.FC<{
   useEffect(() => {
     let isDisposed = false;
     const restoreReadbackPatch = installCanvasReadbackPatch();
+    const restorePassiveWheelPatch = installPassiveWheelListenerPatch();
 
     const attachPreview = async () => {
       try {
@@ -185,6 +275,7 @@ const ChemDrawStructurePreview: React.FC<{
         container.innerHTML = '';
       }
       restoreReadbackPatch();
+      restorePassiveWheelPatch();
     };
   }, [cdxml, containerId, molBlock, smiles, structureKey]);
 
@@ -218,6 +309,7 @@ const CompoundStructureView: React.FC<CompoundStructureViewProps> = ({
   fullWidth = false,
   showPreviewAction = true,
   showCopyAction = true,
+  showCopyImageAction,
   onPreview,
   actionPlacement = 'rail',
   actionOverlayAnchor = 'frame',
@@ -257,6 +349,7 @@ const CompoundStructureView: React.FC<CompoundStructureViewProps> = ({
     ? generatedSvg || cachedRdkitSvg || null
     : generatedStructure?.svg || cachedRdkitSvg || rdkitSvg || svg);
   const copyText = getCompoundStructureCopyText({ smiles, molBlock: displayMolBlock, cdxml, svg: displaySvg });
+  const shouldShowCopyImageAction = showCopyImageAction ?? showCopyAction;
   const hasRenderableChemData = preferRdkitSvg ? false : !!(cdxml || displayMolBlock || smiles);
   const shouldShowRdkitSkeleton = preferRdkitSvg && isRdkitLoading && !displaySvg;
   const shouldFitRotatedBounds = fitRotatedBounds && typeof width === 'number' && typeof height === 'number';
@@ -366,7 +459,23 @@ const CompoundStructureView: React.FC<CompoundStructureViewProps> = ({
         }
       },
     }] : [];
-  const allActions = [...previewAction, ...copyAction, ...actions];
+  const copyImageAction: CompoundStructureAction[] = shouldShowCopyImageAction && displaySvg ? [{
+      key: 'copy-image',
+      title: '이미지 복사',
+      icon: <ImageIcon size={13} />,
+      onClick: (event: React.MouseEvent<HTMLElement>) => {
+        event.stopPropagation();
+        void copySvgImageToClipboard(displaySvg)
+          .then(() => {
+            void message.success('구조 이미지 복사 완료');
+          })
+          .catch((error) => {
+            const errorMessage = error instanceof Error ? error.message : '이미지 복사 실패';
+            void message.error(errorMessage);
+          });
+      },
+    }] : [];
+  const allActions = [...previewAction, ...copyImageAction, ...copyAction, ...actions];
   const overlayActions = actionPlacement === 'overlay' && allActions.length > 0 ? (
     <div className="compound-structure-actions-overlay">
       {allActions.map((action) => (
@@ -378,7 +487,16 @@ const CompoundStructureView: React.FC<CompoundStructureViewProps> = ({
             type="text"
             icon={action.icon}
             disabled={action.disabled}
-            onClick={action.onClick}
+            onClick={(event) => {
+              const clickedButton = event.currentTarget;
+              const shouldBlurAfterClick = event.detail > 0;
+
+              action.onClick(event);
+
+              if (shouldBlurAfterClick) {
+                clickedButton.blur();
+              }
+            }}
           />
         </Tooltip>
       ))}

@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import * as fabric from 'fabric';
-import { App as AntApp, Button, Space, Card, Tooltip, Divider, Modal, Spin, Alert, theme } from 'antd';
+import { App as AntApp, Button, Space, Card, Tooltip, Divider, theme } from 'antd';
 import {
   Square, Circle, Type, Trash2,
   Image as ImageIcon, Download, Eraser, ClipboardCopy
@@ -36,11 +36,6 @@ const WhiteboardEditor: React.FC<WhiteboardEditorProps> = ({
   } | null>(null);
   const [editingStructureObject, setEditingStructureObject] = useState<any>(null);
   const [selectedStructureData, setSelectedStructureData] = useState<ChemDrawStructureData | null>(null);
-  const [pendingStructureData, setPendingStructureData] = useState<ChemDrawStructureData | null>(null);
-  const [rdkitPreviewSvg, setRdkitPreviewSvg] = useState<string | null>(null);
-  const [rdkitPreviewError, setRdkitPreviewError] = useState<string | null>(null);
-  const [isRdkitPreviewOpen, setIsRdkitPreviewOpen] = useState(false);
-  const [isRdkitPreviewLoading, setIsRdkitPreviewLoading] = useState(false);
 
   type ChemicalTextFormat = 'cdxml' | 'mol' | 'smiles';
 
@@ -377,10 +372,6 @@ const WhiteboardEditor: React.FC<WhiteboardEditorProps> = ({
       setIsChemDrawOpen(false);
       setChemDrawInitialStructure(null);
       setEditingStructureObject(null);
-      setPendingStructureData(null);
-      setRdkitPreviewSvg(null);
-      setRdkitPreviewError(null);
-      setIsRdkitPreviewOpen(false);
     });
   };
 
@@ -390,62 +381,24 @@ const WhiteboardEditor: React.FC<WhiteboardEditorProps> = ({
       sourceSvg: data.svg,
     };
 
-    setPendingStructureData(nextData);
-    setRdkitPreviewSvg(null);
-    setRdkitPreviewError(null);
-    setIsRdkitPreviewOpen(true);
-    setIsRdkitPreviewLoading(true);
     setIsChemDrawOpen(false);
 
     try {
       const svg = await fetchRdkitSvg(nextData);
-      setRdkitPreviewSvg(svg);
-      setPendingStructureData({
+      addStructureToCanvas({
         ...nextData,
         rdkitSvg: svg,
         svg,
       });
     } catch (error) {
       const fallbackMessage = error instanceof Error ? error.message : 'RDKit preview 생성에 실패했습니다.';
-      setRdkitPreviewError(fallbackMessage);
-      setPendingStructureData({
+      message.warning(`${fallbackMessage} ChemDraw SVG로 캔버스에 추가합니다.`);
+      addStructureToCanvas({
         ...nextData,
         rdkitSvg: null,
         svg: nextData.svg,
       });
-    } finally {
-      setIsRdkitPreviewLoading(false);
     }
-  };
-
-  const confirmAddPreviewStructure = () => {
-    if (!pendingStructureData) return;
-    const nextData = {
-      ...pendingStructureData,
-      svg: pendingStructureData.rdkitSvg || pendingStructureData.svg,
-    };
-    addStructureToCanvas(nextData);
-  };
-
-  const reopenChemDrawFromPreview = () => {
-    if (!pendingStructureData) return;
-    setChemDrawInitialStructure({
-      cdxml: pendingStructureData.cdxml,
-      molblock: pendingStructureData.molV2000 || pendingStructureData.molfile || pendingStructureData.molV3000,
-      smiles: pendingStructureData.smiles,
-    });
-    setIsRdkitPreviewOpen(false);
-    setIsChemDrawOpen(true);
-  };
-
-  const cancelRdkitPreview = () => {
-    setIsRdkitPreviewOpen(false);
-    setPendingStructureData(null);
-    setRdkitPreviewSvg(null);
-    setRdkitPreviewError(null);
-    setIsRdkitPreviewLoading(false);
-    setChemDrawInitialStructure(null);
-    setEditingStructureObject(null);
   };
 
   const openBlankChemDraw = () => {
@@ -830,80 +783,11 @@ const WhiteboardEditor: React.FC<WhiteboardEditorProps> = ({
         }}
         onConfirm={handleChemDrawConfirm}
         title={editingStructureObject ? '화이트보드 구조 수정' : '화이트보드에 구조 추가'}
-        confirmText={editingStructureObject ? 'Preview 생성' : 'Preview 생성'}
+        confirmText="등록"
         initialCdxml={chemDrawInitialStructure?.cdxml}
         initialMolblock={chemDrawInitialStructure?.molblock}
         initialSmiles={chemDrawInitialStructure?.smiles}
       />
-
-      <Modal
-        title="RDKit 구조 Preview"
-        open={isRdkitPreviewOpen}
-        onCancel={cancelRdkitPreview}
-        width={760}
-        destroyOnHidden
-        footer={[
-          <Button key="edit" onClick={reopenChemDrawFromPreview} disabled={isRdkitPreviewLoading || !pendingStructureData}>
-            다시 편집
-          </Button>,
-          <Button key="cancel" onClick={cancelRdkitPreview}>
-            취소
-          </Button>,
-          <Button
-            key="add"
-            type="primary"
-            onClick={confirmAddPreviewStructure}
-            disabled={isRdkitPreviewLoading || !pendingStructureData || (!rdkitPreviewSvg && !pendingStructureData?.svg)}
-            style={{ background: token.colorPrimary, borderColor: token.colorPrimary }}
-          >
-            캔버스에 추가
-          </Button>
-        ]}
-      >
-        <div
-          style={{
-            minHeight: 360,
-            borderRadius: 8,
-            border: `1px solid ${token.colorBorderSecondary}`,
-            background: token.colorBgContainer,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            overflow: 'hidden',
-            padding: 16,
-          }}
-        >
-          {isRdkitPreviewLoading ? (
-            <Spin tip="RDKit 구조 이미지를 생성하는 중입니다.">
-              <div style={{ width: 220, height: 72 }} />
-            </Spin>
-          ) : rdkitPreviewSvg || pendingStructureData?.svg ? (
-            <div
-              className="whiteboard-rdkit-preview"
-              style={{ width: '100%', height: 330, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-              dangerouslySetInnerHTML={{ __html: rdkitPreviewSvg || pendingStructureData?.svg || '' }}
-            />
-          ) : null}
-        </div>
-        {rdkitPreviewError ? (
-          <Alert
-            type="warning"
-            showIcon
-            style={{ marginTop: 12 }}
-            message="RDKit preview 생성 실패"
-            description={`${rdkitPreviewError} ChemDraw SVG로 캔버스에 추가할 수 있습니다.`}
-          />
-        ) : null}
-      </Modal>
-      <style>{`
-        .whiteboard-rdkit-preview svg {
-          max-width: 100% !important;
-          max-height: 100% !important;
-          width: auto;
-          height: auto;
-          display: block;
-        }
-      `}</style>
     </Card>
   );
 };

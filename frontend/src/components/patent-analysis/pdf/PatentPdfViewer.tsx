@@ -10,6 +10,34 @@ const PDFJS_WASM_URL = import.meta.env.PROD
   ? '/pdfjs/wasm/'
   : 'https://cdn.jsdelivr.net/npm/pdfjs-dist@5.7.284/wasm/';
 
+let pdfWorkerTerminationWarningFilterCount = 0;
+let originalConsoleWarn: typeof console.warn | null = null;
+
+const isPdfWorkerTerminationWarning = (args: unknown[]) => {
+  const message = args.map((arg) => String(arg)).join(' ');
+  return message.includes('getTextContent - ignoring errors')
+    && message.includes('Worker task was terminated');
+};
+
+const installPdfWorkerTerminationWarningFilter = () => {
+  pdfWorkerTerminationWarningFilterCount += 1;
+  if (pdfWorkerTerminationWarningFilterCount === 1) {
+    originalConsoleWarn = console.warn;
+    console.warn = (...args: unknown[]) => {
+      if (isPdfWorkerTerminationWarning(args)) return;
+      originalConsoleWarn?.(...args);
+    };
+  }
+
+  return () => {
+    pdfWorkerTerminationWarningFilterCount = Math.max(0, pdfWorkerTerminationWarningFilterCount - 1);
+    if (pdfWorkerTerminationWarningFilterCount === 0 && originalConsoleWarn) {
+      console.warn = originalConsoleWarn;
+      originalConsoleWarn = null;
+    }
+  };
+};
+
 type PatentPdfViewerProps = {
   document: string;
   rotation: number;
@@ -196,6 +224,13 @@ const PatentPdfViewerComponent: React.FC<PatentPdfViewerProps> = ({
     url: document,
     wasmUrl: PDFJS_WASM_URL,
   }), [document]);
+
+  React.useEffect(() => installPdfWorkerTerminationWarningFilter(), []);
+
+  React.useEffect(() => {
+    setPdfDoc(null);
+    setLocalHighlighterUtils(null);
+  }, [document]);
 
   const handleHighlighterUtils = React.useCallback((utils: PdfHighlighterUtils) => {
     setLocalHighlighterUtils(utils);

@@ -203,6 +203,12 @@ const SarTable: React.FC = () => {
   const sarPinnedRowColor = isDarkMode ? '#60A5FA' : '#2563EB';
   const sarPinnedRowBg = isDarkMode ? 'rgba(96, 165, 250, 0.16)' : 'rgba(37, 99, 235, 0.08)';
   const sarPinnedRowHoverBg = isDarkMode ? 'rgba(96, 165, 250, 0.24)' : 'rgba(37, 99, 235, 0.14)';
+  const sarPinnedSelectedCardBg = isDarkMode
+    ? `color-mix(in srgb, ${token.colorPrimary} 16%, ${token.colorBgContainer})`
+    : `color-mix(in srgb, ${token.colorPrimary} 10%, ${token.colorBgContainer})`;
+  const sarPinnedSelectedCardHoverBg = isDarkMode
+    ? `color-mix(in srgb, ${token.colorPrimary} 22%, ${token.colorBgContainer})`
+    : `color-mix(in srgb, ${token.colorPrimary} 14%, ${token.colorBgContainer})`;
   const isStructureSettingsDisabled = !activeStructureSettingsGroupId;
   const updateActiveStructureSettings = (settings: Partial<typeof DEFAULT_GROUP_STRUCTURE_VIEW_SETTINGS>) => {
     if (!activeStructureSettingsGroupId) return;
@@ -1512,11 +1518,14 @@ const SarTable: React.FC = () => {
                         cursor: 'pointer',
                         background: isCompoundCardOverlapped
                             ? 'transparent'
+                            : isPinnedCompound && (selectedCompoundIds.includes(item.id) || hoveredRowKey === item.id)
+                            ? sarPinnedSelectedCardBg
                             : selectedCompoundIds.includes(item.id) || hoveredRowKey === item.id
                             ? (isDarkMode ? 'rgba(248, 124, 99, 0.12)' : 'rgba(248, 124, 99, 0.08)')
                             : token.colorBgContainer,
                         boxSizing: 'border-box',
                         borderColor: 'transparent',
+                        overflow: isPinnedCompound && !isCompoundCardOverlapped ? 'hidden' : 'visible',
                         position: isPinnedCompound ? 'sticky' : 'relative',
                         left: isPinnedCompound ? pinnedOrder * compoundCardPinnedStep : undefined,
                         marginRight: compoundCardViewMode === 'single' && index < displaySarCompounds.length - 1
@@ -2234,10 +2243,10 @@ const SarTable: React.FC = () => {
           height: 100%;
           display: flex;
           flex-direction: column;
-          background: ${token.colorBgContainer};
-          border: 1px solid ${token.colorBorderSecondary};
-          border-radius: 8px;
-          box-shadow: -10px 0 28px rgba(15, 23, 42, 0.16);
+          background: var(--card-bg);
+          border: 1px solid var(--c-card-border);
+          border-radius: 12px;
+          box-shadow: none;
           overflow: hidden;
         }
         .sar-quick-viewer-pane .quick-viewer-header {
@@ -2246,7 +2255,7 @@ const SarTable: React.FC = () => {
           display: flex;
           align-items: center;
           justify-content: space-between;
-          border-bottom: 1px solid ${token.colorBorderSecondary};
+          border-bottom: 1px solid var(--c-card-border);
           box-sizing: border-box;
         }
         .sar-quick-viewer-pane .quick-viewer-title {
@@ -2267,8 +2276,8 @@ const SarTable: React.FC = () => {
           grid-template-columns: repeat(4, minmax(0, 1fr));
           gap: 6px;
           padding: 10px 14px;
-          border-bottom: 1px solid ${token.colorBorderSecondary};
-          background: ${token.colorBgLayout};
+          border-bottom: 1px solid var(--c-card-border);
+          background: var(--bg-color);
         }
         .sar-quick-viewer-pane .quick-viewer-tab {
           height: 28px;
@@ -2294,7 +2303,7 @@ const SarTable: React.FC = () => {
           flex: 1;
           overflow: auto;
           padding: 10px;
-          background: ${token.colorBgContainer};
+          background: var(--card-bg);
         }
         .sar-quick-viewer-pane .quick-viewer-result-row {
           display: flex;
@@ -2612,6 +2621,17 @@ const SarTable: React.FC = () => {
         }
         .sar-compound-card.pinned {
           box-shadow: none !important;
+        }
+        .sar-compound-card.pinned.selected,
+        .sar-compound-card.pinned.hovered {
+          background-color: ${isCompoundCardOverlapped ? 'transparent' : sarPinnedSelectedCardBg} !important;
+        }
+        .sar-compound-card.pinned.selected:hover,
+        .sar-compound-card.pinned.hovered:hover {
+          background-color: ${isCompoundCardOverlapped ? 'transparent' : sarPinnedSelectedCardHoverBg} !important;
+        }
+        .sar-compound-card.pinned::after {
+          inset: ${isCompoundCardOverlapped ? '1px' : '0'};
         }
         .sar-compound-card.pinned .sar-compound-card-name {
           position: relative;
