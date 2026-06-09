@@ -1,3 +1,7 @@
 [submodule "rdkit"]
 	path = rdkit
 	url = https://github.com/voronoi-dev-team/rdkit_drawing.git
+[submodule "compound_search"]
+	path = compound_search
+	url = https://github.com/voronoi-dev-team/public_compound_search.git
+	branch = main

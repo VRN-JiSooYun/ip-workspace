@@ -65,6 +65,7 @@ interface ImportMetaEnv {
   readonly PROD: boolean;
   readonly VITE_API_URL?: string;
   readonly VITE_RDKIT_API_URL?: string;
+  readonly VITE_COMPOUND_SEARCH_API_URL?: string;
 }
 
 interface ImportMeta {

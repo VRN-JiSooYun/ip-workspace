@@ -74,6 +74,90 @@ const SvgRenderer: React.FC<{ svg: string; height?: number | string }> = ({ svg,
 
 const normalizePublicationNumber = (value: string) => value.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
 
+const normalizeCompoundLookupValue = (value: unknown) => {
+  if (value === undefined || value === null) return '';
+  return String(value).trim().toLowerCase();
+};
+
+const getCompoundLookupValues = (value: unknown) => {
+  const normalized = normalizeCompoundLookupValue(value);
+  if (!normalized) return [];
+  const compact = normalized.replace(/[^a-z0-9]/g, '');
+  return compact && compact !== normalized ? [normalized, compact] : [normalized];
+};
+
+const getCompoundLookupCandidates = (compound: Record<string, any>) => [
+  compound.compound_id,
+  compound.id,
+  compound.compound_source_id,
+  compound.source_compound_id,
+  compound._id,
+].flatMap(getCompoundLookupValues);
+
+const normalizeAutoHighlightPage = (rawPage: unknown): number => {
+  const value = Array.isArray(rawPage) ? rawPage[0] : rawPage;
+  const page = Number(value);
+  return Number.isFinite(page) && page > 0 ? page : 0;
+};
+
+const normalizeAutoHighlightBbox = (rawBbox: unknown): number[] | undefined => {
+  if (typeof rawBbox === 'string') {
+    const trimmed = rawBbox.trim();
+    if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+      try {
+        return normalizeAutoHighlightBbox(JSON.parse(trimmed));
+      } catch {
+        // Fall through to regex parsing.
+      }
+    }
+
+    const matched = trimmed.match(/-?\d+(?:\.\d+)?/g);
+    if (!matched || matched.length < 4) return undefined;
+    const bbox = matched.slice(0, 4).map(Number);
+    return bbox.every(Number.isFinite) ? bbox : undefined;
+  }
+
+  const value = Array.isArray(rawBbox) && rawBbox.length > 0 && Array.isArray(rawBbox[0])
+    ? rawBbox[0]
+    : rawBbox;
+  if (!Array.isArray(value) || value.length < 4) return undefined;
+  const bbox = value.slice(0, 4).map(Number);
+  return bbox.every(Number.isFinite) ? bbox : undefined;
+};
+
+const findCompoundHighlightTarget = (
+  patentResult: Record<string, any>,
+  requestedCompoundId: string | null,
+) => {
+  const requestedTokens = getCompoundLookupValues(requestedCompoundId);
+  if (requestedTokens.length === 0) return null;
+
+  const compoundGroups = [
+    { rows: patentResult.patent_compound, prefix: '' },
+    { rows: patentResult.modified_patent_compound, prefix: 'clean-' },
+  ];
+
+  for (const group of compoundGroups) {
+    const rows = Array.isArray(group.rows) ? group.rows : [];
+    for (const row of rows) {
+      const candidates = getCompoundLookupCandidates(row);
+      const isMatch = requestedTokens.some((token) => candidates.includes(token));
+      if (!isMatch) continue;
+
+      const page = normalizeAutoHighlightPage(row.page);
+      const bbox = normalizeAutoHighlightBbox(row.bbox);
+      return {
+        row,
+        page,
+        bbox,
+        activeKey: `${group.prefix}${String(row.id ?? row.compound_id ?? requestedCompoundId)}`,
+      };
+    }
+  }
+
+  return null;
+};
+
 const getBrowserPdfUrl = (value: unknown) => {
   if (typeof value !== 'string' || !value.trim()) return null;
   const trimmed = value.trim();
@@ -105,6 +189,10 @@ const PatentAnalysisDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const location = useLocation();
+  const requestedCompoundId = React.useMemo(
+    () => new URLSearchParams(location.search).get('compound_id'),
+    [location.search],
+  );
   const routePatent = (location.state as { patent?: Patent } | null)?.patent;
   const selectedPatent = useMemo(() => {
     if (!id) return null;
@@ -245,6 +333,7 @@ const PatentAnalysisDetail: React.FC = () => {
   const splitRafRef = React.useRef<number | null>(null);
   const lastSplitUpdateAtRef = React.useRef(0);
   const lastSplitRatioRef = React.useRef(SPLIT_DEFAULT_PERCENT);
+  const autoCompoundHighlightRef = React.useRef('');
   const splitStorageKey = React.useMemo(() => `patent-analysis-split:${id ?? 'default'}`, [id]);
   const layoutPreset = React.useMemo(() => getPatentAnalysisLayoutPreset(viewportWidth), [viewportWidth]);
   const effectiveSplitWidth = splitContainerWidth || viewportWidth;
@@ -269,6 +358,14 @@ const PatentAnalysisDetail: React.FC = () => {
     position: ['bottomRight' as const],
     itemRender: paginationItemRender,
   }), [paginationItemRender]);
+  const resultTables = React.useMemo(() => {
+    const tables = patentResult?.tables;
+    return Array.isArray(tables) ? tables : [];
+  }, [patentResult]);
+  const compoundHighlightTarget = React.useMemo(
+    () => findCompoundHighlightTarget(patentResult, requestedCompoundId),
+    [patentResult, requestedCompoundId],
+  );
 
   useEffect(() => {
     setRawCardCurrentPage(1);
@@ -316,6 +413,56 @@ const PatentAnalysisDetail: React.FC = () => {
     if (isResizingSplit) return;
     window.localStorage.setItem(splitStorageKey, String(splitRatio));
   }, [isResizingSplit, splitRatio, splitStorageKey]);
+
+  useEffect(() => {
+    if (!requestedCompoundId) return;
+
+    const detailReady = Boolean(apiPatentResult) || Boolean(patentDetailError);
+    if (!detailReady) return;
+    const pdfReady = Boolean(browserPdfDocument)
+      && pdfViewer.isPdfDocumentReady
+      && pdfViewer.isHighlighterReady
+      && pdfViewer.pdfTotalPages > 0;
+    if (!pdfReady) return;
+
+    const requestKey = `${displayedPatent?.patentNumber ?? id ?? ''}:${requestedCompoundId}`;
+    if (autoCompoundHighlightRef.current === requestKey) return;
+    autoCompoundHighlightRef.current = requestKey;
+
+    if (!compoundHighlightTarget) {
+      message.warning(`compound_id ${requestedCompoundId}에 해당하는 compound 위치를 찾을 수 없습니다.`);
+      return;
+    }
+
+    setActiveTab('raw-data');
+    setActiveCompId(compoundHighlightTarget.activeKey);
+    setPageIndices((prev) => ({ ...prev, [compoundHighlightTarget.activeKey]: 0 }));
+
+    if (compoundHighlightTarget.page) {
+      if (!compoundHighlightTarget.bbox) {
+        message.warning(`compound_id ${requestedCompoundId}의 PDF bbox 정보가 없어 페이지 이동만 수행합니다.`);
+      }
+      window.requestAnimationFrame(() => {
+        pdfViewer.handleGoToPdf(compoundHighlightTarget.page, compoundHighlightTarget.bbox as any);
+      });
+      return;
+    }
+
+    message.warning(`compound_id ${requestedCompoundId}의 PDF page 정보가 없습니다.`);
+  }, [
+    apiPatentResult,
+    browserPdfDocument,
+    compoundHighlightTarget,
+    displayedPatent?.patentNumber,
+    id,
+    message,
+    patentDetailError,
+    pdfViewer.handleGoToPdf,
+    pdfViewer.isHighlighterReady,
+    pdfViewer.isPdfDocumentReady,
+    pdfViewer.pdfTotalPages,
+    requestedCompoundId,
+  ]);
 
   const updateSplitRatioFromClientX = React.useCallback((clientX: number) => {
     const container = splitContainerRef.current;
@@ -667,11 +814,6 @@ const PatentAnalysisDetail: React.FC = () => {
     setPreviewImageSrc(src);
     setPreviewTitle(title);
   };
-
-  const resultTables = React.useMemo(() => {
-    const tables = patentResult?.tables;
-    return Array.isArray(tables) ? tables : [];
-  }, [patentResult]);
 
   const fitPageToScreen = React.useCallback(() => {
     if (splitRatio <= SPLIT_MIN_PERCENT) {

@@ -15,6 +15,7 @@ import PatentAnalysisDetail from './pages/PatentAnalysisDetail';
 import PatentInsight from './pages/PatentInsight';
 import DevelopmentStatus from './pages/DevelopmentStatus';
 import EmptyPage from './pages/EmptyPage';
+import UniversalSearch from './pages/UniversalSearch';
 
 const App: React.FC = () => {
   const { isDarkMode } = useTheme();
@@ -100,7 +101,7 @@ const App: React.FC = () => {
               <Route path="/papers/manage" element={<EmptyPage title="My 논문 관리" breadcrumb={[{ label: 'Documents' }, { label: 'Papers' }, { label: 'My 논문 관리' }]} />} />
               <Route path="/conferences" element={<EmptyPage title="Conferences" breadcrumb={[{ label: 'Documents' }, { label: 'Conferences' }]} />} />
               <Route path="/pdbs" element={<EmptyPage title="PDBs" breadcrumb={[{ label: 'PDBs' }]} />} />
-              <Route path="/universal-search" element={<EmptyPage title="통합검색" breadcrumb={[{ label: '통합검색' }]} />} />
+              <Route path="/universal-search" element={<UniversalSearch />} />
               <Route path="/development-status" element={<DevelopmentStatus />} />
               <Route path="/contact" element={<EmptyPage title="문의하기" breadcrumb={[{ label: '문의하기' }]} />} />
               <Route path="*" element={<Navigate to="/dashboard" replace />} />

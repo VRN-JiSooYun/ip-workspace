@@ -982,20 +982,20 @@ const PatentAnalysisList: React.FC = () => {
                   </Button>
                 )}
                 <Button
-                  type="primary"
-                  icon={<Search size={16} />}
-                  onClick={applySearchFilters}
-                  className="v-action-btn"
-                >
-                  검색
-                </Button>
-                <Button
                   icon={showFilters ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
                   onClick={() => setShowFilters(!showFilters)}
                   disabled={isStructureSearchMode}
                   className="v-action-btn"
                 >
                   상세 필터 {showFilters ? '닫기' : '열기'}
+                </Button>
+                <Button
+                  type="primary"
+                  icon={<Search size={16} />}
+                  onClick={applySearchFilters}
+                  className="v-action-btn"
+                >
+                  검색
                 </Button>
               </div>
             </Col>

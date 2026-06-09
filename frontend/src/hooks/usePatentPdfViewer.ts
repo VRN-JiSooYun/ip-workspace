@@ -136,6 +136,8 @@ export const usePatentPdfViewer = ({
   const [pdfCurrentPage, setPdfCurrentPage] = React.useState<number>(1);
   const [pdfTotalPages, setPdfTotalPages] = React.useState<number>(0);
   const [pdfRotation, setPdfRotation] = React.useState<number>(0);
+  const [isPdfDocumentReady, setIsPdfDocumentReady] = React.useState(false);
+  const [isHighlighterReady, setIsHighlighterReady] = React.useState(false);
 
   // -- Library Standard Search State --
   const [searchQuery, setSearchQuery] = React.useState('');
@@ -456,6 +458,8 @@ export const usePatentPdfViewer = ({
     pdfViewerContainerRef,
     pdfRotation,
     pdfTotalPages,
+    isPdfDocumentReady,
+    isHighlighterReady,
     activeBBox,
     // Search Handlers
     searchQuery,
@@ -467,8 +471,14 @@ export const usePatentPdfViewer = ({
     pdfCurrentPage,
     setPdfCurrentPage,
     setPdfRotation,
-    setPdfDocument: (doc: any) => { pdfDocumentRef.current = doc; },
-    setHighlighterUtils: (utils: any) => { highlighterUtilsRef.current = utils; },
+    setPdfDocument: (doc: any) => {
+      pdfDocumentRef.current = doc;
+      setIsPdfDocumentReady(Boolean(doc));
+    },
+    setHighlighterUtils: (utils: any) => {
+      highlighterUtilsRef.current = utils;
+      setIsHighlighterReady(Boolean(utils));
+    },
     setPdfTotalPages,
     // Highlight Handlers
     userHighlights,

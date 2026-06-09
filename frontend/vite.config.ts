@@ -13,6 +13,11 @@ export default defineConfig({
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/rdkit-api/, ''),
       },
+      '/compound-search-api': {
+        target: 'http://local-myworkspace-compound-search-api:8080',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/compound-search-api/, ''),
+      },
     },
   },
   resolve: {

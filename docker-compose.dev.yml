@@ -10,9 +10,11 @@ services:
     environment:
       - VITE_API_URL=/api
       - VITE_RDKIT_API_URL=/rdkit-api
+      - VITE_COMPOUND_SEARCH_API_URL=/compound-search-api
     depends_on:
       - dev-myworkspace-backend
       - dev-myworkspace-rdkit-api
+      - dev-myworkspace-compound-search-api
     networks:
       - dev-myworkspace-net
 
@@ -46,6 +48,19 @@ services:
       - "18081:8000"
     volumes:
       - ./rdkit:/app
+    networks:
+      - dev-myworkspace-net
+
+  dev-myworkspace-compound-search-api:
+    container_name: dev-myworkspace-compound-search-api
+    build:
+      context: .
+      dockerfile: docker/compound-search-api.Dockerfile
+    restart: always
+    ports:
+      - "18083:8080"
+    volumes:
+      - ./compound_search:/app
     networks:
       - dev-myworkspace-net
 
