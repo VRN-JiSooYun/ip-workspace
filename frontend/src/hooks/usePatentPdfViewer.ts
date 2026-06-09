@@ -132,6 +132,7 @@ export const usePatentPdfViewer = ({
   const isRebumpingRef = React.useRef(false);
   const lastRebumpTargetRef = React.useRef<string>('');
   const pdfNavigationFrameRef = React.useRef<number | null>(null);
+  const pdfNavigationTimeoutsRef = React.useRef<number[]>([]);
 
   const [pdfCurrentPage, setPdfCurrentPage] = React.useState<number>(1);
   const [pdfTotalPages, setPdfTotalPages] = React.useState<number>(0);
@@ -302,7 +303,17 @@ export const usePatentPdfViewer = ({
     };
   }, [highlighterUtilsRef.current]);
 
-  const scrollToPdfPage = React.useCallback((targetPage: number) => {
+  const clearPdfNavigationTimers = React.useCallback(() => {
+    if (pdfNavigationFrameRef.current !== null) {
+      window.cancelAnimationFrame(pdfNavigationFrameRef.current);
+      pdfNavigationFrameRef.current = null;
+    }
+
+    pdfNavigationTimeoutsRef.current.forEach((timer) => window.clearTimeout(timer));
+    pdfNavigationTimeoutsRef.current = [];
+  }, []);
+
+  const runPdfPageNavigation = React.useCallback((targetPage: number) => {
     if (!targetPage) return;
 
     setPdfCurrentPage(targetPage);
@@ -310,15 +321,35 @@ export const usePatentPdfViewer = ({
     if (utils && typeof (utils as any).goToPage === 'function') {
       debugLog('search-scroll-via-utils-goToPage', { targetPage });
       (utils as any).goToPage(targetPage);
-      return;
     }
 
-    const pageElement = document.querySelector(`.page[data-page-number="${targetPage}"]`);
+    const pageElement = pdfViewerContainerRef.current?.querySelector(`.page[data-page-number="${targetPage}"]`)
+      ?? document.querySelector(`.patent-pdf-main-viewer .page[data-page-number="${targetPage}"]`);
     if (pageElement) {
       debugLog('search-scroll-page-fallback', { targetPage });
-      pageElement.scrollIntoView({ behavior: 'smooth', block: 'start', inline: 'nearest' });
+      pageElement.scrollIntoView({ behavior: 'auto', block: 'start', inline: 'nearest' });
     }
   }, [debugLog]);
+
+  const schedulePdfPageNavigation = React.useCallback((targetPage: number) => {
+    clearPdfNavigationTimers();
+
+    const runInAnimationFrame = () => {
+      if (pdfNavigationFrameRef.current !== null) {
+        window.cancelAnimationFrame(pdfNavigationFrameRef.current);
+      }
+
+      pdfNavigationFrameRef.current = window.requestAnimationFrame(() => {
+        pdfNavigationFrameRef.current = null;
+        runPdfPageNavigation(targetPage);
+      });
+    };
+
+    runInAnimationFrame();
+    pdfNavigationTimeoutsRef.current = [120, 320, 700].map((delay) => (
+      window.setTimeout(runInAnimationFrame, delay)
+    ));
+  }, [clearPdfNavigationTimers, runPdfPageNavigation]);
 
   const handleGoToPdf = React.useCallback((targetPage: number, bboxCoords?: any[]) => {
     if (!targetPage) return;
@@ -342,34 +373,14 @@ export const usePatentPdfViewer = ({
       setPendingHighlight((prev) => (prev ? null : prev));
     }
 
-    if (pdfNavigationFrameRef.current !== null) {
-      window.cancelAnimationFrame(pdfNavigationFrameRef.current);
-    }
-
-    pdfNavigationFrameRef.current = window.requestAnimationFrame(() => {
-      pdfNavigationFrameRef.current = null;
-      const utils = highlighterUtilsRef.current;
-      if (utils && typeof (utils as any).scrollTo === 'function') {
-        (utils as any).scrollTo(targetPage);
-        return;
-      }
-
-      if (utils && typeof (utils as any).goToPage === 'function') {
-        (utils as any).goToPage(targetPage);
-        return;
-      }
-
-      scrollToPdfPage(targetPage);
-    });
-  }, [debugLog, ensurePdfPageSize, scrollToPdfPage]);
+    schedulePdfPageNavigation(targetPage);
+  }, [debugLog, ensurePdfPageSize, schedulePdfPageNavigation]);
 
   React.useEffect(() => (
     () => {
-      if (pdfNavigationFrameRef.current !== null) {
-        window.cancelAnimationFrame(pdfNavigationFrameRef.current);
-      }
+      clearPdfNavigationTimers();
     }
-  ), []);
+  ), [clearPdfNavigationTimers]);
 
   React.useEffect(() => {
     if (!pendingHighlight) return;

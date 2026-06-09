@@ -1,22 +1,25 @@
 let passiveWheelPatchUsers = 0;
 let restorePassiveWheelPatch: (() => void) | null = null;
 
-const withPassiveWheelOptions = (options?: boolean | AddEventListenerOptions) => {
+const withNonPassiveWheelOptions = (options?: boolean | AddEventListenerOptions) => {
   if (options == null) {
-    return { passive: true };
+    return { passive: false };
   }
 
   if (typeof options === 'boolean') {
-    return { capture: options, passive: true };
+    return { capture: options, passive: false };
   }
 
   if ('passive' in options) {
-    return options;
+    return {
+      ...options,
+      passive: false,
+    };
   }
 
   return {
     ...options,
-    passive: true,
+    passive: false,
   };
 };
 
@@ -39,7 +42,7 @@ export const installPassiveWheelListenerPatch = () => {
         this,
         type,
         listener,
-        type === 'wheel' ? withPassiveWheelOptions(options) : options
+        type === 'wheel' ? withNonPassiveWheelOptions(options) : options
       );
     } as typeof EventTarget.prototype.addEventListener;
 

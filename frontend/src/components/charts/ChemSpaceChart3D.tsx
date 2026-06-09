@@ -1,6 +1,7 @@
 import React from 'react';
 import ReactECharts from 'echarts-for-react';
 import { Typography, theme } from 'antd';
+import { installPassiveWheelListenerPatch } from '../../utils/passiveWheelListenerPatch';
 
 const { Text } = Typography;
 
@@ -15,6 +16,18 @@ interface ChemSpaceChart3DProps {
 
 const ChemSpaceChart3D: React.FC<ChemSpaceChart3DProps> = ({ data, xAxis, yAxis, zAxis, isDarkMode, showAxes }) => {
   const { token } = theme.useToken();
+  const [isWheelPatchReady, setIsWheelPatchReady] = React.useState(false);
+
+  React.useEffect(() => {
+    const restorePassiveWheelPatch = installPassiveWheelListenerPatch();
+    setIsWheelPatchReady(true);
+
+    return () => {
+      setIsWheelPatchReady(false);
+      restorePassiveWheelPatch();
+    };
+  }, []);
+
   const getAxisName = (key: string) => {
     const names: Record<string, string> = {
       molWt: 'MW',
@@ -271,13 +284,17 @@ const ChemSpaceChart3D: React.FC<ChemSpaceChart3DProps> = ({ data, xAxis, yAxis,
   };
 
   return (
-    <div style={{ width: '100%', height: '100%', padding: '24px', boxSizing: 'border-box' }}>
-      <ReactECharts 
-        option={getOption()} 
-        style={{ height: '100%', width: '100%' }}
-        theme={isDarkMode ? 'dark' : ''}
-        notMerge={true}
-      />
+    <div
+      style={{ width: '100%', height: '100%', padding: '24px', boxSizing: 'border-box', touchAction: 'none' }}
+    >
+      {isWheelPatchReady ? (
+        <ReactECharts
+          option={getOption()}
+          style={{ height: '100%', width: '100%' }}
+          theme={isDarkMode ? 'dark' : ''}
+          notMerge={true}
+        />
+      ) : null}
     </div>
   );
 };

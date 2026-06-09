@@ -99,6 +99,71 @@ const createTextStyle = (color: string) => ({
   fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
 });
 
+const SafeReactECharts: React.FC<{
+  option: any;
+  theme?: string;
+  style?: React.CSSProperties;
+}> = ({ option, theme, style }) => {
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const chartRef = useRef<any>(null);
+  const resizeFrameRef = useRef<number | null>(null);
+
+  useEffect(() => () => {
+    if (resizeFrameRef.current !== null) {
+      window.cancelAnimationFrame(resizeFrameRef.current);
+      resizeFrameRef.current = null;
+    }
+    const chart = chartRef.current?.getEchartsInstance?.();
+    chartRef.current = null;
+    if (chart && !chart.isDisposed?.()) {
+      chart.clear();
+    }
+  }, []);
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container || typeof ResizeObserver === 'undefined') return;
+
+    const resizeChart = () => {
+      if (resizeFrameRef.current !== null) {
+        window.cancelAnimationFrame(resizeFrameRef.current);
+      }
+      resizeFrameRef.current = window.requestAnimationFrame(() => {
+        resizeFrameRef.current = null;
+        const chart = chartRef.current?.getEchartsInstance?.();
+        if (chart && !chart.isDisposed?.()) {
+          chart.resize();
+        }
+      });
+    };
+
+    const resizeObserver = new ResizeObserver(resizeChart);
+    resizeObserver.observe(container);
+
+    return () => {
+      resizeObserver.disconnect();
+      if (resizeFrameRef.current !== null) {
+        window.cancelAnimationFrame(resizeFrameRef.current);
+        resizeFrameRef.current = null;
+      }
+    };
+  }, []);
+
+  return (
+    <div ref={containerRef} style={style}>
+      <ReactECharts
+        ref={chartRef}
+        option={option}
+        theme={theme}
+        style={{ width: '100%', height: '100%' }}
+        notMerge
+        lazyUpdate
+        autoResize={false}
+      />
+    </div>
+  );
+};
+
 const ChartPanel: React.FC<{
   title: string;
   extra?: React.ReactNode;
@@ -748,13 +813,13 @@ const PatentInsight: React.FC = () => {
             <div className="patent-insight-left" style={{ width: leftWidth }}>
               <ChartPanel title="These Patent across time" className="patent-insight-line-panel">
                 {statistics.countAcrossTime.length > 0 ? (
-                  <ReactECharts option={lineOption} theme={chartTheme} style={{ width: '100%', height: '100%' }} />
+                  <SafeReactECharts option={lineOption} theme={chartTheme} style={{ width: '100%', height: '100%' }} />
                 ) : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} />}
               </ChartPanel>
 
               <div className="patent-insight-small-grid">
                 <ChartPanel title="Patent per Patent Office">
-                  <ReactECharts option={getBarOption(statistics.patentPerOffice.slice(0, 7))} theme={chartTheme} style={{ width: '100%', height: '100%' }} />
+                  <SafeReactECharts option={getBarOption(statistics.patentPerOffice.slice(0, 7))} theme={chartTheme} style={{ width: '100%', height: '100%' }} />
                 </ChartPanel>
                 <ChartPanel title="Company count">
                   <Table<PatentInsightApplicantItem>
@@ -768,10 +833,10 @@ const PatentInsight: React.FC = () => {
                   />
                 </ChartPanel>
                 <ChartPanel title="Filing language count">
-                  <ReactECharts option={donutOption} theme={chartTheme} style={{ width: '100%', height: '100%' }} />
+                  <SafeReactECharts option={donutOption} theme={chartTheme} style={{ width: '100%', height: '100%' }} />
                 </ChartPanel>
                 <ChartPanel title="Patent per Patent Type">
-                  <ReactECharts option={getBarOption(statistics.patentTypeCounts.slice(0, 7), { gridLeft: 128, labelWidth: 116 })} theme={chartTheme} style={{ width: '100%', height: '100%' }} />
+                  <SafeReactECharts option={getBarOption(statistics.patentTypeCounts.slice(0, 7), { gridLeft: 128, labelWidth: 116 })} theme={chartTheme} style={{ width: '100%', height: '100%' }} />
                 </ChartPanel>
               </div>
             </div>
@@ -806,7 +871,7 @@ const PatentInsight: React.FC = () => {
                 )}
                 className="patent-insight-heatmap-panel"
               >
-                <ReactECharts option={heatmapOption} theme={chartTheme} style={{ width: '100%', height: '100%' }} />
+                <SafeReactECharts option={heatmapOption} theme={chartTheme} style={{ width: '100%', height: '100%' }} />
               </ChartPanel>
             </div>
           </div>
