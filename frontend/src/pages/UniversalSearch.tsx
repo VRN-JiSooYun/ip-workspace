@@ -45,6 +45,7 @@ import {
   CompoundSearchEngine,
   CompoundSearchInputType,
   CompoundSearchItem,
+  CompoundSearchSource,
   CompoundPatentItem,
   CompoundSearchSortOrder,
   CompoundSearchType,
@@ -126,7 +127,9 @@ const getSources = (item: CompoundSearchItem) => {
 
 const getSourceLinkValues = (link: CompoundSearchSource['source_link']) => {
   if (Array.isArray(link)) {
-    return link.filter((value): value is string => typeof value === 'string' && value.trim()).map((value) => value.trim());
+    return link
+      .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+      .map((value) => value.trim());
   }
   if (typeof link === 'string' && link.trim()) {
     return [link.trim()];
