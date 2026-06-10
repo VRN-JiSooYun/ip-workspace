@@ -20,7 +20,6 @@ import {
 import { 
   Search, 
   Plus, 
-  Star, 
   ChevronDown,
   ChevronUp,
   ExternalLink
@@ -39,10 +38,13 @@ import { formatDisplayDate, formatNumberWithComma } from '../utils/displayFormat
 const { Text } = Typography;
 
 const PATENT_LIST_TITLE_COLUMN_WIDTH = 520;
-const PATENT_LIST_TABLE_SCROLL_X = 1370;
+const PATENT_LIST_STRUCTURE_COLUMN_WIDTH = 212;
+const PATENT_LIST_STRUCTURE_IMAGE_WIDTH = 168;
+const PATENT_LIST_STRUCTURE_IMAGE_HEIGHT = 168;
+const PATENT_LIST_TABLE_SCROLL_X = 1994;
 const STRUCTURE_SEARCH_MAX_RESULT_WINDOW = 10000;
 const PATENT_ANALYSIS_PAGE_SIZE_OPTIONS = [10, 30, 50, 100] as const;
-const PATENT_ANALYSIS_DEFAULT_PAGE_SIZE = 10;
+const PATENT_ANALYSIS_DEFAULT_PAGE_SIZE = 30;
 const STRUCTURE_SEARCH_EXPAND_COLUMN_WIDTH = 48;
 const STRUCTURE_SEARCH_COLUMN_WIDTHS = {
   rowNumber: 72,
@@ -84,6 +86,47 @@ type StructureSearchCompound = {
   tpsa?: number | string | null;
   patentCount: number;
   patents: Record<string, any>[];
+};
+
+type StructurePreview = {
+  title: string;
+  svg: string;
+};
+
+const normalizePatentListStructureSvg = (svg: string, width: number, height: number) => {
+  if (typeof window === 'undefined' || !svg.trim()) return svg;
+
+  try {
+    const doc = new DOMParser().parseFromString(svg, 'image/svg+xml');
+    const root = doc.documentElement;
+    if (!root || root.nodeName.toLowerCase() !== 'svg') return svg;
+
+    const viewBox = root.getAttribute('viewBox')?.trim();
+    const viewBoxValues = viewBox?.split(/\s+/).map(Number);
+    const viewBoxWidth = viewBoxValues?.length === 4 && Number.isFinite(viewBoxValues[2]) && viewBoxValues[2] > 0
+      ? viewBoxValues[2]
+      : width;
+    const viewBoxHeight = viewBoxValues?.length === 4 && Number.isFinite(viewBoxValues[3]) && viewBoxValues[3] > 0
+      ? viewBoxValues[3]
+      : height;
+
+    if (!viewBox) {
+      root.setAttribute('viewBox', `0 0 ${viewBoxWidth} ${viewBoxHeight}`);
+    }
+    root.setAttribute('width', '100%');
+    root.setAttribute('height', '100%');
+    root.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+
+    root.querySelectorAll(':scope > rect').forEach((rect) => {
+      if (rect.getAttribute('transform')) return;
+      rect.setAttribute('width', String(viewBoxWidth));
+      rect.setAttribute('height', String(viewBoxHeight));
+    });
+
+    return new XMLSerializer().serializeToString(root);
+  } catch {
+    return svg;
+  }
 };
 
 type HelperFilter = {
@@ -228,7 +271,7 @@ const PatentAnalysisList: React.FC = () => {
   const [expandedStructureCompoundIds, setExpandedStructureCompoundIds] = useState<string[]>(
     () => storedListState.expandedStructureCompoundIds ?? []
   );
-  const [previewStructure, setPreviewStructure] = useState<StructureSearchCompound | null>(null);
+  const [previewStructure, setPreviewStructure] = useState<StructurePreview | null>(null);
   const [totalPatents, setTotalPatents] = useState(0);
   const [currentPage, setCurrentPage] = useState(() => storedListState.currentPage ?? 1);
   const [pageSize, setPageSize] = useState(() => normalizePatentAnalysisPageSize(storedListState.pageSize));
@@ -599,6 +642,46 @@ const PatentAnalysisList: React.FC = () => {
       : { x: STRUCTURE_SEARCH_TABLE_SCROLL_X };
   }, [filteredStructureCompounds.length, patentListTableScrollY]);
 
+  const renderStructureColumn = React.useCallback((
+    svg: string | undefined,
+    title: string,
+    smiles?: string,
+  ) => {
+    if (!svg) return <Text type="secondary">-</Text>;
+    const width = PATENT_LIST_STRUCTURE_IMAGE_WIDTH;
+    const height = PATENT_LIST_STRUCTURE_IMAGE_HEIGHT;
+    const normalizedSvg = normalizePatentListStructureSvg(svg, width, height);
+    return (
+      <div
+        className="patent-analysis-compound-structure"
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          width: '100%',
+        }}
+      >
+        <CompoundStructureView
+          svg={svg}
+          renderedSvgOverride={normalizedSvg}
+          title={title}
+          smiles={smiles}
+          width={width}
+          height={height}
+          iconSize={28}
+          gap={0}
+          actionPlacement="overlay"
+          actionOverlayAnchor="container"
+          frameless
+          structureFitMode="contain"
+          frameClassName="patent-analysis-compound-structure-frame"
+          svgClassName="patent-analysis-compound-structure-svg"
+          onPreview={() => setPreviewStructure({ title, svg: normalizedSvg })}
+        />
+      </div>
+    );
+  }, []);
+
   const columns = [
     {
       title: 'No.',
@@ -613,17 +696,6 @@ const PatentAnalysisList: React.FC = () => {
       ),
     },
     {
-      title: '',
-      dataIndex: 'isFavorite',
-      key: 'favorite',
-      width: 50,
-      align: 'center' as const,
-      className: 'table-center-column',
-      render: (fav: boolean) => (
-        <Star size={18} fill={fav ? "#F87C63" : "none"} color={fav ? "#F87C63" : token.colorTextDescription} />
-      ),
-    },
-    {
       title: '특허 번호',
       dataIndex: 'patentNumber',
       key: 'patentNumber',
@@ -631,6 +703,15 @@ const PatentAnalysisList: React.FC = () => {
       align: 'center' as const,
       className: 'table-center-column',
       render: (text: string) => <Text strong>{text}</Text>,
+    },
+    {
+      title: '타겟',
+      dataIndex: 'target',
+      key: 'target',
+      width: 100,
+      align: 'center' as const,
+      className: 'table-center-column',
+      render: (text: string) => <Tag color="blue">{text}</Tag>,
     },
     {
       title: '제목',
@@ -656,13 +737,46 @@ const PatentAnalysisList: React.FC = () => {
       render: formatDisplayDate,
     },
     {
-      title: '타겟',
-      dataIndex: 'target',
-      key: 'target',
-      width: 100,
+      title: '실시예 수',
+      dataIndex: 'embodimentCount',
+      key: 'embodimentCount',
+      width: 110,
       align: 'center' as const,
       className: 'table-center-column',
-      render: (text: string) => <Tag color="blue">{text}</Tag>,
+      render: (value: number | null | undefined) => (
+        value === null || value === undefined ? <Text type="secondary">-</Text> : formatNumberWithComma(value)
+      ),
+    },
+    {
+      title: 'Key Scaffold',
+      dataIndex: 'keyScaffoldSvg',
+      key: 'keyScaffoldSvg',
+      width: PATENT_LIST_STRUCTURE_COLUMN_WIDTH,
+      align: 'center' as const,
+      className: 'table-center-column patent-analysis-list-structure-column my-board-structure-column',
+      render: (svg: string | undefined, record: Patent) => (
+        renderStructureColumn(svg, `${record.patentNumber} Key Scaffold`)
+      ),
+    },
+    {
+      title: 'AI Key Compound',
+      dataIndex: 'aiKeyCompoundSvg',
+      key: 'aiKeyCompoundSvg',
+      width: PATENT_LIST_STRUCTURE_COLUMN_WIDTH,
+      align: 'center' as const,
+      className: 'table-center-column patent-analysis-list-structure-column my-board-structure-column',
+      render: (svg: string | undefined, record: Patent) => (
+        renderStructureColumn(svg, `${record.patentNumber} AI Key Compound`, record.keyCompoundSmiles)
+      ),
+    },
+    {
+      title: 'Analysis Date',
+      dataIndex: 'analysisDate',
+      key: 'analysisDate',
+      width: 140,
+      align: 'center' as const,
+      className: 'table-center-column',
+      render: formatDisplayDate,
     },
     {
       title: '상태',
@@ -677,23 +791,6 @@ const PatentAnalysisList: React.FC = () => {
         if (status === 'Analyzing') color = 'processing';
         return <Tag color={color}>{status}</Tag>;
       },
-    },
-    {
-      title: '작업',
-      key: 'action',
-      width: 80,
-      align: 'center' as const,
-      className: 'table-center-column',
-      render: (_: any, record: Patent) => (
-        <Button 
-          type="text" 
-          icon={<ExternalLink size={16} />} 
-          onClick={(e) => {
-            e.stopPropagation();
-            openPatentDetail(record);
-          }} 
-        />
-      ),
     },
   ];
 
@@ -795,7 +892,7 @@ const PatentAnalysisList: React.FC = () => {
             frameClassName="patent-analysis-compound-structure-frame"
             svgClassName="patent-analysis-compound-structure-svg"
             onPreview={svg ? () => {
-              setPreviewStructure(record);
+              setPreviewStructure({ title: record.compoundId || 'Structure', svg });
             } : undefined}
           />
         </div>
@@ -1235,10 +1332,10 @@ const PatentAnalysisList: React.FC = () => {
           footer={null}
           onCancel={() => setPreviewStructure(null)}
           width="min(1200px, calc(100vw - 48px))"
-          title={previewStructure?.compoundId ? `Compound ${previewStructure.compoundId}` : '구조 미리보기'}
+          title={previewStructure?.title || '구조 미리보기'}
           centered
         >
-          {previewStructure?.svgImg ? (
+          {previewStructure?.svg ? (
             <div
               className="patent-analysis-structure-preview"
               style={{
@@ -1252,7 +1349,7 @@ const PatentAnalysisList: React.FC = () => {
                 justifyContent: 'center',
                 overflow: 'hidden',
               }}
-              dangerouslySetInnerHTML={{ __html: previewStructure.svgImg }}
+              dangerouslySetInnerHTML={{ __html: previewStructure.svg }}
             />
           ) : null}
         </Modal>
@@ -1300,6 +1397,37 @@ const PatentAnalysisList: React.FC = () => {
         }
         .patent-analysis-list-table .ant-table-tbody > tr:last-child > td {
           border-bottom: 1px solid transparent !important;
+        }
+        .patent-analysis-list-table .ant-table-tbody > tr > td.patent-analysis-list-structure-column {
+          padding: 1px 1px !important;
+          line-height: 0 !important;
+          vertical-align: middle !important;
+        }
+        .patent-analysis-list-table .ant-table-thead > tr > th.patent-analysis-list-structure-column {
+          padding-left: 4px !important;
+          padding-right: 4px !important;
+        }
+        .patent-analysis-list-table .patent-analysis-list-structure-column .compound-structure-view,
+        .patent-analysis-list-table .patent-analysis-list-structure-column .compound-structure-frame {
+          line-height: 0 !important;
+        }
+        .patent-analysis-list-table .patent-analysis-list-structure-column .compound-structure-actions-overlay {
+          top: auto;
+          right: 4px;
+          bottom: 4px;
+        }
+        .patent-analysis-list-table .patent-analysis-list-structure-column .compound-structure-frame {
+          border: 0 !important;
+          outline: 0 !important;
+          box-shadow: none !important;
+          background: transparent !important;
+        }
+        .patent-analysis-list-table .patent-analysis-list-structure-column .patent-analysis-compound-structure-svg,
+        .patent-analysis-list-table .patent-analysis-list-structure-column .patent-analysis-compound-structure-svg svg {
+          width: 100% !important;
+          height: 100% !important;
+          max-width: 100% !important;
+          max-height: 100% !important;
         }
         .patent-analysis-list-table .ant-table-body {
           background: ${token.colorBgContainer} !important;

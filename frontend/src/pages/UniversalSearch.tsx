@@ -55,10 +55,39 @@ import BenzeneIcon from '../components/common/BenzeneIcon';
 import ChemDrawModal from '../components/common/ChemDrawModal';
 
 const { Text, Title } = Typography;
-const { TextArea } = Input;
 
 type ResultViewMode = 'card' | 'full';
 type SourceFilter = 'all' | 'literature' | 'reaction' | 'reagent';
+type StructureSearchInputPreview = {
+  smiles: string;
+  molblock: string;
+  svg: string | null;
+};
+
+const normalizeStructurePreviewSvg = (svg: string | null | undefined, width: number, height: number) => {
+  if (typeof window === 'undefined' || !svg?.trim()) return svg ?? null;
+
+  try {
+    const doc = new DOMParser().parseFromString(svg, 'image/svg+xml');
+    const root = doc.documentElement;
+    if (!root || root.nodeName.toLowerCase() !== 'svg') return svg;
+
+    const viewBox = root.getAttribute('viewBox')?.trim();
+    if (!viewBox) {
+      const sourceWidth = Number.parseFloat(root.getAttribute('width') || '') || width;
+      const sourceHeight = Number.parseFloat(root.getAttribute('height') || '') || height;
+      root.setAttribute('viewBox', `0 0 ${sourceWidth} ${sourceHeight}`);
+    }
+
+    root.setAttribute('width', '100%');
+    root.setAttribute('height', '100%');
+    root.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+
+    return new XMLSerializer().serializeToString(root);
+  } catch {
+    return svg;
+  }
+};
 
 const PAGE_SIZE_OPTIONS = [10, 30, 50, 100];
 const DEFAULT_PAGE_SIZE = 30;
@@ -355,10 +384,10 @@ const CompoundSearchCard: React.FC<{
           smiles={item.canonical_smiles}
           title={compoundId}
           width="100%"
-          height={116}
+          height={162}
           fullWidth
           preferRdkitSvg
-          rdkitMinSize={[220, 140]}
+          rdkitMinSize={[308, 196]}
           structureFitMode="contain"
           frameClassName="compound-search-structure-frame"
           actionPlacement="overlay"
@@ -410,10 +439,10 @@ const CompoundSearchFullRow: React.FC<{
             smiles={item.canonical_smiles}
             title={compoundId}
             width="100%"
-            height={164}
+            height={230}
             fullWidth
             preferRdkitSvg
-            rdkitMinSize={[260, 180]}
+            rdkitMinSize={[364, 252]}
             structureFitMode="contain"
             frameClassName="compound-search-structure-frame"
             actionPlacement="overlay"
@@ -574,7 +603,7 @@ const UniversalSearch: React.FC = () => {
 
   const [query, setQuery] = useState('');
   const [engine, setEngine] = useState<CompoundSearchEngine>('fast');
-  const [inputType, setInputType] = useState<CompoundSearchInputType>('smiles');
+  const [inputType, setInputType] = useState<CompoundSearchInputType>('molblock');
   const [searchType, setSearchType] = useState<CompoundSearchType>('substructure');
   const [sortField, setSortField] = useState('');
   const [sortOrder, setSortOrder] = useState<CompoundSearchSortOrder>('desc');
@@ -591,6 +620,7 @@ const UniversalSearch: React.FC = () => {
   const [hasSearched, setHasSearched] = useState(false);
   const [isChemDrawVisible, setIsChemDrawVisible] = useState(false);
   const [previewSvg, setPreviewSvg] = useState<string | null>(null);
+  const [structureInputPreview, setStructureInputPreview] = useState<StructureSearchInputPreview | null>(null);
   const [detailCompound, setDetailCompound] = useState<CompoundSearchItem | null>(null);
   const [patentItems, setPatentItems] = useState<CompoundPatentItem[]>([]);
   const [selectedPatentSourceTypes, setSelectedPatentSourceTypes] = useState<string[]>([]);
@@ -661,8 +691,18 @@ const UniversalSearch: React.FC = () => {
     }
   }, [currentPage, maxAccessiblePage]);
 
+  const getSearchQuery = React.useCallback(() => {
+    if (structureInputPreview) {
+      const structureQuery = inputType === 'molblock'
+        ? structureInputPreview.molblock
+        : structureInputPreview.smiles;
+      if (structureQuery.trim()) return structureQuery.trim();
+    }
+    return query.trim();
+  }, [inputType, query, structureInputPreview]);
+
   const runSearch = React.useCallback(async (page = currentPage, size = pageSize) => {
-    const trimmedQuery = query.trim();
+    const trimmedQuery = getSearchQuery();
     if (!trimmedQuery) {
       void message.warning('검색할 SMILES 또는 Molblock을 입력해 주세요.');
       return;
@@ -698,11 +738,16 @@ const UniversalSearch: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [currentPage, engine, inputType, message, pageSize, query, searchType, sortField, sortOrder]);
+  }, [currentPage, engine, getSearchQuery, inputType, message, pageSize, searchType, sortField, sortOrder]);
 
   const handleSubmit = () => {
     setCurrentPage(1);
     void runSearch(1, pageSize);
+  };
+
+  const handleQueryChange = (value: string) => {
+    setQuery(value);
+    setStructureInputPreview(null);
   };
 
   const handlePaginationChange = (page: number, size: number) => {
@@ -819,41 +864,21 @@ const UniversalSearch: React.FC = () => {
                   value={engine}
                   onChange={(value) => setEngine(value as CompoundSearchEngine)}
                 />
-                {inputType === 'molblock' ? (
-                  <TextArea
-                    className="v-search-input compound-search-query-input"
-                    value={query}
-                    onChange={(event) => setQuery(event.target.value)}
-                    placeholder="Molblock을 입력하세요"
-                    autoSize={{ minRows: 1, maxRows: 5 }}
-                    style={{
-                      flex: '1 1 260px',
-                      minWidth: 180,
-                      maxWidth: isResponsiveToolbar ? '100%' : 350,
-                    }}
-                    onPressEnter={(event) => {
-                      if (!event.shiftKey) {
-                        event.preventDefault();
-                        handleSubmit();
-                      }
-                    }}
-                  />
-                ) : (
-                  <Input
-                    className="v-search-input compound-search-query-input"
-                    value={query}
-                    onChange={(event) => setQuery(event.target.value)}
-                    placeholder="SMILES를 입력하세요. 예: c1ccccc1"
-                    prefix={<Search size={18} color={token.colorTextTertiary} />}
-                    allowClear
-                    onPressEnter={handleSubmit}
-                    style={{
-                      flex: '1 1 260px',
-                      minWidth: 180,
-                      maxWidth: isResponsiveToolbar ? '100%' : 350,
-                    }}
-                  />
-                )}
+                <Input
+                  className="v-search-input compound-search-query-input"
+                  value={query}
+                  onChange={(event) => handleQueryChange(event.target.value)}
+                  placeholder="SMILES를 입력하세요. 예: c1ccccc1"
+                  prefix={<Search size={18} color={token.colorTextTertiary} />}
+                  allowClear
+                  disabled={inputType === 'molblock'}
+                  onPressEnter={handleSubmit}
+                  style={{
+                    flex: '1 1 260px',
+                    minWidth: 180,
+                    maxWidth: isResponsiveToolbar ? '100%' : 350,
+                  }}
+                />
                 <Button
                   icon={<BenzeneIcon size={18} />}
                   onClick={() => setIsChemDrawVisible(true)}
@@ -874,6 +899,43 @@ const UniversalSearch: React.FC = () => {
               </div>
             </Col>
           </Row>
+
+          {structureInputPreview && (structureInputPreview.svg || structureInputPreview.molblock) ? (
+            <div
+              className="compound-search-input-structure-preview"
+              style={{
+                marginTop: 10,
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: 172,
+                height: 172,
+                border: `1px solid ${token.colorBorderSecondary}`,
+                borderRadius: 6,
+                background: token.colorBgContainer,
+              }}
+            >
+              <CompoundStructureView
+                svg={normalizeStructurePreviewSvg(structureInputPreview.svg, 168, 168) ?? undefined}
+                renderedSvgOverride={normalizeStructurePreviewSvg(structureInputPreview.svg, 168, 168) ?? undefined}
+                smiles={structureInputPreview.smiles}
+                molBlock={structureInputPreview.molblock}
+                title="Structure"
+                width={168}
+                height={168}
+                iconSize={28}
+                gap={0}
+                frameless
+                preferRdkitSvg={!structureInputPreview.svg}
+                structureFitMode="contain"
+                actionPlacement="overlay"
+                actionOverlayAnchor="container"
+                showCopyAction
+                showPreviewAction
+                onPreview={(svg) => setPreviewSvg(svg ?? structureInputPreview.svg)}
+              />
+            </div>
+          ) : null}
 
         {showFilters ? (
           <div className="compact-filter-panel compound-search-filter-grid">
@@ -899,6 +961,7 @@ const UniversalSearch: React.FC = () => {
                 onChange={(event) => setSearchType(event.target.value)}
                 options={[
                   { label: 'Substructure', value: 'substructure' },
+                  { label: 'Similarity', value: 'similarity' },
                   { label: 'Identical', value: 'identical' },
                 ]}
               />
@@ -937,11 +1000,12 @@ const UniversalSearch: React.FC = () => {
               <Button icon={<RotateCcw size={15} />} onClick={() => {
                 setQuery('');
                 setEngine('fast');
-                setInputType('smiles');
+                setInputType('molblock');
                 setSearchType('substructure');
                 setSortField('');
                 setSortOrder('desc');
                 setSourceFilter('all');
+                setStructureInputPreview(null);
                 setItems([]);
                 setTotalCount(0);
                 setHasSearched(false);
@@ -1083,7 +1147,7 @@ const UniversalSearch: React.FC = () => {
         open={Boolean(previewSvg)}
         title="Structure Preview"
         footer={null}
-        width={720}
+        width="min(1200px, calc(100vw - 48px))"
         onCancel={() => setPreviewSvg(null)}
       >
         <div
@@ -1099,14 +1163,18 @@ const UniversalSearch: React.FC = () => {
           const smiles = data.smiles?.trim();
           const molblock = data.molfile?.trim() || data.molV2000?.trim() || data.molV3000?.trim() || '';
           setQuery(smiles || molblock);
-          setInputType(smiles ? 'smiles' : 'molblock');
           setSearchType('substructure');
+          setStructureInputPreview({
+            smiles: smiles || '',
+            molblock,
+            svg: normalizeStructurePreviewSvg(data.svg, 168, 168),
+          });
           setIsChemDrawVisible(false);
         }}
         title="구조 검색"
         confirmText="이 구조로 검색"
-        initialSmiles={inputType === 'smiles' ? query : undefined}
-        initialMolblock={inputType === 'molblock' ? query : undefined}
+        initialSmiles={structureInputPreview?.smiles || (inputType === 'smiles' ? query : undefined)}
+        initialMolblock={structureInputPreview?.molblock || (inputType === 'molblock' ? query : undefined)}
       />
       <Modal
         open={Boolean(detailCompound)}

@@ -162,6 +162,45 @@ const getFirstString = (row: Record<string, any>, keys: string[], fallback = '')
   return fallback;
 };
 
+const getFirstNumber = (row: Record<string, any>, keys: string[]): number | null => {
+  for (const key of keys) {
+    const value = row[key];
+    if (value === undefined || value === null || value === '') continue;
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return null;
+};
+
+const normalizeSvgText = (value: string) => {
+  const trimmed = value.trim();
+  if (/<svg[\s>]/i.test(trimmed)) return trimmed;
+
+  const dataUrlMatch = trimmed.match(/^data:image\/svg\+xml(?:;charset=[^;,]+)?(;base64)?,(.*)$/i);
+  if (!dataUrlMatch) return '';
+
+  try {
+    const decoded = dataUrlMatch[1]
+      ? window.atob(dataUrlMatch[2])
+      : decodeURIComponent(dataUrlMatch[2]);
+    return /<svg[\s>]/i.test(decoded) ? decoded : '';
+  } catch {
+    return '';
+  }
+};
+
+const getFirstSvgString = (row: Record<string, any>, keys: string[], fallback = '') => {
+  for (const key of keys) {
+    const value = row[key];
+    const candidate = Array.isArray(value) ? value.find(item => typeof item === 'string') : value;
+    if (typeof candidate === 'string' && candidate.trim()) {
+      const svg = normalizeSvgText(candidate);
+      if (svg) return svg;
+    }
+  }
+  return fallback;
+};
+
 const mapStatus = (value: string): Patent['status'] => {
   const normalized = value.toLowerCase();
   if (normalized.includes('analy') || value.includes('분석중')) return 'Analyzing';
@@ -188,6 +227,42 @@ export const mapPatentListItem = (row: Record<string, any>, index: number): Pate
     target,
     status: mapStatus(status),
     isFavorite: Boolean(row.is_favorite ?? row.favorite ?? false),
+    embodimentCount: getFirstNumber(row, [
+      'num_embodiment',
+      'numEmbodiment',
+      'embodiment_count',
+      'embodimentCount',
+      'example_count',
+    ]),
+    keyScaffoldSvg: getFirstSvgString(row, [
+      'key_scaffold_img',
+      'key_scaffold_svg',
+      'key_scaffold',
+      'scaffold_svg',
+      'scaffold_img',
+      'parent_scaffold_svg',
+    ]),
+    aiKeyCompoundSvg: getFirstSvgString(row, [
+      'ai_key_compound_img',
+      'ai_key_compound_svg',
+      'ai_key_compound_structure',
+      'key_compound_img',
+      'key_compound_svg',
+      'compound_svg',
+      'ai_key_compound',
+    ]),
+    analysisDate: getFirstString(row, [
+      'date_created',
+      'dateCreated',
+      'analysis_date',
+      'analysisDate',
+      'analyzed_at',
+      'analyzedAt',
+      'updated_at',
+      'updatedAt',
+      'created_at',
+      'createdAt',
+    ], ''),
     keyCompoundSmiles: getFirstString(row, ['ai_key_compound', 'key_compound_smiles', 'smiles'], ''),
     abstract: getFirstString(row, ['abstract'], ''),
   };

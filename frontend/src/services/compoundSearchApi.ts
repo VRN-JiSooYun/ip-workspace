@@ -6,7 +6,7 @@ type RuntimeWindow = Window & {
 
 export type CompoundSearchEngine = 'advanced' | 'fast';
 export type CompoundSearchInputType = 'smiles' | 'molblock';
-export type CompoundSearchType = 'identical' | 'substructure';
+export type CompoundSearchType = 'identical' | 'substructure' | 'similarity';
 export type CompoundSearchSortOrder = 'asc' | 'desc';
 
 export type CompoundSearchRequest = {

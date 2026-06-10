@@ -527,7 +527,7 @@ span.ant-typography {
 .compound-structure-actions-overlay {
   position: absolute;
   right: 4px;
-  top: 4px;
+  bottom: 4px;
   display: inline-flex;
   gap: 4px;
   padding: 2px;
@@ -537,6 +537,16 @@ span.ant-typography {
   pointer-events: none;
   transition: opacity 0.16s ease;
   z-index: 2;
+}
+
+.compound-structure-actions-overlay-top-right {
+  top: 4px;
+  bottom: auto;
+}
+
+.compound-structure-actions-overlay-bottom-right {
+  top: auto;
+  bottom: 4px;
 }
 
 .compound-structure-view:hover .compound-structure-actions-overlay,
@@ -643,6 +653,14 @@ span.ant-typography {
 
 .compound-search-query-input {
   width: 100%;
+}
+
+.compound-search-input-structure-preview .compound-structure-svg,
+.compound-search-input-structure-preview .compound-structure-svg svg {
+  width: 100% !important;
+  height: 100% !important;
+  max-width: 100% !important;
+  max-height: 100% !important;
 }
 
 .compound-search-filter-grid {
@@ -963,7 +981,7 @@ span.ant-typography {
 }
 
 .compound-search-preview {
-  min-height: 420px;
+  min-height: min(720px, calc(100vh - 180px));
   padding: 20px;
   border: 1px solid;
   border-radius: 8px;
@@ -974,8 +992,10 @@ span.ant-typography {
 }
 
 .compound-search-preview svg {
+  width: 100%;
+  height: 100%;
   max-width: 100%;
-  max-height: 420px;
+  max-height: min(720px, calc(100vh - 180px));
 }
 
 .compound-search-reference-modal .ant-modal-body {

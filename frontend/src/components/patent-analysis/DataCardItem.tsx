@@ -29,6 +29,8 @@ export interface DataCardItemProps {
   imageType?: 'svg' | 'base64' | 'img';
   /** 이미지 높이 (px) */
   imageHeight?: number;
+  /** 이미지 영역을 정사각형으로 표시 */
+  squareImage?: boolean;
   /** 이미지 클릭 시 콜백 */
   onImageClick?: () => void;
   /** 이미지 미리보기 버튼 클릭 콜백 */
@@ -81,6 +83,7 @@ const DataCardItem: React.FC<DataCardItemProps> = ({
   imageUrl,
   imageType = 'svg',
   imageHeight = 130,
+  squareImage = false,
   onImageClick,
   onPreview,
   smiles,
@@ -97,6 +100,7 @@ const DataCardItem: React.FC<DataCardItemProps> = ({
   const [chemDrawOpen, setChemDrawOpen] = useState(false);
   const imageClickHandler = onImageClick ?? onClick;
   const structureActionSize = size === 'small' ? 12 : 14;
+  const structureHeight = squareImage ? '100%' : imageHeight;
 
   // SVG 렌더링 컴포넌트
   const renderImage = () => {
@@ -126,11 +130,16 @@ const DataCardItem: React.FC<DataCardItemProps> = ({
             smiles={smiles}
             molBlock={molblock}
             width="100%"
-            height={imageHeight - 2}
+            height={structureHeight}
             iconSize={28}
-            gap={4}
+            gap={0}
             fullWidth
-            frameStyle={{ borderColor: 'transparent', background: 'transparent' }}
+            frameless
+            structureFitMode="contain"
+            actionPlacement="overlay"
+            actionOverlayAnchor="container"
+            actionOverlayPlacement="bottom-right"
+            frameStyle={{ border: 0, outline: 0, boxShadow: 'none', background: 'transparent', overflow: 'visible' }}
             onPreview={onPreview}
             actions={(smiles || molblock) ? [{
               key: 'chemdraw',
@@ -151,7 +160,7 @@ const DataCardItem: React.FC<DataCardItemProps> = ({
             alt="content"
             style={{
               width: '100%',
-              height: imageHeight,
+              height: squareImage ? '100%' : imageHeight,
               objectFit: 'contain',
               overflow: 'hidden',
             }}
@@ -209,7 +218,8 @@ const DataCardItem: React.FC<DataCardItemProps> = ({
         className="raw-data-svg-frame"
         style={{
           width: '100%',
-          height: imageHeight,
+          height: squareImage ? undefined : imageHeight,
+          aspectRatio: squareImage ? '1 / 1' : undefined,
           background: token.colorBgContainer,
           border: `1px solid ${token.colorBorderSecondary}`,
           borderRadius: 8,

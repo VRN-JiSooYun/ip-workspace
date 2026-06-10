@@ -44,7 +44,9 @@ export interface CompoundStructureViewProps {
   onPreview?: (svg?: string) => void;
   actionPlacement?: 'rail' | 'overlay';
   actionOverlayAnchor?: 'frame' | 'container';
+  actionOverlayPlacement?: 'top-right' | 'bottom-right';
   actions?: CompoundStructureAction[];
+  onClick?: React.MouseEventHandler<HTMLDivElement>;
   rotationDeg?: number;
   fitRotatedBounds?: boolean;
   frameless?: boolean;
@@ -313,7 +315,9 @@ const CompoundStructureView: React.FC<CompoundStructureViewProps> = ({
   onPreview,
   actionPlacement = 'rail',
   actionOverlayAnchor = 'frame',
+  actionOverlayPlacement = 'bottom-right',
   actions = [],
+  onClick,
   rotationDeg,
   fitRotatedBounds = false,
   frameless = false,
@@ -477,7 +481,7 @@ const CompoundStructureView: React.FC<CompoundStructureViewProps> = ({
     }] : [];
   const allActions = [...previewAction, ...copyImageAction, ...copyAction, ...actions];
   const overlayActions = actionPlacement === 'overlay' && allActions.length > 0 ? (
-    <div className="compound-structure-actions-overlay">
+    <div className={`compound-structure-actions-overlay compound-structure-actions-overlay-${actionOverlayPlacement}`}>
       {allActions.map((action) => (
         <Tooltip key={action.key} title={action.title}>
           <Button
@@ -506,6 +510,7 @@ const CompoundStructureView: React.FC<CompoundStructureViewProps> = ({
   return (
     <div
       className={`compound-structure-view${className ? ` ${className}` : ''}`}
+      onClick={onClick}
       style={{
         display: 'flex',
         alignItems: 'center',

@@ -7,6 +7,10 @@ export interface Patent {
   target: string;
   status: 'Analyzing' | 'Completed' | 'Pending';
   isFavorite: boolean;
+  embodimentCount?: number | null;
+  keyScaffoldSvg?: string;
+  aiKeyCompoundSvg?: string;
+  analysisDate?: string;
   keyCompoundSmiles: string;
   abstract: string;
 }
