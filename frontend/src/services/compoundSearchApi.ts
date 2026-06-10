@@ -24,6 +24,7 @@ export type CompoundSearchSource = {
   compound_source_id?: number | string;
   count?: number | string | null;
   source_link?: string | string[] | null;
+  vora_link?: string | string[] | null;
   source_id?: number | string;
   source_name?: string | null;
   source_type?: string | null;

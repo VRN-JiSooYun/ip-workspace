@@ -29,11 +29,9 @@ import {
   ChevronDown,
   ChevronUp,
   ExternalLink,
-  FileText,
   FlaskConical,
   Grid2X2,
   List,
-  MoreHorizontal,
   RotateCcw,
   Search,
 } from 'lucide-react';
@@ -52,6 +50,8 @@ import {
   CompoundSearchType,
 } from '../services/compoundSearchApi';
 import { formatDisplayDate, formatNumberWithComma } from '../utils/displayFormat';
+import BenzeneIcon from '../components/common/BenzeneIcon';
+import ChemDrawModal from '../components/common/ChemDrawModal';
 
 const { Text, Title } = Typography;
 const { TextArea } = Input;
@@ -124,24 +124,58 @@ const getSources = (item: CompoundSearchItem) => {
   return Array.isArray(value) ? value : [];
 };
 
-const getSourceLinks = (item: CompoundSearchItem) =>
-  getSources(item).flatMap((source) => {
-    const link = source.source_link;
-    if (Array.isArray(link)) {
-      return link.filter((value): value is string => typeof value === 'string' && value.trim().startsWith('http'));
-    }
-    if (typeof link === 'string' && link.trim().startsWith('http')) {
-      return [link.trim()];
-    }
-    return [];
-  });
-
-const openSourceLink = (item: CompoundSearchItem, event: React.MouseEvent<HTMLElement>) => {
-  event.stopPropagation();
-  const [sourceLink] = getSourceLinks(item);
-  if (!sourceLink) return;
-  window.open(sourceLink, '_blank', 'noopener,noreferrer');
+const getSourceLinkValues = (link: CompoundSearchSource['source_link']) => {
+  if (Array.isArray(link)) {
+    return link.filter((value): value is string => typeof value === 'string' && value.trim()).map((value) => value.trim());
+  }
+  if (typeof link === 'string' && link.trim()) {
+    return [link.trim()];
+  }
+  return [];
 };
+
+const renderSourceLinkValues = (links: string[]) => {
+  if (links.length === 0) return <Text>-</Text>;
+
+  return (
+    <div className="compound-search-source-reference-links">
+      {links.map((link, linkIndex) => {
+        const isUrl = /^https?:\/\//i.test(link);
+        return isUrl ? (
+          <a
+            key={`${link}-${linkIndex}`}
+            href={link}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="compound-search-source-reference-link"
+          >
+            <ExternalLink size={13} />
+            <span>{link}</span>
+          </a>
+        ) : (
+          <Text key={`${link}-${linkIndex}`} className="compound-search-source-reference-link-text">
+            {link}
+          </Text>
+        );
+      })}
+    </div>
+  );
+};
+
+const toTitleCaseLabel = (value: string) => {
+  const trimmed = value.trim();
+  if (!trimmed) return 'Unknown';
+  return trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
+};
+
+const getCompoundSourceType = (source: CompoundSearchSource) => {
+  const sourceType = source.source_type ? String(source.source_type).trim() : '';
+  if (sourceType.toLowerCase() === 'substance' || sourceType.toLowerCase() === 'patent') return 'Patent';
+  return toTitleCaseLabel(sourceType);
+};
+
+const isPatentSource = (source: CompoundSearchSource) =>
+  getCompoundSourceType(source) === 'Patent';
 
 const getSourceCategory = (sourceType?: string | null): Exclude<SourceFilter, 'all'> | 'literature' => {
   const normalized = String(sourceType ?? '').toLowerCase();
@@ -173,8 +207,11 @@ const getSynonymsText = (value: CompoundSearchItem['synonyms']) => {
 };
 
 const getPatentSourceType = (patent: CompoundPatentItem) => {
-  const value = patent.source_type ?? patent.patent_type ?? patent.patent_office ?? 'Patent';
-  return String(value || 'Patent').trim() || 'Patent';
+  const value = patent.source_type ?? 'Patent';
+  const sourceType = String(value || 'Patent').trim() || 'Patent';
+  return sourceType.toLowerCase() === 'substance' || sourceType.toLowerCase() === 'patent'
+    ? 'Patent'
+    : toTitleCaseLabel(sourceType);
 };
 
 const decodeSvgEntities = (value: string) =>
@@ -294,7 +331,6 @@ const CompoundSearchCard: React.FC<{
 }> = ({ item, index, selected, onSelect, onPreview, onOpenDetail }) => {
   const counts = getSourceCounts(item);
   const compoundId = getCompoundId(item);
-  const hasSourceLink = getSourceLinks(item).length > 0;
 
   return (
     <Card
@@ -304,15 +340,6 @@ const CompoundSearchCard: React.FC<{
       <div className="compound-search-card-toolbar">
         <Checkbox checked={selected} onChange={(event) => onSelect(event.target.checked)} />
         <Text type="secondary" className="compound-search-card-index">{formatNumberWithComma(index + 1)}</Text>
-        <Tooltip title={hasSourceLink ? 'Source link 열기' : 'Source link 없음'}>
-          <Button
-            type="text"
-            size="small"
-            icon={<MoreHorizontal size={15} />}
-            disabled={!hasSourceLink}
-            onClick={(event) => openSourceLink(item, event)}
-          />
-        </Tooltip>
       </div>
       <div className="compound-search-card-body">
         <div className="compound-search-card-title-row">
@@ -359,7 +386,6 @@ const CompoundSearchFullRow: React.FC<{
 }> = ({ item, index, selected, onSelect, onPreview, onOpenDetail }) => {
   const counts = getSourceCounts(item);
   const compoundId = getCompoundId(item);
-  const hasSourceLink = getSourceLinks(item).length > 0;
 
   return (
     <Card
@@ -372,15 +398,6 @@ const CompoundSearchFullRow: React.FC<{
         <div className="compound-search-full-toolbar-actions">
           <Tooltip title="내 보드에 저장">
             <Button type="text" size="small" icon={<Bookmark size={15} />} />
-          </Tooltip>
-          <Tooltip title={hasSourceLink ? 'Source link 열기' : 'Source link 없음'}>
-            <Button
-              type="text"
-              size="small"
-              icon={<MoreHorizontal size={15} />}
-              disabled={!hasSourceLink}
-              onClick={(event) => openSourceLink(item, event)}
-            />
           </Tooltip>
         </div>
       </div>
@@ -436,8 +453,8 @@ const CompoundPatentReferenceCard: React.FC<{
 }> = ({ patent, index, onOpenPatentDetail }) => {
   const publicationNumber = String(patent.publication_number ?? '-');
   const scaffoldImages = [
-    { label: 'Scaffold', src: getScaffoldImageSrc(patent.key_scaffold_img) },
     { label: 'Genus Markush', src: getScaffoldImageSrc(patent.genus_markush_img) },
+    { label: 'Scaffold', src: getScaffoldImageSrc(patent.key_scaffold_img) },
   ].filter((image) => image.src);
   const pdfUrl = getPatentPdfDownloadUrl(patent);
   const normalizedPublicationNumber = publicationNumber !== '-'
@@ -511,6 +528,42 @@ const CompoundPatentReferenceCard: React.FC<{
   );
 };
 
+const CompoundSourceReferenceList: React.FC<{
+  sources: CompoundSearchSource[];
+}> = ({ sources }) => {
+  return (
+    <div className="compound-search-source-reference-list">
+      {sources.map((source, index) => {
+        const links = getSourceLinkValues(source.source_link);
+        const voraLinks = getSourceLinkValues(source.vora_link);
+        const sourceName = source.source_name ? String(source.source_name) : '-';
+
+        return (
+          <div className="compound-search-source-reference-row" key={`${source.compound_source_id ?? source.source_id ?? index}-${index}`}>
+            <div className="compound-search-source-reference-index">{formatNumberWithComma(index + 1)}</div>
+            <div className="compound-search-source-reference-fields">
+              <div className="compound-search-source-reference-field">
+                <Text type="secondary">source_name</Text>
+                <Text>{sourceName}</Text>
+              </div>
+              <div className="compound-search-source-reference-field compound-search-source-reference-link-field">
+                <Text type="secondary">source_link</Text>
+                {renderSourceLinkValues(links)}
+              </div>
+              {voraLinks.length > 0 ? (
+                <div className="compound-search-source-reference-field compound-search-source-reference-link-field">
+                  <Text type="secondary">vora_link</Text>
+                  {renderSourceLinkValues(voraLinks)}
+                </div>
+              ) : null}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+};
+
 const UniversalSearch: React.FC = () => {
   const { token } = theme.useToken();
   const { message } = App.useApp();
@@ -533,6 +586,7 @@ const UniversalSearch: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hasSearched, setHasSearched] = useState(false);
+  const [isChemDrawVisible, setIsChemDrawVisible] = useState(false);
   const [previewSvg, setPreviewSvg] = useState<string | null>(null);
   const [detailCompound, setDetailCompound] = useState<CompoundSearchItem | null>(null);
   const [patentItems, setPatentItems] = useState<CompoundPatentItem[]>([]);
@@ -570,13 +624,33 @@ const UniversalSearch: React.FC = () => {
   const isFastSearchWindowLimited =
     engine === 'fast' && totalCount > paginationTotal && currentPage >= maxAccessiblePage;
   const isCurrentPageHiddenBySourceFilter = hasSearched && items.length > 0 && filteredItems.length === 0;
+  const detailSources = useMemo(() => (
+    detailCompound ? getSources(detailCompound) : []
+  ), [detailCompound]);
+  const displayDetailSources = useMemo(() => (
+    detailSources.filter((source) => !isPatentSource(source))
+  ), [detailSources]);
+  const detailSourceTypes = useMemo(() => (
+    Array.from(new Set(displayDetailSources.map(getCompoundSourceType))).sort((a, b) => a.localeCompare(b))
+  ), [displayDetailSources]);
   const patentSourceTypes = useMemo(() => (
     Array.from(new Set(patentItems.map(getPatentSourceType))).sort((a, b) => a.localeCompare(b))
   ), [patentItems]);
+  const referenceSourceTypes = useMemo(() => (
+    Array.from(new Set([...patentSourceTypes, ...detailSourceTypes])).sort((a, b) => a.localeCompare(b))
+  ), [detailSourceTypes, patentSourceTypes]);
   const filteredPatentItems = useMemo(() => {
     if (selectedPatentSourceTypes.length === 0) return [];
     return patentItems.filter((patent) => selectedPatentSourceTypes.includes(getPatentSourceType(patent)));
   }, [patentItems, selectedPatentSourceTypes]);
+  const filteredDetailSources = useMemo(() => {
+    if (selectedPatentSourceTypes.length === 0) return [];
+    return displayDetailSources.filter((source) => selectedPatentSourceTypes.includes(getCompoundSourceType(source)));
+  }, [displayDetailSources, selectedPatentSourceTypes]);
+  const filteredReferenceCount = filteredPatentItems.length + filteredDetailSources.length;
+  const totalReferenceCount = patentItems.length + displayDetailSources.length;
+  const isAllReferenceSourceTypesSelected = referenceSourceTypes.length > 0
+    && referenceSourceTypes.every((sourceType) => selectedPatentSourceTypes.includes(sourceType));
 
   useEffect(() => {
     if (currentPage > maxAccessiblePage) {
@@ -662,7 +736,10 @@ const UniversalSearch: React.FC = () => {
 
     setDetailCompound(item);
     setPatentItems([]);
-    setSelectedPatentSourceTypes([]);
+    const rowSourceTypes = Array.from(new Set(
+      getSources(item).filter((source) => !isPatentSource(source)).map(getCompoundSourceType)
+    )).sort((a, b) => a.localeCompare(b));
+    setSelectedPatentSourceTypes(rowSourceTypes);
     setPatentDetailError(null);
     setIsLoadingPatents(true);
 
@@ -670,14 +747,15 @@ const UniversalSearch: React.FC = () => {
     void compoundSearchApi.getPatents(canonicalSmiles, controller.signal)
       .then((response) => {
         const nextItems = response.items ?? [];
+        const nextPatentSourceTypes = Array.from(new Set(nextItems.map(getPatentSourceType))).sort((a, b) => a.localeCompare(b));
         setPatentItems(nextItems);
-        setSelectedPatentSourceTypes(Array.from(new Set(nextItems.map(getPatentSourceType))).sort((a, b) => a.localeCompare(b)));
+        setSelectedPatentSourceTypes(Array.from(new Set([...nextPatentSourceTypes, ...rowSourceTypes])).sort((a, b) => a.localeCompare(b)));
       })
       .catch((detailError) => {
         const messageText = detailError instanceof Error ? detailError.message : '특허 목록 조회에 실패했습니다.';
         setPatentDetailError(messageText);
         setPatentItems([]);
-        setSelectedPatentSourceTypes([]);
+        setSelectedPatentSourceTypes(rowSourceTypes);
       })
       .finally(() => {
         setIsLoadingPatents(false);
@@ -773,6 +851,13 @@ const UniversalSearch: React.FC = () => {
                     }}
                   />
                 )}
+                <Button
+                  icon={<BenzeneIcon size={18} />}
+                  onClick={() => setIsChemDrawVisible(true)}
+                  className="v-action-btn"
+                >
+                  구조 검색
+                </Button>
                 <Button
                   icon={showFilters ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
                   onClick={() => setShowFilters(!showFilters)}
@@ -1004,6 +1089,22 @@ const UniversalSearch: React.FC = () => {
           dangerouslySetInnerHTML={{ __html: previewSvg ?? '' }}
         />
       </Modal>
+      <ChemDrawModal
+        open={isChemDrawVisible}
+        onCancel={() => setIsChemDrawVisible(false)}
+        onConfirm={(data) => {
+          const smiles = data.smiles?.trim();
+          const molblock = data.molfile?.trim() || data.molV2000?.trim() || data.molV3000?.trim() || '';
+          setQuery(smiles || molblock);
+          setInputType(smiles ? 'smiles' : 'molblock');
+          setSearchType('substructure');
+          setIsChemDrawVisible(false);
+        }}
+        title="구조 검색"
+        confirmText="이 구조로 검색"
+        initialSmiles={inputType === 'smiles' ? query : undefined}
+        initialMolblock={inputType === 'molblock' ? query : undefined}
+      />
       <Modal
         open={Boolean(detailCompound)}
         title={`References for ${getCompoundId(detailCompound ?? {})}`}
@@ -1020,7 +1121,7 @@ const UniversalSearch: React.FC = () => {
             <aside className="compound-search-reference-filter">
               <div className="compound-search-reference-filter-head">
                 <Text strong>Filter Results</Text>
-                <Text type="secondary">{formatNumberWithComma(filteredPatentItems.length)} / {formatNumberWithComma(patentItems.length)}</Text>
+                <Text type="secondary">{formatNumberWithComma(filteredReferenceCount)} / {formatNumberWithComma(totalReferenceCount)}</Text>
               </div>
               <div className="compound-search-reference-filter-section">
                 <Text strong>Source Type</Text>
@@ -1029,14 +1130,20 @@ const UniversalSearch: React.FC = () => {
                   value={selectedPatentSourceTypes}
                   onChange={(values) => setSelectedPatentSourceTypes(values.map(String))}
                 >
-                  {patentSourceTypes.map((sourceType) => (
+                  {referenceSourceTypes.map((sourceType) => (
                     <Checkbox key={sourceType} value={sourceType}>
-                      {sourceType} ({formatNumberWithComma(patentItems.filter((patent) => getPatentSourceType(patent) === sourceType).length)})
+                      {sourceType} ({formatNumberWithComma(
+                        patentItems.filter((patent) => getPatentSourceType(patent) === sourceType).length
+                        + displayDetailSources.filter((source) => getCompoundSourceType(source) === sourceType).length
+                      )})
                     </Checkbox>
                   ))}
                 </Checkbox.Group>
-                <Button size="small" onClick={() => setSelectedPatentSourceTypes(patentSourceTypes)}>
-                  전체 선택
+                <Button
+                  size="small"
+                  onClick={() => setSelectedPatentSourceTypes(isAllReferenceSourceTypesSelected ? [] : referenceSourceTypes)}
+                >
+                  {isAllReferenceSourceTypesSelected ? '전체 해제' : '전체 선택'}
                 </Button>
               </div>
             </aside>
@@ -1044,19 +1151,42 @@ const UniversalSearch: React.FC = () => {
               {patentDetailError ? (
                 <Alert type="error" showIcon message="특허 목록 조회 실패" description={patentDetailError} />
               ) : null}
-              {!isLoadingPatents && filteredPatentItems.length === 0 ? (
-                <Empty description={patentItems.length > 0 ? '선택한 Source Type에 해당하는 특허가 없습니다.' : '특허 목록이 없습니다.'} />
+              {referenceSourceTypes.filter((sourceType) => selectedPatentSourceTypes.includes(sourceType)).length === 0 ? (
+                <Empty description={totalReferenceCount > 0 ? '선택한 Source Type에 해당하는 결과가 없습니다.' : 'Source 데이터가 없습니다.'} />
               ) : (
-                <div className="compound-search-reference-list">
-                  {filteredPatentItems.map((patent, index) => (
-                    <CompoundPatentReferenceCard
-                      key={`${patent.publication_number ?? 'patent'}-${index}`}
-                      patent={patent}
-                      index={index}
-                      onOpenPatentDetail={openPatentAnalysisDetail}
-                    />
-                  ))}
-                </div>
+                referenceSourceTypes
+                  .filter((sourceType) => selectedPatentSourceTypes.includes(sourceType))
+                  .map((sourceType) => {
+                    const patentsForType = patentItems.filter((patent) => getPatentSourceType(patent) === sourceType);
+                    const sourcesForType = displayDetailSources.filter((source) => getCompoundSourceType(source) === sourceType);
+                    const sectionCount = patentsForType.length + sourcesForType.length;
+
+                    if (sectionCount === 0) return null;
+
+                    return (
+                      <div className="compound-search-reference-section" key={sourceType}>
+                        <div className="compound-search-reference-section-head">
+                          <Text strong>{sourceType}</Text>
+                          <Text type="secondary">{formatNumberWithComma(sectionCount)} items</Text>
+                        </div>
+                        {patentsForType.length > 0 ? (
+                          <div className="compound-search-reference-list">
+                            {patentsForType.map((patent, index) => (
+                              <CompoundPatentReferenceCard
+                                key={`${patent.publication_number ?? 'patent'}-${index}`}
+                                patent={patent}
+                                index={index}
+                                onOpenPatentDetail={openPatentAnalysisDetail}
+                              />
+                            ))}
+                          </div>
+                        ) : null}
+                        {sourcesForType.length > 0 ? (
+                          <CompoundSourceReferenceList sources={sourcesForType} />
+                        ) : null}
+                      </div>
+                    );
+                  })
               )}
             </section>
           </div>

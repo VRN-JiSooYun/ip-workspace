@@ -21,7 +21,6 @@ RUN pip install --no-cache-dir \
   matplotlib==3.10.8
 
 COPY compound_search/ /app/
-COPY sample/patent_analysis_helper_api/analyzer/ /analyzer/
 
 EXPOSE 8080
 
