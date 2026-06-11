@@ -33,6 +33,8 @@ import {
   Table as TableIcon,
   Layers,
   FileSpreadsheet,
+  Copy,
+  Image as ImageIcon,
 } from 'lucide-react';
 import { Patent } from '../mocks/patents';
 import { mergeEmbodimentPayload } from '../mocks/patentAnalysisMockApi';
@@ -42,7 +44,10 @@ import PageHeaderBreadcrumb from '../components/common/PageHeaderBreadcrumb';
 import DataCardItem from '../components/patent-analysis/DataCardItem';
 import ChemDrawModal from '../components/common/ChemDrawModal';
 import BenzeneIcon from '../components/common/BenzeneIcon';
-import CompoundStructureView from '../components/common/CompoundStructureView';
+import CompoundStructureView, {
+  copySvgImageToClipboard,
+  getCompoundStructureCopyText,
+} from '../components/common/CompoundStructureView';
 import PatentPdfToolbar from '../components/patent-analysis/pdf/PatentPdfToolbar';
 import PatentPdfViewer from '../components/patent-analysis/pdf/PatentPdfViewer';
 import { usePatentPdfViewer } from '../hooks/usePatentPdfViewer';
@@ -50,6 +55,12 @@ import { mapPatentListItem, patentAnalysisApi } from '../services/patentAnalysis
 import { formatDisplayDate, formatNumberWithComma } from '../utils/displayFormat';
 
 const { Title, Text, Paragraph } = Typography;
+
+type StructurePreviewMeta = {
+  smiles?: string | null;
+  molblock?: string | null;
+  cdxml?: string | null;
+};
 
 const ENABLE_HIGHLIGHT_DEBUG_LOG = false;
 const SPLIT_MIN_PERCENT = 20;
@@ -119,6 +130,76 @@ const normalizeAutoHighlightBbox = (rawBbox: unknown): number[] | undefined => {
   if (!Array.isArray(value) || value.length < 4) return undefined;
   const bbox = value.slice(0, 4).map(Number);
   return bbox.every(Number.isFinite) ? bbox : undefined;
+};
+
+const normalizeBboxList = (rawBbox: unknown): Array<number[] | undefined> => {
+  if (!Array.isArray(rawBbox)) {
+    return [normalizeAutoHighlightBbox(rawBbox)];
+  }
+
+  if (rawBbox.length > 0 && Array.isArray(rawBbox[0])) {
+    return rawBbox.map((bbox) => normalizeAutoHighlightBbox(bbox));
+  }
+
+  return [normalizeAutoHighlightBbox(rawBbox)];
+};
+
+const bboxEquals = (a?: number[], b?: number[]) => {
+  if (!a || !b || a.length < 4 || b.length < 4) return false;
+  return a.slice(0, 4).every((value, index) => Math.abs(Number(value) - Number(b[index])) <= 2);
+};
+
+const getPdfHighlightSelectionKey = (pageNumber: number, bbox?: number[]) => (
+  pageNumber && bbox ? `${pageNumber}:${bbox.slice(0, 4).map((value) => Math.round(Number(value))).join(',')}` : ''
+);
+
+const findRowIndexByPdfTarget = (rows: any[], targetPage: number, targetBbox?: number[]) => {
+  if (!targetPage) return -1;
+
+  const bboxMatchedIndex = rows.findIndex((row) => {
+    const pageArray = Array.isArray(row.page) ? row.page : [row.page];
+    const bboxArray = normalizeBboxList(row.bbox);
+    return pageArray.some((pageValue: any, index: number) => (
+      Number(pageValue) === targetPage && targetBbox && bboxEquals(bboxArray[index] ?? bboxArray[0], targetBbox)
+    ));
+  });
+
+  if (bboxMatchedIndex >= 0) return bboxMatchedIndex;
+
+  return rows.findIndex((row) => {
+    const pageArray = Array.isArray(row.page) ? row.page : [row.page];
+    return pageArray.some((pageValue: any) => Number(pageValue) === targetPage);
+  });
+};
+
+const buildCleanRowsFromPatentResult = (patentResult: Record<string, any>) => {
+  const modifiedRows: any[] = patentResult.modified_patent_compound ?? [];
+  const modifiedPartialRows: any[] = (patentResult as any).modified_partial_rows ?? [];
+  const rowById = new Map<number, any>();
+  modifiedRows.forEach((row) => {
+    if (!rowById.has(row.id)) rowById.set(row.id, row);
+  });
+
+  return modifiedPartialRows.length > 0
+    ? modifiedPartialRows.map((item: any, idx: number) => {
+      const rowId = typeof item === 'number' ? item : item?.id;
+      const row = rowById.get(rowId);
+      return row ? { ...row, __rowKey: `${row.id}-${idx}` } : null;
+    }).filter(Boolean)
+    : modifiedRows.map((row: any, idx: number) => ({ ...row, __rowKey: `${row.id}-${idx}` }));
+};
+
+type PdfDataHighlightTarget = {
+  id: string;
+  pageNumber: number;
+  rect: number[];
+  source: {
+    scope: 'raw' | 'clean';
+    rowIndex: number;
+    rowKey: string;
+    activeKey: string;
+    selected?: boolean;
+  };
 };
 
 const findCompoundHighlightTarget = (
@@ -326,9 +407,60 @@ const PatentAnalysisDetail: React.FC = () => {
   const currentHighlights = useMemo(() => {
     return [];
   }, []);
+  const pdfDataHighlightTargets = React.useMemo(() => {
+    const rawTargets: PdfDataHighlightTarget[] = [];
+    if (Array.isArray(patentResult.patent_compound)) {
+      patentResult.patent_compound.forEach((row: any, rowIndex: number) => {
+        const pages = Array.isArray(row.page) ? row.page : [row.page];
+        const bboxes = normalizeBboxList(row.bbox);
+        pages.forEach((pageValue: any, bboxIndex: number) => {
+          const pageNumber = Number(pageValue);
+          const rect = bboxes[bboxIndex] ?? bboxes[0];
+          if (!pageNumber || !rect) return;
+          rawTargets.push({
+            id: `raw-${row.id ?? row.compound_id ?? rowIndex}-${bboxIndex}`,
+            pageNumber,
+            rect,
+            source: {
+              scope: 'raw',
+              rowIndex,
+              rowKey: `${row.id}-${rowIndex}`,
+              activeKey: String(row.id),
+            },
+          });
+        });
+      });
+    }
+
+    const cleanRows = buildCleanRowsFromPatentResult(patentResult);
+    const cleanTargets: PdfDataHighlightTarget[] = [];
+    cleanRows.forEach((row: any, rowIndex: number) => {
+      const pages = Array.isArray(row.page) ? row.page : [row.page];
+      const bboxes = normalizeBboxList(row.bbox);
+      pages.forEach((pageValue: any, bboxIndex: number) => {
+        const pageNumber = Number(pageValue);
+        const rect = bboxes[bboxIndex] ?? bboxes[0];
+        if (!pageNumber || !rect) return;
+        cleanTargets.push({
+          id: `clean-${row.__rowKey ?? row.id ?? rowIndex}-${bboxIndex}`,
+          pageNumber,
+          rect,
+          source: {
+            scope: 'clean',
+            rowIndex,
+            rowKey: row.__rowKey,
+            activeKey: `clean-${row.__rowKey ?? row.id}`,
+          },
+        });
+      });
+    });
+
+    return [...rawTargets, ...cleanTargets];
+  }, [patentResult]);
   const pdfViewer = usePatentPdfViewer({
     patentNumber: displayedPatent?.patentNumber,
     currentHighlights,
+    dataHighlightTargets: pdfDataHighlightTargets,
   });
 
   useEffect(() => {
@@ -381,11 +513,16 @@ const PatentAnalysisDetail: React.FC = () => {
   const [cleanDataView, setCleanDataView] = React.useState<'table' | 'card'>('table');
   const [rawCardCurrentPage, setRawCardCurrentPage] = React.useState(1);
   const [rawCardPageSize, setRawCardPageSize] = React.useState(RAW_DATA_DEFAULT_PAGE_SIZE);
+  const [rawTableCurrentPage, setRawTableCurrentPage] = React.useState(1);
+  const [rawTablePageSize, setRawTablePageSize] = React.useState(RAW_DATA_DEFAULT_PAGE_SIZE);
   const [cleanCardCurrentPage, setCleanCardCurrentPage] = React.useState(1);
   const [cleanCardPageSize, setCleanCardPageSize] = React.useState(RAW_DATA_DEFAULT_PAGE_SIZE);
+  const [cleanTableCurrentPage, setCleanTableCurrentPage] = React.useState(1);
+  const [cleanTablePageSize, setCleanTablePageSize] = React.useState(RAW_DATA_DEFAULT_PAGE_SIZE);
   const [activeTab, setActiveTab] = React.useState<string>('summary');
   const [rGroupFilter, setRGroupFilter] = React.useState<{ key: string; smiles: string } | null>(null);
   const [previewSvg, setPreviewSvg] = React.useState<string | null>(null);
+  const [previewStructureMeta, setPreviewStructureMeta] = React.useState<StructurePreviewMeta | null>(null);
   const [chemDrawOpen, setChemDrawOpen] = React.useState(false);
   const [chemDrawSmiles, setChemDrawSmiles] = React.useState('');
   const [chemDrawMolblock, setChemDrawMolblock] = React.useState('');
@@ -412,6 +549,8 @@ const PatentAnalysisDetail: React.FC = () => {
   const lastSplitUpdateAtRef = React.useRef(0);
   const lastSplitRatioRef = React.useRef(SPLIT_DEFAULT_PERCENT);
   const autoCompoundHighlightRef = React.useRef('');
+  const rawDataTableRef = React.useRef<any>(null);
+  const cleanDataTableRef = React.useRef<any>(null);
   const layoutPreset = React.useMemo(() => getPatentAnalysisLayoutPreset(viewportWidth), [viewportWidth]);
   const effectiveSplitWidth = splitContainerWidth || viewportWidth;
   const isStackedSplitLayout = effectiveSplitWidth <= DETAIL_STACK_BREAKPOINT;
@@ -429,12 +568,29 @@ const PatentAnalysisDetail: React.FC = () => {
     type === 'page' ? <span>{formatNumberWithComma(page)}</span> : originalElement
   ), []);
   const rawDataTablePagination = React.useMemo(() => ({
-    defaultPageSize: RAW_DATA_DEFAULT_PAGE_SIZE,
+    current: rawTableCurrentPage,
+    pageSize: rawTablePageSize,
     showSizeChanger: true,
     pageSizeOptions: RAW_DATA_PAGE_SIZE_OPTIONS,
     position: ['bottomRight' as const],
     itemRender: paginationItemRender,
-  }), [paginationItemRender]);
+    onChange: (page: number, pageSize: number) => {
+      setRawTableCurrentPage(page);
+      setRawTablePageSize(pageSize);
+    },
+  }), [paginationItemRender, rawTableCurrentPage, rawTablePageSize]);
+  const cleanDataTablePagination = React.useMemo(() => ({
+    current: cleanTableCurrentPage,
+    pageSize: cleanTablePageSize,
+    showSizeChanger: true,
+    pageSizeOptions: RAW_DATA_PAGE_SIZE_OPTIONS,
+    position: ['bottomRight' as const],
+    itemRender: paginationItemRender,
+    onChange: (page: number, pageSize: number) => {
+      setCleanTableCurrentPage(page);
+      setCleanTablePageSize(pageSize);
+    },
+  }), [cleanTableCurrentPage, cleanTablePageSize, paginationItemRender]);
   const resultTables = React.useMemo(() => {
     const tables = patentResult?.tables;
     return Array.isArray(tables) ? tables : [];
@@ -811,11 +967,163 @@ const PatentAnalysisDetail: React.FC = () => {
     }
   };
 
-  const openSvgPreview = (svg: string, title: string) => {
+  const getTableCopyText = (tableItem: any, tableIndex: number) => {
+    const tsvList = Array.isArray(tableItem?.table_tsv) ? tableItem.table_tsv : [];
+    const csvList = Array.isArray(tableItem?.table_csv) ? tableItem.table_csv : [];
+    const currentTableText = tsvList[tableIndex] ?? csvList[tableIndex];
+
+    if (typeof currentTableText === 'string' && currentTableText.trim()) {
+      return currentTableText.trimEnd();
+    }
+
+    const pageArray = Array.isArray(tableItem?.page) ? tableItem.page : [];
+    const bboxArray = Array.isArray(tableItem?.bbox) ? tableItem.bbox : [];
+    const tableBase64 = Array.isArray(tableItem?.table_base64) ? tableItem.table_base64 : [];
+
+    return [
+      ['Table Group', tableItem?.table_group ?? '-'],
+      ['Table Number', tableItem?.table_num ?? '-'],
+      ['Has Compound', tableItem?.has_compound ? 'O' : 'X'],
+      ['Current Index', tableIndex + 1],
+      ['Current Page', pageArray[tableIndex] ?? '-'],
+      ['Current BBox', bboxArray[tableIndex] ?? '-'],
+      ['Pages', pageArray.length > 0 ? pageArray.join(', ') : '-'],
+      ['Images', tableBase64.length],
+    ].map(([label, value]) => `${label}\t${value}`).join('\n');
+  };
+
+  const handleCopyTableInfo = (tableItem: any, tableIndex: number) => {
+    const copyText = getTableCopyText(tableItem, tableIndex);
+    const writePromise = navigator.clipboard?.writeText(copyText);
+
+    if (!writePromise) {
+      void message.error('클립보드를 지원하지 않는 브라우저입니다.');
+      return;
+    }
+
+    void writePromise
+      .then(() => {
+        void message.success('테이블 정보 복사 완료');
+      })
+      .catch(() => {
+        void message.error('테이블 정보 복사 실패');
+      });
+  };
+
+  const openSvgPreview = (svg: string, title: string, meta?: StructurePreviewMeta) => {
     setPreviewImageSrc(null);
     setPreviewSvg(svg);
+    setPreviewStructureMeta(meta ?? null);
     setPreviewTitle(title);
   };
+
+  const scrollFocusedTableRow = (tableRef: React.RefObject<any>, rowKey: React.Key) => {
+    const scrollToRow = () => {
+      tableRef.current?.scrollTo?.({ key: rowKey });
+    };
+
+    requestAnimationFrame(() => {
+      scrollToRow();
+      window.setTimeout(scrollToRow, 120);
+    });
+  };
+
+  const buildCleanRows = React.useCallback(() => {
+    const modifiedRows: any[] = patentResult.modified_patent_compound ?? [];
+    const modifiedPartialRows: any[] = (patentResult as any).modified_partial_rows ?? [];
+    const rowById = new Map<number, any>();
+    modifiedRows.forEach((row) => {
+      if (!rowById.has(row.id)) rowById.set(row.id, row);
+    });
+
+    return modifiedPartialRows.length > 0
+      ? modifiedPartialRows.map((item: any, idx: number) => {
+        const rowId = typeof item === 'number' ? item : item?.id;
+        const row = rowById.get(rowId);
+        return row ? { ...row, __rowKey: `${row.id}-${idx}` } : null;
+      }).filter(Boolean)
+      : modifiedRows.map((row: any, idx: number) => ({ ...row, __rowKey: `${row.id}-${idx}` }));
+  }, [patentResult]);
+
+  const handlePdfHighlightClick = React.useCallback((highlight: any) => {
+    const source = highlight?.source ?? pdfViewer.activeBBox;
+    const targetPage = Number(source?.pageNumber ?? highlight?.position?.pageNumber);
+    const targetBbox = normalizeAutoHighlightBbox(source?.rect);
+    const selectionKey = getPdfHighlightSelectionKey(targetPage, targetBbox);
+
+    if (!targetPage || !targetBbox || !selectionKey) return;
+
+    // 클릭한 블루 bbox를 빨간색(선택)으로 표시
+    if (highlight?.id) {
+      pdfViewer.setSelectedDataHighlightId(String(highlight.id));
+    }
+
+    if (source?.scope === 'raw' && Number.isFinite(Number(source.rowIndex))) {
+      const rowIndex = Number(source.rowIndex);
+      const activeKey = String(source.activeKey ?? '');
+      setRGroupFilter(null);
+      setActiveTab('raw-data');
+      setRawDataView('table');
+      setRawTableCurrentPage(Math.floor(rowIndex / rawTablePageSize) + 1);
+      setActiveCompId(activeKey);
+      setPageIndices((prev) => ({ ...prev, [activeKey]: 0 }));
+      scrollFocusedTableRow(rawDataTableRef, String(source.rowKey));
+      return;
+    }
+
+    if (source?.scope === 'clean' && Number.isFinite(Number(source.rowIndex))) {
+      const rowIndex = Number(source.rowIndex);
+      const activeKey = String(source.activeKey ?? '');
+      setActiveTab('clean-data');
+      setCleanDataView('table');
+      setCleanTableCurrentPage(Math.floor(rowIndex / cleanTablePageSize) + 1);
+      setActiveCompId(activeKey);
+      setPageIndices((prev) => ({ ...prev, [activeKey]: 0 }));
+      scrollFocusedTableRow(cleanDataTableRef, String(source.rowKey));
+      return;
+    }
+
+    const rawRows: any[] = patentResult.patent_compound ?? [];
+    const rawIndex = findRowIndexByPdfTarget(rawRows, targetPage, targetBbox);
+    if (rawIndex >= 0) {
+      const row = rawRows[rawIndex];
+      const rowKey = `${row.id}-${rawIndex}`;
+      const activeKey = String(row.id);
+      setRGroupFilter(null);
+      setActiveTab('raw-data');
+      setRawDataView('table');
+      setRawTableCurrentPage(Math.floor(rawIndex / rawTablePageSize) + 1);
+      setActiveCompId(activeKey);
+      setPageIndices((prev) => ({ ...prev, [activeKey]: 0 }));
+      scrollFocusedTableRow(rawDataTableRef, rowKey);
+      return;
+    }
+
+    const cleanRows = buildCleanRows();
+    const cleanIndex = findRowIndexByPdfTarget(cleanRows, targetPage, targetBbox);
+    if (cleanIndex >= 0) {
+      const row = cleanRows[cleanIndex];
+      const rowKey = row.__rowKey;
+      const activeKey = `clean-${rowKey ?? row.id}`;
+      setActiveTab('clean-data');
+      setCleanDataView('table');
+      setCleanTableCurrentPage(Math.floor(cleanIndex / cleanTablePageSize) + 1);
+      setActiveCompId(activeKey);
+      setPageIndices((prev) => ({ ...prev, [activeKey]: 0 }));
+      scrollFocusedTableRow(cleanDataTableRef, rowKey);
+      return;
+    }
+
+    message.warning('선택한 PDF 하이라이트에 연결된 Raw Data row를 찾을 수 없습니다.');
+  }, [
+    buildCleanRows,
+    cleanTablePageSize,
+    message,
+    patentResult,
+    pdfViewer.activeBBox,
+    pdfViewer.setSelectedDataHighlightId,
+    rawTablePageSize,
+  ]);
 
   const renderPatentStructureView = (opts: {
     svg: string;
@@ -846,7 +1154,10 @@ const PatentAnalysisDetail: React.FC = () => {
       frameStyle={{ border: 0, outline: 0, boxShadow: 'none', background: 'transparent', overflow: 'visible' }}
       containerStyle={{ height: '100%', cursor: opts.onClick ? 'pointer' : undefined }}
       onClick={opts.onClick}
-      onPreview={() => openSvgPreview(opts.svg, opts.title)}
+      onPreview={() => openSvgPreview(opts.svg, opts.title, {
+        smiles: opts.smiles,
+        molblock: opts.molblock,
+      })}
       actions={(opts.smiles || opts.molblock) ? [{
         key: 'chemdraw',
         title: 'ChemDraw',
@@ -864,8 +1175,57 @@ const PatentAnalysisDetail: React.FC = () => {
 
   const openImagePreview = (src: string, title: string) => {
     setPreviewSvg(null);
+    setPreviewStructureMeta(null);
     setPreviewImageSrc(src);
     setPreviewTitle(title);
+  };
+
+  const previewCopyText = getCompoundStructureCopyText({
+    smiles: previewStructureMeta?.smiles,
+    molBlock: previewStructureMeta?.molblock,
+    cdxml: previewStructureMeta?.cdxml,
+    svg: previewSvg,
+  });
+  const canOpenPreviewChemDraw = Boolean(previewStructureMeta?.smiles || previewStructureMeta?.molblock);
+
+  const handlePreviewCopyData = () => {
+    if (!previewCopyText) return;
+
+    const writePromise = navigator.clipboard?.writeText(previewCopyText);
+    if (!writePromise) {
+      void message.error('클립보드를 지원하지 않는 브라우저입니다.');
+      return;
+    }
+
+    void writePromise
+      .then(() => {
+        void message.success('구조 데이터 복사 완료');
+      })
+      .catch(() => {
+        void message.error('복사 실패');
+      });
+  };
+
+  const handlePreviewCopyImage = () => {
+    if (!previewSvg) return;
+
+    void copySvgImageToClipboard(previewSvg, { scale: 4 })
+      .then(() => {
+        void message.success('구조 이미지 복사 완료');
+      })
+      .catch((error) => {
+        const errorMessage = error instanceof Error ? error.message : '이미지 복사 실패';
+        void message.error(errorMessage);
+      });
+  };
+
+  const handlePreviewOpenChemDraw = () => {
+    if (!canOpenPreviewChemDraw) return;
+
+    setChemDrawSmiles(previewStructureMeta?.smiles || '');
+    setChemDrawMolblock(previewStructureMeta?.molblock || '');
+    setChemDrawTitle(previewTitle);
+    setChemDrawOpen(true);
   };
 
   const fitPageToScreen = React.useCallback(() => {
@@ -983,6 +1343,7 @@ const PatentAnalysisDetail: React.FC = () => {
                 onAddHighlight={pdfViewer.addHighlight}
                 onDeleteHighlight={pdfViewer.deleteHighlight}
                 onScrollToHighlight={pdfViewer.scrollToHighlight}
+                onHighlightClick={handlePdfHighlightClick}
                 thumbnailCollapsed={thumbnailCollapsed}
               />
             ) : (
@@ -1117,7 +1478,7 @@ const PatentAnalysisDetail: React.FC = () => {
                                 {/* Scaffold Rank 1 Image for Functional Group Context */}
                                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
                                   <Title level={5} style={{ marginTop: 0, marginBottom: 8, color: token.colorPrimary }}>Scaffold Rank 1</Title>
-                                  <div className="patent-summary-structure-frame" style={{ width: 220, height: 220, background: token.colorBgContainer, border: `1px solid ${token.colorBorderSecondary}`, borderRadius: '8px', padding: 0, position: 'relative', overflow: 'hidden' }}>
+                                  <div className="patent-summary-structure-frame patent-functional-scaffold-frame" style={{ width: 220, height: 220, background: token.colorBgContainer, border: `1px solid ${token.colorBorderSecondary}`, borderRadius: '8px', padding: 0, position: 'relative', overflow: 'hidden' }}>
                                     {renderPatentStructureView({
                                       svg: summaryAnalysis.scaffoldRanks?.[0]?.svg ?? summaryAnalysis.parentScaffold.svg,
                                       title: 'Functional Group - Scaffold Rank 1',
@@ -1199,7 +1560,10 @@ const PatentAnalysisDetail: React.FC = () => {
                                           squareImage
                                           isActive={activeCompId === compKey}
                                           onClick={() => handleCompoundCardClick(comp, comp.ranking)}
-                                          onPreview={() => openSvgPreview(comp.compound_svg, `추천 Key Compound - ${comp.compound_id}`)}
+                                          onPreview={() => openSvgPreview(comp.compound_svg, `추천 Key Compound - ${comp.compound_id}`, {
+                                            smiles: comp.smiles,
+                                            molblock: comp.molblock,
+                                          })}
                                           smiles={comp.smiles}
                                           molblock={comp.molblock}
                                           pagination={
@@ -1327,7 +1691,7 @@ const PatentAnalysisDetail: React.FC = () => {
                                           smiles,
                                           height: '100%',
                                           iconSize: 11,
-                                          onClick: () => openSvgPreview(svg, `${key}: ${smiles}`),
+                                          onClick: () => openSvgPreview(svg, `${key}: ${smiles}`, { smiles }),
                                         })
                                       ) : (
                                         <Text style={{ fontSize: 11, color: token.colorTextTertiary }}>no image</Text>
@@ -1469,6 +1833,7 @@ const PatentAnalysisDetail: React.FC = () => {
                                 }}
                               >
                                 <Table
+                                  ref={rawDataTableRef}
                                   className="raw-data-embodiment-table"
                                   dataSource={rawPc}
                                   size="small"
@@ -1536,7 +1901,10 @@ const PatentAnalysisDetail: React.FC = () => {
                                             setActiveCompId(compKey);
                                             if (pageArr.length > 0) handleGoToPdf(pageArr[curIdx], bboxArr[curIdx]);
                                           }}
-                                          onPreview={() => openSvgPreview(comp.compound_svg, comp.compound_id)}
+                                          onPreview={() => openSvgPreview(comp.compound_svg, comp.compound_id, {
+                                            smiles: comp.smiles,
+                                            molblock: comp.molblock,
+                                          })}
                                           smiles={comp.smiles}
                                           molblock={comp.molblock}
                                           extraInfo={
@@ -1678,22 +2046,8 @@ const PatentAnalysisDetail: React.FC = () => {
                         </div>
                         {cleanDataView === 'table' ? (
                           (() => {
-                            const modifiedRows: any[] = patentResult.modified_patent_compound ?? [];
-                            const modifiedPartialRows: any[] = (patentResult as any).modified_partial_rows ?? [];
                             const modifiedBioKeys: string[] = (patentResult.data?.[0]?.modified_bioactivity_list ?? []) as string[];
-
-                            const rowById = new Map<number, any>();
-                            modifiedRows.forEach((row) => {
-                              if (!rowById.has(row.id)) rowById.set(row.id, row);
-                            });
-
-                            const cleanRows = modifiedPartialRows.length > 0
-                              ? modifiedPartialRows.map((item: any, idx: number) => {
-                                  const rowId = typeof item === 'number' ? item : item?.id;
-                                  const row = rowById.get(rowId);
-                                  return row ? { ...row, __rowKey: `${row.id}-${idx}` } : null;
-                                }).filter(Boolean)
-                              : modifiedRows.map((row: any, idx: number) => ({ ...row, __rowKey: `${row.id}-${idx}` }));
+                            const cleanRows = buildCleanRows();
 
                             const allRGroupKeys = Array.from(
                               new Set(cleanRows.flatMap((c: any) => Object.keys(c.r_groups ?? {})))
@@ -1732,7 +2086,7 @@ const PatentAnalysisDetail: React.FC = () => {
                                           smiles,
                                           height: '100%',
                                           iconSize: 11,
-                                          onClick: () => openSvgPreview(svg, `${key}: ${smiles}`),
+                                          onClick: () => openSvgPreview(svg, `${key}: ${smiles}`, { smiles }),
                                         })
                                       ) : (
                                         <Text style={{ fontSize: 11, color: token.colorTextTertiary }}>no image</Text>
@@ -1892,6 +2246,7 @@ const PatentAnalysisDetail: React.FC = () => {
                                 }}
                               >
                                 <Table
+                                  ref={cleanDataTableRef}
                                   className="raw-data-embodiment-table"
                                   dataSource={cleanRows}
                                   size="small"
@@ -1912,7 +2267,7 @@ const PatentAnalysisDetail: React.FC = () => {
                                     },
                                     style: { cursor: 'pointer' }
                                   })}
-                                  pagination={rawDataTablePagination}
+                                  pagination={cleanDataTablePagination}
                                 />
                               </div>
                             );
@@ -1948,7 +2303,10 @@ const PatentAnalysisDetail: React.FC = () => {
                                             setActiveCompId(compKey);
                                             if (pageArr.length > 0) handleGoToPdf(pageArr[curIdx], bboxArr[curIdx]);
                                           }}
-                                          onPreview={() => openSvgPreview(comp.compound_svg, comp.compound_id)}
+                                          onPreview={() => openSvgPreview(comp.compound_svg, comp.compound_id, {
+                                            smiles: comp.smiles,
+                                            molblock: comp.molblock,
+                                          })}
                                           smiles={comp.smiles}
                                           molblock={comp.molblock}
                                           extraInfo={
@@ -2017,14 +2375,15 @@ const PatentAnalysisDetail: React.FC = () => {
                                 {resultTables.map((tableItem: any, i: number) => {
                                   const cardKey = `table-${tableItem?.table_num ?? i}-${i}`;
                                   const base64List = Array.isArray(tableItem?.table_base64) ? tableItem.table_base64 : [];
-                                  const firstImage =
-                                    typeof base64List[0] === 'string'
-                                      ? base64List[0].startsWith('data:')
-                                        ? base64List[0]
-                                        : `data:image/png;base64,${base64List[0]}`
-                                      : null;
                                   const pageArray = Array.isArray(tableItem?.page) ? tableItem.page : [];
                                   const tableCurrentIndex = pageIndices[cardKey] ?? 0;
+                                  const currentImageValue = base64List[tableCurrentIndex] ?? base64List[0];
+                                  const currentImage =
+                                    typeof currentImageValue === 'string'
+                                      ? currentImageValue.startsWith('data:')
+                                        ? currentImageValue
+                                        : `data:image/png;base64,${currentImageValue}`
+                                      : null;
                                   
                                   return (
                                     <Col span={24} md={12} lg={8} key={cardKey}>
@@ -2036,15 +2395,30 @@ const PatentAnalysisDetail: React.FC = () => {
                                             color: tableItem?.has_compound ? 'green' : 'default',
                                           },
                                         ]}
-                                        imageUrl={firstImage || ''}
+                                        imageUrl={currentImage || ''}
                                         imageType="base64"
                                         imageHeight={150}
                                         isActive={activeCompId === cardKey}
                                         onClick={() => handleTableCardClick(tableItem, i)}
                                         onPreview={
-                                          firstImage
-                                            ? () => openImagePreview(firstImage, `Table ${tableItem?.table_num ?? '?'}`)
+                                          currentImage
+                                            ? () => openImagePreview(currentImage, `Table ${tableItem?.table_num ?? '?'}`)
                                             : undefined
+                                        }
+                                        imageOverlayActions={
+                                          <Tooltip title="현재 테이블 정보를 클립보드에 복사">
+                                            <Button
+                                              className="svg-action-btn"
+                                              size="small"
+                                              type="text"
+                                              icon={<Copy size={12} />}
+                                              onClick={(event) => {
+                                                event.stopPropagation();
+                                                handleCopyTableInfo(tableItem, tableCurrentIndex);
+                                              }}
+                                              style={{ background: 'rgba(255,255,255,0.85)' }}
+                                            />
+                                          </Tooltip>
                                         }
                                         extraInfo={
                                           <div>
@@ -2255,7 +2629,11 @@ const PatentAnalysisDetail: React.FC = () => {
           display: flex !important;
           align-items: center !important;
           justify-content: center !important;
+          border: 0 !important;
           overflow: hidden !important;
+        }
+        .patent-summary-tab-content .patent-functional-scaffold-frame {
+          border: 1px solid ${token.colorBorderSecondary} !important;
         }
         .patent-summary-tab-content .patent-summary-structure-frame .compound-structure-view,
         .patent-summary-tab-content .patent-summary-structure-frame .compound-structure-frame,
@@ -2272,6 +2650,7 @@ const PatentAnalysisDetail: React.FC = () => {
         }
         .raw-data-tab-content .raw-data-svg-frame {
           padding: 0 !important;
+          border: 0 !important;
           line-height: 0 !important;
           aspect-ratio: 1 / 1;
           align-items: center !important;
@@ -2398,6 +2777,7 @@ const PatentAnalysisDetail: React.FC = () => {
         open={!!previewSvg || !!previewImageSrc}
         onCancel={() => {
           setPreviewSvg(null);
+          setPreviewStructureMeta(null);
           setPreviewImageSrc(null);
         }}
         footer={null}
@@ -2405,12 +2785,61 @@ const PatentAnalysisDetail: React.FC = () => {
         centered
       >
         {previewSvg || previewImageSrc ? (
-          <div className={previewSvg ? 'patent-structure-preview' : undefined} style={{ width: '100%', height: 'min(720px, calc(100vh - 180px))', background: token.colorBgContainer, borderRadius: 8, border: `1px solid ${token.colorBorderSecondary}`, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+          <div className={previewSvg ? 'patent-structure-preview' : undefined} style={{ width: '100%', height: 'min(720px, calc(100vh - 180px))', background: token.colorBgContainer, borderRadius: 8, border: `1px solid ${token.colorBorderSecondary}`, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', position: 'relative' }}>
             {previewImageSrc ? (
               <img src={previewImageSrc} alt="table-preview" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
             ) : null}
             {previewSvg ? (
             <SvgRenderer svg={previewSvg} />
+            ) : null}
+            {previewSvg ? (
+              <Space
+                className="patent-structure-preview-actions"
+                size={6}
+                style={{
+                  position: 'absolute',
+                  right: 16,
+                  bottom: 16,
+                  zIndex: 5,
+                  padding: 6,
+                  borderRadius: 999,
+                  border: `1px solid ${token.colorBorderSecondary}`,
+                  background: token.colorBgElevated,
+                  boxShadow: token.boxShadowSecondary,
+                }}
+              >
+                <Tooltip title="이미지 복사">
+                  <Button
+                    className="svg-action-btn compound-structure-action-button"
+                    size="small"
+                    type="text"
+                    icon={<ImageIcon size={13} />}
+                    onClick={handlePreviewCopyImage}
+                  />
+                </Tooltip>
+                {previewCopyText ? (
+                  <Tooltip title="구조 데이터 복사">
+                    <Button
+                      className="svg-action-btn compound-structure-action-button"
+                      size="small"
+                      type="text"
+                      icon={<Copy size={13} />}
+                      onClick={handlePreviewCopyData}
+                    />
+                  </Tooltip>
+                ) : null}
+                {canOpenPreviewChemDraw ? (
+                  <Tooltip title="ChemDraw">
+                    <Button
+                      className="svg-action-btn compound-structure-action-button"
+                      size="small"
+                      type="text"
+                      icon={<BenzeneIcon size={14} />}
+                      onClick={handlePreviewOpenChemDraw}
+                    />
+                  </Tooltip>
+                ) : null}
+              </Space>
             ) : null}
           </div>
         ) : null}

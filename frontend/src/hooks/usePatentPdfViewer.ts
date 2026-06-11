@@ -73,6 +73,12 @@ export type PdfSearchMatchDebugInfo = {
 type UsePatentPdfViewerOptions = {
   patentNumber?: string;
   currentHighlights: any[];
+  dataHighlightTargets?: Array<{
+    id: string;
+    pageNumber: number;
+    rect: number[];
+    source?: Record<string, unknown>;
+  }>;
 };
 
 const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
@@ -122,6 +128,7 @@ const shouldInsertSyntheticSpace = (currentSpan: HTMLElement, nextSpan: HTMLElem
 export const usePatentPdfViewer = ({
   patentNumber,
   currentHighlights,
+  dataHighlightTargets = [],
 }: UsePatentPdfViewerOptions) => {
   const highlighterUtilsRef = React.useRef<PdfHighlighterUtils | null>(null);
   const pdfDocumentRef = React.useRef<any | null>(null);
@@ -145,6 +152,7 @@ export const usePatentPdfViewer = ({
   const [matchCount, setMatchCount] = React.useState({ current: 0, total: 0 });
 
   const [activeBBox, setActiveBBox] = React.useState<PdfHighlightTarget | null>(null);
+  const [selectedDataHighlightId, setSelectedDataHighlightId] = React.useState<string | null>(null);
   const [pendingHighlight, setPendingHighlight] = React.useState<PdfHighlightTarget | null>(null);
   const [activeHighlightRevision, setActiveHighlightRevision] = React.useState(0);
   const [pdfPageSizes, setPdfPageSizes] = React.useState<Record<number, PdfPageSize>>({});
@@ -321,6 +329,7 @@ export const usePatentPdfViewer = ({
     if (utils && typeof (utils as any).goToPage === 'function') {
       debugLog('search-scroll-via-utils-goToPage', { targetPage });
       (utils as any).goToPage(targetPage);
+      return;
     }
 
     const pageElement = pdfViewerContainerRef.current?.querySelector(`.page[data-page-number="${targetPage}"]`)
@@ -346,9 +355,6 @@ export const usePatentPdfViewer = ({
     };
 
     runInAnimationFrame();
-    pdfNavigationTimeoutsRef.current = [120, 320, 700].map((delay) => (
-      window.setTimeout(runInAnimationFrame, delay)
-    ));
   }, [clearPdfNavigationTimers, runPdfPageNavigation]);
 
   const handleGoToPdf = React.useCallback((targetPage: number, bboxCoords?: any[]) => {
@@ -413,6 +419,10 @@ export const usePatentPdfViewer = ({
       type: 'area',
       content: { text: '' },
       position,
+      source: {
+        pageNumber: pendingHighlight.pageNumber,
+        rect: pendingHighlight.rect,
+      },
       comment: { text: '', emoji: '' },
     }]);
     setActiveBBox({
@@ -422,6 +432,35 @@ export const usePatentPdfViewer = ({
     setActiveHighlightRevision((prev) => prev + 1);
     setPendingHighlight(null);
   }, [activeHighlightRevision, bboxToPosition, debugLog, ensurePdfPageSize, pdfPageSizes, pendingHighlight]);
+
+  React.useEffect(() => {
+    if (!isPdfDocumentReady) return;
+    dataHighlightTargets.forEach((target) => {
+      ensurePdfPageSize(target.pageNumber);
+    });
+  }, [dataHighlightTargets, ensurePdfPageSize, isPdfDocumentReady]);
+
+  const dataHighlights = React.useMemo(() => (
+    dataHighlightTargets.map((target) => {
+      if (!target.source || !target.pageNumber || !Array.isArray(target.rect) || target.rect.length < 4) return null;
+      const position = bboxToPosition(target.rect, target.pageNumber);
+      if (!position) return null;
+      const highlightId = `raw_data_bbox_${target.id}`;
+      return {
+        id: highlightId,
+        type: 'area',
+        content: { text: '' },
+        position,
+        source: {
+          ...target.source,
+          pageNumber: target.pageNumber,
+          rect: target.rect,
+          selected: highlightId === selectedDataHighlightId,
+        },
+        comment: { text: '', emoji: '' },
+      };
+    }).filter(Boolean)
+  ), [bboxToPosition, dataHighlightTargets, selectedDataHighlightId]);
 
   React.useEffect(() => {
     if (!activeBBox || isRebumpingRef.current) return;
@@ -444,6 +483,10 @@ export const usePatentPdfViewer = ({
           type: 'area',
           content: { text: '' },
           position,
+          source: {
+            pageNumber: savedBBox.pageNumber,
+            rect: savedBBox.rect,
+          },
           comment: { text: '', emoji: '' },
         }]);
         isRebumpingRef.current = false;
@@ -461,8 +504,8 @@ export const usePatentPdfViewer = ({
 
     const user = userHighlights;
 
-    return [...base, ...system, ...user];
-  }, [currentHighlights, userHighlights, systemHighlights]);
+    return [...base, ...dataHighlights, ...system, ...user];
+  }, [currentHighlights, dataHighlights, userHighlights, systemHighlights]);
 
   // Public API
   return {
@@ -472,6 +515,8 @@ export const usePatentPdfViewer = ({
     isPdfDocumentReady,
     isHighlighterReady,
     activeBBox,
+    selectedDataHighlightId,
+    setSelectedDataHighlightId,
     // Search Handlers
     searchQuery,
     matchCount,

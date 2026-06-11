@@ -5,3 +5,12 @@
 .AreaHighlight__part {
   background: rgba(255, 255, 255) !important;
 }
+
+.patent-pdf-clickable-highlight {
+  pointer-events: auto;
+}
+
+.patent-pdf-clickable-highlight .AreaHighlight__part {
+  cursor: pointer;
+  pointer-events: auto;
+}

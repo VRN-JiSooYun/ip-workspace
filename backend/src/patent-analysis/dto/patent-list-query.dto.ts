@@ -40,6 +40,10 @@ export class PatentListQueryDto {
 
   @IsOptional()
   @IsString()
+  applicant?: string;
+
+  @IsOptional()
+  @IsString()
   publicationNumber?: string;
 
   @IsOptional()

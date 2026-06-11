@@ -56,6 +56,7 @@ type PatentPdfViewerProps = {
   onAddHighlight?: (highlight: any) => void;
   onDeleteHighlight?: (id: string) => void;
   onScrollToHighlight?: (highlight: any) => void;
+  onHighlightClick?: (highlight: any) => void;
   thumbnailCollapsed?: boolean;
 };
 
@@ -216,6 +217,7 @@ const PatentPdfViewerComponent: React.FC<PatentPdfViewerProps> = ({
   backgroundColor,
   borderColor,
   onAddHighlight,
+  onHighlightClick,
   thumbnailCollapsed,
 }) => {
   const [highlighterUtils, setLocalHighlighterUtils] = React.useState<PdfHighlighterUtils | null>(null);
@@ -313,6 +315,7 @@ const PatentPdfViewerComponent: React.FC<PatentPdfViewerProps> = ({
                     onPdfTotalPagesChange={onPdfTotalPagesChange}
                     setHighlighterUtils={handleHighlighterUtils}
                     onAddHighlight={onAddHighlight}
+                    onHighlightClick={onHighlightClick}
                   />
                 </div>
               );

@@ -24,6 +24,7 @@ import ChemDrawModal from '../components/common/ChemDrawModal';
 import ChemDrawEditor from '../components/common/ChemDrawEditor';
 import BenzeneIcon from '../components/common/BenzeneIcon';
 import CompoundStructureView from '../components/common/CompoundStructureView';
+import StructurePreviewModal from '../components/common/StructurePreviewModal';
 import ToggleTag from '../components/common/ToggleTag';
 import QuickViewerPanel from '../components/myboard/QuickViewerPanel';
 import shareForwardIconRaw from '../assets/svg/share-forward-fill.svg?raw';
@@ -2769,32 +2770,13 @@ const MyBoard: React.FC = () => {
         confirmText="이 구조로 검색"
       />
 
-      <Modal
+      <StructurePreviewModal
         title={structurePreview?.title || 'Structure'}
         open={!!structurePreview}
         onCancel={() => setStructurePreview(null)}
-        footer={null}
-        width="min(1200px, calc(100vw - 48px))"
-        centered
-      >
-        {structurePreview ? (
-          <div
-            className="my-board-structure-preview"
-            style={{
-              width: '100%',
-              height: 'min(720px, calc(100vh - 180px))',
-              background: token.colorBgContainer,
-              borderRadius: 8,
-              border: `1px solid ${token.colorBorderSecondary}`,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              overflow: 'hidden',
-            }}
-            dangerouslySetInnerHTML={{ __html: structurePreview.svg }}
-          />
-        ) : null}
-      </Modal>
+        svg={structurePreview?.svg}
+        className="my-board-structure-preview"
+      />
       <style>{`
         .ant-table-tbody > tr:hover > td {
           background-color: var(--table-row-hover-bg) !important;
@@ -3482,15 +3464,6 @@ const MyBoard: React.FC = () => {
         }
         .canvas-card:hover { border-color: ${token.colorPrimary} !important; transform: translateY(-4px); box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
         .cdd-clipboard-icon-container, .CDW_Logo, .cdd-logo { display: none !important; }
-        .my-board-structure-preview svg {
-          max-width: calc(100% / 1.5) !important;
-          max-height: calc(100% / 1.5) !important;
-          width: auto;
-          height: auto;
-          display: block;
-          transform: scale(1.5);
-          transform-origin: center;
-        }
       `}</style>
     </div>
   );

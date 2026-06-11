@@ -108,6 +108,19 @@ const buildPatentListFilters = (query: PatentListQueryDto) => {
     ]);
   }
 
+  const applicant = query.applicant?.trim();
+  if (applicant) {
+    addGroup([
+      {
+        filter_column: 'str#applicant',
+        filter_condition: "%s ilike '%%%s%%'",
+        filter_value: escapeFilterValue(applicant),
+        filter_conjunction: 'and',
+        filter_group_condition: '',
+      },
+    ]);
+  }
+
   const publicationNumber = query.publicationNumber?.trim();
   if (publicationNumber) {
     addGroup([

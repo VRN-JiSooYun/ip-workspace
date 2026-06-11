@@ -36,6 +36,7 @@ import {
   Search,
 } from 'lucide-react';
 import CompoundStructureView from '../components/common/CompoundStructureView';
+import StructurePreviewModal from '../components/common/StructurePreviewModal';
 import PageHeaderBreadcrumb from '../components/common/PageHeaderBreadcrumb';
 import { getPatentAnalysisLayoutPreset } from '../config/patentAnalysisLayout';
 import { useUIStore } from '../store/useUIStore';
@@ -1143,19 +1144,13 @@ const UniversalSearch: React.FC = () => {
         ) : null}
       </Card>
 
-      <Modal
+      <StructurePreviewModal
         open={Boolean(previewSvg)}
         title="Structure Preview"
-        footer={null}
-        width="min(1200px, calc(100vw - 48px))"
         onCancel={() => setPreviewSvg(null)}
-      >
-        <div
-          className="compound-search-preview"
-          style={{ borderColor: token.colorBorderSecondary }}
-          dangerouslySetInnerHTML={{ __html: previewSvg ?? '' }}
-        />
-      </Modal>
+        svg={previewSvg}
+        className="compound-search-preview"
+      />
       <ChemDrawModal
         open={isChemDrawVisible}
         onCancel={() => setIsChemDrawVisible(false)}

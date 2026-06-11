@@ -114,15 +114,92 @@ const getSvgImageSize = (svg: string) => {
   return fallback;
 };
 
-const svgToPngBlob = (svg: string) => new Promise<Blob>((resolve, reject) => {
+const isWhiteLikeFill = (fill: string | null) => {
+  const normalized = (fill || '').trim().toLowerCase();
+  return normalized === 'white'
+    || normalized === '#fff'
+    || normalized === '#ffffff'
+    || normalized === 'rgb(255,255,255)'
+    || normalized === 'rgb(255, 255, 255)';
+};
+
+const getSvgViewBoxSize = (root: Element) => {
+  const viewBox = root.getAttribute('viewBox')?.trim().split(/\s+/).map(Number);
+  if (viewBox && viewBox.length === 4) {
+    const [x, y, width, height] = viewBox;
+    return { x, y, width, height };
+  }
+
+  return {
+    x: 0,
+    y: 0,
+    width: Number.parseFloat(root.getAttribute('width') || ''),
+    height: Number.parseFloat(root.getAttribute('height') || ''),
+  };
+};
+
+const stripSvgBackground = (svg: string) => {
+  try {
+    const doc = new DOMParser().parseFromString(svg, 'image/svg+xml');
+    const root = doc.documentElement;
+    if (!root || root.nodeName.toLowerCase() !== 'svg') return svg;
+
+    root.removeAttribute('background');
+    root.removeAttribute('background-color');
+
+    const style = root.getAttribute('style');
+    if (style) {
+      const nextStyle = style
+        .split(';')
+        .map((rule) => rule.trim())
+        .filter((rule) => rule && !/^background(?:-color)?\s*:/i.test(rule))
+        .join('; ');
+      if (nextStyle) root.setAttribute('style', nextStyle);
+      else root.removeAttribute('style');
+    }
+
+    const viewBox = getSvgViewBoxSize(root);
+    const rects = Array.from(root.querySelectorAll('rect'));
+    rects.forEach((rect) => {
+      const fill = rect.getAttribute('fill') || rect.style.fill;
+      if (!isWhiteLikeFill(fill)) return;
+
+      const x = Number.parseFloat(rect.getAttribute('x') || '0');
+      const y = Number.parseFloat(rect.getAttribute('y') || '0');
+      const width = Number.parseFloat(rect.getAttribute('width') || '');
+      const height = Number.parseFloat(rect.getAttribute('height') || '');
+      const stroke = (rect.getAttribute('stroke') || rect.style.stroke || '').trim().toLowerCase();
+      const hasStroke = stroke && stroke !== 'none' && stroke !== 'transparent';
+      const coversCanvas = Number.isFinite(width)
+        && Number.isFinite(height)
+        && Math.abs(x - viewBox.x) <= 1
+        && Math.abs(y - viewBox.y) <= 1
+        && Math.abs(width - viewBox.width) <= 2
+        && Math.abs(height - viewBox.height) <= 2;
+
+      if (coversCanvas && !hasStroke) rect.remove();
+    });
+
+    return new XMLSerializer().serializeToString(root);
+  } catch {
+    return svg;
+  }
+};
+
+type CopySvgImageOptions = {
+  scale?: number;
+};
+
+const svgToPngBlob = (svg: string, options: CopySvgImageOptions = {}) => new Promise<Blob>((resolve, reject) => {
   if (typeof window === 'undefined') {
     reject(new Error('Window is not available'));
     return;
   }
 
-  const { width, height } = getSvgImageSize(svg);
+  const transparentSvg = stripSvgBackground(svg);
+  const { width, height } = getSvgImageSize(transparentSvg);
   const canvas = document.createElement('canvas');
-  const scale = 2;
+  const scale = Number.isFinite(options.scale) && options.scale && options.scale > 0 ? options.scale : 2;
   canvas.width = Math.max(1, Math.ceil(width * scale));
   canvas.height = Math.max(1, Math.ceil(height * scale));
 
@@ -133,7 +210,7 @@ const svgToPngBlob = (svg: string) => new Promise<Blob>((resolve, reject) => {
   }
 
   const image = new window.Image();
-  const svgBlob = new Blob([svg], { type: 'image/svg+xml;charset=utf-8' });
+  const svgBlob = new Blob([transparentSvg], { type: 'image/svg+xml;charset=utf-8' });
   const url = URL.createObjectURL(svgBlob);
 
   image.onload = () => {
@@ -161,14 +238,14 @@ const svgToPngBlob = (svg: string) => new Promise<Blob>((resolve, reject) => {
   image.src = url;
 });
 
-const copySvgImageToClipboard = async (svg: string) => {
+export const copySvgImageToClipboard = async (svg: string, options: CopySvgImageOptions = {}) => {
   const ClipboardItemConstructor = (window as any).ClipboardItem;
 
   if (!navigator.clipboard?.write || !ClipboardItemConstructor) {
     throw new Error('이미지 클립보드를 지원하지 않는 브라우저입니다.');
   }
 
-  const pngBlob = await svgToPngBlob(svg);
+  const pngBlob = await svgToPngBlob(svg, options);
   await navigator.clipboard.write([
     new ClipboardItemConstructor({ 'image/png': pngBlob }),
   ]);

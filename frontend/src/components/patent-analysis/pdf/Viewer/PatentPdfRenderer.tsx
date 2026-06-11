@@ -11,6 +11,7 @@ type PatentPdfRendererProps = {
   onPdfTotalPagesChange: (totalPages: number) => void;
   setHighlighterUtils: (utils: PdfHighlighterUtils) => void;
   onAddHighlight?: (highlight: any) => void;
+  onHighlightClick?: (highlight: any) => void;
 };
 
 const PatentPdfRenderer: React.FC<PatentPdfRendererProps> = ({
@@ -22,6 +23,7 @@ const PatentPdfRenderer: React.FC<PatentPdfRendererProps> = ({
   onPdfTotalPagesChange,
   setHighlighterUtils,
   onAddHighlight,
+  onHighlightClick,
 }) => {
   useEffect(() => {
     onPdfDocumentReady(pdfDocument);
@@ -47,7 +49,7 @@ const PatentPdfRenderer: React.FC<PatentPdfRendererProps> = ({
       utilsRef={setHighlighterUtils}
       pdfScaleValue="page-width"
     >
-      <PatentPdfHighlightContainer />
+      <PatentPdfHighlightContainer onHighlightClick={onHighlightClick} />
     </PdfHighlighter>
   );
 };

@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
 import dayjs from 'dayjs';
 import { 
   Table, 
@@ -15,7 +14,7 @@ import {
   Segmented,
   DatePicker,
   Alert,
-  Modal
+  App
 } from 'antd';
 import { 
   Search, 
@@ -28,6 +27,7 @@ import BenzeneIcon from '../components/common/BenzeneIcon';
 import { Patent, mockPatents } from '../mocks/patents';
 import ChemDrawModal from '../components/common/ChemDrawModal';
 import CompoundStructureView from '../components/common/CompoundStructureView';
+import StructurePreviewModal from '../components/common/StructurePreviewModal';
 import { getPatentAnalysisLayoutPreset } from '../config/patentAnalysisLayout';
 import { useUIStore } from '../store/useUIStore';
 import PageHeaderBreadcrumb from '../components/common/PageHeaderBreadcrumb';
@@ -66,6 +66,7 @@ const RECENT_PROJECTS = ['EGFR', 'AKT1', 'MET', 'FGFR3', 'VRK1', 'PKMYT1', 'WEE1
 const PATENT_ANALYSIS_LIST_STATE_KEY = 'patent-analysis-list-state:v1';
 const SEARCH_TYPE_OPTIONS = [
   { label: '특허 제목', value: 'title' },
+  { label: '출원인', value: 'applicant' },
   { label: '특허 번호', value: 'publicationNumber' },
   { label: '구조 검색', value: 'structure' },
 ];
@@ -75,7 +76,7 @@ const normalizePatentAnalysisPageSize = (value?: number): number =>
     ? Number(value)
     : PATENT_ANALYSIS_DEFAULT_PAGE_SIZE;
 
-type PatentSearchType = 'title' | 'publicationNumber' | 'structure';
+type PatentSearchType = 'title' | 'applicant' | 'publicationNumber' | 'structure';
 
 type StructureSearchCompound = {
   compoundId: string;
@@ -91,6 +92,7 @@ type StructureSearchCompound = {
 type StructurePreview = {
   title: string;
   svg: string;
+  smiles?: string;
 };
 
 const normalizePatentListStructureSvg = (svg: string, width: number, height: number) => {
@@ -207,6 +209,55 @@ const buildPatentNumberFilter = (
   return JSON.stringify({ 84: filters });
 };
 
+const buildApplicantFilter = (
+  applicant: string,
+  targets: string[],
+  dateFrom?: string,
+  dateTo?: string,
+) => {
+  const filters: HelperFilter[] = [
+    {
+      filter_column: 'str#applicant',
+      filter_condition: "%s ilike '%%%s%%'",
+      filter_value: escapeFilterValue(applicant),
+      filter_conjunction: 'and',
+      filter_group_condition: '',
+    },
+  ];
+
+  const activeTargets = targets.filter(target => target !== 'ALL');
+  activeTargets.forEach((target, index) => {
+    filters.push({
+      filter_column: 'str#target',
+      filter_condition: "%s='%s'",
+      filter_value: escapeFilterValue(target),
+      filter_conjunction: index === activeTargets.length - 1 ? 'and' : 'or',
+      filter_group_condition: '',
+    });
+  });
+
+  if (dateFrom) {
+    filters.push({
+      filter_column: 'str#p.publication_date',
+      filter_condition: "%s>='%s'",
+      filter_value: escapeFilterValue(dateFrom),
+      filter_conjunction: 'and',
+      filter_group_condition: '',
+    });
+  }
+  if (dateTo) {
+    filters.push({
+      filter_column: 'str#p.publication_date',
+      filter_condition: "%s<='%s'",
+      filter_value: escapeFilterValue(dateTo),
+      filter_conjunction: 'and',
+      filter_group_condition: '',
+    });
+  }
+
+  return JSON.stringify({ 13: filters });
+};
+
 const normalizeTotalCount = (value: unknown, fallback: number) => {
   if (typeof value === 'number' && Number.isFinite(value)) return value;
   if (typeof value === 'string') {
@@ -235,10 +286,8 @@ const readStoredPatentAnalysisListState = (): PatentAnalysisListStoredState => {
   if (typeof window === 'undefined') return {};
 
   try {
-    const rawState = window.sessionStorage.getItem(PATENT_ANALYSIS_LIST_STATE_KEY);
-    if (!rawState) return {};
-    const parsed = JSON.parse(rawState);
-    return parsed && typeof parsed === 'object' ? parsed : {};
+    window.sessionStorage.removeItem(PATENT_ANALYSIS_LIST_STATE_KEY);
+    return {};
   } catch {
     return {};
   }
@@ -259,9 +308,10 @@ const serializeDateRange = (range: [any, any] | null): [string | null, string | 
 
 const PatentAnalysisList: React.FC = () => {
   const { token } = theme.useToken();
-  const navigate = useNavigate();
+  const { message } = App.useApp();
   const storedListState = React.useMemo(readStoredPatentAnalysisListState, []);
   const hasMountedForCollapseRef = React.useRef(false);
+  const searchTypeRef = React.useRef<PatentSearchType>(storedListState.searchType ?? 'title');
   
   const [isChemDrawVisible, setIsChemDrawVisible] = useState(false);
   const [patents, setPatents] = useState<Patent[]>([]);
@@ -308,13 +358,18 @@ const PatentAnalysisList: React.FC = () => {
   const isResponsiveToolbar = viewportWidth <= 1100;
   const isStructureSearchMode = searchType === 'structure';
   const openPatentDetail = React.useCallback((patent: Patent) => {
-    navigate(`/patents/analysis/${patent.patentNumber}`, {
-      state: { patent },
-    });
-  }, [navigate]);
-  const applySearchFilters = React.useCallback(() => {
-    setAppliedSearchType(searchType);
-    setAppliedSearchText(searchText.trim());
+    const detailUrl = `/patents/analysis/${encodeURIComponent(patent.patentNumber)}`;
+    window.open(detailUrl, '_blank', 'noopener,noreferrer');
+  }, []);
+  const applySearchFilters = React.useCallback((nextSearchType?: PatentSearchType) => {
+    const resolvedSearchType = nextSearchType ?? searchTypeRef.current;
+    const nextSearchText = searchText.trim();
+    if (resolvedSearchType === 'structure' && !nextSearchText) {
+      void message.warning('구조 검색어를 입력하거나 ChemDraw에서 구조를 그려주세요.');
+    }
+
+    setAppliedSearchType(resolvedSearchType);
+    setAppliedSearchText(nextSearchText);
     setAppliedProjects(selectedProjects);
     setAppliedPeriod(period);
     setAppliedCustomDateRange(customDateRange);
@@ -322,8 +377,14 @@ const PatentAnalysisList: React.FC = () => {
     setLoadingStructurePatentIds([]);
     setExpandedStructureCompoundIds([]);
     setCurrentPage(1);
-  }, [customDateRange, period, searchText, searchType, selectedProjects]);
+  }, [customDateRange, message, period, searchText, selectedProjects]);
+  const handleSearchTypeChange = React.useCallback((value: string | number) => {
+    const nextSearchType = value as PatentSearchType;
+    searchTypeRef.current = nextSearchType;
+    setSearchType(nextSearchType);
+  }, []);
   const resetSearchFilters = React.useCallback(() => {
+    searchTypeRef.current = 'title';
     setSearchType('title');
     setSearchText('');
     setSelectedProjects([]);
@@ -396,14 +457,18 @@ const PatentAnalysisList: React.FC = () => {
   const appliedStructureSmiles = appliedSearchType === 'structure' ? appliedSearchText.trim() : '';
   const searchPlaceholder = searchType === 'title'
     ? '특허 제목 검색...'
-    : searchType === 'publicationNumber'
-      ? 'WO2026104323A1'
-      : 'SMILES 입력 또는 구조 그리기';
+    : searchType === 'applicant'
+      ? '출원인 검색...'
+      : searchType === 'publicationNumber'
+        ? 'WO2026104323A1'
+        : 'SMILES 입력 또는 구조 그리기';
   const appliedSearchTagLabel = appliedSearchType === 'title'
     ? '제목'
-    : appliedSearchType === 'publicationNumber'
-      ? '특허 번호'
-      : '구조';
+    : appliedSearchType === 'applicant'
+      ? '출원인'
+      : appliedSearchType === 'publicationNumber'
+        ? '특허 번호'
+        : '구조';
 
   useEffect(() => {
     setHeaderContent(
@@ -488,6 +553,14 @@ const PatentAnalysisList: React.FC = () => {
       setIsLoadingPatents(true);
       setPatentListError(null);
       try {
+        if (appliedSearchType === 'structure' && !appliedStructureSmiles) {
+          setStructureCompounds([]);
+          setPatents([]);
+          setTotalPatents(0);
+          setIsUsingMockFallback(false);
+          return;
+        }
+
         const patentNumberFilter = appliedSearchType === 'publicationNumber' && appliedSearchText
           ? buildPatentNumberFilter(
             appliedSearchText,
@@ -496,6 +569,15 @@ const PatentAnalysisList: React.FC = () => {
             appliedDateParams.dateTo,
           )
           : undefined;
+        const applicantFilter = appliedSearchType === 'applicant' && appliedSearchText
+          ? buildApplicantFilter(
+            appliedSearchText,
+            appliedProjects,
+            appliedDateParams.dateFrom,
+            appliedDateParams.dateTo,
+          )
+          : undefined;
+        const helperFilter = patentNumberFilter ?? applicantFilter;
         const response = appliedStructureSmiles
           ? await patentAnalysisApi.searchCompounds({
               wasm: 1,
@@ -517,11 +599,11 @@ const PatentAnalysisList: React.FC = () => {
             page: currentPage,
             pageSize,
             order: DEFAULT_PATENT_ORDER,
-            filter: patentNumberFilter,
+            filter: helperFilter,
             keyword: appliedSearchType === 'title' ? appliedSearchText || undefined : undefined,
-            target: patentNumberFilter ? undefined : appliedProjects.length > 0 ? appliedProjects.join(',') : undefined,
-            dateFrom: patentNumberFilter ? undefined : appliedDateParams.dateFrom,
-            dateTo: patentNumberFilter ? undefined : appliedDateParams.dateTo,
+            target: helperFilter ? undefined : appliedProjects.length > 0 ? appliedProjects.join(',') : undefined,
+            dateFrom: helperFilter ? undefined : appliedDateParams.dateFrom,
+            dateTo: helperFilter ? undefined : appliedDateParams.dateTo,
           });
         if (ignore) return;
         const rowOffsetPageSize = pageSize;
@@ -572,11 +654,17 @@ const PatentAnalysisList: React.FC = () => {
         setIsUsingMockFallback(false);
       } catch (error) {
         if (!ignore) {
-          const fallbackPatents = mockPatents.slice((currentPage - 1) * pageSize, currentPage * pageSize);
-          setPatents(fallbackPatents);
           setStructureCompounds([]);
-          setTotalPatents(mockPatents.length);
-          setIsUsingMockFallback(true);
+          if (appliedSearchType === 'structure') {
+            setPatents([]);
+            setTotalPatents(0);
+            setIsUsingMockFallback(false);
+          } else {
+            const fallbackPatents = mockPatents.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+            setPatents(fallbackPatents);
+            setTotalPatents(mockPatents.length);
+            setIsUsingMockFallback(true);
+          }
           const fallbackMessage = appliedStructureSmiles
             ? '구조 검색 API 요청에 실패했습니다.'
             : '특허 목록 API 요청에 실패했습니다.';
@@ -627,7 +715,7 @@ const PatentAnalysisList: React.FC = () => {
   }, [viewportHeight]);
 
   const patentListTableScroll = React.useMemo(() => {
-    const estimatedRowHeight = 64;
+    const estimatedRowHeight = PATENT_LIST_STRUCTURE_IMAGE_HEIGHT + 16;
     const needsVerticalScroll = filteredPatents.length * estimatedRowHeight > patentListTableScrollY;
     return needsVerticalScroll
       ? { x: PATENT_LIST_TABLE_SCROLL_X, y: patentListTableScrollY }
@@ -635,7 +723,7 @@ const PatentAnalysisList: React.FC = () => {
   }, [filteredPatents.length, patentListTableScrollY]);
 
   const structureSearchTableScroll = React.useMemo(() => {
-    const estimatedRowHeight = 92;
+    const estimatedRowHeight = PATENT_LIST_STRUCTURE_IMAGE_HEIGHT + 16;
     const needsVerticalScroll = filteredStructureCompounds.length * estimatedRowHeight > patentListTableScrollY;
     return needsVerticalScroll
       ? { x: STRUCTURE_SEARCH_TABLE_SCROLL_X, y: patentListTableScrollY }
@@ -676,7 +764,7 @@ const PatentAnalysisList: React.FC = () => {
           structureFitMode="contain"
           frameClassName="patent-analysis-compound-structure-frame"
           svgClassName="patent-analysis-compound-structure-svg"
-          onPreview={() => setPreviewStructure({ title, svg: normalizedSvg })}
+          onPreview={() => setPreviewStructure({ title, svg: normalizedSvg, smiles })}
         />
       </div>
     );
@@ -871,31 +959,9 @@ const PatentAnalysisList: React.FC = () => {
       key: 'structure',
       width: STRUCTURE_SEARCH_COLUMN_WIDTHS.structure,
       align: 'center' as const,
+      className: 'table-center-column patent-analysis-list-structure-column my-board-structure-column',
       render: (svg: string, record: StructureSearchCompound) => (
-        <div
-          className="patent-analysis-compound-structure"
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: 6,
-          }}
-        >
-          <CompoundStructureView
-            svg={svg}
-            title={record.compoundId || 'Structure'}
-            smiles={record.smiles}
-            width={168}
-            height={108}
-            iconSize={40}
-            gap={6}
-            frameClassName="patent-analysis-compound-structure-frame"
-            svgClassName="patent-analysis-compound-structure-svg"
-            onPreview={svg ? () => {
-              setPreviewStructure({ title: record.compoundId || 'Structure', svg });
-            } : undefined}
-          />
-        </div>
+        renderStructureColumn(svg, record.compoundId || 'Structure', record.smiles)
       ),
     },
     {
@@ -1038,30 +1104,30 @@ const PatentAnalysisList: React.FC = () => {
 
   return (
     <div className="patent-analysis-list-page" style={{ maxWidth: layoutPreset.maxWidth, margin: '0 auto', padding: `0 ${layoutPreset.sidePadding}px`, height: '100%', width: '100%', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', animation: 'fadeIn 0.3s ease-out' }}>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflowY: 'auto', overflowX: 'hidden', animation: 'fadeIn 0.3s ease-out' }}>
         <Card variant="borderless" className="c-card compact-filter-card" style={{ marginBottom: 12, flexShrink: 0 }}>
-          <Row gutter={[12, 8]} align="middle">
-            <Col flex="auto" style={{ minWidth: 0 }}>
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 12,
-                  flexWrap: 'wrap',
-                  minWidth: 0,
-                }}
-              >
+            <Row gutter={[12, 8]} align="middle">
+              <Col flex="auto" style={{ minWidth: 0 }}>
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 12,
+                    flexWrap: 'wrap',
+                    minWidth: 0,
+                  }}
+                >
                 <Segmented
                   options={SEARCH_TYPE_OPTIONS}
                   value={searchType}
-                  onChange={(value) => setSearchType(value as PatentSearchType)}
+                  onChange={handleSearchTypeChange}
                 />
                 <Input
                   prefix={<Search size={18} color={token.colorTextTertiary} />}
                   placeholder={searchPlaceholder}
                   value={searchText}
                   onChange={e => setSearchText(e.target.value)}
-                  onPressEnter={applySearchFilters}
+                  onPressEnter={() => applySearchFilters()}
                   className="v-search-input"
                   style={{
                     flex: '1 1 260px',
@@ -1089,7 +1155,7 @@ const PatentAnalysisList: React.FC = () => {
                 <Button
                   type="primary"
                   icon={<Search size={16} />}
-                  onClick={applySearchFilters}
+                  onClick={() => applySearchFilters()}
                   className="v-action-btn"
                 >
                   검색
@@ -1191,7 +1257,7 @@ const PatentAnalysisList: React.FC = () => {
                         format="YYYY.MM.DD"
                       />
                     )}
-                    <Button type="primary" onClick={applySearchFilters}>적용</Button>
+                    <Button type="primary" onClick={() => applySearchFilters()}>적용</Button>
                     <Button onClick={resetSearchFilters}>초기화</Button>
                   </div>
                 </Col>
@@ -1327,32 +1393,14 @@ const PatentAnalysisList: React.FC = () => {
           confirmText="이 구조로 검색"
           initialSmiles={searchType === 'structure' ? searchText : undefined}
         />
-        <Modal
+        <StructurePreviewModal
           open={Boolean(previewStructure)}
-          footer={null}
           onCancel={() => setPreviewStructure(null)}
-          width="min(1200px, calc(100vw - 48px))"
           title={previewStructure?.title || '구조 미리보기'}
-          centered
-        >
-          {previewStructure?.svg ? (
-            <div
-              className="patent-analysis-structure-preview"
-              style={{
-                width: '100%',
-                height: 'min(720px, calc(100vh - 180px))',
-                background: token.colorBgContainer,
-                borderRadius: 8,
-                border: `1px solid ${token.colorBorderSecondary}`,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                overflow: 'hidden',
-              }}
-              dangerouslySetInnerHTML={{ __html: previewStructure.svg }}
-            />
-          ) : null}
-        </Modal>
+          svg={previewStructure?.svg}
+          smiles={previewStructure?.smiles}
+          className="patent-analysis-structure-preview"
+        />
       </div>
       <style>{`
         @keyframes fadeIn {

@@ -35,6 +35,8 @@ export interface DataCardItemProps {
   onImageClick?: () => void;
   /** 이미지 미리보기 버튼 클릭 콜백 */
   onPreview?: () => void;
+  /** 이미지 영역 우측 상단에 항상 표시할 추가 액션 */
+  imageOverlayActions?: React.ReactNode;
   /** SMILES 문자열 (값이 있으면 copy 버튼 표시) */
   smiles?: string;
   /** Molblock 문자열 (ChemDraw 로드용) */
@@ -86,6 +88,7 @@ const DataCardItem: React.FC<DataCardItemProps> = ({
   squareImage = false,
   onImageClick,
   onPreview,
+  imageOverlayActions,
   smiles,
   molblock,
   extraInfo,
@@ -233,21 +236,24 @@ const DataCardItem: React.FC<DataCardItemProps> = ({
           imageClickHandler?.();
         }}
       >
-        {imageType !== 'svg' && onPreview && (
+        {imageType !== 'svg' && (onPreview || imageOverlayActions) && (
           <div style={{ position: 'absolute', right: 4, top: 4, zIndex: 2, display: 'flex', gap: 2 }}>
-            <Tooltip title="미리보기">
-              <Button
-                className="svg-action-btn"
-                size="small"
-                type="text"
-                icon={<Search size={size === 'small' ? 12 : 14} />}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onPreview();
-                }}
-                style={{ background: 'rgba(255,255,255,0.85)' }}
-              />
-            </Tooltip>
+            {onPreview && (
+              <Tooltip title="미리보기">
+                <Button
+                  className="svg-action-btn"
+                  size="small"
+                  type="text"
+                  icon={<Search size={size === 'small' ? 12 : 14} />}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onPreview();
+                  }}
+                  style={{ background: 'rgba(255,255,255,0.85)' }}
+                />
+              </Tooltip>
+            )}
+            {imageOverlayActions}
           </div>
         )}
         {renderImage()}

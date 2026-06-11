@@ -14,6 +14,7 @@ import { DEFAULT_GROUP_STRUCTURE_VIEW_SETTINGS, useBoardStore } from '../store/u
 import PageHeaderBreadcrumb from '../components/common/PageHeaderBreadcrumb';
 import BenzeneIcon from '../components/common/BenzeneIcon';
 import CompoundStructureView from '../components/common/CompoundStructureView';
+import StructurePreviewModal from '../components/common/StructurePreviewModal';
 import { getPatentAnalysisLayoutPreset } from '../config/patentAnalysisLayout';
 import ToggleTag from '../components/common/ToggleTag';
 import dayjs from 'dayjs';
@@ -1038,31 +1039,13 @@ const SynthesisBoard: React.FC = () => {
         </div>
       </Modal>
 
-      <Modal
+      <StructurePreviewModal
         title={structurePreview?.title || 'Structure'}
         open={!!structurePreview}
         onCancel={() => setStructurePreview(null)}
-        footer={null}
-        width="min(1200px, calc(100vw - 48px))"
-        centered
-      >
-        {structurePreview ? (
-          <div
-            className="synthesis-structure-preview"
-            style={{
-              height: 'min(720px, calc(100vh - 180px))',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              background: token.colorBgContainer,
-              border: `1px solid ${token.colorBorderSecondary}`,
-              borderRadius: 8,
-              overflow: 'hidden'
-            }}
-            dangerouslySetInnerHTML={{ __html: structurePreview.svg }}
-          />
-        ) : null}
-      </Modal>
+        svg={structurePreview?.svg}
+        className="synthesis-structure-preview"
+      />
 
       <style>{`
         .row-selected {
@@ -1138,15 +1121,6 @@ const SynthesisBoard: React.FC = () => {
         .synthesis-structure-preview-button-card {
           top: 6px;
           right: 6px;
-        }
-        .synthesis-structure-preview svg {
-          display: block;
-          max-width: calc(100% / 1.5);
-          max-height: calc(100% / 1.5);
-          width: auto;
-          height: auto;
-          transform: scale(1.5);
-          transform-origin: center;
         }
         .canvas-card:hover {
           border-color: #F87C63 !important;

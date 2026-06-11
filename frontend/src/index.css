@@ -981,21 +981,12 @@ span.ant-typography {
 }
 
 .compound-search-preview {
-  min-height: min(720px, calc(100vh - 180px));
-  padding: 20px;
-  border: 1px solid;
-  border-radius: 8px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--card-bg);
+  box-sizing: border-box;
 }
 
-.compound-search-preview svg {
-  width: 100%;
-  height: 100%;
-  max-width: 100%;
-  max-height: min(720px, calc(100vh - 180px));
+.compound-search-preview .structure-preview-modal-svg-host,
+.compound-search-preview .structure-preview-modal-svg-host svg {
+  overflow: hidden;
 }
 
 .compound-search-reference-modal .ant-modal-body {

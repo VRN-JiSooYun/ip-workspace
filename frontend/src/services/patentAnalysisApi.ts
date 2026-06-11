@@ -210,6 +210,7 @@ const mapStatus = (value: string): Patent['status'] => {
 
 export const mapPatentListItem = (row: Record<string, any>, index: number): Patent => {
   const publicationNumber = getPublicationNumber(row, `PATENT${index + 1}`);
+  const rowId = `${publicationNumber}-${index + 1}`;
   const title = getFirstString(
     row,
     ['title', 'patent_title', 'invention_title', 'name'],
@@ -219,7 +220,7 @@ export const mapPatentListItem = (row: Record<string, any>, index: number): Pate
   const status = getFirstString(row, ['status', 'analysis_status'], 'Completed');
 
   return {
-    id: publicationNumber,
+    id: rowId,
     patentNumber: publicationNumber,
     title,
     applicant: getFirstString(row, ['applicant', 'assignee', 'applicants'], '-'),
@@ -277,6 +278,7 @@ export const patentAnalysisApi = {
     order?: string;
     title?: string;
     keyword?: string;
+    applicant?: string;
     publicationNumber?: string;
     target?: string;
     dateFrom?: string;
