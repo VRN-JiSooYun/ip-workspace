@@ -362,6 +362,8 @@ export const usePatentPdfViewer = ({
 
     debugLog('handle-goto-pdf-start', { targetPage, bboxCoords });
     setPdfCurrentPage(targetPage);
+    // 우측 탭/카드에서 활성화하면 좌측 blue box 선택(red)은 해제 → red는 항상 하나만 유지
+    setSelectedDataHighlightId((prev) => (prev ? null : prev));
     if (pdfDocumentRef.current) {
       ensurePdfPageSize(targetPage);
     }
@@ -381,6 +383,14 @@ export const usePatentPdfViewer = ({
 
     schedulePdfPageNavigation(targetPage);
   }, [debugLog, ensurePdfPageSize, schedulePdfPageNavigation]);
+
+  // 좌측 blue box 클릭 시 우측 활성화로 생긴 active_compound_highlight(red)를 제거
+  const clearActiveCompoundHighlight = React.useCallback(() => {
+    setSystemHighlights((prev) => (prev.length > 0 ? [] : prev));
+    setActiveBBox((prev) => (prev ? null : prev));
+    setPendingHighlight((prev) => (prev ? null : prev));
+    lastRebumpTargetRef.current = '';
+  }, []);
 
   React.useEffect(() => (
     () => {
@@ -445,9 +455,12 @@ export const usePatentPdfViewer = ({
       if (!target.source || !target.pageNumber || !Array.isArray(target.rect) || target.rect.length < 4) return null;
       const position = bboxToPosition(target.rect, target.pageNumber);
       if (!position) return null;
-      const highlightId = `raw_data_bbox_${target.id}`;
+      const baseId = `raw_data_bbox_${target.id}`;
+      const isSelected = baseId === selectedDataHighlightId;
       return {
-        id: highlightId,
+        // 선택 여부를 id에 반영해 라이브러리가 source만 바뀔 때 리렌더를 건너뛰는 것을 방지(강제 remount).
+        // 단, 선택 매칭(selectedDataHighlightId)은 baseId 기준으로 유지한다.
+        id: isSelected ? `${baseId}__selected` : baseId,
         type: 'area',
         content: { text: '' },
         position,
@@ -455,7 +468,8 @@ export const usePatentPdfViewer = ({
           ...target.source,
           pageNumber: target.pageNumber,
           rect: target.rect,
-          selected: highlightId === selectedDataHighlightId,
+          baseId,
+          selected: isSelected,
         },
         comment: { text: '', emoji: '' },
       };
@@ -544,5 +558,6 @@ export const usePatentPdfViewer = ({
     scrollToHighlight,
     dynamicHighlights,
     handleGoToPdf,
+    clearActiveCompoundHighlight,
   };
 };

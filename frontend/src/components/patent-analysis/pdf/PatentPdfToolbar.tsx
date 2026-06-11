@@ -95,7 +95,7 @@ const PatentPdfToolbar: React.FC<PatentPdfToolbarProps> = ({
         icon={splitRatio <= minSplitPercent ? <Maximize2 size={16} /> : <Minimize2 size={16} />}
         size="small"
         onClick={onToggleFit}
-        title={splitRatio <= minSplitPercent ? 'PDF 영역 확대 (50%)' : 'PDF 영역 축소 (30%)'}
+        title={splitRatio <= minSplitPercent ? 'PDF 영역 확대 (45%)' : `PDF 영역 축소 (${minSplitPercent}%)`}
       >
       </Button>
 

@@ -5,10 +5,10 @@ export type PatentAnalysisLayoutPreset = {
 };
 
 export const PATENT_ANALYSIS_LAYOUT_PRESETS: PatentAnalysisLayoutPreset[] = [
-  { maxWidth: 9999, sidePadding: 16, defaultSplit: 58 },  // 3200+ — 폭 제한 없이 기본 여백 유지
-  { maxWidth: 9999, sidePadding: 16, defaultSplit: 56 },  // 2560+ — 폭 제한 없이 기본 여백 유지
-  { maxWidth: 9999, sidePadding: 16, defaultSplit: 52 },  // 1920+ — 폭 제한 없이 기본 여백 유지
-  { maxWidth: 9999, sidePadding: 16, defaultSplit: 50 }   // ~1920 — 폭 제한 없이 기본 여백 유지
+  { maxWidth: 9999, sidePadding: 16, defaultSplit: 45 },  // 3200+ — PDF 45%, 탭 55%
+  { maxWidth: 9999, sidePadding: 16, defaultSplit: 45 },  // 2560+ — PDF 45%, 탭 55%
+  { maxWidth: 9999, sidePadding: 16, defaultSplit: 45 },  // 1920+ — PDF 45%, 탭 55%
+  { maxWidth: 9999, sidePadding: 16, defaultSplit: 45 }   // ~1920 — PDF 45%, 탭 55%
 ];
 
 export const getPatentAnalysisLayoutPreset = (viewportWidth: number): PatentAnalysisLayoutPreset => {

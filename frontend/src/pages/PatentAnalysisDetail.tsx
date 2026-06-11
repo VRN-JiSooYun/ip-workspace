@@ -17,7 +17,8 @@ import {
   Badge,
   App,
   Alert,
-  Pagination
+  Pagination,
+  Spin
 } from 'antd';
 import { 
   Plus, 
@@ -65,7 +66,7 @@ type StructurePreviewMeta = {
 const ENABLE_HIGHLIGHT_DEBUG_LOG = false;
 const SPLIT_MIN_PERCENT = 20;
 const SPLIT_MAX_PERCENT = 70;
-const SPLIT_DEFAULT_PERCENT = 50;
+const SPLIT_DEFAULT_PERCENT = 45;
 const DETAIL_STACK_BREAKPOINT = 1280;
 const RAW_DATA_DEFAULT_PAGE_SIZE = 30;
 const RAW_DATA_PAGE_SIZE_OPTIONS = [10, 30, 50, 100];
@@ -77,6 +78,15 @@ const SvgRenderer: React.FC<{ svg: string; height?: number | string }> = ({ svg,
     style={{ height, width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', boxSizing: 'border-box', padding: 0 }}
     dangerouslySetInnerHTML={{ __html: svg }}
   />
+);
+
+const PatentDetailLoadingState: React.FC<{ description?: string }> = ({ description = '특허 상세 데이터를 불러오는 중입니다.' }) => (
+  <div style={{ minHeight: 220, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+    <Space direction="vertical" align="center" size={10}>
+      <Spin />
+      <Text type="secondary">{description}</Text>
+    </Space>
+  </div>
 );
 
 const normalizePublicationNumber = (value: string) => value.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
@@ -355,8 +365,10 @@ const PatentAnalysisDetail: React.FC = () => {
     return createRoutePatent(id);
   }, [id, routePatent]);
   const [apiPatentResult, setApiPatentResult] = React.useState<Record<string, any> | null>(null);
-  const [isLoadingPatentDetail, setIsLoadingPatentDetail] = React.useState(false);
+  const [isLoadingPatentDetail, setIsLoadingPatentDetail] = React.useState(() => Boolean(selectedPatent?.patentNumber));
+  const [hasPatentDetailLoaded, setHasPatentDetailLoaded] = React.useState(false);
   const [patentDetailError, setPatentDetailError] = React.useState<string | null>(null);
+  const shouldShowPatentDetailEmpty = hasPatentDetailLoaded && !isLoadingPatentDetail;
   const patentResult = apiPatentResult ?? {};
   const displayedPatent = React.useMemo(() => {
     const metadata = apiPatentResult?.data?.[0];
@@ -470,6 +482,8 @@ const PatentAnalysisDetail: React.FC = () => {
     const loadPatentDetail = async () => {
       const publicationNumber = normalizePublicationNumber(selectedPatent.patentNumber);
       setIsLoadingPatentDetail(true);
+      setHasPatentDetailLoaded(false);
+      setApiPatentResult(null);
       setPatentDetailError(null);
       try {
         const [detail, embodiments] = await Promise.all([
@@ -487,6 +501,7 @@ const PatentAnalysisDetail: React.FC = () => {
       } finally {
         if (!ignore) {
           setIsLoadingPatentDetail(false);
+          setHasPatentDetailLoaded(true);
         }
       }
     };
@@ -625,10 +640,6 @@ const PatentAnalysisDetail: React.FC = () => {
 
     return () => resizeObserver.disconnect();
   }, []);
-
-  useEffect(() => {
-    setSplitRatio(clampSplitRatio(layoutPreset.defaultSplit));
-  }, [clampSplitRatio, layoutPreset.defaultSplit]);
 
   useEffect(() => {
     lastSplitRatioRef.current = splitRatio;
@@ -1053,9 +1064,13 @@ const PatentAnalysisDetail: React.FC = () => {
 
     if (!targetPage || !targetBbox || !selectionKey) return;
 
-    // 클릭한 블루 bbox를 빨간색(선택)으로 표시
-    if (highlight?.id) {
-      pdfViewer.setSelectedDataHighlightId(String(highlight.id));
+    // 클릭한 블루 bbox만 빨간색(선택)으로 표시. 선택 매칭은 baseId 기준(이미 선택된 box 재클릭 시 __selected 접미사 제거).
+    const selectedBboxKey = (highlight?.source?.baseId as string | undefined)
+      ?? String(highlight?.id ?? '').replace(/__selected$/, '');
+    if (selectedBboxKey) {
+      // 우측 활성화로 생긴 red(active_compound_highlight)는 제거 → red는 항상 하나만 유지
+      pdfViewer.clearActiveCompoundHighlight();
+      pdfViewer.setSelectedDataHighlightId(selectedBboxKey);
     }
 
     if (source?.scope === 'raw' && Number.isFinite(Number(source.rowIndex))) {
@@ -1121,6 +1136,7 @@ const PatentAnalysisDetail: React.FC = () => {
     message,
     patentResult,
     pdfViewer.activeBBox,
+    pdfViewer.clearActiveCompoundHighlight,
     pdfViewer.setSelectedDataHighlightId,
     rawTablePageSize,
   ]);
@@ -1230,11 +1246,11 @@ const PatentAnalysisDetail: React.FC = () => {
 
   const fitPageToScreen = React.useCallback(() => {
     if (splitRatio <= SPLIT_MIN_PERCENT) {
-      // 현재 최소(30%) 상태이면 기본값(50%)으로 확대
+      // 현재 최소 상태이면 기본 비율(PDF 45%, 탭 55%)로 확대
       debugLog('fit-to-page-expand', { currentRatio: splitRatio, targetRatio: SPLIT_DEFAULT_PERCENT });
       setSplitRatio(SPLIT_DEFAULT_PERCENT);
     } else {
-      // 그 외 상태이면 30%로 축소 (우측 분석 영역 최대화)
+      // 그 외 상태이면 최소 비율로 축소 (우측 분석 영역 최대화)
       debugLog('fit-to-page-shrink', { currentRatio: splitRatio, targetRatio: SPLIT_MIN_PERCENT });
       setSplitRatio(SPLIT_MIN_PERCENT);
     }
@@ -1364,7 +1380,11 @@ const PatentAnalysisDetail: React.FC = () => {
                   },
                 }}
               >
-                <Empty description={isLoadingPatentDetail ? '특허 상세 데이터를 불러오는 중입니다.' : '브라우저에서 접근 가능한 PDF 파일이 없습니다.'} />
+                {isLoadingPatentDetail ? (
+                  <PatentDetailLoadingState />
+                ) : shouldShowPatentDetailEmpty ? (
+                  <Empty description="브라우저에서 접근 가능한 PDF 파일이 없습니다." />
+                ) : null}
               </Card>
             )}
           </div>
@@ -1416,10 +1436,13 @@ const PatentAnalysisDetail: React.FC = () => {
               <Tabs
                 activeKey={activeTab}
                 onChange={(key) => {
-                  setActiveTab(key);
-                  if (key !== 'raw-data') setRGroupFilter(null);
+                  React.startTransition(() => {
+                    setActiveTab(key);
+                    if (key !== 'raw-data') setRGroupFilter(null);
+                  });
                 }}
-                destroyOnHidden
+                destroyOnHidden={false}
+                animated={false}
                 style={{ height: isStackedSplitLayout ? 'auto' : '100%', display: 'flex', flexDirection: 'column' }}
                 tabBarStyle={{ padding: '0 24px', margin: 0, height: 50, flexShrink: 0 }}
                 items={[
@@ -1430,7 +1453,7 @@ const PatentAnalysisDetail: React.FC = () => {
                         <Layers size={16} /> Summary
                       </span>
                     ),
-                    children: (
+                    children: activeTab === 'summary' ? (
                       <div className="raw-data-tab-content patent-summary-tab-content" style={{ padding: 24, flex: 1, overflowY: 'auto' }}>
                         <Title level={5}>Patent Analysis Summary</Title>
                         
@@ -1494,29 +1517,29 @@ const PatentAnalysisDetail: React.FC = () => {
                                       <Title level={5} style={{ marginTop: 0, marginBottom: 8, color: token.colorPrimary }}>{group.id}</Title>
                                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16 }}>
                                         {group.variants.map((v: any, idx: number) => (
-                                          <Card key={idx} size="small" type="inner" style={{ width: 140 }}>
-                                            <div style={{ width: '100%', height: 80, position: 'relative', overflow: 'hidden' }}>
-                                              {renderPatentStructureView({
-                                                svg: v.svg,
-                                                title: `${group.id} Variant ${idx + 1}`,
-                                                smiles: v.smiles,
-                                                iconSize: 12,
-                                              })}
-                                            </div>
-                                            <div style={{ textAlign: 'center', marginTop: 4 }}>
-                                              <Button
-                                                type="link"
-                                                size="small"
-                                                style={{ fontSize: 11, padding: 0 }}
-                                                onClick={() => {
-                                                  setRGroupFilter({ key: group.id, smiles: v.smiles });
-                                                  setActiveTab('raw-data');
-                                                }}
-                                              >
-                                                Freq: {v.frequency}
-                                              </Button>
-                                            </div>
-                                          </Card>
+                                          <div key={idx} className="patent-rgroup-variant-item">
+                                            <Card size="small" type="inner" className="patent-rgroup-variant-card">
+                                              <div className="patent-summary-structure-frame patent-functional-rgroup-frame">
+                                                {renderPatentStructureView({
+                                                  svg: v.svg,
+                                                  title: `${group.id} Variant ${idx + 1}`,
+                                                  smiles: v.smiles,
+                                                  iconSize: 10,
+                                                })}
+                                              </div>
+                                            </Card>
+                                            <Button
+                                              type="link"
+                                              size="small"
+                                              className="patent-rgroup-frequency-button"
+                                              onClick={() => {
+                                                setRGroupFilter({ key: group.id, smiles: v.smiles });
+                                                React.startTransition(() => setActiveTab('raw-data'));
+                                              }}
+                                            >
+                                              Freq: {v.frequency}
+                                            </Button>
+                                          </div>
                                         ))}
                                       </div>
                                     </div>
@@ -1529,7 +1552,11 @@ const PatentAnalysisDetail: React.FC = () => {
                           ) : (
                             <Col span={24}>
                               <Card size="small">
-                                <Empty description="Patent Analysis Summary 데이터가 없습니다." />
+                                {isLoadingPatentDetail ? (
+                                  <PatentDetailLoadingState />
+                                ) : shouldShowPatentDetailEmpty ? (
+                                  <Empty description="Patent Analysis Summary 데이터가 없습니다." />
+                                ) : null}
                               </Card>
                             </Col>
                           )}
@@ -1583,13 +1610,17 @@ const PatentAnalysisDetail: React.FC = () => {
                                   })}
                                 </div>
                               ) : (
-                                <Empty description="추천 Key Compound 데이터가 없습니다." />
+                                isLoadingPatentDetail ? (
+                                  <PatentDetailLoadingState />
+                                ) : shouldShowPatentDetailEmpty ? (
+                                  <Empty description="추천 Key Compound 데이터가 없습니다." />
+                                ) : null
                               )}
                             </Card>
                           </Col>
                         </Row>
                       </div>
-                    )
+                    ) : null
                   },
                   {
                     key: 'raw-data',
@@ -1598,7 +1629,7 @@ const PatentAnalysisDetail: React.FC = () => {
                         <FileSpreadsheet size={16} /> Raw Data
                       </span>
                     ),
-                    children: (
+                    children: activeTab === 'raw-data' ? (
                       <div className="raw-data-tab-content" style={{ padding: 24, flex: 1, overflowY: 'auto' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
                           <Title level={5} style={{ margin: 0 }}>Embodiment 화합물 목록</Title>
@@ -1672,6 +1703,7 @@ const PatentAnalysisDetail: React.FC = () => {
                               title: key,
                               key: `rg_${key}`,
                               width: 190,
+                              className: 'table-center-column raw-data-rgroup-column',
                               render: (_: any, record: any) => {
                                 const smiles = record.r_groups?.[key];
                                 // frequency_analysis_result_json에서 SVG 찾기
@@ -1682,8 +1714,8 @@ const PatentAnalysisDetail: React.FC = () => {
                                 return (
                                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
                                     <div
-                                      className="raw-data-svg-frame"
-                                      style={{ width: 128, height: 128, background: token.colorBgContainer, border: `1px solid ${token.colorBorderSecondary}`, borderRadius: 6, position: 'relative', cursor: svg ? 'pointer' : 'default', overflow: 'hidden', boxSizing: 'border-box', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                      className="raw-data-svg-frame raw-data-rgroup-svg-frame"
+                                      style={{ width: 156, height: 156, background: token.colorBgContainer, border: `1px solid ${token.colorBorderSecondary}`, borderRadius: 6, position: 'relative', cursor: svg ? 'pointer' : 'default', overflow: 'hidden', boxSizing: 'border-box', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                                       {svg ? (
                                         renderPatentStructureView({
                                           svg,
@@ -1777,27 +1809,31 @@ const PatentAnalysisDetail: React.FC = () => {
                                 key: 'scaffold',
                                 width: 220,
                                 align: 'center' as const,
-                                className: 'table-center-column',
+                                className: 'table-center-column raw-data-scaffold-column',
                                 render: (_: any, record: any) => record.scaffold_svg ? (
-                                  <div
-                                    className="raw-data-svg-frame"
-                                    style={{ width: 160, height: 160, background: token.colorBgContainer, border: `1px solid ${token.colorBorderSecondary}`, borderRadius: 8, cursor: 'pointer', position: 'relative', overflow: 'hidden', boxSizing: 'border-box', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                                  >
-                                    {renderPatentStructureView({
-                                      svg: record.scaffold_svg,
-                                      title: `Scaffold - ${record.compound_id}`,
-                                      smiles: record.scaffold,
-                                      height: '100%',
-                                      iconSize: 11,
-                                      onClick: () => openSvgPreview(record.scaffold_svg, `Scaffold - ${record.compound_id}`),
-                                    })}
+                                  <div className="raw-data-scaffold-cell">
+                                    <div
+                                      className="raw-data-svg-frame raw-data-scaffold-svg-frame"
+                                      style={{ width: 184, height: 184, background: token.colorBgContainer, border: `1px solid ${token.colorBorderSecondary}`, borderRadius: 8, cursor: 'pointer', position: 'relative', overflow: 'hidden', boxSizing: 'border-box', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                                    >
+                                      {renderPatentStructureView({
+                                        svg: record.scaffold_svg,
+                                        title: `Scaffold - ${record.compound_id}`,
+                                        smiles: record.scaffold,
+                                        height: '100%',
+                                        iconSize: 11,
+                                        onClick: () => openSvgPreview(record.scaffold_svg, `Scaffold - ${record.compound_id}`),
+                                      })}
+                                    </div>
                                   </div>
                                 ) : (
-                                  <div
-                                    className="raw-data-svg-frame"
-                                    style={{ width: 160, height: 160, background: token.colorBgContainer, border: `1px solid ${token.colorBorderSecondary}`, borderRadius: 8, boxSizing: 'border-box', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                                  >
-                                    <Text style={{ fontSize: 11, color: token.colorTextTertiary }}>no image</Text>
+                                  <div className="raw-data-scaffold-cell">
+                                    <div
+                                      className="raw-data-svg-frame raw-data-scaffold-svg-frame"
+                                      style={{ width: 184, height: 184, background: token.colorBgContainer, border: `1px solid ${token.colorBorderSecondary}`, borderRadius: 8, boxSizing: 'border-box', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                                    >
+                                      <Text style={{ fontSize: 11, color: token.colorTextTertiary }}>no image</Text>
+                                    </div>
                                   </div>
                                 )
                               },
@@ -1870,7 +1906,8 @@ const PatentAnalysisDetail: React.FC = () => {
                             const pagedRawCardRows = rawCardRows.slice((currentPage - 1) * rawCardPageSize, currentPage * rawCardPageSize);
 
                             if (rawCardRows.length === 0) {
-                              return <Empty description="Raw Data 데이터가 없습니다." />;
+                              if (isLoadingPatentDetail) return <PatentDetailLoadingState />;
+                              return shouldShowPatentDetailEmpty ? <Empty description="Raw Data 데이터가 없습니다." /> : null;
                             }
 
                             return (
@@ -1896,6 +1933,7 @@ const PatentAnalysisDetail: React.FC = () => {
                                           imageUrl={comp.compound_svg}
                                           imageType="svg"
                                           imageHeight={130}
+                                          squareImage
                                           isActive={activeCompId === compKey}
                                           onClick={() => {
                                             setActiveCompId(compKey);
@@ -1985,7 +2023,7 @@ const PatentAnalysisDetail: React.FC = () => {
                           })()
                         )}
                       </div>
-                    )
+                    ) : null
                   },
                   {
                     key: 'clean-data',
@@ -1994,7 +2032,7 @@ const PatentAnalysisDetail: React.FC = () => {
                         <Activity size={16} /> Clean Data
                       </span>
                     ),
-                    children: (
+                    children: activeTab === 'clean-data' ? (
                       <div className="raw-data-tab-content" style={{ padding: 24, flex: 1, overflowY: 'auto' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
                           <Title level={5} style={{ margin: 0 }}>Clean Data 화합물 목록</Title>
@@ -2068,6 +2106,7 @@ const PatentAnalysisDetail: React.FC = () => {
                               title: key,
                               key: `clean_rg_${key}`,
                               width: 190,
+                              className: 'table-center-column raw-data-rgroup-column',
                               render: (_: any, record: any) => {
                                 const smiles = record.r_groups?.[key];
                                 const faRGroups = frequencyAnalysis?.r_groups ?? {};
@@ -2077,8 +2116,8 @@ const PatentAnalysisDetail: React.FC = () => {
                                 return (
                                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
                                     <div
-                                      className="raw-data-svg-frame"
-                                      style={{ width: 128, height: 128, background: token.colorBgContainer, border: `1px solid ${token.colorBorderSecondary}`, borderRadius: 6, position: 'relative', cursor: svg ? 'pointer' : 'default', overflow: 'hidden', boxSizing: 'border-box', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                      className="raw-data-svg-frame raw-data-rgroup-svg-frame"
+                                      style={{ width: 156, height: 156, background: token.colorBgContainer, border: `1px solid ${token.colorBorderSecondary}`, borderRadius: 6, position: 'relative', cursor: svg ? 'pointer' : 'default', overflow: 'hidden', boxSizing: 'border-box', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                                       {svg ? (
                                         renderPatentStructureView({
                                           svg,
@@ -2192,27 +2231,31 @@ const PatentAnalysisDetail: React.FC = () => {
                                 key: 'scaffold',
                                 width: 220,
                                 align: 'center' as const,
-                                className: 'table-center-column',
+                                className: 'table-center-column raw-data-scaffold-column',
                                 render: (_: any, record: any) => record.scaffold_svg ? (
-                                  <div
-                                    className="raw-data-svg-frame"
-                                    style={{ width: 160, height: 160, background: token.colorBgContainer, border: `1px solid ${token.colorBorderSecondary}`, borderRadius: 8, cursor: 'pointer', position: 'relative', overflow: 'hidden', boxSizing: 'border-box', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                                  >
-                                    {renderPatentStructureView({
-                                      svg: record.scaffold_svg,
-                                      title: `Scaffold - ${record.compound_id}`,
-                                      smiles: record.scaffold,
-                                      height: '100%',
-                                      iconSize: 11,
-                                      onClick: () => openSvgPreview(record.scaffold_svg, `Scaffold - ${record.compound_id}`),
-                                    })}
+                                  <div className="raw-data-scaffold-cell">
+                                    <div
+                                      className="raw-data-svg-frame raw-data-scaffold-svg-frame"
+                                      style={{ width: 184, height: 184, background: token.colorBgContainer, border: `1px solid ${token.colorBorderSecondary}`, borderRadius: 8, cursor: 'pointer', position: 'relative', overflow: 'hidden', boxSizing: 'border-box', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                                    >
+                                      {renderPatentStructureView({
+                                        svg: record.scaffold_svg,
+                                        title: `Scaffold - ${record.compound_id}`,
+                                        smiles: record.scaffold,
+                                        height: '100%',
+                                        iconSize: 11,
+                                        onClick: () => openSvgPreview(record.scaffold_svg, `Scaffold - ${record.compound_id}`),
+                                      })}
+                                    </div>
                                   </div>
                                 ) : (
-                                  <div
-                                    className="raw-data-svg-frame"
-                                    style={{ width: 160, height: 160, background: token.colorBgContainer, border: `1px solid ${token.colorBorderSecondary}`, borderRadius: 8, boxSizing: 'border-box', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                                  >
-                                    <Text style={{ fontSize: 11, color: token.colorTextTertiary }}>no image</Text>
+                                  <div className="raw-data-scaffold-cell">
+                                    <div
+                                      className="raw-data-svg-frame raw-data-scaffold-svg-frame"
+                                      style={{ width: 184, height: 184, background: token.colorBgContainer, border: `1px solid ${token.colorBorderSecondary}`, borderRadius: 8, boxSizing: 'border-box', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                                    >
+                                      <Text style={{ fontSize: 11, color: token.colorTextTertiary }}>no image</Text>
+                                    </div>
                                   </div>
                                 )
                               },
@@ -2232,7 +2275,8 @@ const PatentAnalysisDetail: React.FC = () => {
                             ];
 
                             if (cleanRows.length === 0) {
-                              return <Empty description="Clean Data 데이터가 없습니다." />;
+                              if (isLoadingPatentDetail) return <PatentDetailLoadingState />;
+                              return shouldShowPatentDetailEmpty ? <Empty description="Clean Data 데이터가 없습니다." /> : null;
                             }
 
                             return (
@@ -2276,7 +2320,8 @@ const PatentAnalysisDetail: React.FC = () => {
                           (() => {
                             const modifiedRows: any[] = patentResult.modified_patent_compound ?? [];
                             if (modifiedRows.length === 0) {
-                              return <Empty description="Clean Data 데이터가 없습니다." />;
+                              if (isLoadingPatentDetail) return <PatentDetailLoadingState />;
+                              return shouldShowPatentDetailEmpty ? <Empty description="Clean Data 데이터가 없습니다." /> : null;
                             }
                             const currentPage = Math.min(cleanCardCurrentPage, Math.max(1, Math.ceil(modifiedRows.length / cleanCardPageSize)));
                             const pagedModifiedRows = modifiedRows.slice((currentPage - 1) * cleanCardPageSize, currentPage * cleanCardPageSize);
@@ -2298,6 +2343,7 @@ const PatentAnalysisDetail: React.FC = () => {
                                           imageUrl={comp.compound_svg}
                                           imageType="svg"
                                           imageHeight={130}
+                                          squareImage
                                           isActive={activeCompId === compKey}
                                           onClick={() => {
                                             setActiveCompId(compKey);
@@ -2356,7 +2402,7 @@ const PatentAnalysisDetail: React.FC = () => {
                           })()
                         )}
                       </div>
-                    )
+                    ) : null
                   },
                   {
                     key: 'tables',
@@ -2365,11 +2411,15 @@ const PatentAnalysisDetail: React.FC = () => {
                         <LayoutGrid size={16} /> Tables
                       </span>
                     ),
-                    children: (
+                    children: activeTab === 'tables' ? (
                         <div style={{ padding: 24, flex: 1, overflowY: 'auto' }}>
                           <Title level={5} style={{ marginTop: 0, marginBottom: 16 }}>Result Tables</Title>
                           {resultTables.length === 0 ? (
-                              <Empty description="result.tables 데이터가 없습니다." />
+                              isLoadingPatentDetail ? (
+                                <PatentDetailLoadingState />
+                              ) : shouldShowPatentDetailEmpty ? (
+                                <Empty description="result.tables 데이터가 없습니다." />
+                              ) : null
                           ) : (
                               <Row gutter={[16, 16]}>
                                 {resultTables.map((tableItem: any, i: number) => {
@@ -2447,7 +2497,7 @@ const PatentAnalysisDetail: React.FC = () => {
                               </Row>
                           )}
                         </div>
-                    )
+                    ) : null
                   }
                 ]}
               />
@@ -2635,6 +2685,59 @@ const PatentAnalysisDetail: React.FC = () => {
         .patent-summary-tab-content .patent-functional-scaffold-frame {
           border: 1px solid ${token.colorBorderSecondary} !important;
         }
+        .patent-summary-tab-content .patent-rgroup-variant-item {
+          width: 152px;
+          display: flex;
+          flex-direction: column;
+          align-items: stretch;
+          gap: 3px;
+        }
+        .patent-summary-tab-content .patent-rgroup-variant-card {
+          width: 152px !important;
+          height: 152px !important;
+          overflow: hidden !important;
+        }
+        .patent-summary-tab-content .patent-rgroup-variant-card > .ant-card-body {
+          width: 100% !important;
+          height: 100% !important;
+          padding: 4px !important;
+          display: flex !important;
+          align-items: center !important;
+          justify-content: center !important;
+        }
+        .patent-summary-tab-content .patent-functional-rgroup-frame {
+          width: 100% !important;
+          height: 100% !important;
+          padding: 0 !important;
+          border: 0 !important;
+          border-radius: 6px !important;
+          background: ${token.colorBgContainer} !important;
+          position: relative !important;
+          overflow: hidden !important;
+        }
+        .patent-summary-tab-content .patent-functional-rgroup-frame .compound-structure-view,
+        .patent-summary-tab-content .patent-functional-rgroup-frame .compound-structure-frame,
+        .patent-summary-tab-content .patent-functional-rgroup-frame .compound-structure-svg {
+          width: 100% !important;
+          height: 100% !important;
+          padding: 0 !important;
+          margin: 0 !important;
+        }
+        .patent-summary-tab-content .patent-functional-rgroup-frame .compound-structure-svg svg {
+          width: auto !important;
+          height: auto !important;
+          max-width: 100% !important;
+          max-height: 100% !important;
+          transform: none !important;
+        }
+        .patent-summary-tab-content .patent-rgroup-frequency-button {
+          width: 100%;
+          height: 18px;
+          padding: 0 !important;
+          font-size: 11px;
+          line-height: 18px;
+          text-align: center;
+        }
         .patent-summary-tab-content .patent-summary-structure-frame .compound-structure-view,
         .patent-summary-tab-content .patent-summary-structure-frame .compound-structure-frame,
         .patent-summary-tab-content .patent-summary-structure-frame .compound-structure-svg {
@@ -2673,6 +2776,31 @@ const PatentAnalysisDetail: React.FC = () => {
           max-width: 92% !important;
           max-height: 92% !important;
           transform: none !important;
+        }
+        .raw-data-tab-content .patent-analysis-card-view .raw-data-svg-frame .compound-structure-svg svg {
+          max-width: 100% !important;
+          max-height: 100% !important;
+        }
+        .raw-data-tab-content .raw-data-embodiment-table .raw-data-scaffold-column {
+          padding: 8px 8px !important;
+          text-align: center !important;
+          vertical-align: middle !important;
+        }
+        .raw-data-tab-content .raw-data-embodiment-table .raw-data-rgroup-column {
+          padding: 6px 6px !important;
+          text-align: center !important;
+          vertical-align: middle !important;
+        }
+        .raw-data-tab-content .raw-data-scaffold-cell {
+          width: 100%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+        .raw-data-tab-content .raw-data-scaffold-svg-frame .compound-structure-svg svg,
+        .raw-data-tab-content .raw-data-rgroup-svg-frame .compound-structure-svg svg {
+          max-width: 100% !important;
+          max-height: 100% !important;
         }
         .raw-data-tab-content .compound-structure-view,
         .raw-data-tab-content .compound-structure-frame,
