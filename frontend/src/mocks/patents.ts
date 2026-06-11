@@ -5,7 +5,7 @@ export interface Patent {
   applicant: string;
   publicationDate: string;
   target: string;
-  status: 'Analyzing' | 'Completed' | 'Pending';
+  status: string;
   isFavorite: boolean;
   embodimentCount?: number | null;
   keyScaffoldSvg?: string;

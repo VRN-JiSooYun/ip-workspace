@@ -27,6 +27,7 @@ import {
   BookOpen,
   Bookmark,
   CalendarDays,
+  Check,
   ChevronDown,
   ChevronUp,
   ExternalLink,
@@ -1198,29 +1199,34 @@ const UniversalSearch: React.FC = () => {
               </Space.Compact>
             </div>
             <div className="compound-search-filter-item compound-search-reset-item">
-              <Text strong>초기화</Text>
-              <Button icon={<RotateCcw size={15} />} onClick={() => {
-                setQuery('');
-                setEngine('fast');
-                setInputType('molblock');
-                setSearchMode('structure');
-                setStructureSearchType('substructure');
-                setScaffoldSearchType('pattern');
-                setSortField('');
-                setSortOrder('desc');
-                setRangeFilterField('');
-                setRangeFilterMin(null);
-                setRangeFilterMax(null);
-                setSourceFilter('all');
-                setStructureInputPreview(null);
-                setItems([]);
-                setTotalCount(0);
-                setHasSearched(false);
-                setError(null);
-                setSelectedIds([]);
-              }}>
-                초기화
-              </Button>
+              <Text strong>작업</Text>
+              <Space size={8} className="compound-search-filter-actions">
+                <Button type="primary" icon={<Check size={15} />} loading={isLoading} onClick={handleSubmit}>
+                  적용
+                </Button>
+                <Button icon={<RotateCcw size={15} />} onClick={() => {
+                  setQuery('');
+                  setEngine('fast');
+                  setInputType('molblock');
+                  setSearchMode('structure');
+                  setStructureSearchType('substructure');
+                  setScaffoldSearchType('pattern');
+                  setSortField('');
+                  setSortOrder('desc');
+                  setRangeFilterField('');
+                  setRangeFilterMin(null);
+                  setRangeFilterMax(null);
+                  setSourceFilter('all');
+                  setStructureInputPreview(null);
+                  setItems([]);
+                  setTotalCount(0);
+                  setHasSearched(false);
+                  setError(null);
+                  setSelectedIds([]);
+                }}>
+                  초기화
+                </Button>
+              </Space>
             </div>
           </div>
         ) : null}

@@ -3,6 +3,7 @@ import { HttpService } from '@nestjs/axios';
 import { ConfigService } from '@nestjs/config';
 import { CompoundSearchQueryDto } from './dto/compound-search-query.dto';
 import { EmbodimentListQueryDto } from './dto/embodiment-list-query.dto';
+import { PatentFavoriteDto, PatentFavoriteShareDto } from './dto/patent-favorite.dto';
 import { PatentDetailQueryDto } from './dto/patent-detail-query.dto';
 import { PatentInsightStatisticsDto } from './dto/patent-insight-statistics.dto';
 import { PatentListQueryDto } from './dto/patent-list-query.dto';
@@ -38,6 +39,14 @@ type StructureSearchCompoundRow = {
   tpsa: unknown;
   patentCount: number;
   patents: unknown[];
+};
+
+type PatentFolderNode = {
+  id?: string | number;
+  folder_name?: string;
+  children?: PatentFolderNode[];
+  patents?: Record<string, unknown>[];
+  [key: string]: unknown;
 };
 
 const getTotalCount = (value: unknown): number => {
@@ -195,6 +204,10 @@ export class PatentAnalysisService {
   async getMyPatents(query: PatentListQueryDto) {
     const ownerId = this.getOwnerId(query.ownerId);
     const builtFilters = buildPatentListFilters(query);
+    const favoriteFolderId = query.favoriteOnly
+      ? await this.resolveDefaultFavoriteFolderId(ownerId)
+      : undefined;
+    const folderId = favoriteFolderId ?? query.folderId ?? '';
     const result = await this.helperClient.call<PatentListResult>({
       actionType: 'GET-PATENT-LIST',
       operation: 'GET-PATENT-LIST',
@@ -206,15 +219,86 @@ export class PatentAnalysisService {
       'num-rows-per-page': query.pageSize,
       'page-no': query.page,
       whose: 'my',
-      folder_id: query.folderId ?? '',
+      folder_id: folderId,
       smiles: query.smiles,
       type: query.type,
       sim: query.sim,
     });
+    return {
+      items: (result.partial_rows ?? []).map((item) => this.annotateFavorite(item, query.favoriteOnly)),
+      totalCount: getTotalCount(result.total_count ?? result.total_rows),
+      raw: result,
+    };
+  }
+
+  async addFavorite(body: PatentFavoriteDto) {
+    const ownerId = this.getOwnerId(body.ownerId);
+    const publicationNumber = body.publicationNumber?.trim();
+    if (!publicationNumber) {
+      throw new BadRequestException('publicationNumber is required');
+    }
+    const folderId = await this.resolveDefaultFavoriteFolderId(ownerId);
+    const result = await this.helperClient.call<Record<string, unknown>>({
+      owner_id: ownerId,
+      actionType: 'ADD-PATENTS-TO-FOLDER',
+      operation: 'ADD-PATENTS-TO-FOLDER',
+      folder_id: folderId,
+      selected_patent_list: JSON.stringify([publicationNumber]),
+    });
 
     return {
-      items: result.partial_rows ?? [],
-      totalCount: getTotalCount(result.total_count ?? result.total_rows),
+      ok: true,
+      ownerId,
+      folderId,
+      publicationNumber,
+      raw: result,
+    };
+  }
+
+  async removeFavorite(body: PatentFavoriteDto) {
+    const ownerId = this.getOwnerId(body.ownerId);
+    const publicationNumber = body.publicationNumber?.trim();
+    if (!publicationNumber) {
+      throw new BadRequestException('publicationNumber is required');
+    }
+    const folderId = await this.resolveDefaultFavoriteFolderId(ownerId);
+    const result = await this.helperClient.call<Record<string, unknown>>({
+      owner_id: ownerId,
+      actionType: 'DELETE-PATENTS-FROM-FOLDER',
+      operation: 'DELETE-PATENTS-FROM-FOLDER',
+      folder_id: folderId,
+      selected_patent_list: JSON.stringify([publicationNumber]),
+    });
+
+    return {
+      ok: true,
+      ownerId,
+      folderId,
+      publicationNumber,
+      raw: result,
+    };
+  }
+
+  async shareFavorites(body: PatentFavoriteShareDto) {
+    const ownerId = this.getOwnerId(body.ownerId);
+    const cc = body.cc?.trim();
+    if (!cc) {
+      throw new BadRequestException('cc is required');
+    }
+    const folderId = await this.resolveDefaultFavoriteFolderId(ownerId);
+    const result = await this.helperClient.call<Record<string, unknown>>({
+      owner_id: ownerId,
+      actionType: 'SHARE-FOLDER',
+      operation: 'SHARE-FOLDER',
+      folder_id: folderId,
+      cc,
+    });
+
+    return {
+      ok: true,
+      ownerId,
+      folderId,
+      cc,
       raw: result,
     };
   }
@@ -396,6 +480,108 @@ export class PatentAnalysisService {
 
   async refreshPatentInsightStatistics() {
     return this.callPatentInsightApi('/patent_statistics_refresh/', {});
+  }
+
+  private async resolveDefaultFavoriteFolderId(ownerId: string): Promise<string> {
+    const folders = await this.getFolderTrees(ownerId);
+    const root = this.findDirectFolder(folders.myList, 'myworkspace')
+      ?? await this.createFolder(ownerId, 'myworkspace', '-1');
+    const rootId = this.getFolderId(root);
+    if (!rootId) {
+      throw new BadGatewayException('Default favorite root folder id was not found');
+    }
+
+    const ownerFolder = this.findDirectFolder(root.children ?? [], ownerId)
+      ?? await this.createFolder(ownerId, ownerId, rootId);
+    const ownerFolderId = this.getFolderId(ownerFolder);
+    if (!ownerFolderId) {
+      throw new BadGatewayException('Default favorite folder id was not found');
+    }
+    return ownerFolderId;
+  }
+
+  private annotateFavorite(
+    item: unknown,
+    forceFavorite?: boolean,
+  ) {
+    const record = asRecord(item);
+    if (!record) return item;
+    return {
+      ...record,
+      is_favorite: forceFavorite
+        ? true
+        : Boolean(record.is_favorite ?? record.favorite),
+    };
+  }
+
+  private async getFolderTrees(ownerId: string): Promise<{
+    myList: PatentFolderNode[];
+    sharedList: PatentFolderNode[];
+  }> {
+    const result = await this.helperClient.call<PatentListResult>({
+      actionType: 'GET-PATENT-LIST',
+      operation: 'GET-PATENT-LIST',
+      owner_id: ownerId,
+      filter_conjunction: 'and',
+      filter_dict: '{}',
+      order_dict: '[]',
+      filter_group_conjunction_list: '[]',
+      'num-rows-per-page': 1,
+      'page-no': 1,
+      whose: 'my',
+      folder_id: '',
+    });
+    const folders = asRecord(result.folders);
+    return {
+      myList: this.toFolderList(folders?.my_list),
+      sharedList: this.toFolderList(folders?.shared_list),
+    };
+  }
+
+  private async createFolder(
+    ownerId: string,
+    folderName: string,
+    parentId: string,
+  ): Promise<PatentFolderNode> {
+    const result = await this.helperClient.call<PatentListResult>({
+      owner_id: ownerId,
+      actionType: 'ADD-FOLDER',
+      operation: 'ADD-FOLDER',
+      folder_name: folderName,
+      parent_id: parentId,
+    });
+    const folders = asRecord(result.folders);
+    const myList = this.toFolderList(folders?.my_list);
+    const created = this.findFolderRecursive(myList, folderName);
+    if (!created) {
+      throw new BadGatewayException(`Created favorite folder "${folderName}" was not found`);
+    }
+    return created;
+  }
+
+  private toFolderList(value: unknown): PatentFolderNode[] {
+    return Array.isArray(value)
+      ? value.filter((item): item is PatentFolderNode => Boolean(asRecord(item)))
+      : [];
+  }
+
+  private findDirectFolder(folders: PatentFolderNode[], folderName: string): PatentFolderNode | null {
+    return folders.find((folder) => String(folder.folder_name ?? '') === folderName) ?? null;
+  }
+
+  private findFolderRecursive(folders: PatentFolderNode[], folderName: string): PatentFolderNode | null {
+    for (const folder of folders) {
+      if (String(folder.folder_name ?? '') === folderName) return folder;
+      const found = this.findFolderRecursive(folder.children ?? [], folderName);
+      if (found) return found;
+    }
+    return null;
+  }
+
+  private getFolderId(folder: PatentFolderNode): string | null {
+    const id = folder.id;
+    if (id === undefined || id === null || id === '') return null;
+    return String(id);
   }
 
   private getOwnerId(ownerId?: string): string {

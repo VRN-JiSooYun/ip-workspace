@@ -36,6 +36,7 @@ import {
   FileSpreadsheet,
   Copy,
   Image as ImageIcon,
+  Star,
 } from 'lucide-react';
 import { Patent } from '../mocks/patents';
 import { mergeEmbodimentPayload } from '../mocks/patentAnalysisMockApi';
@@ -68,6 +69,8 @@ const SPLIT_MIN_PERCENT = 20;
 const SPLIT_MAX_PERCENT = 70;
 const SPLIT_DEFAULT_PERCENT = 45;
 const DETAIL_STACK_BREAKPOINT = 1280;
+const PATENT_ANALYSIS_OWNER_ID = '256';
+const PATENT_ANALYSIS_FAVORITE_STATE_PREFIX = 'patent-analysis-favorite-state';
 const RAW_DATA_DEFAULT_PAGE_SIZE = 30;
 const RAW_DATA_PAGE_SIZE_OPTIONS = [10, 30, 50, 100];
 
@@ -90,6 +93,32 @@ const PatentDetailLoadingState: React.FC<{ description?: string }> = ({ descript
 );
 
 const normalizePublicationNumber = (value: string) => value.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+
+const getFavoriteStateStorageKey = (publicationNumber: string) => (
+  `${PATENT_ANALYSIS_FAVORITE_STATE_PREFIX}:${normalizePublicationNumber(publicationNumber)}`
+);
+
+const readFavoriteStateFromStorage = (publicationNumber: string): boolean | null => {
+  try {
+    const raw = window.localStorage.getItem(getFavoriteStateStorageKey(publicationNumber));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as { isFavorite?: unknown };
+    return typeof parsed.isFavorite === 'boolean' ? parsed.isFavorite : null;
+  } catch {
+    return null;
+  }
+};
+
+const writeFavoriteStateToStorage = (publicationNumber: string, isFavorite: boolean) => {
+  try {
+    window.localStorage.setItem(
+      getFavoriteStateStorageKey(publicationNumber),
+      JSON.stringify({ isFavorite, updatedAt: Date.now() }),
+    );
+  } catch {
+    // Storage is a best-effort handoff from the list page.
+  }
+};
 
 const normalizeCompoundLookupValue = (value: unknown) => {
   if (value === undefined || value === null) return '';
@@ -371,12 +400,26 @@ const PatentAnalysisDetail: React.FC = () => {
   const shouldShowPatentDetailEmpty = hasPatentDetailLoaded && !isLoadingPatentDetail;
   const patentResult = apiPatentResult ?? {};
   const displayedPatent = React.useMemo(() => {
+    const storedFavorite = selectedPatent?.patentNumber
+      ? readFavoriteStateFromStorage(selectedPatent.patentNumber)
+      : null;
     const metadata = apiPatentResult?.data?.[0];
     if (metadata) {
-      return mapPatentListItem(metadata, 0);
+      const mappedPatent = mapPatentListItem(metadata, 0);
+      const hasFavoriteField = metadata.is_favorite !== undefined || metadata.favorite !== undefined;
+      return {
+        ...mappedPatent,
+        isFavorite: hasFavoriteField
+          ? mappedPatent.isFavorite
+          : storedFavorite ?? selectedPatent?.isFavorite ?? mappedPatent.isFavorite,
+      };
     }
-    return selectedPatent;
+    return selectedPatent
+      ? { ...selectedPatent, isFavorite: storedFavorite ?? selectedPatent.isFavorite }
+      : selectedPatent;
   }, [apiPatentResult, selectedPatent]);
+  const [isFavoritePatent, setIsFavoritePatent] = React.useState(() => Boolean(displayedPatent?.isFavorite));
+  const [isSavingFavoritePatent, setIsSavingFavoritePatent] = React.useState(false);
   const detailMetadata = apiPatentResult?.data?.[0] ?? null;
   const browserPdfDocument = React.useMemo(() => {
     const hasApiPdfPath = Boolean(detailMetadata?.ocr_pdf_path ?? detailMetadata?.pdf_path ?? detailMetadata?.pdf_url);
@@ -415,6 +458,10 @@ const PatentAnalysisDetail: React.FC = () => {
   );
 
   const { setHeaderContent } = useUIStore();
+
+  useEffect(() => {
+    setIsFavoritePatent(Boolean(displayedPatent?.isFavorite));
+  }, [displayedPatent?.isFavorite, displayedPatent?.patentNumber]);
 
   const currentHighlights = useMemo(() => {
     return [];
@@ -802,6 +849,35 @@ const PatentAnalysisDetail: React.FC = () => {
     link.click();
     document.body.removeChild(link);
   }, [browserPdfDocument, displayedPatent?.patentNumber, message]);
+
+  const toggleFavoritePatent = React.useCallback(async () => {
+    const publicationNumber = displayedPatent?.patentNumber;
+    if (!publicationNumber || isSavingFavoritePatent) return;
+
+    const nextFavorite = !isFavoritePatent;
+    setIsSavingFavoritePatent(true);
+    setIsFavoritePatent(nextFavorite);
+    try {
+      if (nextFavorite) {
+        await patentAnalysisApi.addPatentFavorite({
+          ownerId: PATENT_ANALYSIS_OWNER_ID,
+          publicationNumber,
+        });
+      } else {
+        await patentAnalysisApi.removePatentFavorite({
+          ownerId: PATENT_ANALYSIS_OWNER_ID,
+          publicationNumber,
+        });
+      }
+      writeFavoriteStateToStorage(publicationNumber, nextFavorite);
+      void message.success(nextFavorite ? '즐겨찾기에 추가했습니다.' : '즐겨찾기에서 제거했습니다.');
+    } catch (error) {
+      setIsFavoritePatent(isFavoritePatent);
+      void message.warning(error instanceof Error ? error.message : '즐겨찾기 저장에 실패했습니다.');
+    } finally {
+      setIsSavingFavoritePatent(false);
+    }
+  }, [displayedPatent?.patentNumber, isFavoritePatent, isSavingFavoritePatent, message]);
 
   useEffect(() => {
     if (displayedPatent) {
@@ -1272,6 +1348,21 @@ const PatentAnalysisDetail: React.FC = () => {
               <Text type="secondary" style={{ fontSize: '12px', display: 'block' }}>{displayedPatent.patentNumber} | {displayedPatent.applicant} | {formatDisplayDate(displayedPatent.publicationDate)}</Text>
             </div>
           </Space>
+          <Button
+            type={isFavoritePatent ? 'primary' : 'default'}
+            icon={isSavingFavoritePatent ? undefined : (
+              <Star
+                size={17}
+                fill={isFavoritePatent ? '#F8B84E' : 'none'}
+                color={isFavoritePatent ? '#D89116' : token.colorTextTertiary}
+              />
+            )}
+            loading={isSavingFavoritePatent}
+            onClick={() => void toggleFavoritePatent()}
+            className="v-action-btn"
+          >
+            즐겨찾기 {isFavoritePatent ? 'ON' : 'OFF'}
+          </Button>
         </div>
         {patentDetailError && (
           <Alert

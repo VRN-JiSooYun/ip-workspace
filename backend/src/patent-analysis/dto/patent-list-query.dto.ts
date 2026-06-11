@@ -1,5 +1,5 @@
 import { Transform } from 'class-transformer';
-import { IsInt, IsOptional, IsString, Min } from 'class-validator';
+import { IsBoolean, IsInt, IsOptional, IsString, Min } from 'class-validator';
 
 export class PatentListQueryDto {
   @IsOptional()
@@ -21,6 +21,11 @@ export class PatentListQueryDto {
   @IsOptional()
   @IsString()
   folderId?: string;
+
+  @IsOptional()
+  @Transform(({ value }) => value === true || value === 'true')
+  @IsBoolean()
+  favoriteOnly?: boolean;
 
   @IsOptional()
   @IsString()

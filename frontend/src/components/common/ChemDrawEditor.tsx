@@ -4,7 +4,7 @@ import { ArrowLeftRight, ArrowUpDown, Info } from 'lucide-react';
 import { CHEMDRAW_CONFIG } from '../../config/chemdraw';
 import { installChemDrawKoreanKeyboardBridge } from '../../utils/chemdrawKeyboard';
 import { commitChemDrawActiveInput, waitForChemDrawEditorReady } from '../../utils/chemdrawCommit';
-import { applyChemDrawFlip } from '../../utils/chemdrawTransform';
+import { applyChemDrawRotate180 } from '../../utils/chemdrawTransform';
 import type { ChemDrawFlipAxis } from '../../utils/chemdrawTransform';
 import { installCanvasReadbackPatch } from '../../utils/canvasReadback';
 import { installPassiveWheelListenerPatch } from '../../utils/passiveWheelListenerPatch';
@@ -247,26 +247,43 @@ const ChemDrawEditor: React.FC<ChemDrawEditorProps> = ({
     return installChemDrawKoreanKeyboardBridge(container);
   }, [active, editorInstance, containerId]);
 
-  const handleFlip = (axis: ChemDrawFlipAxis) => {
-    applyChemDrawFlip(editorInstance, axis);
+  const handleRotate180 = (axis: ChemDrawFlipAxis) => {
+    applyChemDrawRotate180(editorInstance, axis);
   };
+
+  // 단축키: Shift+Ctrl+H → 수평(Horizontal) 180° 회전, Shift+Ctrl+V → 수직(Vertical) 180° 회전
+  useEffect(() => {
+    if (!active || !editorInstance) return;
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (!event.ctrlKey || !event.shiftKey || event.altKey || event.metaKey) return;
+      const code = event.code;
+      if (code !== 'KeyH' && code !== 'KeyV') return;
+      event.preventDefault();
+      event.stopPropagation();
+      handleRotate180(code === 'KeyH' ? 'horizontal' : 'vertical');
+    };
+
+    document.addEventListener('keydown', onKeyDown, true);
+    return () => document.removeEventListener('keydown', onKeyDown, true);
+  }, [active, editorInstance]);
 
   const flipControls = (
     <Space
       direction={flipControlsPlacement === 'left' ? 'vertical' : 'horizontal'}
       style={flipControlsPlacement === 'top' ? { marginBottom: 8 } : undefined}
     >
-      <Tooltip title="선택 구조 좌우 반전" placement="left">
+      <Tooltip title="180° 회전 - 수평 (Shift+Ctrl+H)" placement="left">
         <Button
           icon={<ArrowLeftRight size={16} />}
-          onClick={() => handleFlip('horizontal')}
+          onClick={() => handleRotate180('horizontal')}
           disabled={!editorInstance}
         />
       </Tooltip>
-      <Tooltip title="선택 구조 상하 반전" placement="left">
+      <Tooltip title="180° 회전 - 수직 (Shift+Ctrl+V)" placement="left">
         <Button
           icon={<ArrowUpDown size={16} />}
-          onClick={() => handleFlip('vertical')}
+          onClick={() => handleRotate180('vertical')}
           disabled={!editorInstance}
         />
       </Tooltip>

@@ -120,6 +120,27 @@ const applyCommandByName = (editor: any, commandName: string, allowDispatcherFal
   return false;
 };
 
+// 축 기준 180° 회전 전용 method/command 후보. (ChemDraw JS가 노출하는 경우 우선 사용)
+const ROTATE180_METHODS: Record<ChemDrawFlipAxis, string[]> = {
+  horizontal: ['rotate180Horizontal', 'rotateHorizontal180', 'horizontalRotate180'],
+  vertical: ['rotate180Vertical', 'rotateVertical180', 'verticalRotate180'],
+};
+
+const ROTATE180_COMMAND_NAMES: Record<ChemDrawFlipAxis, string[]> = {
+  horizontal: [
+    'rotate180Horizontal',
+    'Rotate180Horizontal',
+    'horizontalRotate180',
+    'object.rotate180Horizontal',
+  ],
+  vertical: [
+    'rotate180Vertical',
+    'Rotate180Vertical',
+    'verticalRotate180',
+    'object.rotate180Vertical',
+  ],
+};
+
 export const applyChemDrawFlip = (editor: any, axis: ChemDrawFlipAxis): boolean => {
   if (!editor) return false;
 
@@ -153,4 +174,31 @@ export const applyChemDrawFlip = (editor: any, axis: ChemDrawFlipAxis): boolean 
   }
 
   return false;
+};
+
+/**
+ * 선택 구조를 해당 축 기준으로 180° 회전한다.
+ * ChemDraw JS가 회전 전용 method/command를 노출하면 그것을 우선 사용하고,
+ * 없으면 flip으로 폴백한다. (축 기준 180° 회전은 시각적으로 해당 축 flip과 동일)
+ */
+export const applyChemDrawRotate180 = (editor: any, axis: ChemDrawFlipAxis): boolean => {
+  if (!editor) return false;
+
+  for (const methodName of ROTATE180_METHODS[axis]) {
+    const method = editor[methodName];
+    if (typeof method !== 'function') continue;
+    try {
+      const result = method.call(editor);
+      return result !== false;
+    } catch {
+      // Try the next known method name.
+    }
+  }
+
+  for (const commandName of ROTATE180_COMMAND_NAMES[axis]) {
+    if (applyCommandByName(editor, commandName, true)) return true;
+  }
+
+  // 폴백: 축 기준 180° 회전은 해당 축 flip과 시각적으로 동일하다.
+  return applyChemDrawFlip(editor, axis);
 };

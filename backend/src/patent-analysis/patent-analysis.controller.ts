@@ -2,6 +2,7 @@ import { Body, Controller, Get, Param, Post, Query, Res } from '@nestjs/common';
 import { Response } from 'express';
 import { CompoundSearchQueryDto } from './dto/compound-search-query.dto';
 import { EmbodimentListQueryDto } from './dto/embodiment-list-query.dto';
+import { PatentFavoriteDto, PatentFavoriteShareDto } from './dto/patent-favorite.dto';
 import { PatentDetailQueryDto } from './dto/patent-detail-query.dto';
 import { PatentInsightStatisticsDto } from './dto/patent-insight-statistics.dto';
 import { PatentListQueryDto } from './dto/patent-list-query.dto';
@@ -14,6 +15,21 @@ export class PatentAnalysisController {
   @Get('my')
   getMyPatents(@Query() query: PatentListQueryDto) {
     return this.patentAnalysisService.getMyPatents(query);
+  }
+
+  @Post('favorites')
+  addFavorite(@Body() body: PatentFavoriteDto) {
+    return this.patentAnalysisService.addFavorite(body);
+  }
+
+  @Post('favorites/remove')
+  removeFavorite(@Body() body: PatentFavoriteDto) {
+    return this.patentAnalysisService.removeFavorite(body);
+  }
+
+  @Post('favorites/share')
+  shareFavorites(@Body() body: PatentFavoriteShareDto) {
+    return this.patentAnalysisService.shareFavorites(body);
   }
 
   @Get('compound-search')

@@ -1981,7 +1981,7 @@
                         <div class="row" style="margin-bottom: 8px;">
                             <div class="col-md-12">
                                 <button class="btn btn-sm btn-outline-success" onclick="$('#filter_area').html(''); $('.search-btn').trigger('click'); return false;">전체 파일</button>
-                                <button class="btn btn-sm btn-outline-success" onclick="$('#filter_area').html(''); addDynamicFilter('p.owner_id', 'select', '', 'my'); $('.search-btn').trigger('click'); return false;">내 파일</button>
+                                <button class="btn btn-sm btn-outline-success" onclick="$('#filter_area').html(''); addDynamicFilter('p.', 'select', '', 'my'); $('.search-btn').trigger('click'); return false;">내 파일</button>
                                 <button class="btn btn-sm btn-outline-success" onclick="$('#filter_area').html(''); addDynamicFilter('publication_date', 'date', getPastDateFormatted(7), 'after'); $('.search-btn').trigger('click'); return false;">최근 7일 이내 신규 특허</button>
 
                                 <button class="btn btn-sm btn-primary" onclick="$('#patent-upload-modal').modal('show'); $('.modal-backdrop').css('display', 'none'); return false;" style="float:right;">파일 등록</button>

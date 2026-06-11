@@ -683,6 +683,11 @@ span.ant-typography {
   line-height: 20px;
 }
 
+.compound-search-filter-actions {
+  display: flex;
+  align-items: center;
+}
+
 .compound-search-range-input.ant-input-number {
   display: inline-flex;
   align-items: center;
@@ -1419,6 +1424,14 @@ span.ant-typography {
   .compound-search-filter-item .ant-select,
   .compound-search-filter-item .ant-space-compact {
     width: 100% !important;
+  }
+
+  .compound-search-filter-actions {
+    width: 100%;
+  }
+
+  .compound-search-filter-actions .ant-btn {
+    flex: 1;
   }
 
   .compound-search-primary-row > .ant-segmented,

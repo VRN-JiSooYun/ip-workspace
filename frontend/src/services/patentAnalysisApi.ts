@@ -69,7 +69,7 @@ const getApiBaseUrl = () => {
   return value.replace(/\/$/, '');
 };
 
-const buildApiUrl = (path: string, params?: Record<string, string | number | undefined>) => {
+const buildApiUrl = (path: string, params?: Record<string, string | number | boolean | undefined>) => {
   const url = new URL(`${getApiBaseUrl()}${path}`, window.location.origin);
   Object.entries(params ?? {}).forEach(([key, value]) => {
     if (value === undefined || value === '') return;
@@ -92,7 +92,7 @@ const getErrorMessage = async (response: Response) => {
 
 const requestJson = async <T>(
   path: string,
-  params?: Record<string, string | number | undefined>,
+  params?: Record<string, string | number | boolean | undefined>,
   options?: RequestOptions,
 ): Promise<T> => {
   const url = buildApiUrl(path, params);
@@ -113,6 +113,54 @@ const requestJson = async <T>(
 
   try {
     const response = await fetch(url, { signal: controller.signal });
+    if (!response.ok) {
+      throw new ApiRequestError(await getErrorMessage(response), response.status);
+    }
+    return response.json() as Promise<T>;
+  } catch (error) {
+    if (error instanceof ApiRequestError) {
+      throw error;
+    }
+    if (error instanceof DOMException && error.name === 'AbortError') {
+      throw new ApiRequestError('API request timed out');
+    }
+    throw error;
+  } finally {
+    if (timeoutId !== undefined) {
+      window.clearTimeout(timeoutId);
+    }
+    options?.signal?.removeEventListener('abort', abortOnExternalSignal);
+  }
+};
+
+const requestJsonBody = async <T>(
+  path: string,
+  method: 'POST',
+  body?: Record<string, unknown>,
+  options?: RequestOptions,
+): Promise<T> => {
+  const controller = new AbortController();
+  const timeoutMs = options?.timeoutMs;
+  const timeoutId = timeoutMs
+    ? window.setTimeout(() => controller.abort(), timeoutMs)
+    : undefined;
+
+  const abortOnExternalSignal = () => controller.abort();
+  if (options?.signal) {
+    if (options.signal.aborted) {
+      controller.abort();
+    } else {
+      options.signal.addEventListener('abort', abortOnExternalSignal, { once: true });
+    }
+  }
+
+  try {
+    const response = await fetch(buildApiUrl(path), {
+      method,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body ?? {}),
+      signal: controller.signal,
+    });
     if (!response.ok) {
       throw new ApiRequestError(await getErrorMessage(response), response.status);
     }
@@ -201,13 +249,6 @@ const getFirstSvgString = (row: Record<string, any>, keys: string[], fallback = 
   return fallback;
 };
 
-const mapStatus = (value: string): Patent['status'] => {
-  const normalized = value.toLowerCase();
-  if (normalized.includes('analy') || value.includes('분석중')) return 'Analyzing';
-  if (normalized.includes('pending') || normalized.includes('wait') || value.includes('대기')) return 'Pending';
-  return 'Completed';
-};
-
 export const mapPatentListItem = (row: Record<string, any>, index: number): Patent => {
   const publicationNumber = getPublicationNumber(row, `PATENT${index + 1}`);
   const rowId = `${publicationNumber}-${index + 1}`;
@@ -217,7 +258,7 @@ export const mapPatentListItem = (row: Record<string, any>, index: number): Pate
     publicationNumber,
   );
   const target = getFirstString(row, ['target', 'protein_target', 'target_name'], '-');
-  const status = getFirstString(row, ['status', 'analysis_status'], 'Completed');
+  const status = getFirstString(row, ['status'], '');
 
   return {
     id: rowId,
@@ -226,7 +267,7 @@ export const mapPatentListItem = (row: Record<string, any>, index: number): Pate
     applicant: getFirstString(row, ['applicant', 'assignee', 'applicants'], '-'),
     publicationDate: getFirstString(row, ['publication_date', 'publicationDate', 'pub_date'], '-'),
     target,
-    status: mapStatus(status),
+    status,
     isFavorite: Boolean(row.is_favorite ?? row.favorite ?? false),
     embodimentCount: getFirstNumber(row, [
       'num_embodiment',
@@ -283,11 +324,24 @@ export const patentAnalysisApi = {
     target?: string;
     dateFrom?: string;
     dateTo?: string;
+    favoriteOnly?: boolean;
     smiles?: string;
     type?: string;
     sim?: number;
   }) =>
     requestJson<PatentListResponse>('/patents/my', params),
+  addPatentFavorite: (
+    body: { ownerId?: string; publicationNumber: string },
+    options?: RequestOptions,
+  ) => requestJsonBody<Record<string, unknown>>('/patents/favorites', 'POST', body, options),
+  removePatentFavorite: (
+    body: { ownerId?: string; publicationNumber: string },
+    options?: RequestOptions,
+  ) => requestJsonBody<Record<string, unknown>>('/patents/favorites/remove', 'POST', body, options),
+  sharePatentFavorites: (
+    body: { ownerId?: string; cc: string },
+    options?: RequestOptions,
+  ) => requestJsonBody<Record<string, unknown>>('/patents/favorites/share', 'POST', body, options),
   searchCompounds: (params: {
     wasm?: number;
     smiles: string;

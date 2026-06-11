@@ -14,14 +14,19 @@ import {
   Segmented,
   DatePicker,
   Alert,
-  App
+  App,
+  Modal
 } from 'antd';
 import { 
   Search, 
   Plus, 
+  Check,
   ChevronDown,
   ChevronUp,
-  ExternalLink
+  ExternalLink,
+  RotateCcw,
+  Share2,
+  Star
 } from 'lucide-react';
 import BenzeneIcon from '../components/common/BenzeneIcon';
 import { Patent, mockPatents } from '../mocks/patents';
@@ -41,7 +46,9 @@ const PATENT_LIST_TITLE_COLUMN_WIDTH = 520;
 const PATENT_LIST_STRUCTURE_COLUMN_WIDTH = 212;
 const PATENT_LIST_STRUCTURE_IMAGE_WIDTH = 168;
 const PATENT_LIST_STRUCTURE_IMAGE_HEIGHT = 168;
-const PATENT_LIST_TABLE_SCROLL_X = 1994;
+const PATENT_LIST_TABLE_SCROLL_X = 2050;
+const PATENT_ANALYSIS_OWNER_ID = '256';
+const PATENT_ANALYSIS_FAVORITE_STATE_PREFIX = 'patent-analysis-favorite-state';
 const STRUCTURE_SEARCH_MAX_RESULT_WINDOW = 10000;
 const PATENT_ANALYSIS_PAGE_SIZE_OPTIONS = [10, 30, 50, 100] as const;
 const PATENT_ANALYSIS_DEFAULT_PAGE_SIZE = 30;
@@ -144,6 +151,8 @@ type PatentAnalysisListStoredState = {
   appliedSearchType?: PatentSearchType;
   searchText?: string;
   appliedSearchText?: string;
+  favoriteOnly?: boolean;
+  appliedFavoriteOnly?: boolean;
   showFilters?: boolean;
   selectedProjects?: string[];
   appliedProjects?: string[];
@@ -159,6 +168,21 @@ type PatentAnalysisListStoredState = {
 };
 
 const escapeFilterValue = (value: string): string => value.replace(/'/g, "''");
+
+const getFavoriteStateStorageKey = (publicationNumber: string) => (
+  `${PATENT_ANALYSIS_FAVORITE_STATE_PREFIX}:${publicationNumber.replace(/[^A-Za-z0-9]/g, '').toUpperCase()}`
+);
+
+const writeFavoriteStateToStorage = (publicationNumber: string, isFavorite: boolean) => {
+  try {
+    window.localStorage.setItem(
+      getFavoriteStateStorageKey(publicationNumber),
+      JSON.stringify({ isFavorite, updatedAt: Date.now() }),
+    );
+  } catch {
+    // Storage is a best-effort handoff for newly opened detail tabs.
+  }
+};
 
 const buildPatentNumberFilter = (
   publicationNumber: string,
@@ -332,6 +356,12 @@ const PatentAnalysisList: React.FC = () => {
   const [appliedSearchType, setAppliedSearchType] = useState<PatentSearchType>(() => storedListState.appliedSearchType ?? 'title');
   const [searchText, setSearchText] = useState(() => storedListState.searchText ?? '');
   const [appliedSearchText, setAppliedSearchText] = useState(() => storedListState.appliedSearchText ?? '');
+  const [favoriteOnly, setFavoriteOnly] = useState(() => storedListState.favoriteOnly ?? false);
+  const [appliedFavoriteOnly, setAppliedFavoriteOnly] = useState(() => storedListState.appliedFavoriteOnly ?? false);
+  const [savingFavoritePatentNumbers, setSavingFavoritePatentNumbers] = useState<string[]>([]);
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+  const [shareCc, setShareCc] = useState('');
+  const [isSharingFavorites, setIsSharingFavorites] = useState(false);
   const [showFilters, setShowFilters] = useState(() => storedListState.showFilters ?? false);
   const [selectedProjects, setSelectedProjects] = useState<string[]>(() => storedListState.selectedProjects ?? []);
   const [appliedProjects, setAppliedProjects] = useState<string[]>(() => storedListState.appliedProjects ?? []);
@@ -358,6 +388,7 @@ const PatentAnalysisList: React.FC = () => {
   const isResponsiveToolbar = viewportWidth <= 1100;
   const isStructureSearchMode = searchType === 'structure';
   const openPatentDetail = React.useCallback((patent: Patent) => {
+    writeFavoriteStateToStorage(patent.patentNumber, patent.isFavorite);
     const detailUrl = `/patents/analysis/${encodeURIComponent(patent.patentNumber)}`;
     window.open(detailUrl, '_blank', 'noopener,noreferrer');
   }, []);
@@ -370,6 +401,7 @@ const PatentAnalysisList: React.FC = () => {
 
     setAppliedSearchType(resolvedSearchType);
     setAppliedSearchText(nextSearchText);
+    setAppliedFavoriteOnly(favoriteOnly);
     setAppliedProjects(selectedProjects);
     setAppliedPeriod(period);
     setAppliedCustomDateRange(customDateRange);
@@ -377,7 +409,7 @@ const PatentAnalysisList: React.FC = () => {
     setLoadingStructurePatentIds([]);
     setExpandedStructureCompoundIds([]);
     setCurrentPage(1);
-  }, [customDateRange, message, period, searchText, selectedProjects]);
+  }, [customDateRange, favoriteOnly, message, period, searchText, selectedProjects]);
   const handleSearchTypeChange = React.useCallback((value: string | number) => {
     const nextSearchType = value as PatentSearchType;
     searchTypeRef.current = nextSearchType;
@@ -394,6 +426,8 @@ const PatentAnalysisList: React.FC = () => {
     setCustomDateRange(null);
     setAppliedSearchType('title');
     setAppliedSearchText('');
+    setFavoriteOnly(false);
+    setAppliedFavoriteOnly(false);
     setAppliedProjects([]);
     setAppliedPeriod('전체');
     setAppliedCustomDateRange(null);
@@ -504,6 +538,8 @@ const PatentAnalysisList: React.FC = () => {
       appliedSearchType,
       searchText,
       appliedSearchText,
+      favoriteOnly,
+      appliedFavoriteOnly,
       showFilters,
       selectedProjects,
       appliedProjects,
@@ -532,11 +568,13 @@ const PatentAnalysisList: React.FC = () => {
     appliedProjects,
     appliedSearchText,
     appliedSearchType,
+    appliedFavoriteOnly,
     currentPage,
     customDateRange,
     expandedStructureCompoundIds,
     pageSize,
     period,
+    favoriteOnly,
     searchText,
     searchType,
     selectedOffices,
@@ -596,11 +634,13 @@ const PatentAnalysisList: React.FC = () => {
               timeoutMs: 60000,
             })
           : await patentAnalysisApi.getMyPatents({
+            ownerId: PATENT_ANALYSIS_OWNER_ID,
             page: currentPage,
             pageSize,
             order: DEFAULT_PATENT_ORDER,
             filter: helperFilter,
             keyword: appliedSearchType === 'title' ? appliedSearchText || undefined : undefined,
+            favoriteOnly: appliedFavoriteOnly || undefined,
             target: helperFilter ? undefined : appliedProjects.length > 0 ? appliedProjects.join(',') : undefined,
             dateFrom: helperFilter ? undefined : appliedDateParams.dateFrom,
             dateTo: helperFilter ? undefined : appliedDateParams.dateTo,
@@ -689,6 +729,7 @@ const PatentAnalysisList: React.FC = () => {
     appliedProjects,
     appliedSearchText,
     appliedSearchType,
+    appliedFavoriteOnly,
     appliedStructureSmiles,
     currentPage,
     pageSize,
@@ -770,7 +811,98 @@ const PatentAnalysisList: React.FC = () => {
     );
   }, []);
 
+  const toggleFavorite = React.useCallback(async (
+    event: React.MouseEvent<HTMLElement>,
+    patent: Patent,
+  ) => {
+    event.stopPropagation();
+    const publicationNumber = patent.patentNumber;
+    if (!publicationNumber || savingFavoritePatentNumbers.includes(publicationNumber)) return;
+
+    const nextFavorite = !patent.isFavorite;
+    setSavingFavoritePatentNumbers(prev => [...prev, publicationNumber]);
+    setPatents(prev => prev.map(item => (
+      item.id === patent.id ? { ...item, isFavorite: nextFavorite } : item
+    )));
+
+    try {
+      if (nextFavorite) {
+        await patentAnalysisApi.addPatentFavorite({
+          ownerId: PATENT_ANALYSIS_OWNER_ID,
+          publicationNumber,
+        });
+      } else {
+        await patentAnalysisApi.removePatentFavorite({
+          ownerId: PATENT_ANALYSIS_OWNER_ID,
+          publicationNumber,
+        });
+      }
+      writeFavoriteStateToStorage(publicationNumber, nextFavorite);
+      if (!nextFavorite && appliedFavoriteOnly) {
+        setPatents(prev => prev.filter(item => item.id !== patent.id));
+        setTotalPatents(prev => Math.max(0, prev - 1));
+      }
+      void message.success(nextFavorite ? '즐겨찾기에 추가했습니다.' : '즐겨찾기에서 제거했습니다.');
+    } catch (error) {
+      setPatents(prev => prev.map(item => (
+        item.id === patent.id ? { ...item, isFavorite: patent.isFavorite } : item
+      )));
+      void message.warning(error instanceof Error ? error.message : '즐겨찾기 저장에 실패했습니다.');
+    } finally {
+      setSavingFavoritePatentNumbers(prev => prev.filter(value => value !== publicationNumber));
+    }
+  }, [appliedFavoriteOnly, message, savingFavoritePatentNumbers]);
+
+  const handleShareFavorites = React.useCallback(async () => {
+    const trimmedCc = shareCc.trim();
+    if (!trimmedCc) {
+      void message.warning('공유 대상 cc 값을 입력해 주세요.');
+      return;
+    }
+
+    setIsSharingFavorites(true);
+    try {
+      await patentAnalysisApi.sharePatentFavorites({
+        ownerId: PATENT_ANALYSIS_OWNER_ID,
+        cc: trimmedCc,
+      });
+      void message.success('즐겨찾기 공유 설정을 저장했습니다.');
+      setIsShareModalOpen(false);
+    } catch (error) {
+      void message.warning(error instanceof Error ? error.message : '즐겨찾기 공유 저장에 실패했습니다.');
+    } finally {
+      setIsSharingFavorites(false);
+    }
+  }, [message, shareCc]);
+
   const columns = [
+    {
+      title: '',
+      key: 'favorite',
+      width: 56,
+      align: 'center' as const,
+      className: 'table-center-column',
+      render: (_: unknown, record: Patent) => {
+        const isSaving = savingFavoritePatentNumbers.includes(record.patentNumber);
+        return (
+          <Button
+            type="text"
+            size="small"
+            loading={isSaving}
+            disabled={isSaving}
+            icon={isSaving ? undefined : (
+              <Star
+                size={17}
+                fill={record.isFavorite ? '#F8B84E' : 'none'}
+                color={record.isFavorite ? '#D89116' : token.colorTextTertiary}
+              />
+            )}
+            aria-label={record.isFavorite ? '즐겨찾기 제거' : '즐겨찾기 추가'}
+            onClick={(event) => void toggleFavorite(event, record)}
+          />
+        );
+      },
+    },
     {
       title: 'No.',
       key: 'rowNumber',
@@ -1145,6 +1277,21 @@ const PatentAnalysisList: React.FC = () => {
                   </Button>
                 )}
                 <Button
+                  type={favoriteOnly ? 'primary' : 'default'}
+                  icon={(
+                    <Star
+                      size={16}
+                      fill={favoriteOnly ? '#F8B84E' : 'none'}
+                      color={favoriteOnly ? '#D89116' : token.colorTextTertiary}
+                    />
+                  )}
+                  disabled={isStructureSearchMode}
+                  onClick={() => setFavoriteOnly(prev => !prev)}
+                  className="v-action-btn patent-analysis-favorite-toggle"
+                >
+                  즐겨찾기 {favoriteOnly ? 'ON' : 'OFF'}
+                </Button>
+                <Button
                   icon={showFilters ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
                   onClick={() => setShowFilters(!showFilters)}
                   disabled={isStructureSearchMode}
@@ -1163,8 +1310,20 @@ const PatentAnalysisList: React.FC = () => {
               </div>
             </Col>
             <Col flex={isResponsiveToolbar ? '1 1 100%' : 'none'}>
-              <Button 
-                type="primary" 
+              <Button
+                type="primary"
+                icon={<Share2 size={18} />}
+                className="v-action-btn"
+                style={{
+                  width: isResponsiveToolbar ? '100%' : undefined,
+                  marginRight: isResponsiveToolbar ? 0 : 8,
+                }}
+                onClick={() => setIsShareModalOpen(true)}
+              >
+                즐겨찾기 공유
+              </Button>
+              <Button
+                type="primary"
                 icon={<Plus size={18} />} 
                 className="v-action-btn"
                 style={{
@@ -1257,8 +1416,8 @@ const PatentAnalysisList: React.FC = () => {
                         format="YYYY.MM.DD"
                       />
                     )}
-                    <Button type="primary" onClick={() => applySearchFilters()}>적용</Button>
-                    <Button onClick={resetSearchFilters}>초기화</Button>
+                    <Button type="primary" icon={<Check size={15} />} onClick={() => applySearchFilters()}>적용</Button>
+                    <Button icon={<RotateCcw size={15} />} onClick={resetSearchFilters}>초기화</Button>
                   </div>
                 </Col>
               </Row>
@@ -1277,7 +1436,7 @@ const PatentAnalysisList: React.FC = () => {
                 : `${formatNumberWithComma(totalPatents)} patents`}
             </Text>
           </div>
-          {(appliedSearchText || (!appliedStructureSmiles && (appliedProjects.length > 0 || appliedPeriod !== '전체'))) && (
+          {(appliedSearchText || (!appliedStructureSmiles && (appliedProjects.length > 0 || appliedPeriod !== '전체' || appliedFavoriteOnly))) && (
             <Space wrap style={{ padding: '12px 12px 10px' }}>
               {appliedSearchText && (
                 <Tag color={appliedSearchType === 'structure' ? 'cyan' : 'blue'}>
@@ -1295,6 +1454,9 @@ const PatentAnalysisList: React.FC = () => {
                         ? `${formatDisplayDate(appliedDateParams.dateFrom)} ~ ${formatDisplayDate(appliedDateParams.dateTo)}`
                         : appliedPeriod}
                     </Tag>
+                  )}
+                  {appliedFavoriteOnly && (
+                    <Tag color="gold">즐겨찾기</Tag>
                   )}
                 </>
               )}
@@ -1401,6 +1563,32 @@ const PatentAnalysisList: React.FC = () => {
           smiles={previewStructure?.smiles}
           className="patent-analysis-structure-preview"
         />
+        <Modal
+          title="즐겨찾기 공유"
+          open={isShareModalOpen}
+          onCancel={() => setIsShareModalOpen(false)}
+          onOk={() => void handleShareFavorites()}
+          okText="공유 저장"
+          cancelText="취소"
+          confirmLoading={isSharingFavorites}
+        >
+          <Space direction="vertical" size={12} style={{ width: '100%' }}>
+            <Text type="secondary">
+              기본 즐겨찾기 폴더 /myworkspace/{PATENT_ANALYSIS_OWNER_ID}/ 를 공유합니다.
+            </Text>
+            <Input
+              value={shareCc}
+              onChange={(event) => setShareCc(event.target.value)}
+              placeholder="공유 대상 cc 값"
+            />
+            <Alert
+              type="info"
+              showIcon
+              message="cc 값은 샘플 조직 트리의 선택 id 목록입니다."
+              description="이메일 기반 선택 UX는 helper의 조직 tree id 매핑 계약 확인 후 확장합니다."
+            />
+          </Space>
+        </Modal>
       </div>
       <style>{`
         @keyframes fadeIn {
