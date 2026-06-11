@@ -8,6 +8,7 @@ import {
   Col,
   Empty,
   Input,
+  InputNumber,
   Modal,
   Pagination,
   Radio,
@@ -49,7 +50,9 @@ import {
   CompoundSearchSource,
   CompoundPatentItem,
   CompoundSearchSortOrder,
-  CompoundSearchType,
+  CompoundSearchRequestType,
+  CompoundScaffoldSearchType,
+  CompoundStructureSearchType,
 } from '../services/compoundSearchApi';
 import { formatDisplayDate, formatNumberWithComma } from '../utils/displayFormat';
 import BenzeneIcon from '../components/common/BenzeneIcon';
@@ -59,6 +62,7 @@ const { Text, Title } = Typography;
 
 type ResultViewMode = 'card' | 'full';
 type SourceFilter = 'all' | 'literature' | 'reaction' | 'reagent';
+type CompoundSearchMode = 'structure' | 'scaffold';
 type StructureSearchInputPreview = {
   smiles: string;
   molblock: string;
@@ -97,6 +101,18 @@ const FAST_SEARCH_MAX_RESULT_WINDOW = 10000;
 const SORT_FIELD_OPTIONS = [
   { label: '기본 정렬', value: '' },
   { label: 'Compound ID', value: 'id' },
+  { label: 'Molecular Weight', value: 'molecular_weight' },
+  { label: 'LogP', value: 'log_p' },
+  { label: 'TPSA', value: 'tpsa' },
+  { label: 'Heavy Atoms', value: 'heavy_atom_count' },
+  { label: 'HBA', value: 'num_h_bond_acceptors' },
+  { label: 'HBD', value: 'num_h_bond_donors' },
+  { label: 'Rotatable Bonds', value: 'num_rotatable_bonds' },
+  { label: 'Max Phase', value: 'max_phase' },
+];
+
+const RANGE_FILTER_FIELD_OPTIONS = [
+  { label: '필터 없음', value: '' },
   { label: 'Molecular Weight', value: 'molecular_weight' },
   { label: 'LogP', value: 'log_p' },
   { label: 'TPSA', value: 'tpsa' },
@@ -605,9 +621,14 @@ const UniversalSearch: React.FC = () => {
   const [query, setQuery] = useState('');
   const [engine, setEngine] = useState<CompoundSearchEngine>('fast');
   const [inputType, setInputType] = useState<CompoundSearchInputType>('molblock');
-  const [searchType, setSearchType] = useState<CompoundSearchType>('substructure');
+  const [searchMode, setSearchMode] = useState<CompoundSearchMode>('structure');
+  const [structureSearchType, setStructureSearchType] = useState<CompoundStructureSearchType>('substructure');
+  const [scaffoldSearchType, setScaffoldSearchType] = useState<CompoundScaffoldSearchType>('pattern');
   const [sortField, setSortField] = useState('');
   const [sortOrder, setSortOrder] = useState<CompoundSearchSortOrder>('desc');
+  const [rangeFilterField, setRangeFilterField] = useState('');
+  const [rangeFilterMin, setRangeFilterMin] = useState<number | null>(null);
+  const [rangeFilterMax, setRangeFilterMax] = useState<number | null>(null);
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>('all');
   const [viewMode, setViewMode] = useState<ResultViewMode>('card');
   const [showFilters, setShowFilters] = useState(false);
@@ -633,6 +654,8 @@ const UniversalSearch: React.FC = () => {
   });
   const layoutPreset = useMemo(() => getPatentAnalysisLayoutPreset(viewportWidth), [viewportWidth]);
   const isResponsiveToolbar = viewportWidth <= 1100;
+  const isScaffoldSearchType = searchMode === 'scaffold';
+  const requestSearchType: CompoundSearchRequestType = isScaffoldSearchType ? 'scaffold' : structureSearchType;
 
   useEffect(() => {
     setHeaderContent(<PageHeaderBreadcrumb items={[{ label: '통합검색' }]} />);
@@ -718,12 +741,16 @@ const UniversalSearch: React.FC = () => {
       const response = await compoundSearchApi.search({
         engine,
         input_type: inputType,
-        search_type: searchType,
+        search_type: requestSearchType,
+        scaffold_type: isScaffoldSearchType ? scaffoldSearchType : null,
         query: trimmedQuery,
         page,
         size,
         sort_field: sortField || null,
         sort_order: sortOrder,
+        filter_field: rangeFilterField || null,
+        filter_min_value: rangeFilterField ? rangeFilterMin : null,
+        filter_max_value: rangeFilterField ? rangeFilterMax : null,
       }, controller.signal);
 
       setItems(response.items ?? []);
@@ -739,7 +766,22 @@ const UniversalSearch: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [currentPage, engine, getSearchQuery, inputType, message, pageSize, searchType, sortField, sortOrder]);
+  }, [
+    currentPage,
+    engine,
+    getSearchQuery,
+    inputType,
+    isScaffoldSearchType,
+    message,
+    pageSize,
+    rangeFilterField,
+    rangeFilterMax,
+    rangeFilterMin,
+    requestSearchType,
+    scaffoldSearchType,
+    sortField,
+    sortOrder,
+  ]);
 
   const handleSubmit = () => {
     setCurrentPage(1);
@@ -863,7 +905,15 @@ const UniversalSearch: React.FC = () => {
                     { label: 'Fast', value: 'fast' },
                   ]}
                   value={engine}
-                  onChange={(value) => setEngine(value as CompoundSearchEngine)}
+                  onChange={(value) => {
+                    const nextEngine = value as CompoundSearchEngine;
+                    if (nextEngine === 'advanced' && isScaffoldSearchType) {
+                      void message.warning('Scaffold 검색은 Fast 엔진에서만 지원됩니다.');
+                      setEngine('fast');
+                      return;
+                    }
+                    setEngine(nextEngine);
+                  }}
                 />
                 <Input
                   className="v-search-input compound-search-query-input"
@@ -954,19 +1004,55 @@ const UniversalSearch: React.FC = () => {
               />
             </div>
             <div className="compound-search-filter-item">
-              <Text strong>검색 방식</Text>
+              <Text strong>검색 대상</Text>
               <Radio.Group
                 optionType="button"
                 buttonStyle="solid"
-                value={searchType}
-                onChange={(event) => setSearchType(event.target.value)}
+                value={searchMode}
+                onChange={(event) => {
+                  const nextMode = event.target.value as CompoundSearchMode;
+                  setSearchMode(nextMode);
+                  if (nextMode === 'scaffold') {
+                    setEngine('fast');
+                  }
+                }}
                 options={[
-                  { label: 'Substructure', value: 'substructure' },
-                  { label: 'Similarity', value: 'similarity' },
-                  { label: 'Identical', value: 'identical' },
+                  { label: 'Structure', value: 'structure' },
+                  { label: 'Scaffold', value: 'scaffold' },
                 ]}
               />
             </div>
+            {searchMode === 'structure' ? (
+              <div className="compound-search-filter-item">
+                <Text strong>검색 방식</Text>
+                <Radio.Group
+                  optionType="button"
+                  buttonStyle="solid"
+                  value={structureSearchType}
+                  onChange={(event) => setStructureSearchType(event.target.value as CompoundStructureSearchType)}
+                  options={[
+                    { label: 'Substructure', value: 'substructure' },
+                    { label: 'Similarity', value: 'similarity' },
+                    { label: 'Identical', value: 'identical' },
+                  ]}
+                />
+              </div>
+            ) : (
+              <div className="compound-search-filter-item">
+                <Text strong>Scaffold 기준</Text>
+                <Radio.Group
+                  optionType="button"
+                  buttonStyle="solid"
+                  value={scaffoldSearchType}
+                  onChange={(event) => setScaffoldSearchType(event.target.value as CompoundScaffoldSearchType)}
+                  options={[
+                    { label: 'Pattern', value: 'pattern' },
+                    { label: 'BM Scaffold', value: 'bm_scaffold' },
+                    { label: 'CSK Scaffold', value: 'csk_scaffold' },
+                  ]}
+                />
+              </div>
+            )}
             <div className="compound-search-filter-item">
               <Text strong>Source filter</Text>
               <Select
@@ -975,6 +1061,41 @@ const UniversalSearch: React.FC = () => {
                 onChange={setSourceFilter}
                 style={{ width: 132 }}
               />
+            </div>
+            <div className="compound-search-filter-item">
+              <Text strong>값 범위 기준</Text>
+              <Space.Compact>
+                <Select
+                  value={rangeFilterField}
+                  options={RANGE_FILTER_FIELD_OPTIONS}
+                  onChange={(value) => {
+                    setRangeFilterField(value);
+                    if (!value) {
+                      setRangeFilterMin(null);
+                      setRangeFilterMax(null);
+                    }
+                  }}
+                  style={{ width: 164 }}
+                />
+                <InputNumber
+                  value={rangeFilterMin}
+                  placeholder="Min"
+                  disabled={!rangeFilterField}
+                  controls={false}
+                  onChange={(value) => setRangeFilterMin(typeof value === 'number' ? value : null)}
+                  style={{ width: 92 }}
+                  className="compound-search-range-input"
+                />
+                <InputNumber
+                  value={rangeFilterMax}
+                  placeholder="Max"
+                  disabled={!rangeFilterField}
+                  controls={false}
+                  onChange={(value) => setRangeFilterMax(typeof value === 'number' ? value : null)}
+                  style={{ width: 92 }}
+                  className="compound-search-range-input"
+                />
+              </Space.Compact>
             </div>
             <div className="compound-search-filter-item">
               <Text strong>정렬</Text>
@@ -1002,9 +1123,14 @@ const UniversalSearch: React.FC = () => {
                 setQuery('');
                 setEngine('fast');
                 setInputType('molblock');
-                setSearchType('substructure');
+                setSearchMode('structure');
+                setStructureSearchType('substructure');
+                setScaffoldSearchType('pattern');
                 setSortField('');
                 setSortOrder('desc');
+                setRangeFilterField('');
+                setRangeFilterMin(null);
+                setRangeFilterMax(null);
                 setSourceFilter('all');
                 setStructureInputPreview(null);
                 setItems([]);
@@ -1158,7 +1284,8 @@ const UniversalSearch: React.FC = () => {
           const smiles = data.smiles?.trim();
           const molblock = data.molfile?.trim() || data.molV2000?.trim() || data.molV3000?.trim() || '';
           setQuery(smiles || molblock);
-          setSearchType('substructure');
+          setSearchMode('structure');
+          setStructureSearchType('substructure');
           setStructureInputPreview({
             smiles: smiles || '',
             molblock,

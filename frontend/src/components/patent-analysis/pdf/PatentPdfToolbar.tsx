@@ -18,7 +18,7 @@ type PatentPdfToolbarProps = {
   totalPages: number;
   onToggleFit: () => void;
   onSearchQueryChange: (value: string) => void;
-  onRunSearch: () => void;
+  onRunSearch: (value?: string) => void;
   onClearSearch: () => void;
   onMoveSearchMatch: (direction: number) => void;
   onRotateLeft: () => void;
@@ -56,6 +56,8 @@ const PatentPdfToolbar: React.FC<PatentPdfToolbarProps> = ({
   onToggleThumbnail,
 }) => {
   const [pageInput, setPageInput] = React.useState<number | null>(currentPage);
+  // 한글 등 IME 조합 중인지 추적. 조합 중에는 검색을 실행하지 않고, compositionEnd 시점에 실행한다.
+  const isComposingRef = React.useRef(false);
 
   React.useEffect(() => {
     setPageInput(currentPage);
@@ -102,14 +104,27 @@ const PatentPdfToolbar: React.FC<PatentPdfToolbarProps> = ({
       <Input
         allowClear
         value={searchQuery}
-        onChange={(event) => onSearchQueryChange(event.target.value)}
-        onPressEnter={onRunSearch}
+        onChange={(event) => {
+          const value = event.target.value;
+          onSearchQueryChange(value); // 표시값은 항상 갱신
+          // 영어/숫자 등 조합이 없는 입력은 기존처럼 라이브 검색. 한글 조합 중에는 건너뛴다.
+          if (!isComposingRef.current) {
+            onRunSearch(value);
+          }
+        }}
+        onCompositionStart={() => { isComposingRef.current = true; }}
+        onCompositionEnd={(event) => {
+          isComposingRef.current = false;
+          // 한글 조합 완료 시점의 최종 값으로 검색 실행
+          onRunSearch((event.target as HTMLInputElement).value);
+        }}
+        onPressEnter={(event) => onRunSearch((event.target as HTMLInputElement).value)}
         placeholder="PDF 텍스트 조회"
         style={{ flex: '1 1 180px', minWidth: 160, maxWidth: 260 }}
         size="small"
       />
 
-      <Button size="small" type="primary" onClick={onRunSearch}>
+      <Button size="small" type="primary" onClick={() => onRunSearch(searchQuery)}>
         Search
       </Button>
 

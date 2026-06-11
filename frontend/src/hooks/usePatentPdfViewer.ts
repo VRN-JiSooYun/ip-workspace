@@ -140,6 +140,7 @@ export const usePatentPdfViewer = ({
   const lastRebumpTargetRef = React.useRef<string>('');
   const pdfNavigationFrameRef = React.useRef<number | null>(null);
   const pdfNavigationTimeoutsRef = React.useRef<number[]>([]);
+  const highlightLayoutTimerRef = React.useRef<number | null>(null);
 
   const [pdfCurrentPage, setPdfCurrentPage] = React.useState<number>(1);
   const [pdfTotalPages, setPdfTotalPages] = React.useState<number>(0);
@@ -155,6 +156,8 @@ export const usePatentPdfViewer = ({
   const [selectedDataHighlightId, setSelectedDataHighlightId] = React.useState<string | null>(null);
   const [pendingHighlight, setPendingHighlight] = React.useState<PdfHighlightTarget | null>(null);
   const [activeHighlightRevision, setActiveHighlightRevision] = React.useState(0);
+  // 페이지 폭/스케일이 확정·변경될 때 하이라이트를 다시 레이아웃하기 위한 리비전.
+  const [highlightLayoutRevision, setHighlightLayoutRevision] = React.useState(0);
   const [pdfPageSizes, setPdfPageSizes] = React.useState<Record<number, PdfPageSize>>({});
 
   const debugLog = React.useCallback((event: string, payload: Record<string, unknown>) => {
@@ -263,10 +266,13 @@ export const usePatentPdfViewer = ({
       return;
     }
 
-    utils.search(query, {
+    // 한글 등 유니코드는 NFC로 정규화해 PDF 텍스트(대개 NFC)와 매칭이 어긋나지 않게 한다.
+    const normalizedQuery = query.normalize('NFC');
+
+    utils.search(normalizedQuery, {
       highlightAll: true,
       caseSensitive: false,
-      phraseSearch: true,
+      matchDiacritics: false,
     });
   }, []);
 
@@ -310,6 +316,53 @@ export const usePatentPdfViewer = ({
       eventBus.off('updatefindcontrolstate', onUpdateFindControlState);
     };
   }, [highlighterUtilsRef.current]);
+
+  // 페이지 폭/스케일/페이지 렌더 시 하이라이트를 다시 레이아웃하도록 리비전을 bump한다.
+  // trailing 디바운스: 스크롤 중 연속 이벤트에는 재계산을 미루고, 멈춘 뒤 한 번만 재정렬해 버벅임을 막는다.
+  const bumpHighlightLayout = React.useCallback(() => {
+    if (highlightLayoutTimerRef.current !== null) {
+      window.clearTimeout(highlightLayoutTimerRef.current);
+    }
+    highlightLayoutTimerRef.current = window.setTimeout(() => {
+      highlightLayoutTimerRef.current = null;
+      setHighlightLayoutRevision((prev) => prev + 1);
+    }, 150);
+  }, []);
+
+  React.useEffect(() => () => {
+    if (highlightLayoutTimerRef.current !== null) {
+      window.clearTimeout(highlightLayoutTimerRef.current);
+      highlightLayoutTimerRef.current = null;
+    }
+  }, []);
+
+  // PDF 뷰어 컨테이너 폭이 변할 때(초기 진입 시 레이아웃 정착, split 드래그, 썸네일 토글, 창 리사이즈 등) 재레이아웃.
+  React.useEffect(() => {
+    const container = pdfViewerContainerRef.current;
+    if (!container || typeof ResizeObserver === 'undefined') return;
+
+    const observer = new ResizeObserver(() => {
+      bumpHighlightLayout();
+    });
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, [bumpHighlightLayout, isPdfDocumentReady]);
+
+  // 재레이아웃이 필요한 pdf.js 이벤트 구독:
+  // - scalechanging/rotationchanging: page-width 스케일 확정/변경
+  // - textlayerrendered/pagerendered: 가상화로 스크롤 중 새 페이지가 렌더될 때(그 페이지 textLayer가 최종 크기에 도달하는 시점)
+  React.useEffect(() => {
+    const utils = highlighterUtilsRef.current;
+    const eventBus = (utils as any)?.getEventBus?.();
+    if (!eventBus) return;
+
+    const onRelayout = () => bumpHighlightLayout();
+    const events = ['scalechanging', 'rotationchanging', 'textlayerrendered', 'pagerendered'];
+    events.forEach((name) => eventBus.on(name, onRelayout));
+    return () => {
+      events.forEach((name) => eventBus.off(name, onRelayout));
+    };
+  }, [bumpHighlightLayout, isHighlighterReady]);
 
   const clearPdfNavigationTimers = React.useCallback(() => {
     if (pdfNavigationFrameRef.current !== null) {
@@ -474,7 +527,8 @@ export const usePatentPdfViewer = ({
         comment: { text: '', emoji: '' },
       };
     }).filter(Boolean)
-  ), [bboxToPosition, dataHighlightTargets, selectedDataHighlightId]);
+    // highlightLayoutRevision: 페이지 폭/스케일 확정·변경 시 새 객체 참조로 재생성 → 라이브러리가 최종 페이지 크기로 위치 재계산.
+  ), [bboxToPosition, dataHighlightTargets, selectedDataHighlightId, highlightLayoutRevision]);
 
   React.useEffect(() => {
     if (!activeBBox || isRebumpingRef.current) return;
@@ -533,6 +587,7 @@ export const usePatentPdfViewer = ({
     setSelectedDataHighlightId,
     // Search Handlers
     searchQuery,
+    setSearchQuery,
     matchCount,
     searchPdf,
     findNext,

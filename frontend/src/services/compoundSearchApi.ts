@@ -6,18 +6,25 @@ type RuntimeWindow = Window & {
 
 export type CompoundSearchEngine = 'advanced' | 'fast';
 export type CompoundSearchInputType = 'smiles' | 'molblock';
-export type CompoundSearchType = 'identical' | 'substructure' | 'similarity';
+export type CompoundStructureSearchType = 'identical' | 'substructure' | 'similarity';
+export type CompoundScaffoldSearchType = 'bm_scaffold' | 'csk_scaffold' | 'pattern';
+export type CompoundSearchType = CompoundStructureSearchType | CompoundScaffoldSearchType;
+export type CompoundSearchRequestType = CompoundStructureSearchType | 'scaffold';
 export type CompoundSearchSortOrder = 'asc' | 'desc';
 
 export type CompoundSearchRequest = {
   engine: CompoundSearchEngine;
   input_type: CompoundSearchInputType;
-  search_type: CompoundSearchType;
+  search_type: CompoundSearchRequestType;
+  scaffold_type?: CompoundScaffoldSearchType | null;
   query: string;
   page: number;
   size: number;
   sort_field?: string | null;
   sort_order?: CompoundSearchSortOrder;
+  filter_field?: string | null;
+  filter_min_value?: number | null;
+  filter_max_value?: number | null;
 };
 
 export type CompoundSearchSource = {

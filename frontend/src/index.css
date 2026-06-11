@@ -683,6 +683,24 @@ span.ant-typography {
   line-height: 20px;
 }
 
+.compound-search-range-input.ant-input-number {
+  display: inline-flex;
+  align-items: center;
+}
+
+.compound-search-range-input .ant-input-number-input-wrap {
+  display: flex;
+  align-items: center;
+  height: 100%;
+}
+
+.compound-search-range-input .ant-input-number-input {
+  height: auto;
+  line-height: 1.5715;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
 .compound-search-result-card {
   overflow: hidden;
 }

@@ -1320,8 +1320,8 @@ const PatentAnalysisDetail: React.FC = () => {
               currentPage={pdfViewer.pdfCurrentPage}
               totalPages={pdfViewer.pdfTotalPages}
               onToggleFit={fitPageToScreen}
-              onSearchQueryChange={pdfViewer.searchPdf}
-              onRunSearch={() => {}}
+              onSearchQueryChange={pdfViewer.setSearchQuery}
+              onRunSearch={(value) => pdfViewer.searchPdf(value ?? pdfViewer.searchQuery)}
               onClearSearch={() => pdfViewer.searchPdf('')}
               onMoveSearchMatch={(dir) => dir > 0 ? pdfViewer.findNext() : pdfViewer.findPrevious()}
               onRotateLeft={() => pdfViewer.setPdfRotation(r => (r - 90 + 360) % 360)}
