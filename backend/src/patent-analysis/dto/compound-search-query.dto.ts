@@ -1,5 +1,5 @@
 import { Transform } from 'class-transformer';
-import { IsInt, IsOptional, IsString, Min } from 'class-validator';
+import { IsInt, IsNumber, IsOptional, IsString, Min } from 'class-validator';
 
 export class CompoundSearchQueryDto {
   @IsOptional()
@@ -32,6 +32,24 @@ export class CompoundSearchQueryDto {
   @IsOptional()
   @IsString()
   operation = 'GET-ELASTIC-COMPOUND-LIST';
+
+  @IsOptional()
+  @IsString()
+  orderBy?: string;
+
+  @IsOptional()
+  @IsString()
+  rangeField?: string;
+
+  @IsOptional()
+  @Transform(({ value }) => value === undefined || value === '' ? undefined : Number(value))
+  @IsNumber()
+  rangeMin?: number;
+
+  @IsOptional()
+  @Transform(({ value }) => value === undefined || value === '' ? undefined : Number(value))
+  @IsNumber()
+  rangeMax?: number;
 
   @IsOptional()
   @Transform(({ value }) => Number(value))

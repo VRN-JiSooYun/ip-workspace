@@ -11,3 +11,4 @@ trigger: always_on
 - 모든 문서는 '한국어'로 작성합니다.
 - node, python, python3 빌드 환경은 로컬에서 실해하지말고 docker를 통해 실행합니다.
 - UI/UX 페이지 디자인 할때는 frontend 전체적인 통일성을 유지합니다.
+- compound_search/, rdkit/은 수정하지마.

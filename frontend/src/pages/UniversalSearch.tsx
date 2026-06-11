@@ -50,7 +50,6 @@ import {
   CompoundSearchSource,
   CompoundPatentItem,
   CompoundSearchSortOrder,
-  CompoundSearchRequestType,
   CompoundScaffoldSearchType,
   CompoundStructureSearchType,
 } from '../services/compoundSearchApi';
@@ -162,6 +161,30 @@ const getMaxAccessiblePage = (
   size: number,
   searchEngine: CompoundSearchEngine,
 ) => Math.max(1, Math.ceil(getPaginationTotal(total, size, searchEngine) / size));
+
+const mapScaffoldSearchTypeToHelperType = (value: CompoundScaffoldSearchType) => {
+  if (value === 'bm_scaffold') return 'bm';
+  if (value === 'csk_scaffold') return 'csk';
+  return 'pattern';
+};
+
+const mapBackendCompoundRows = (rows: Record<string, any>[]): CompoundSearchItem[] => (
+  rows.map((row) => {
+    const patentCount = Number(row.patentCount ?? row.numPatent ?? row.num_patent ?? 0);
+    return {
+      ...row,
+      id: row.compoundId ?? row.compound_id ?? row.id,
+      compound_id: row.compoundId ?? row.compound_id ?? row.id,
+      canonical_smiles: row.smiles ?? row.canonical_smiles,
+      molecular_weight: row.mw ?? row.molecular_weight,
+      log_p: row.logP ?? row.log_p,
+      tpsa: row.tpsa,
+      sources: patentCount > 0
+        ? [{ source_type: 'patent', count: patentCount }]
+        : row.sources,
+    };
+  })
+);
 
 const getCompoundId = (item: CompoundSearchItem) =>
   String(item.id ?? item.compound_id ?? item._id ?? '-');
@@ -655,7 +678,8 @@ const UniversalSearch: React.FC = () => {
   const layoutPreset = useMemo(() => getPatentAnalysisLayoutPreset(viewportWidth), [viewportWidth]);
   const isResponsiveToolbar = viewportWidth <= 1100;
   const isScaffoldSearchType = searchMode === 'scaffold';
-  const requestSearchType: CompoundSearchRequestType = isScaffoldSearchType ? 'scaffold' : structureSearchType;
+  const hasStructureSmiles = inputType === 'smiles' && Boolean((structureInputPreview?.smiles || query).trim());
+  const canUseScaffoldSearch = hasStructureSmiles;
 
   useEffect(() => {
     setHeaderContent(<PageHeaderBreadcrumb items={[{ label: '통합검색' }]} />);
@@ -667,6 +691,12 @@ const UniversalSearch: React.FC = () => {
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
   }, []);
+
+  useEffect(() => {
+    if (searchMode === 'scaffold' && !canUseScaffoldSearch) {
+      setSearchMode('structure');
+    }
+  }, [canUseScaffoldSearch, searchMode]);
 
   const filteredItems = useMemo(() => {
     if (sourceFilter === 'all') return items;
@@ -738,11 +768,41 @@ const UniversalSearch: React.FC = () => {
     setHasSearched(true);
 
     try {
+      if (isScaffoldSearchType) {
+        const scaffoldQuery = inputType === 'smiles'
+          ? (structureInputPreview?.smiles?.trim() || trimmedQuery)
+          : '';
+        if (!scaffoldQuery) {
+          void message.warning('Scaffold 검색에는 SMILES가 필요합니다.');
+          setIsLoading(false);
+          return;
+        }
+
+        const response = await patentAnalysisApi.searchCompounds({
+          smiles: scaffoldQuery,
+          type: mapScaffoldSearchTypeToHelperType(scaffoldSearchType),
+          sim: 70,
+          page,
+          size,
+          compoundPageSize: size,
+          orderBy: sortField ? `${sortField}#${sortOrder}` : undefined,
+          rangeField: rangeFilterField || undefined,
+          rangeMin: rangeFilterField && rangeFilterMin !== null ? rangeFilterMin : undefined,
+          rangeMax: rangeFilterField && rangeFilterMax !== null ? rangeFilterMax : undefined,
+        }, { signal: controller.signal });
+
+        setItems(mapBackendCompoundRows(response.items ?? []));
+        setTotalCount(Number(response.totalCount) || 0);
+        setCurrentPage(page);
+        setPageSize(size);
+        setSelectedIds([]);
+        return;
+      }
+
       const response = await compoundSearchApi.search({
         engine,
         input_type: inputType,
-        search_type: requestSearchType,
-        scaffold_type: isScaffoldSearchType ? scaffoldSearchType : null,
+        search_type: structureSearchType,
         query: trimmedQuery,
         page,
         size,
@@ -777,10 +837,11 @@ const UniversalSearch: React.FC = () => {
     rangeFilterField,
     rangeFilterMax,
     rangeFilterMin,
-    requestSearchType,
     scaffoldSearchType,
     sortField,
     sortOrder,
+    structureSearchType,
+    structureInputPreview?.smiles,
   ]);
 
   const handleSubmit = () => {
@@ -996,7 +1057,13 @@ const UniversalSearch: React.FC = () => {
                 optionType="button"
                 buttonStyle="solid"
                 value={inputType}
-                onChange={(event) => setInputType(event.target.value)}
+                onChange={(event) => {
+                  const nextInputType = event.target.value as CompoundSearchInputType;
+                  setInputType(nextInputType);
+                  if (nextInputType === 'molblock') {
+                    setSearchMode('structure');
+                  }
+                }}
                 options={[
                   { label: 'SMILES', value: 'smiles' },
                   { label: 'Molblock', value: 'molblock' },
@@ -1011,6 +1078,11 @@ const UniversalSearch: React.FC = () => {
                 value={searchMode}
                 onChange={(event) => {
                   const nextMode = event.target.value as CompoundSearchMode;
+                  if (nextMode === 'scaffold' && !canUseScaffoldSearch) {
+                    void message.warning('Scaffold 검색에는 SMILES가 필요합니다.');
+                    setSearchMode('structure');
+                    return;
+                  }
                   setSearchMode(nextMode);
                   if (nextMode === 'scaffold') {
                     setEngine('fast');
@@ -1018,7 +1090,15 @@ const UniversalSearch: React.FC = () => {
                 }}
                 options={[
                   { label: 'Structure', value: 'structure' },
-                  { label: 'Scaffold', value: 'scaffold' },
+                  {
+                    label: (
+                      <Tooltip title={canUseScaffoldSearch ? undefined : 'Scaffold 검색에는 SMILES가 필요합니다.'}>
+                        <span>Scaffold</span>
+                      </Tooltip>
+                    ),
+                    value: 'scaffold',
+                    disabled: !canUseScaffoldSearch,
+                  },
                 ]}
               />
             </div>

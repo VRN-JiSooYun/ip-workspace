@@ -9,14 +9,12 @@ export type CompoundSearchInputType = 'smiles' | 'molblock';
 export type CompoundStructureSearchType = 'identical' | 'substructure' | 'similarity';
 export type CompoundScaffoldSearchType = 'bm_scaffold' | 'csk_scaffold' | 'pattern';
 export type CompoundSearchType = CompoundStructureSearchType | CompoundScaffoldSearchType;
-export type CompoundSearchRequestType = CompoundStructureSearchType | 'scaffold';
 export type CompoundSearchSortOrder = 'asc' | 'desc';
 
 export type CompoundSearchRequest = {
   engine: CompoundSearchEngine;
   input_type: CompoundSearchInputType;
-  search_type: CompoundSearchRequestType;
-  scaffold_type?: CompoundScaffoldSearchType | null;
+  search_type: CompoundStructureSearchType;
   query: string;
   page: number;
   size: number;

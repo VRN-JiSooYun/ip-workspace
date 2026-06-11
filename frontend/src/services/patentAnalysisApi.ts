@@ -297,6 +297,10 @@ export const patentAnalysisApi = {
     operation?: string;
     page?: number;
     size?: number;
+    orderBy?: string;
+    rangeField?: string;
+    rangeMin?: number;
+    rangeMax?: number;
     patentPageSize?: number;
     compoundPageSize?: number;
     ownerId?: string;

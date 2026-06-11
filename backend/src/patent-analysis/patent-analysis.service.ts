@@ -84,6 +84,15 @@ const asRecord = (value: unknown): Record<string, unknown> | null => {
   return value as Record<string, unknown>;
 };
 
+const buildCompoundRangeFilterValue = (min?: number, max?: number): string | undefined => {
+  const hasMin = typeof min === 'number' && Number.isFinite(min);
+  const hasMax = typeof max === 'number' && Number.isFinite(max);
+  if (!hasMin && !hasMax) return undefined;
+  const lower = hasMin ? min : -1000000000000;
+  const upper = hasMax ? max : 1000000000000;
+  return `${lower}#${upper}`;
+};
+
 const buildPatentListFilters = (query: PatentListQueryDto) => {
   const filterDict: Record<string, HelperFilter[]> = {};
   const conjunctions: string[] = [];
@@ -527,6 +536,7 @@ export class PatentAnalysisService {
     page: number,
     size: number,
   ): Promise<CompoundSearchResult> {
+    const rangeFilterValue = buildCompoundRangeFilterValue(query.rangeMin, query.rangeMax);
     return this.helperClient.call<CompoundSearchResult>({
       wasm: query.wasm,
       smiles: query.smiles,
@@ -536,6 +546,8 @@ export class PatentAnalysisService {
       operation,
       page,
       size,
+      order_by: query.orderBy,
+      ...(query.rangeField && rangeFilterValue ? { [query.rangeField]: rangeFilterValue } : {}),
       owner_id: query.ownerId,
     });
   }
