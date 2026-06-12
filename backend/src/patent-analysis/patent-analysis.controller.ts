@@ -57,14 +57,6 @@ export class PatentAnalysisController {
     return this.patentAnalysisService.refreshPatentInsightStatistics();
   }
 
-  @Get(':publicationNumber')
-  getPatentDetail(
-    @Param('publicationNumber') publicationNumber: string,
-    @Query() query: PatentDetailQueryDto,
-  ) {
-    return this.patentAnalysisService.getPatentDetail(publicationNumber, query);
-  }
-
   @Get(':publicationNumber/pdf')
   async downloadPatentPdf(
     @Param('publicationNumber') publicationNumber: string,
@@ -83,11 +75,42 @@ export class PatentAnalysisController {
     helperResponse.data.pipe(response);
   }
 
+  @Get(':publicationNumber/embodiments/excel')
+  async downloadEmbodimentsExcel(
+    @Param('publicationNumber') publicationNumber: string,
+    @Query() query: PatentDetailQueryDto,
+    @Res() response: Response,
+  ) {
+    const helperResponse = await this.patentAnalysisService.downloadEmbodimentsExcel(
+      publicationNumber,
+      query.bioactivityType,
+      query,
+    );
+    const suffix = query.bioactivityType === 'modified_bioactivity' ? 'clean_data' : 'raw_data';
+    const filename = `${publicationNumber.replace(/[^A-Za-z0-9_-]/g, '_')}_${suffix}_embodiments.xlsx`;
+    const contentTypeHeader = helperResponse.headers['content-type'];
+    const contentType = typeof contentTypeHeader === 'string'
+      ? contentTypeHeader
+      : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+
+    response.setHeader('Content-Type', contentType);
+    response.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    helperResponse.data.pipe(response);
+  }
+
   @Get(':publicationNumber/embodiments')
   getEmbodiments(
     @Param('publicationNumber') publicationNumber: string,
     @Query() query: EmbodimentListQueryDto,
   ) {
     return this.patentAnalysisService.getEmbodiments(publicationNumber, query);
+  }
+
+  @Get(':publicationNumber')
+  getPatentDetail(
+    @Param('publicationNumber') publicationNumber: string,
+    @Query() query: PatentDetailQueryDto,
+  ) {
+    return this.patentAnalysisService.getPatentDetail(publicationNumber, query);
   }
 }

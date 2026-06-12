@@ -35,6 +35,7 @@ import {
   Layers,
   FileSpreadsheet,
   Copy,
+  Download,
   Image as ImageIcon,
   Star,
 } from 'lucide-react';
@@ -456,6 +457,14 @@ const PatentAnalysisDetail: React.FC = () => {
       : [],
     [patentResult.patent_compound],
   );
+  const rawDataExcelRowCount = React.useMemo(
+    () => (Array.isArray(patentResult.patent_compound) ? patentResult.patent_compound.length : 0),
+    [patentResult.patent_compound],
+  );
+  const cleanDataExcelRowCount = React.useMemo(
+    () => buildCleanRowsFromPatentResult(patentResult).length,
+    [patentResult],
+  );
 
   const { setHeaderContent } = useUIStore();
 
@@ -849,6 +858,42 @@ const PatentAnalysisDetail: React.FC = () => {
     link.click();
     document.body.removeChild(link);
   }, [browserPdfDocument, displayedPatent?.patentNumber, message]);
+
+  const handleEmbodimentsExcelDownload = React.useCallback(async (
+    bioactivityType: 'bioactivity' | 'modified_bioactivity',
+  ) => {
+    const publicationNumber = displayedPatent?.patentNumber;
+    if (!publicationNumber) {
+      message.error('다운로드할 특허 번호가 없습니다.');
+      return;
+    }
+    const rowCount = bioactivityType === 'modified_bioactivity'
+      ? cleanDataExcelRowCount
+      : rawDataExcelRowCount;
+    if (rowCount === 0) {
+      message.warning('다운로드할 데이터가 없습니다.');
+      return;
+    }
+
+    const normalizedPublicationNumber = normalizePublicationNumber(publicationNumber);
+    const suffix = bioactivityType === 'modified_bioactivity' ? 'clean_data' : 'raw_data';
+    try {
+      const { blob, filename } = await patentAnalysisApi.downloadEmbodimentsExcel(normalizedPublicationNumber, {
+        ownerId: PATENT_ANALYSIS_OWNER_ID,
+        bioactivityType,
+      });
+      const objectUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = objectUrl;
+      link.download = filename ?? `${normalizedPublicationNumber}_${suffix}_embodiments.xlsx`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(objectUrl);
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : 'Excel 다운로드에 실패했습니다.');
+    }
+  }, [cleanDataExcelRowCount, displayedPatent?.patentNumber, message, rawDataExcelRowCount]);
 
   const toggleFavoritePatent = React.useCallback(async () => {
     const publicationNumber = displayedPatent?.patentNumber;
@@ -1765,7 +1810,15 @@ const PatentAnalysisDetail: React.FC = () => {
                                 Card
                               </Button>
                             </div>
-                            <Button size="small">Export CSV</Button>
+                            <Button
+                              size="small"
+                              icon={<Download size={14} />}
+                              disabled={rawDataExcelRowCount === 0}
+                              title={rawDataExcelRowCount === 0 ? '다운로드할 Raw Data가 없습니다.' : undefined}
+                              onClick={() => void handleEmbodimentsExcelDownload('bioactivity')}
+                            >
+                              Excel
+                            </Button>
                             <Button size="small" type="primary">Filter</Button>
                           </Space>
                         </div>
@@ -2168,7 +2221,15 @@ const PatentAnalysisDetail: React.FC = () => {
                                 Card
                               </Button>
                             </div>
-                            <Button size="small">Export CSV</Button>
+                            <Button
+                              size="small"
+                              icon={<Download size={14} />}
+                              disabled={cleanDataExcelRowCount === 0}
+                              title={cleanDataExcelRowCount === 0 ? '다운로드할 Clean Data가 없습니다.' : undefined}
+                              onClick={() => void handleEmbodimentsExcelDownload('modified_bioactivity')}
+                            >
+                              Excel
+                            </Button>
                             <Button size="small" type="primary">Filter</Button>
                             <Button size="small" type="default">Clean Data 요청</Button>
                           </Space>
@@ -2249,15 +2310,6 @@ const PatentAnalysisDetail: React.FC = () => {
                             }));
 
                             const columns = [
-                              {
-                                title: '',
-                                key: 'select',
-                                width: 44,
-                                fixed: 'left' as const,
-                                align: 'center' as const,
-                                className: 'table-center-column',
-                                render: () => <input type="checkbox" />
-                              },
                               {
                                 title: 'pin',
                                 key: 'pin',

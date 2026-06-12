@@ -69,7 +69,7 @@ const STRUCTURE_SEARCH_TABLE_SCROLL_X =
 const DEFAULT_PATENT_ORDER = JSON.stringify([{ column_name: 'p.publication_date', order: 'desc' }]);
 const PATENT_OFFICE_FILTER_OPTIONS = ['ALL', 'WIPO', 'USPTO', 'KIPO', 'EPO'];
 const STATUS_FILTER_OPTIONS = ['ALL', '분석중', '완료'];
-const RECENT_PROJECTS = ['EGFR', 'PD-1', 'PD-L1', 'KRAS', 'HER2', 'CD3', 'CD19', 'TNF', 'VEGF', 'BTK', 'AKT1', 'MET', 'FGFR3', 'PKMYT1', 'WEE1'];
+const RECENT_PROJECTS = ['EGFR', 'PD-1', 'PD-L1', 'KRAS', 'HER2', 'CD3', 'CD19', 'TNF', 'VEGF', 'BTK', 'AKT1', 'MET', 'FGFR3', 'PKMYT1', 'WEE1', 'VRK1', 'UBP1'];
 const PATENT_ANALYSIS_LIST_STATE_KEY = 'patent-analysis-list-state:v1';
 const SEARCH_TYPE_OPTIONS = [
   { label: '특허 제목', value: 'title' },

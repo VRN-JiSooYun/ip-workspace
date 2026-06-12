@@ -156,9 +156,10 @@ const buildPatentListFilters = (query: PatentListQueryDto) => {
   if (targets.length > 0) {
     addGroup(targets.map((target, index) => ({
       filter_column: 'str#target',
-      filter_condition: "%s='%s'",
+      filter_condition: "%s ilike '%%%s%%'",
       filter_value: escapeFilterValue(target),
-      filter_conjunction: index === targets.length - 1 ? 'AND' : 'OR',
+      filter_conjunction: index === targets.length - 1 ? 'and' : 'or',
+      filter_group_condition: '',
     })));
   }
 
@@ -454,6 +455,34 @@ export class PatentAnalysisService {
       actionType: 'DOWNLOAD-FILE',
       file_path: filePath,
       file_extension: 'pdf',
+    });
+  }
+
+  async downloadEmbodimentsExcel(
+    publicationNumber: string,
+    bioactivityType: string | undefined,
+    query: PatentDetailQueryDto,
+  ) {
+    const ownerId = this.getOwnerId(query.ownerId);
+    const resolvedBioactivityType = bioactivityType === 'modified_bioactivity'
+      ? 'modified_bioactivity'
+      : 'bioactivity';
+
+    return this.helperClient.download({
+      owner_id: ownerId,
+      filter_conjunction: 'and',
+      file_extension: 'xlsx',
+      publication_number: publicationNumber,
+      filter_dict: '{}',
+      ligand_filter_dict: '[]',
+      order_dict: JSON.stringify([
+        { column_name: 'ranking', order: 'asc' },
+        { column_name: 'ranking', order: 'asc' },
+      ]),
+      actionType: 'DOWNLOAD-EMBODIMENTS-EXCEL',
+      operation: 'DOWNLOAD-EMBODIMENTS-EXCEL',
+      filter_group_conjunction_list: '[]',
+      bioactivity_type: resolvedBioactivityType,
     });
   }
 

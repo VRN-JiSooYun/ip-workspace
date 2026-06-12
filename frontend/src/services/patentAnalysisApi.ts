@@ -187,6 +187,54 @@ const requestJsonBody = async <T>(
   }
 };
 
+const requestBlob = async (
+  path: string,
+  params?: Record<string, string | number | boolean | undefined>,
+  options?: RequestOptions,
+): Promise<{ blob: Blob; filename?: string }> => {
+  const url = buildApiUrl(path, params);
+  const controller = new AbortController();
+  const timeoutMs = options?.timeoutMs;
+  const timeoutId = timeoutMs
+    ? window.setTimeout(() => controller.abort(), timeoutMs)
+    : undefined;
+
+  const abortOnExternalSignal = () => controller.abort();
+  if (options?.signal) {
+    if (options.signal.aborted) {
+      controller.abort();
+    } else {
+      options.signal.addEventListener('abort', abortOnExternalSignal, { once: true });
+    }
+  }
+
+  try {
+    const response = await fetch(url, { signal: controller.signal });
+    if (!response.ok) {
+      throw new ApiRequestError(await getErrorMessage(response), response.status);
+    }
+    const contentDisposition = response.headers.get('content-disposition') ?? '';
+    const filenameMatch = contentDisposition.match(/filename\*?=(?:UTF-8''|")?([^";]+)/i);
+    const filename = filenameMatch?.[1]
+      ? decodeURIComponent(filenameMatch[1].replace(/"/g, '').trim())
+      : undefined;
+    return { blob: await response.blob(), filename };
+  } catch (error) {
+    if (error instanceof ApiRequestError) {
+      throw error;
+    }
+    if (error instanceof DOMException && error.name === 'AbortError') {
+      throw new ApiRequestError('API request timed out');
+    }
+    throw error;
+  } finally {
+    if (timeoutId !== undefined) {
+      window.clearTimeout(timeoutId);
+    }
+    options?.signal?.removeEventListener('abort', abortOnExternalSignal);
+  }
+};
+
 const normalizePatentNumber = (value: unknown, fallback: string) => {
   const raw = String(value ?? fallback);
   return raw.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
@@ -380,6 +428,15 @@ export const patentAnalysisApi = {
     requestJson<PatentDetailResponse>(`/patents/${publicationNumber}`, params),
   getPatentPdfUrl: (publicationNumber: string, params?: { ownerId?: string }) =>
     buildApiUrl(`/patents/${publicationNumber}/pdf`, params),
+  getEmbodimentsExcelUrl: (
+    publicationNumber: string,
+    params?: { ownerId?: string; bioactivityType?: 'bioactivity' | 'modified_bioactivity' },
+  ) => buildApiUrl(`/patents/${publicationNumber}/embodiments/excel`, params),
+  downloadEmbodimentsExcel: (
+    publicationNumber: string,
+    params?: { ownerId?: string; bioactivityType?: 'bioactivity' | 'modified_bioactivity' },
+    options?: RequestOptions,
+  ) => requestBlob(`/patents/${publicationNumber}/embodiments/excel`, params, options),
   getEmbodiments: (
     publicationNumber: string,
     params?: { page?: number; pageSize?: number; ownerId?: string },
