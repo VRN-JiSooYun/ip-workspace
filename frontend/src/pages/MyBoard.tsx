@@ -94,13 +94,44 @@ const MYBOARD_STRUCTURE_BASE_WIDTH = 168;
 const MYBOARD_STRUCTURE_BASE_HEIGHT = 108;
 const MYBOARD_STRUCTURE_BASE_PERCENT = 120;
 const MYBOARD_STRUCTURE_SCALE_BASE_RATIO = 0.9975;
+const MYBOARD_DETAIL_STRUCTURE_MAX_HEIGHT = 250;
 const MYBOARD_GROUP_STRUCTURE_WIDTH = 130;
 const MYBOARD_GROUP_STRUCTURE_HEIGHT = 97.5;
 const MYBOARD_GROUP_STRUCTURE_ONLY_COLUMN_WIDTH = 138;
 const MYBOARD_GROUP_STRUCTURE_ONLY_PANEL_WIDTH = 146;
 const MYBOARD_STRUCTURE_IMAGE_SCALE_MIN = 70;
-const MYBOARD_STRUCTURE_IMAGE_SCALE_MAX = 120;
+const MYBOARD_STRUCTURE_IMAGE_SCALE_MAX = 160;
 const MYBOARD_STRUCTURE_IMAGE_SCALE_STEP = 5;
+type SvgIntrinsicSize = { width: number; height: number };
+
+const getSvgIntrinsicSize = (svg?: string | null): SvgIntrinsicSize | null => {
+  if (!svg?.trim() || typeof DOMParser === 'undefined') return null;
+
+  try {
+    const doc = new DOMParser().parseFromString(svg, 'image/svg+xml');
+    const root = doc.documentElement;
+    if (!root || root.nodeName.toLowerCase() !== 'svg') return null;
+
+    const width = Number.parseFloat(root.getAttribute('width') || '');
+    const height = Number.parseFloat(root.getAttribute('height') || '');
+    if (Number.isFinite(width) && width > 0 && Number.isFinite(height) && height > 0) {
+      return { width: Math.ceil(width), height: Math.ceil(height) };
+    }
+
+    const viewBox = root.getAttribute('viewBox')?.trim().split(/\s+/).map(Number);
+    if (viewBox && viewBox.length === 4) {
+      const [, , viewBoxWidth, viewBoxHeight] = viewBox;
+      if (Number.isFinite(viewBoxWidth) && viewBoxWidth > 0 && Number.isFinite(viewBoxHeight) && viewBoxHeight > 0) {
+        return { width: Math.ceil(viewBoxWidth), height: Math.ceil(viewBoxHeight) };
+      }
+    }
+  } catch {
+    return null;
+  }
+
+  return null;
+};
+
 const estimateGroupTitleTextWidth = (text: string) => {
   const textWidth = Array.from(text).reduce((sum, char) => {
     if (char === ' ') return sum + 4;
@@ -209,6 +240,7 @@ const MyBoard: React.FC = () => {
   } | null>(null);
   const detailTableWrapperRef = React.useRef<HTMLDivElement | null>(null);
   const [detailUniformRowHeight, setDetailUniformRowHeight] = useState<number | null>(null);
+  const [detailStructureSvgSizes, setDetailStructureSvgSizes] = useState<Record<string, SvgIntrinsicSize>>({});
   const [groupListMode, setGroupListMode] = useState<'full' | 'structure' | 'hidden'>('full');
   const [bookmarkedGroupIds, setBookmarkedGroupIds] = useState<string[]>([]);
   const [viewportWidth, setViewportWidth] = useState<number>(() => {
@@ -219,6 +251,18 @@ const MyBoard: React.FC = () => {
     compoundId: string,
     data: { molBlock: string; svg: string; cacheKey: string }
   ) => {
+    const svgSize = getSvgIntrinsicSize(data.svg);
+    if (svgSize) {
+      setDetailStructureSvgSizes((prev) => {
+        const current = prev[compoundId];
+        if (current?.width === svgSize.width && current?.height === svgSize.height) return prev;
+        return {
+          ...prev,
+          [compoundId]: svgSize,
+        };
+      });
+    }
+
     const applyGeneratedStructure = (compound: Compound): Compound => {
       const nextCache = {
         ...(compound.rdkitSvgCache ?? {}),
@@ -800,6 +844,50 @@ const MyBoard: React.FC = () => {
         return compoundRows.indexOf(a) - compoundRows.indexOf(b);
       });
   }, [compoundRows, detailCompoundTypeFilter, hiddenCompoundIds, keyword, selectedGroupIds, selectedGroupOrderMap, selectedProjects, selectedShares, selectedSources]);
+
+  const detailStructureFrameSize = React.useMemo(() => {
+    const maxIntrinsicSize = filteredCompounds.reduce<SvgIntrinsicSize>((maxSize, compound) => {
+      const svgSize = detailStructureSvgSizes[compound.id]
+        ?? getSvgIntrinsicSize(compound.rdkitSvg)
+        ?? getSvgIntrinsicSize(compound.structureSvg);
+
+      if (!svgSize) return maxSize;
+
+      return {
+        width: Math.max(maxSize.width, svgSize.width),
+        height: Math.max(maxSize.height, svgSize.height),
+      };
+    }, {
+      width: MYBOARD_STRUCTURE_BASE_WIDTH,
+      height: MYBOARD_STRUCTURE_BASE_HEIGHT,
+    });
+
+    const scale = maxIntrinsicSize.height > MYBOARD_DETAIL_STRUCTURE_MAX_HEIGHT
+      ? MYBOARD_DETAIL_STRUCTURE_MAX_HEIGHT / maxIntrinsicSize.height
+      : 1;
+
+    return {
+      width: Math.ceil(maxIntrinsicSize.width * scale),
+      height: Math.ceil(maxIntrinsicSize.height * scale),
+      scale,
+    };
+  }, [detailStructureSvgSizes, filteredCompounds]);
+
+  const getDetailStructureDisplaySize = React.useCallback((compound: Compound): SvgIntrinsicSize => {
+    const svgSize = detailStructureSvgSizes[compound.id]
+      ?? getSvgIntrinsicSize(compound.rdkitSvg)
+      ?? getSvgIntrinsicSize(compound.structureSvg)
+      ?? {
+        width: MYBOARD_STRUCTURE_BASE_WIDTH,
+        height: MYBOARD_STRUCTURE_BASE_HEIGHT,
+      };
+
+    return {
+      width: Math.ceil(svgSize.width * detailStructureFrameSize.scale),
+      height: Math.ceil(svgSize.height * detailStructureFrameSize.scale),
+    };
+  }, [detailStructureFrameSize.scale, detailStructureSvgSizes]);
+
 
   const sarTargetCount = selectedGroupIds.length > 0 ? filteredCompounds.length : 0;
   const selectedDetailCompoundKeys = React.useMemo(
@@ -1417,16 +1505,21 @@ const MyBoard: React.FC = () => {
       title: '화합물 구조',
       dataIndex: 'structureSvg',
       key: 'structure',
-      width: 212,
+      width: selectedGroupIds.length === 1 ? 212 : Math.max(212, detailStructureFrameSize.width + 24),
       className: 'my-board-structure-column',
       render: (structureSvg: string | undefined, record: any) => {
         const displaySvg = searchedSvg && (keyword === record.smiles || keyword === 'Structure Search Result')
           ? searchedSvg
           : structureSvg;
         const structureSettings = getGroupStructureSettings(record.groupId);
-        const structureScale = (structureSettings.myBoardImageScalePercent / MYBOARD_STRUCTURE_BASE_PERCENT) * MYBOARD_STRUCTURE_SCALE_BASE_RATIO;
-        const structureWidth = Math.round(MYBOARD_STRUCTURE_BASE_WIDTH * structureScale);
-        const structureHeight = Math.round(MYBOARD_STRUCTURE_BASE_HEIGHT * structureScale);
+        const isSingleGroupSelection = selectedGroupIds.length === 1;
+        const singleGroupScale = (structureSettings.myBoardImageScalePercent / MYBOARD_STRUCTURE_BASE_PERCENT) * MYBOARD_STRUCTURE_SCALE_BASE_RATIO;
+        const structureDisplaySize = isSingleGroupSelection
+          ? {
+              width: Math.round(MYBOARD_STRUCTURE_BASE_WIDTH * singleGroupScale),
+              height: Math.round(MYBOARD_STRUCTURE_BASE_HEIGHT * singleGroupScale),
+            }
+          : getDetailStructureDisplaySize(record);
 
         return (
           <CompoundStructureView
@@ -1437,17 +1530,18 @@ const MyBoard: React.FC = () => {
             smiles={record.smiles}
             molBlock={record.molBlock ?? record.mol_block ?? record.molblock}
             cdxml={record.draw}
-            width={structureWidth}
-            height={structureHeight}
+            width={structureDisplaySize.width}
+            height={structureDisplaySize.height}
             iconSize={40}
             gap={0}
             actionPlacement="overlay"
             actionOverlayAnchor="container"
             frameless
+            structureFitMode={isSingleGroupSelection ? undefined : 'contain'}
             preferRdkitSvg
             rdkitAngleDeg={structureSettings.sarRotationDeg}
             rdkitScalePercent={structureSettings.myBoardImageScalePercent}
-            rdkitMinSize={[structureWidth, structureHeight]}
+            rdkitMinSize={isSingleGroupSelection ? [structureDisplaySize.width, structureDisplaySize.height] : undefined}
             onStructureGenerated={(data) => handleCompoundStructureGenerated(record.id, data)}
             onPreview={(previewSvg) => {
               if (!previewSvg) return;
@@ -1670,6 +1764,7 @@ const MyBoard: React.FC = () => {
   }, [
     activeColumns,
     columnOrder,
+    detailStructureFrameSize,
     detailTableScrollX,
     filteredCompounds,
     groupStructureViewSettings,
