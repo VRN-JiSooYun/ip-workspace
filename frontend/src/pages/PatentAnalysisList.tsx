@@ -69,7 +69,7 @@ const STRUCTURE_SEARCH_TABLE_SCROLL_X =
 const DEFAULT_PATENT_ORDER = JSON.stringify([{ column_name: 'p.publication_date', order: 'desc' }]);
 const PATENT_OFFICE_FILTER_OPTIONS = ['ALL', 'WIPO', 'USPTO', 'KIPO', 'EPO'];
 const STATUS_FILTER_OPTIONS = ['ALL', '분석중', '완료'];
-const RECENT_PROJECTS = ['EGFR', 'AKT1', 'MET', 'FGFR3', 'VRK1', 'PKMYT1', 'WEE1', 'UBP1'];
+const RECENT_PROJECTS = ['EGFR', 'PD-1', 'PD-L1', 'KRAS', 'HER2', 'CD3', 'CD19', 'TNF', 'VEGF', 'BTK', 'AKT1', 'MET', 'FGFR3', 'PKMYT1', 'WEE1'];
 const PATENT_ANALYSIS_LIST_STATE_KEY = 'patent-analysis-list-state:v1';
 const SEARCH_TYPE_OPTIONS = [
   { label: '특허 제목', value: 'title' },
@@ -171,6 +171,10 @@ const escapeFilterValue = (value: string): string => value.replace(/'/g, "''");
 
 const getFavoriteStateStorageKey = (publicationNumber: string) => (
   `${PATENT_ANALYSIS_FAVORITE_STATE_PREFIX}:${publicationNumber.replace(/[^A-Za-z0-9]/g, '').toUpperCase()}`
+);
+
+const normalizeFavoritePatentNumber = (publicationNumber: string) => (
+  publicationNumber.replace(/[^A-Za-z0-9]/g, '').toUpperCase()
 );
 
 const writeFavoriteStateToStorage = (publicationNumber: string, isFavorite: boolean) => {
@@ -311,10 +315,34 @@ const readStoredPatentAnalysisListState = (): PatentAnalysisListStoredState => {
 
   try {
     window.sessionStorage.removeItem(PATENT_ANALYSIS_LIST_STATE_KEY);
-    return {};
   } catch {
-    return {};
+    // Ignore stale state cleanup failures and continue with URL-driven state.
   }
+
+  const searchParams = new URLSearchParams(window.location.search);
+  const applicant = searchParams.get('applicant')?.trim() ?? '';
+  const target = searchParams.get('target')?.trim() ?? '';
+  const dateFrom = searchParams.get('dateFrom')?.trim() ?? '';
+  const dateTo = searchParams.get('dateTo')?.trim() ?? '';
+  const hasInsightParams = searchParams.get('source') === 'insight'
+    || Boolean(applicant || target || dateFrom || dateTo);
+
+  if (!hasInsightParams) return {};
+
+  return {
+    searchType: applicant ? 'applicant' : 'title',
+    appliedSearchType: applicant ? 'applicant' : 'title',
+    searchText: applicant,
+    appliedSearchText: applicant,
+    selectedProjects: target ? [target] : [],
+    appliedProjects: target ? [target] : [],
+    period: dateFrom && dateTo ? '직접설정' : '전체',
+    appliedPeriod: dateFrom && dateTo ? '직접설정' : '전체',
+    customDateRange: dateFrom && dateTo ? [dateFrom, dateTo] : null,
+    appliedCustomDateRange: dateFrom && dateTo ? [dateFrom, dateTo] : null,
+    currentPage: 1,
+    showFilters: true,
+  };
 };
 
 const restoreDateRange = (range?: [string | null, string | null] | null) => {
@@ -358,6 +386,7 @@ const PatentAnalysisList: React.FC = () => {
   const [appliedSearchText, setAppliedSearchText] = useState(() => storedListState.appliedSearchText ?? '');
   const [favoriteOnly, setFavoriteOnly] = useState(() => storedListState.favoriteOnly ?? false);
   const [appliedFavoriteOnly, setAppliedFavoriteOnly] = useState(() => storedListState.appliedFavoriteOnly ?? false);
+  const [favoritePatentNumbers, setFavoritePatentNumbers] = useState<Set<string>>(() => new Set());
   const [savingFavoritePatentNumbers, setSavingFavoritePatentNumbers] = useState<string[]>([]);
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [shareCc, setShareCc] = useState('');
@@ -503,6 +532,10 @@ const PatentAnalysisList: React.FC = () => {
       : appliedSearchType === 'publicationNumber'
         ? '특허 번호'
         : '구조';
+  const applyFavoriteState = React.useCallback((patent: Patent): Patent => ({
+    ...patent,
+    isFavorite: patent.isFavorite || favoritePatentNumbers.has(normalizeFavoritePatentNumber(patent.patentNumber)),
+  }), [favoritePatentNumbers]);
 
   useEffect(() => {
     setHeaderContent(
@@ -531,6 +564,35 @@ const PatentAnalysisList: React.FC = () => {
       setShowFilters(false);
     }
   }, [isStructureSearchMode, showFilters]);
+
+  useEffect(() => {
+    let ignore = false;
+    const controller = new AbortController();
+
+    const loadFavoritePatentNumbers = async () => {
+      try {
+        const response = await patentAnalysisApi.getPatentFavorites(
+          { ownerId: PATENT_ANALYSIS_OWNER_ID },
+          { signal: controller.signal },
+        );
+        if (ignore) return;
+        setFavoritePatentNumbers(new Set(
+          (response.publicationNumbers ?? []).map(normalizeFavoritePatentNumber),
+        ));
+      } catch (error) {
+        if (!ignore) {
+          console.warn('[PatentAnalysisList] Failed to load favorite patent numbers.', error);
+        }
+      }
+    };
+
+    void loadFavoritePatentNumbers();
+
+    return () => {
+      ignore = true;
+      controller.abort();
+    };
+  }, []);
 
   useEffect(() => {
     const nextStoredState: PatentAnalysisListStoredState = {
@@ -687,7 +749,7 @@ const PatentAnalysisList: React.FC = () => {
         }
         const mappedPatents = response.items.slice(0, rowOffsetPageSize).map((item, index) =>
           mapPatentListItem(item, (currentPage - 1) * rowOffsetPageSize + index)
-        );
+        ).map(applyFavoriteState);
         setStructureCompounds([]);
         setPatents(mappedPatents);
         setTotalPatents(normalizedTotalCount);
@@ -701,7 +763,7 @@ const PatentAnalysisList: React.FC = () => {
             setIsUsingMockFallback(false);
           } else {
             const fallbackPatents = mockPatents.slice((currentPage - 1) * pageSize, currentPage * pageSize);
-            setPatents(fallbackPatents);
+            setPatents(fallbackPatents.map(applyFavoriteState));
             setTotalPatents(mockPatents.length);
             setIsUsingMockFallback(true);
           }
@@ -731,6 +793,7 @@ const PatentAnalysisList: React.FC = () => {
     appliedSearchType,
     appliedFavoriteOnly,
     appliedStructureSmiles,
+    applyFavoriteState,
     currentPage,
     pageSize,
   ]);
@@ -838,6 +901,16 @@ const PatentAnalysisList: React.FC = () => {
         });
       }
       writeFavoriteStateToStorage(publicationNumber, nextFavorite);
+      setFavoritePatentNumbers((prev) => {
+        const next = new Set(prev);
+        const normalizedPublicationNumber = normalizeFavoritePatentNumber(publicationNumber);
+        if (nextFavorite) {
+          next.add(normalizedPublicationNumber);
+        } else {
+          next.delete(normalizedPublicationNumber);
+        }
+        return next;
+      });
       if (!nextFavorite && appliedFavoriteOnly) {
         setPatents(prev => prev.filter(item => item.id !== patent.id));
         setTotalPatents(prev => Math.max(0, prev - 1));
@@ -1192,7 +1265,7 @@ const PatentAnalysisList: React.FC = () => {
     const patentRows = structurePatentCache[compound.compoundId] ?? [];
     const mappedPatents = patentRows.map((item, index) =>
       mapPatentListItem(item, index)
-    );
+    ).map(applyFavoriteState);
 
     if (isLoading || !structurePatentCache[compound.compoundId]) {
       return (

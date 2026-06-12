@@ -2196,7 +2196,7 @@ const PatentAnalysisDetail: React.FC = () => {
                             const rGroupColumns = allRGroupKeys.map((key) => ({
                               title: key,
                               key: `clean_rg_${key}`,
-                              width: 190,
+                              width: 210,
                               className: 'table-center-column raw-data-rgroup-column',
                               render: (_: any, record: any) => {
                                 const smiles = record.r_groups?.[key];
@@ -2208,7 +2208,7 @@ const PatentAnalysisDetail: React.FC = () => {
                                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
                                     <div
                                       className="raw-data-svg-frame raw-data-rgroup-svg-frame"
-                                      style={{ width: 156, height: 156, background: token.colorBgContainer, border: `1px solid ${token.colorBorderSecondary}`, borderRadius: 6, position: 'relative', cursor: svg ? 'pointer' : 'default', overflow: 'hidden', boxSizing: 'border-box', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                      style={{ width: 172, height: 172, background: token.colorBgContainer, border: `1px solid ${token.colorBorderSecondary}`, borderRadius: 6, position: 'relative', cursor: svg ? 'pointer' : 'default', overflow: 'hidden', boxSizing: 'border-box', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                                       {svg ? (
                                         renderPatentStructureView({
                                           svg,
@@ -2222,7 +2222,7 @@ const PatentAnalysisDetail: React.FC = () => {
                                         <Text style={{ fontSize: 11, color: token.colorTextTertiary }}>no image</Text>
                                       )}
                                     </div>
-                                    <Text style={{ fontSize: 10, color: token.colorTextSecondary, maxWidth: 170, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={smiles}>
+                                    <Text style={{ fontSize: 10, color: token.colorTextSecondary, maxWidth: 190, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={smiles}>
                                       {smiles || '-'}
                                     </Text>
                                   </div>
@@ -2233,7 +2233,7 @@ const PatentAnalysisDetail: React.FC = () => {
                             const bioColumns = modifiedBioKeys.map((bioKey) => ({
                               title: bioKey,
                               key: `clean_bio_${bioKey}`,
-                              width: 220,
+                              width: 180,
                               render: (_: any, record: any) => {
                                 const value = record.modified_bioactivity?.[bioKey];
                                 const arr = Array.isArray(value) ? value : value != null ? [value] : [];
@@ -2252,7 +2252,7 @@ const PatentAnalysisDetail: React.FC = () => {
                               {
                                 title: '',
                                 key: 'select',
-                                width: 56,
+                                width: 44,
                                 fixed: 'left' as const,
                                 align: 'center' as const,
                                 className: 'table-center-column',
@@ -2261,7 +2261,7 @@ const PatentAnalysisDetail: React.FC = () => {
                               {
                                 title: 'pin',
                                 key: 'pin',
-                                width: 56,
+                                width: 44,
                                 fixed: 'left' as const,
                                 align: 'center' as const,
                                 className: 'table-center-column',
@@ -2271,18 +2271,18 @@ const PatentAnalysisDetail: React.FC = () => {
                                 title: 'Rank',
                                 dataIndex: 'ranking',
                                 key: 'ranking',
-                                width: 90,
+                                width: 76,
                                 fixed: 'left' as const,
                                 align: 'center' as const,
                                 className: 'table-center-column',
                                 render: (ranking: any) => <Text style={{ fontSize: 11 }}>{ranking ?? '-'}</Text>
                               },
-                              { title: 'Scaffold Group', dataIndex: 'scaffold_ranking', key: 'scaffold_ranking', width: 140, align: 'center' as const, className: 'table-center-column', render: (v: any) => v ?? '-' },
-                              { title: 'Example Number', key: 'example_number', width: 150, align: 'center' as const, className: 'table-center-column', render: (_: any, record: any) => formatExampleNumber(record.example_number) },
+                              { title: 'Scaffold Group', dataIndex: 'scaffold_ranking', key: 'scaffold_ranking', width: 118, align: 'center' as const, className: 'table-center-column', render: (v: any) => v ?? '-' },
+                              { title: 'Example Number', key: 'example_number', width: 132, align: 'center' as const, className: 'table-center-column', render: (_: any, record: any) => formatExampleNumber(record.example_number) },
                               {
                                 title: 'Structure',
                                 key: 'structure',
-                                width: 240,
+                                width: 234,
                                 align: 'center' as const,
                                 className: 'table-center-column',
                                 render: (_: any, record: any) => {
@@ -2294,7 +2294,7 @@ const PatentAnalysisDetail: React.FC = () => {
                                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
                                       <div
                                         className="raw-data-svg-frame"
-                                        style={{ width: 160, height: 160, background: token.colorBgContainer, border: `1px solid ${activeCompId === compKey ? 'red' : token.colorBorderSecondary}`, borderRadius: 8, position: 'relative', cursor: 'pointer', overflow: 'hidden', boxSizing: 'border-box', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                                        style={{ width: 176, height: 176, background: token.colorBgContainer, border: `1px solid ${activeCompId === compKey ? 'red' : token.colorBorderSecondary}`, borderRadius: 8, position: 'relative', cursor: 'pointer', overflow: 'hidden', boxSizing: 'border-box', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                                       >
                                         {renderPatentStructureView({
                                           svg: record.compound_svg,
@@ -2320,14 +2320,14 @@ const PatentAnalysisDetail: React.FC = () => {
                               {
                                 title: 'Scaffold',
                                 key: 'scaffold',
-                                width: 220,
+                                width: 242,
                                 align: 'center' as const,
                                 className: 'table-center-column raw-data-scaffold-column',
                                 render: (_: any, record: any) => record.scaffold_svg ? (
                                   <div className="raw-data-scaffold-cell">
                                     <div
                                       className="raw-data-svg-frame raw-data-scaffold-svg-frame"
-                                      style={{ width: 184, height: 184, background: token.colorBgContainer, border: `1px solid ${token.colorBorderSecondary}`, borderRadius: 8, cursor: 'pointer', position: 'relative', overflow: 'hidden', boxSizing: 'border-box', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                                      style={{ width: 200, height: 200, background: token.colorBgContainer, border: `1px solid ${token.colorBorderSecondary}`, borderRadius: 8, cursor: 'pointer', position: 'relative', overflow: 'hidden', boxSizing: 'border-box', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                                     >
                                       {renderPatentStructureView({
                                         svg: record.scaffold_svg,
@@ -2343,7 +2343,7 @@ const PatentAnalysisDetail: React.FC = () => {
                                   <div className="raw-data-scaffold-cell">
                                     <div
                                       className="raw-data-svg-frame raw-data-scaffold-svg-frame"
-                                      style={{ width: 184, height: 184, background: token.colorBgContainer, border: `1px solid ${token.colorBorderSecondary}`, borderRadius: 8, boxSizing: 'border-box', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                                      style={{ width: 200, height: 200, background: token.colorBgContainer, border: `1px solid ${token.colorBorderSecondary}`, borderRadius: 8, boxSizing: 'border-box', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                                     >
                                       <Text style={{ fontSize: 11, color: token.colorTextTertiary }}>no image</Text>
                                     </div>
@@ -2354,7 +2354,7 @@ const PatentAnalysisDetail: React.FC = () => {
                               {
                                 title: '관리',
                                 key: 'manage',
-                                width: 90,
+                                width: 72,
                                 align: 'center' as const,
                                 className: 'table-center-column',
                                 render: () => (
@@ -2864,8 +2864,8 @@ const PatentAnalysisDetail: React.FC = () => {
         .raw-data-tab-content .raw-data-svg-frame .compound-structure-svg svg {
           width: auto !important;
           height: auto !important;
-          max-width: 92% !important;
-          max-height: 92% !important;
+          max-width: 97% !important;
+          max-height: 97% !important;
           transform: none !important;
         }
         .raw-data-tab-content .patent-analysis-card-view .raw-data-svg-frame .compound-structure-svg svg {

@@ -194,6 +194,8 @@ const buildPatentListFilters = (query: PatentListQueryDto) => {
 @Injectable()
 export class PatentAnalysisService {
   private readonly logger = new Logger(PatentAnalysisService.name);
+  private readonly favoriteFolderResolveLocks = new Map<string, Promise<string>>();
+  private readonly favoriteFolderIdCache = new Map<string, string>();
 
   constructor(
     private readonly helperClient: PatentAnalysisHelperClient,
@@ -252,6 +254,24 @@ export class PatentAnalysisService {
       folderId,
       publicationNumber,
       raw: result,
+    };
+  }
+
+  async getFavorites(query: Pick<PatentListQueryDto, 'ownerId'>) {
+    const ownerId = this.getOwnerId(query.ownerId);
+    const folders = await this.getFolderTrees(ownerId);
+    const root = this.findDefaultWorkspaceRoot(folders.myList, ownerId);
+    const ownerFolder = root
+      ? this.findDirectFolder(root.children ?? [], ownerId)
+      : null;
+    const publicationNumbers = (ownerFolder?.patents ?? [])
+      .map((patent) => String(patent.publication_number ?? patent.publicationNumber ?? '').trim())
+      .filter(Boolean);
+
+    return {
+      ownerId,
+      folderId: ownerFolder ? this.getFolderId(ownerFolder) : null,
+      publicationNumbers,
     };
   }
 
@@ -483,8 +503,30 @@ export class PatentAnalysisService {
   }
 
   private async resolveDefaultFavoriteFolderId(ownerId: string): Promise<string> {
+    const existingLock = this.favoriteFolderResolveLocks.get(ownerId);
+    if (existingLock) {
+      return existingLock;
+    }
+
+    const lock = this.resolveDefaultFavoriteFolderIdUnsafe(ownerId)
+      .finally(() => {
+        if (this.favoriteFolderResolveLocks.get(ownerId) === lock) {
+          this.favoriteFolderResolveLocks.delete(ownerId);
+        }
+      });
+
+    this.favoriteFolderResolveLocks.set(ownerId, lock);
+    return lock;
+  }
+
+  private async resolveDefaultFavoriteFolderIdUnsafe(ownerId: string): Promise<string> {
+    const cachedFolderId = this.favoriteFolderIdCache.get(ownerId);
+    if (cachedFolderId) {
+      return cachedFolderId;
+    }
+
     const folders = await this.getFolderTrees(ownerId);
-    const root = this.findDirectFolder(folders.myList, 'myworkspace')
+    const root = this.findDefaultWorkspaceRoot(folders.myList, ownerId)
       ?? await this.createFolder(ownerId, 'myworkspace', '-1');
     const rootId = this.getFolderId(root);
     if (!rootId) {
@@ -497,6 +539,7 @@ export class PatentAnalysisService {
     if (!ownerFolderId) {
       throw new BadGatewayException('Default favorite folder id was not found');
     }
+    this.favoriteFolderIdCache.set(ownerId, ownerFolderId);
     return ownerFolderId;
   }
 
@@ -519,17 +562,10 @@ export class PatentAnalysisService {
     sharedList: PatentFolderNode[];
   }> {
     const result = await this.helperClient.call<PatentListResult>({
-      actionType: 'GET-PATENT-LIST',
-      operation: 'GET-PATENT-LIST',
+      actionType: 'GET-TARGET-LIST',
+      operation: 'GET-TARGET-LIST',
       owner_id: ownerId,
       filter_conjunction: 'and',
-      filter_dict: '{}',
-      order_dict: '[]',
-      filter_group_conjunction_list: '[]',
-      'num-rows-per-page': 1,
-      'page-no': 1,
-      whose: 'my',
-      folder_id: '',
     });
     const folders = asRecord(result.folders);
     return {
@@ -566,16 +602,27 @@ export class PatentAnalysisService {
   }
 
   private findDirectFolder(folders: PatentFolderNode[], folderName: string): PatentFolderNode | null {
-    return folders.find((folder) => String(folder.folder_name ?? '') === folderName) ?? null;
+    const normalizedFolderName = this.normalizeFolderName(folderName);
+    return folders.find((folder) => this.normalizeFolderName(folder.folder_name) === normalizedFolderName) ?? null;
+  }
+
+  private findDefaultWorkspaceRoot(folders: PatentFolderNode[], ownerId: string): PatentFolderNode | null {
+    const roots = folders.filter((folder) => this.normalizeFolderName(folder.folder_name) === 'myworkspace');
+    return roots.find((folder) => this.findDirectFolder(folder.children ?? [], ownerId)) ?? roots[0] ?? null;
   }
 
   private findFolderRecursive(folders: PatentFolderNode[], folderName: string): PatentFolderNode | null {
+    const normalizedFolderName = this.normalizeFolderName(folderName);
     for (const folder of folders) {
-      if (String(folder.folder_name ?? '') === folderName) return folder;
+      if (this.normalizeFolderName(folder.folder_name) === normalizedFolderName) return folder;
       const found = this.findFolderRecursive(folder.children ?? [], folderName);
       if (found) return found;
     }
     return null;
+  }
+
+  private normalizeFolderName(value: unknown): string {
+    return String(value ?? '').trim().replace(/\/+$/, '').toLowerCase();
   }
 
   private getFolderId(folder: PatentFolderNode): string | null {

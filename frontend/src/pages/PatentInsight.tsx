@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import ReactECharts from 'echarts-for-react';
 import dayjs from 'dayjs';
+import { useNavigate } from 'react-router-dom';
 import { Alert, App, Button, Card, Col, DatePicker, Empty, Input, InputNumber, Row, Space, Spin, Table, Tooltip, Typography, theme } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { BarChart3, ChevronDown, ChevronUp, Database, RefreshCw, RotateCcw, Search } from 'lucide-react';
@@ -103,7 +104,8 @@ const SafeReactECharts: React.FC<{
   option: any;
   theme?: string;
   style?: React.CSSProperties;
-}> = ({ option, theme, style }) => {
+  onEvents?: Record<string, (...args: any[]) => void>;
+}> = ({ option, theme, style, onEvents }) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const chartRef = useRef<any>(null);
   const resizeFrameRef = useRef<number | null>(null);
@@ -156,6 +158,7 @@ const SafeReactECharts: React.FC<{
         option={option}
         theme={theme}
         style={{ width: '100%', height: '100%' }}
+        onEvents={onEvents}
         notMerge
         lazyUpdate
         autoResize={false}
@@ -220,6 +223,7 @@ const MetricCard: React.FC<{ label: string; value: number; caption?: string }> =
 const PatentInsight: React.FC = () => {
   const { token } = theme.useToken();
   const { message } = App.useApp();
+  const navigate = useNavigate();
   const { isDarkMode } = useTheme();
   const { setHeaderContent } = useUIStore();
   const storedFilters = useMemo(readStoredFilters, []);
@@ -607,15 +611,85 @@ const PatentInsight: React.FC = () => {
     return Array.from(new Set(years)).sort((a, b) => a - b);
   }, [dateRange, statistics.patentCountByTargetAndApplicant]);
 
+  const heatmapUsesApplicantAxis = useMemo(() => (
+    statistics.patentCountByTargetAndApplicant.some(item => Boolean(item.applicant?.trim()))
+  ), [statistics.patentCountByTargetAndApplicant]);
+
+  const heatmapApplicants = useMemo(() => {
+    const applicantTotals = statistics.patentCountByTargetAndApplicant.reduce<Record<string, number>>((acc, item) => {
+      const itemApplicant = item.applicant?.trim();
+      if (!itemApplicant) return acc;
+      acc[itemApplicant] = (acc[itemApplicant] ?? 0) + item.count;
+      return acc;
+    }, {});
+
+    return Object.entries(applicantTotals)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, Math.max(8, topNApplicant))
+      .map(([itemApplicant]) => itemApplicant);
+  }, [statistics.patentCountByTargetAndApplicant, topNApplicant]);
+
+  const heatmapXAxisLabels = useMemo(() => (
+    heatmapUsesApplicantAxis ? heatmapApplicants : heatmapYears.map(String)
+  ), [heatmapApplicants, heatmapUsesApplicantAxis, heatmapYears]);
+
   const heatmapValues = useMemo(() => {
     const targetIndex = new Map(heatmapTargets.map((target, index) => [target, index]));
-    const yearIndex = new Map(heatmapYears.map((year, index) => [year, index]));
-    return statistics.patentCountByTargetAndApplicant
-      .filter(item => targetIndex.has(item.target) && yearIndex.has(item.year))
-      .map(item => [yearIndex.get(item.year), targetIndex.get(item.target), item.count]);
-  }, [heatmapTargets, heatmapYears, statistics.patentCountByTargetAndApplicant]);
+    const xAxisIndex = new Map(heatmapXAxisLabels.map((label, index) => [label, index]));
+    const valueMap = new Map<string, [number, number, number, string]>();
+
+    statistics.patentCountByTargetAndApplicant.forEach((item) => {
+      const xAxisLabel = heatmapUsesApplicantAxis ? item.applicant?.trim() : String(item.year);
+      if (!xAxisLabel || !targetIndex.has(item.target) || !xAxisIndex.has(xAxisLabel)) return;
+      const xIndex = xAxisIndex.get(xAxisLabel) ?? 0;
+      const yIndex = targetIndex.get(item.target) ?? 0;
+      const key = `${xIndex}:${yIndex}`;
+      const current = valueMap.get(key);
+      if (current) {
+        current[2] += item.count;
+      } else {
+        valueMap.set(key, [xIndex, yIndex, item.count, xAxisLabel]);
+      }
+    });
+
+    return Array.from(valueMap.values());
+  }, [heatmapTargets, heatmapUsesApplicantAxis, heatmapXAxisLabels, statistics.patentCountByTargetAndApplicant]);
 
   const maxHeatmapValue = useMemo(() => Math.max(1, ...heatmapValues.map(item => Number(item[2]))), [heatmapValues]);
+
+  const handleHeatmapClick = React.useCallback((params: any) => {
+    const value = Array.isArray(params?.value) ? params.value : [];
+    const xAxisLabel = heatmapXAxisLabels[Number(value[0])];
+    const target = heatmapTargets[Number(value[1])];
+    const count = Number(value[2]);
+    if (!xAxisLabel || !target || !Number.isFinite(count) || count <= 0) return;
+
+    const searchParams = new URLSearchParams({
+      source: 'insight',
+      target,
+    });
+
+    if (heatmapUsesApplicantAxis) {
+      searchParams.set('applicant', xAxisLabel);
+      if (dateRange?.[0] && dateRange?.[1]) {
+        searchParams.set('dateFrom', dateRange[0].format('YYYY-MM-DD'));
+        searchParams.set('dateTo', dateRange[1].format('YYYY-MM-DD'));
+      }
+    } else {
+      searchParams.set('dateFrom', `${xAxisLabel}-01-01`);
+      searchParams.set('dateTo', `${xAxisLabel}-12-31`);
+      const trimmedApplicant = applicant.trim();
+      if (trimmedApplicant) {
+        searchParams.set('applicant', trimmedApplicant);
+      }
+    }
+
+    navigate(`/patents/analysis?${searchParams.toString()}`);
+  }, [applicant, dateRange, heatmapTargets, heatmapUsesApplicantAxis, heatmapXAxisLabels, navigate]);
+
+  const heatmapEvents = useMemo(() => ({
+    click: handleHeatmapClick,
+  }), [handleHeatmapClick]);
 
   const heatmapOption = useMemo(() => ({
     backgroundColor: 'transparent',
@@ -625,15 +699,15 @@ const PatentInsight: React.FC = () => {
       borderColor: token.colorBorderSecondary,
       textStyle: createTextStyle(token.colorText),
       formatter: (params: any) => {
-        const year = heatmapYears[params.value[0]];
+        const xAxisLabel = heatmapXAxisLabels[params.value[0]];
         const target = heatmapTargets[params.value[1]];
-        return `<strong>${target}</strong><br/>${year}: ${formatInteger(params.value[2])}`;
+        return `<strong>${target}</strong><br/>${xAxisLabel}: ${formatInteger(params.value[2])}`;
       },
     },
     grid: { top: 26, left: 70, right: 82, bottom: 42 },
     xAxis: {
       type: 'category',
-      data: heatmapYears,
+      data: heatmapXAxisLabels,
       splitArea: { show: true },
       axisLabel: {
         color: chartTextColor,
@@ -641,9 +715,9 @@ const PatentInsight: React.FC = () => {
         hideOverlap: false,
         showMaxLabel: true,
         interval: (index: number) => {
-          if (index === 0 || index === heatmapYears.length - 1) return true;
-          if (heatmapYears.length <= 12) return true;
-          return index % Math.ceil(heatmapYears.length / 8) === 0;
+          if (index === 0 || index === heatmapXAxisLabels.length - 1) return true;
+          if (heatmapXAxisLabels.length <= 12) return true;
+          return index % Math.ceil(heatmapXAxisLabels.length / 8) === 0;
         },
       },
       axisTick: { show: false },
@@ -660,6 +734,7 @@ const PatentInsight: React.FC = () => {
     visualMap: {
       min: 0,
       max: maxHeatmapValue,
+      dimension: 2,
       calculable: true,
       orient: 'vertical',
       right: 6,
@@ -671,9 +746,11 @@ const PatentInsight: React.FC = () => {
       name: 'Patent count',
       type: 'heatmap',
       data: heatmapValues,
+      encode: { x: 0, y: 1, value: 2 },
+      cursor: 'pointer',
       emphasis: { itemStyle: { shadowBlur: 10, shadowColor: 'rgba(0,0,0,0.25)' } },
     }],
-  }), [chartAxisLineColor, chartTextColor, chartTooltipBg, heatmapPalette, heatmapTargets, heatmapValues, heatmapYears, maxHeatmapValue, token.colorBorderSecondary, token.colorText]);
+  }), [chartAxisLineColor, chartTextColor, chartTooltipBg, heatmapPalette, heatmapTargets, heatmapValues, heatmapXAxisLabels, maxHeatmapValue, token.colorBorderSecondary, token.colorText]);
 
   const chartTheme = isDarkMode ? 'dark' : undefined;
   const leftWidth = isStackedLayout ? '100%' : `calc(${splitRatio}% - 6px)`;
@@ -871,7 +948,12 @@ const PatentInsight: React.FC = () => {
                 )}
                 className="patent-insight-heatmap-panel"
               >
-                <SafeReactECharts option={heatmapOption} theme={chartTheme} style={{ width: '100%', height: '100%' }} />
+                <SafeReactECharts
+                  option={heatmapOption}
+                  theme={chartTheme}
+                  style={{ width: '100%', height: '100%' }}
+                  onEvents={heatmapEvents}
+                />
               </ChartPanel>
             </div>
           </div>

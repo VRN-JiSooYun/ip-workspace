@@ -42,6 +42,12 @@ export type CompoundPatentListResponse = {
   raw: Record<string, any>;
 };
 
+export type PatentFavoriteListResponse = {
+  ownerId: string;
+  folderId: string | null;
+  publicationNumbers: string[];
+};
+
 type RequestOptions = {
   timeoutMs?: number;
   signal?: AbortSignal;
@@ -330,6 +336,10 @@ export const patentAnalysisApi = {
     sim?: number;
   }) =>
     requestJson<PatentListResponse>('/patents/my', params),
+  getPatentFavorites: (
+    params: { ownerId?: string },
+    options?: RequestOptions,
+  ) => requestJson<PatentFavoriteListResponse>('/patents/favorites', params, options),
   addPatentFavorite: (
     body: { ownerId?: string; publicationNumber: string },
     options?: RequestOptions,

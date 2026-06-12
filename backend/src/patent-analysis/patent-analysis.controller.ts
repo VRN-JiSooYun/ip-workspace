@@ -17,6 +17,11 @@ export class PatentAnalysisController {
     return this.patentAnalysisService.getMyPatents(query);
   }
 
+  @Get('favorites')
+  getFavorites(@Query() query: PatentListQueryDto) {
+    return this.patentAnalysisService.getFavorites(query);
+  }
+
   @Post('favorites')
   addFavorite(@Body() body: PatentFavoriteDto) {
     return this.patentAnalysisService.addFavorite(body);
