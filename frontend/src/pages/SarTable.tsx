@@ -1121,14 +1121,9 @@ const SarTable: React.FC = () => {
     ? activeStructureSettings?.sarOverlapPercent ?? DEFAULT_GROUP_STRUCTURE_VIEW_SETTINGS.sarOverlapPercent
     : 0;
   const isCompoundCardOverlapped = compoundCardOverlapPercent > 0;
-  const compoundCardWidth = compoundCardViewMode === 'twoRows'
-    ? Math.round(SAR_COMPOUND_CARD_BASE_WIDTH * compoundCardImageScale)
-    : Math.round(SAR_COMPOUND_CARD_EXPANDED_WIDTH * compoundCardImageScale);
-  const compoundCardStructureHeight = compoundCardViewMode === 'twoRows'
-    ? Math.round(SAR_COMPOUND_CARD_BASE_STRUCTURE_HEIGHT * compoundCardImageScale)
-    : Math.round(SAR_COMPOUND_CARD_EXPANDED_STRUCTURE_HEIGHT * compoundCardImageScale);
+  const compoundCardWidth = Math.round(SAR_COMPOUND_CARD_EXPANDED_WIDTH * compoundCardImageScale);
+  const compoundCardStructureHeight = Math.round(SAR_COMPOUND_CARD_EXPANDED_STRUCTURE_HEIGHT * compoundCardImageScale);
   const compoundCardStructureFrameSize = Math.max(compoundCardWidth, compoundCardStructureHeight);
-  const isCompoundMultiSelectStructureMode = selectedGroupIds.length > 1;
   const selectedCompoundIdSet = useMemo(() => new Set(selectedCompoundIds), [selectedCompoundIds]);
   const getCompoundCardNoMinSizeCacheKey = React.useCallback((compound: Compound) => {
     const smiles = compound.smiles?.trim();
@@ -1140,7 +1135,7 @@ const SarTable: React.FC = () => {
     return createRdkitSvgCacheKey({
       molBlock: sourceKey,
       angleDeg: settings.sarRotationDeg,
-      scalePercent: settings.sarImageScalePercent,
+      scalePercent: DEFAULT_GROUP_STRUCTURE_VIEW_SETTINGS.sarImageScalePercent,
     });
   }, [getGroupStructureSettings]);
   const getCompoundCardNoMinSizeSvg = React.useCallback((compound: Compound) => {
@@ -1150,10 +1145,8 @@ const SarTable: React.FC = () => {
   }, [getCompoundCardNoMinSizeCacheKey]);
   const getCompoundCardSourceSvgSize = React.useCallback((compound: Compound): SvgIntrinsicSize => (
     getSvgIntrinsicSize(clusterSvgByCompoundId[compound.id])
-      ?? (isCompoundMultiSelectStructureMode
-        ? compoundStructureSvgSizes[`${compound.id}:${getCompoundCardNoMinSizeCacheKey(compound)}`]
-          ?? getSvgIntrinsicSize(getCompoundCardNoMinSizeSvg(compound))
-        : compoundStructureSvgSizes[compound.id] ?? getSvgIntrinsicSize(compound.rdkitSvg))
+      ?? compoundStructureSvgSizes[`${compound.id}:${getCompoundCardNoMinSizeCacheKey(compound)}`]
+      ?? getSvgIntrinsicSize(getCompoundCardNoMinSizeSvg(compound))
       ?? getSvgIntrinsicSize(compound.structureSvg)
       ?? {
         width: compoundCardStructureFrameSize,
@@ -1165,12 +1158,9 @@ const SarTable: React.FC = () => {
     compoundStructureSvgSizes,
     getCompoundCardNoMinSizeCacheKey,
     getCompoundCardNoMinSizeSvg,
-    isCompoundMultiSelectStructureMode,
   ]);
-  const selectedCompoundStructureScale = useMemo(() => {
-    if (!isCompoundMultiSelectStructureMode) return 1;
-
-    const selectedMaxSize = displaySarCompounds
+  const compoundStructureDisplayScale = useMemo(() => {
+    const maxSize = displaySarCompounds
       .reduce<SvgIntrinsicSize>((maxSize, compound) => {
         const svgSize = getCompoundCardSourceSvgSize(compound);
 
@@ -1182,36 +1172,31 @@ const SarTable: React.FC = () => {
         width: 0,
         height: 0,
       });
-    const maxHeight = selectedMaxSize.height || compoundCardStructureFrameSize;
+    const maxWidth = maxSize.width || compoundCardStructureFrameSize;
+    const maxHeight = maxSize.height || compoundCardStructureFrameSize;
+    const fitScale = Math.min(
+      SAR_COMPOUND_MULTI_SELECT_MAX_HEIGHT / maxWidth,
+      SAR_COMPOUND_MULTI_SELECT_MAX_HEIGHT / maxHeight
+    );
+    const activeScale = (activeStructureSettings?.sarImageScalePercent ?? DEFAULT_GROUP_STRUCTURE_VIEW_SETTINGS.sarImageScalePercent) / 100;
 
-    return maxHeight > SAR_COMPOUND_MULTI_SELECT_MAX_HEIGHT
-      ? SAR_COMPOUND_MULTI_SELECT_MAX_HEIGHT / maxHeight
-      : 1;
+    return fitScale * activeScale;
   }, [
+    activeStructureSettings?.sarImageScalePercent,
     compoundCardStructureFrameSize,
     displaySarCompounds,
     getCompoundCardSourceSvgSize,
-    isCompoundMultiSelectStructureMode,
   ]);
   const getCompoundCardStructureDisplaySize = React.useCallback((compound: Compound): SvgIntrinsicSize => {
-    if (!isCompoundMultiSelectStructureMode) {
-      return {
-        width: compoundCardStructureFrameSize,
-        height: compoundCardStructureFrameSize,
-      };
-    }
-
     const svgSize = getCompoundCardSourceSvgSize(compound);
 
     return {
-      width: Math.ceil(svgSize.width * selectedCompoundStructureScale),
-      height: Math.ceil(svgSize.height * selectedCompoundStructureScale),
+      width: Math.ceil(svgSize.width * compoundStructureDisplayScale),
+      height: Math.ceil(svgSize.height * compoundStructureDisplayScale),
     };
   }, [
-    compoundCardStructureFrameSize,
+    compoundStructureDisplayScale,
     getCompoundCardSourceSvgSize,
-    isCompoundMultiSelectStructureMode,
-    selectedCompoundStructureScale,
   ]);
   const compoundCardPinnedStep = compoundCardViewMode === 'twoRows'
     ? compoundCardWidth + SAR_COMPOUND_CARD_GRID_COLUMN_GAP
@@ -1249,8 +1234,8 @@ const SarTable: React.FC = () => {
       })),
       mode: clusterHighlightMode as RdkitClusterHighlightMode,
       angleDeg: activeStructureSettings?.sarRotationDeg ?? DEFAULT_GROUP_STRUCTURE_VIEW_SETTINGS.sarRotationDeg,
-      scalePercent: activeStructureSettings?.sarImageScalePercent ?? DEFAULT_GROUP_STRUCTURE_VIEW_SETTINGS.sarImageScalePercent,
-      minSize: isCompoundMultiSelectStructureMode ? undefined : [compoundCardStructureFrameSize, compoundCardStructureFrameSize],
+      scalePercent: DEFAULT_GROUP_STRUCTURE_VIEW_SETTINGS.sarImageScalePercent,
+      minSize: undefined,
     })
       .then((result) => {
         if (clusterRequestSeqRef.current !== requestSeq) return;
@@ -1272,12 +1257,9 @@ const SarTable: React.FC = () => {
         setClusterError(error instanceof Error ? error.message : 'RDKit cluster 요청에 실패했습니다.');
       });
   }, [
-    activeStructureSettings?.sarImageScalePercent,
     activeStructureSettings?.sarRotationDeg,
     clusterHighlightMode,
-    compoundCardStructureFrameSize,
     displaySarCompounds,
-    isCompoundMultiSelectStructureMode,
     isStructureSettingsDisabled,
   ]);
 
@@ -1634,7 +1616,6 @@ const SarTable: React.FC = () => {
                   const itemStructureSettings = getGroupStructureSettings(item.groupId);
                   const isPinnedCompound = pinnedCompoundIdSet.has(item.id);
                   const isSelectedCompound = selectedCompoundIdSet.has(item.id);
-                  const useMultiSelectedStructureSize = isCompoundMultiSelectStructureMode;
                   const compoundStructureDisplaySize = getCompoundCardStructureDisplaySize(item);
                   const pinnedOrder = pinnedCompoundOrderMap[item.id] ?? 0;
                   const clusterSvg = clusterHighlightMode ? clusterSvgByCompoundId[item.id] : null;
@@ -1726,13 +1707,12 @@ const SarTable: React.FC = () => {
                               iconSize={48}
                               className="sar-compound-structure-view"
                               svgClassName="sar-structure-svg"
-                              structureFitMode="contain"
                               showPreviewAction={false}
                               showCopyAction={false}
                               preferRdkitSvg
                               rdkitAngleDeg={itemStructureSettings.sarRotationDeg}
-                              rdkitScalePercent={itemStructureSettings.sarImageScalePercent}
-                              rdkitMinSize={useMultiSelectedStructureSize ? undefined : [compoundCardStructureFrameSize, compoundCardStructureFrameSize]}
+                              rdkitScalePercent={DEFAULT_GROUP_STRUCTURE_VIEW_SETTINGS.sarImageScalePercent}
+                              rdkitMinSize={undefined}
                               onStructureGenerated={(data) => handleCompoundStructureGenerated(item.id, data)}
                               structureStyle={{ transformOrigin: 'center center' }}
                               frameStyle={{ border: 0, background: !isCompoundCardOverlapped ? token.colorBgContainer : 'transparent', boxShadow: 'none', overflow: 'visible' }}
@@ -2166,6 +2146,10 @@ const SarTable: React.FC = () => {
           width: auto !important;
           height: auto !important;
           object-fit: contain;
+        }
+        .sar-compound-structure-view .sar-structure-svg svg {
+          width: 100% !important;
+          height: 100% !important;
         }
         .sar-row-selected {
           background-color: var(--table-row-selected-bg) !important;

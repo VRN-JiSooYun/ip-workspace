@@ -93,7 +93,6 @@ const MYBOARD_GROUP_FIXED_COLUMN_WIDTH = Object.values(MYBOARD_GROUP_COLUMN_WIDT
 const MYBOARD_STRUCTURE_BASE_WIDTH = 168;
 const MYBOARD_STRUCTURE_BASE_HEIGHT = 108;
 const MYBOARD_STRUCTURE_BASE_PERCENT = 120;
-const MYBOARD_STRUCTURE_SCALE_BASE_RATIO = 0.9975;
 const MYBOARD_DETAIL_STRUCTURE_MAX_HEIGHT = 250;
 const MYBOARD_GROUP_STRUCTURE_WIDTH = 130;
 const MYBOARD_GROUP_STRUCTURE_HEIGHT = 97.5;
@@ -845,6 +844,18 @@ const MyBoard: React.FC = () => {
       });
   }, [compoundRows, detailCompoundTypeFilter, hiddenCompoundIds, keyword, selectedGroupIds, selectedGroupOrderMap, selectedProjects, selectedShares, selectedSources]);
 
+  const detailStructureScaleRatio = React.useMemo(() => {
+    if (selectedGroupIds.length !== 1) return 1;
+
+    const groupId = selectedGroupIds[0];
+    const settings = {
+      ...DEFAULT_GROUP_STRUCTURE_VIEW_SETTINGS,
+      ...groupStructureViewSettings[groupId],
+    };
+
+    return settings.myBoardImageScalePercent / MYBOARD_STRUCTURE_BASE_PERCENT;
+  }, [groupStructureViewSettings, selectedGroupIds]);
+
   const detailStructureFrameSize = React.useMemo(() => {
     const maxIntrinsicSize = filteredCompounds.reduce<SvgIntrinsicSize>((maxSize, compound) => {
       const svgSize = detailStructureSvgSizes[compound.id]
@@ -865,13 +876,14 @@ const MyBoard: React.FC = () => {
     const scale = maxIntrinsicSize.height > MYBOARD_DETAIL_STRUCTURE_MAX_HEIGHT
       ? MYBOARD_DETAIL_STRUCTURE_MAX_HEIGHT / maxIntrinsicSize.height
       : 1;
+    const displayScale = scale * detailStructureScaleRatio;
 
     return {
-      width: Math.ceil(maxIntrinsicSize.width * scale),
-      height: Math.ceil(maxIntrinsicSize.height * scale),
-      scale,
+      width: Math.ceil(maxIntrinsicSize.width * displayScale),
+      height: Math.ceil(maxIntrinsicSize.height * displayScale),
+      scale: displayScale,
     };
-  }, [detailStructureSvgSizes, filteredCompounds]);
+  }, [detailStructureScaleRatio, detailStructureSvgSizes, filteredCompounds]);
 
   const getDetailStructureDisplaySize = React.useCallback((compound: Compound): SvgIntrinsicSize => {
     const svgSize = detailStructureSvgSizes[compound.id]
@@ -1505,21 +1517,14 @@ const MyBoard: React.FC = () => {
       title: '화합물 구조',
       dataIndex: 'structureSvg',
       key: 'structure',
-      width: selectedGroupIds.length === 1 ? 212 : Math.max(212, detailStructureFrameSize.width + 24),
+      width: Math.max(212, detailStructureFrameSize.width + 24),
       className: 'my-board-structure-column',
       render: (structureSvg: string | undefined, record: any) => {
         const displaySvg = searchedSvg && (keyword === record.smiles || keyword === 'Structure Search Result')
           ? searchedSvg
           : structureSvg;
         const structureSettings = getGroupStructureSettings(record.groupId);
-        const isSingleGroupSelection = selectedGroupIds.length === 1;
-        const singleGroupScale = (structureSettings.myBoardImageScalePercent / MYBOARD_STRUCTURE_BASE_PERCENT) * MYBOARD_STRUCTURE_SCALE_BASE_RATIO;
-        const structureDisplaySize = isSingleGroupSelection
-          ? {
-              width: Math.round(MYBOARD_STRUCTURE_BASE_WIDTH * singleGroupScale),
-              height: Math.round(MYBOARD_STRUCTURE_BASE_HEIGHT * singleGroupScale),
-            }
-          : getDetailStructureDisplaySize(record);
+        const structureDisplaySize = getDetailStructureDisplaySize(record);
 
         return (
           <CompoundStructureView
@@ -1537,11 +1542,10 @@ const MyBoard: React.FC = () => {
             actionPlacement="overlay"
             actionOverlayAnchor="container"
             frameless
-            structureFitMode={isSingleGroupSelection ? undefined : 'contain'}
             preferRdkitSvg
             rdkitAngleDeg={structureSettings.sarRotationDeg}
-            rdkitScalePercent={structureSettings.myBoardImageScalePercent}
-            rdkitMinSize={isSingleGroupSelection ? [structureDisplaySize.width, structureDisplaySize.height] : undefined}
+            rdkitScalePercent={MYBOARD_STRUCTURE_BASE_PERCENT}
+            rdkitMinSize={undefined}
             onStructureGenerated={(data) => handleCompoundStructureGenerated(record.id, data)}
             onPreview={(previewSvg) => {
               if (!previewSvg) return;
