@@ -409,7 +409,7 @@ export const renderRdkitClusterSvgs = async ({
   const normalizedScale = Math.max(40, Math.min(180, Math.round(scalePercent)));
   const normalizedMinSize = normalizeMinSize(minSize);
   const fixedBondLength = Math.max(18, Math.round(42 * (normalizedScale / 100)));
-  const requestPromise = fetch(`${getRdkitApiBaseUrl()}/cluster`, {
+  const requestPromise = fetch(`${getRdkitApiBaseUrl()}/cluster_v1`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -419,7 +419,7 @@ export const renderRdkitClusterSvgs = async ({
         name: compound.name,
         ...(compound.molBlock ? { molblock: compound.molBlock } : { SMILES: compound.smiles }),
       })),
-      scaffold_align: true,
+      scaffold_align: false,
       reverse_highlighting: mode === 'diff',
       highlight_alpha: mode === 'diff' ? 0.62 : 0.48,
       group_by: 'cluster_id',

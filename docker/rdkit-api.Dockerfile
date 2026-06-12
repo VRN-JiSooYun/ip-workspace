@@ -17,6 +17,9 @@ RUN pip install --no-cache-dir \
   rdkit==2026.3.2 \
   fastapi \
   uvicorn \
+  pandas \
+  tqdm \
+  mapply \
   requests
 
 COPY rdkit/ /app/

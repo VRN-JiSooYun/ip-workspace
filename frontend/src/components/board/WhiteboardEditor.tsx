@@ -24,6 +24,7 @@ const WhiteboardEditor: React.FC<WhiteboardEditorProps> = ({
   const { token } = theme.useToken();
   const { message, modal } = AntApp.useApp();
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const canvasContainerRef = useRef<HTMLDivElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const fabricCanvasRef = useRef<any>(null);
   const isChemDrawOpenRef = useRef(false);
@@ -250,6 +251,20 @@ const WhiteboardEditor: React.FC<WhiteboardEditorProps> = ({
       message.error('이미지 파일을 읽지 못했습니다.');
     };
     reader.readAsDataURL(file);
+  };
+
+  const isPasteFromCanvasArea = (event: ClipboardEvent) => {
+    const container = canvasContainerRef.current;
+    if (!container) return false;
+
+    const path = typeof event.composedPath === 'function' ? event.composedPath() : [];
+    if (path.includes(container)) return true;
+
+    const target = event.target;
+    if (target instanceof Node && container.contains(target)) return true;
+
+    const activeElement = document.activeElement;
+    return activeElement instanceof Node && container.contains(activeElement);
   };
 
   // SVG loading logic
@@ -506,6 +521,10 @@ const WhiteboardEditor: React.FC<WhiteboardEditorProps> = ({
     });
 
     const handlePaste = async (e: ClipboardEvent) => {
+      if (!isPasteFromCanvasArea(e)) {
+        return;
+      }
+
       if (isChemDrawOpenRef.current) {
         return;
       }
@@ -763,7 +782,12 @@ const WhiteboardEditor: React.FC<WhiteboardEditorProps> = ({
       </div>
 
       {/* Canvas Area */}
-      <div style={{ position: 'relative', width: '100%', height: height }}>
+      <div
+        ref={canvasContainerRef}
+        tabIndex={0}
+        onMouseDown={() => canvasContainerRef.current?.focus()}
+        style={{ position: 'relative', width: '100%', height: height, outline: 'none' }}
+      >
         <input
           ref={imageInputRef}
           type="file"
