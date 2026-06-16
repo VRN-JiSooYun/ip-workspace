@@ -72,6 +72,19 @@ span.ant-typography {
   border-radius: 10px;
 }
 
+[data-theme='dark'] .ant-btn-primary,
+[data-theme='dark'] .ant-btn-primary:hover,
+[data-theme='dark'] .ant-btn-primary:focus,
+[data-theme='dark'] .ant-btn-primary:active,
+[data-theme='dark'] .ant-btn-primary > span {
+  color: #fff !important;
+}
+
+[data-theme='dark'] .ant-btn-primary svg {
+  color: #fff !important;
+  stroke: currentColor;
+}
+
 /* Standardized Table Container */
 .v-table-card {
   background-color: var(--card-bg);

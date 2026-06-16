@@ -13,13 +13,15 @@ interface WhiteboardEditorProps {
   compounds?: any[];
   searchedSvg?: string | null;
   searchKeyword?: string;
+  canvasStateRef?: React.MutableRefObject<Record<string, unknown> | string | null>;
 }
 
 const WhiteboardEditor: React.FC<WhiteboardEditorProps> = ({ 
   height = 650, 
   compounds = [],
   searchedSvg,
-  searchKeyword
+  searchKeyword,
+  canvasStateRef
 }) => {
   const { token } = theme.useToken();
   const { message, modal } = AntApp.useApp();
@@ -27,6 +29,7 @@ const WhiteboardEditor: React.FC<WhiteboardEditorProps> = ({
   const canvasContainerRef = useRef<HTMLDivElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const fabricCanvasRef = useRef<any>(null);
+  const isRestoringCanvasRef = useRef(false);
   const isChemDrawOpenRef = useRef(false);
   const isDeleteConfirmOpenRef = useRef(false);
   const [isChemDrawOpen, setIsChemDrawOpen] = useState(false);
@@ -331,6 +334,38 @@ const WhiteboardEditor: React.FC<WhiteboardEditorProps> = ({
     canvas.renderAll();
   };
 
+  const saveCanvasState = (canvas: any) => {
+    if (!canvas || isRestoringCanvasRef.current) return;
+    if (!canvasStateRef) return;
+
+    canvasStateRef.current = canvas.toJSON(['structureData', 'objectType']);
+  };
+
+  const restoreCanvasState = async (canvas: any) => {
+    if (!canvasStateRef?.current) {
+      await loadCompoundsToCanvas(canvas);
+      saveCanvasState(canvas);
+      return;
+    }
+
+    isRestoringCanvasRef.current = true;
+    try {
+      const loadResult = canvas.loadFromJSON(canvasStateRef.current);
+      if (loadResult && typeof loadResult.then === 'function') {
+        await loadResult;
+      }
+      canvas.backgroundColor = token.colorBgLayout;
+      canvas.discardActiveObject();
+      canvas.requestRenderAll();
+    } catch (error) {
+      console.error('Failed to restore whiteboard canvas state:', error);
+      await loadCompoundsToCanvas(canvas);
+    } finally {
+      isRestoringCanvasRef.current = false;
+      saveCanvasState(canvas);
+    }
+  };
+
   const addStructureToCanvas = (data: ChemDrawStructureData, position?: { left: number; top: number }) => {
     const canvas = fabricCanvasRef.current;
     const svgForCanvas = data.rdkitSvg || data.svg;
@@ -500,8 +535,7 @@ const WhiteboardEditor: React.FC<WhiteboardEditorProps> = ({
 
     fabricCanvasRef.current = canvas;
     
-    // Initial load
-    loadCompoundsToCanvas(canvas);
+    restoreCanvasState(canvas);
 
     const syncSelection = () => {
       const activeObject = canvas.getActiveObject();
@@ -512,6 +546,10 @@ const WhiteboardEditor: React.FC<WhiteboardEditorProps> = ({
     canvas.on('selection:created', syncSelection);
     canvas.on('selection:updated', syncSelection);
     canvas.on('selection:cleared', clearSelection);
+    const persistCanvasState = () => saveCanvasState(canvas);
+    canvas.on('object:added', persistCanvasState);
+    canvas.on('object:modified', persistCanvasState);
+    canvas.on('object:removed', persistCanvasState);
     canvas.on('mouse:dblclick', (event: any) => {
       const target = event.target;
       if (!getStructureData(target)) return;
@@ -623,16 +661,30 @@ const WhiteboardEditor: React.FC<WhiteboardEditorProps> = ({
     window.addEventListener('resize', handleResize);
 
     return () => {
+      saveCanvasState(canvas);
       window.removeEventListener('paste', handlePaste);
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('resize', handleResize);
       canvas.off('selection:created', syncSelection);
       canvas.off('selection:updated', syncSelection);
       canvas.off('selection:cleared', clearSelection);
+      canvas.off('object:added', persistCanvasState);
+      canvas.off('object:modified', persistCanvasState);
+      canvas.off('object:removed', persistCanvasState);
       canvas.off('mouse:dblclick');
       canvas.dispose();
+      fabricCanvasRef.current = null;
     };
-  }, [height, token, compounds, searchedSvg]);
+  }, [height]);
+
+  useEffect(() => {
+    const canvas = fabricCanvasRef.current;
+    if (!canvas) return;
+
+    canvas.backgroundColor = token.colorBgLayout;
+    canvas.requestRenderAll();
+    saveCanvasState(canvas);
+  }, [token.colorBgLayout]);
 
   // Tool functions
   const addRect = () => {

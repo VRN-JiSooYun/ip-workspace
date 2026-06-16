@@ -218,6 +218,7 @@ const MyBoard: React.FC = () => {
   } | null>(null);
   const [showFilters, setShowFilters] = useState(false);
   const [viewMode, setViewMode] = useState<'table' | 'draw' | 'tree'>('table');
+  const whiteboardCanvasStateRef = React.useRef<Record<string, unknown> | string | null>(null);
   const [detailCompoundTypeFilter, setDetailCompoundTypeFilter] = useState<'all' | 'design' | 'compound'>('all');
   const [assignedGroupIds, setAssignedGroupIds] = useState<string[]>([]);
   const [compoundRows, setCompoundRows] = useState<Compound[]>(mockCompounds);
@@ -2407,6 +2408,7 @@ const MyBoard: React.FC = () => {
                   compounds={filteredCompounds}
                   searchedSvg={searchedSvg}
                   searchKeyword={keyword}
+                  canvasStateRef={whiteboardCanvasStateRef}
                 />
               </div>
             ) : (

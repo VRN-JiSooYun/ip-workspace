@@ -188,6 +188,7 @@ const stripSvgBackground = (svg: string) => {
 
 type CopySvgImageOptions = {
   scale?: number;
+  imageFilter?: string;
 };
 
 const svgToPngBlob = (svg: string, options: CopySvgImageOptions = {}) => new Promise<Blob>((resolve, reject) => {
@@ -216,7 +217,11 @@ const svgToPngBlob = (svg: string, options: CopySvgImageOptions = {}) => new Pro
   image.onload = () => {
     try {
       context.clearRect(0, 0, canvas.width, canvas.height);
+      if (options.imageFilter) {
+        context.filter = options.imageFilter;
+      }
       context.drawImage(image, 0, 0, canvas.width, canvas.height);
+      context.filter = 'none';
       canvas.toBlob((blob) => {
         URL.revokeObjectURL(url);
         if (blob) {
@@ -249,6 +254,22 @@ export const copySvgImageToClipboard = async (svg: string, options: CopySvgImage
   await navigator.clipboard.write([
     new ClipboardItemConstructor({ 'image/png': pngBlob }),
   ]);
+};
+
+export const getStructureImageCopyFilter = (token: any) => {
+  const documentTheme = typeof document !== 'undefined'
+    ? document.body.getAttribute('data-theme') || document.documentElement.getAttribute('data-theme')
+    : null;
+  if (documentTheme === 'dark') {
+    return 'invert(0.88) hue-rotate(180deg)';
+  }
+
+  const darkBackgrounds = new Set(['#141414', '#1f1f1f', '#000000']);
+  const normalizedBg = typeof token?.colorBgContainer === 'string'
+    ? token.colorBgContainer.trim().toLowerCase()
+    : '';
+
+  return darkBackgrounds.has(normalizedBg) ? 'invert(0.88) hue-rotate(180deg)' : undefined;
 };
 
 const loadChemDrawScript = (() => {
@@ -407,6 +428,7 @@ const CompoundStructureView: React.FC<CompoundStructureViewProps> = ({
 }) => {
   const { token } = theme.useToken();
   const { message } = App.useApp();
+  const structureImageCopyFilter = getStructureImageCopyFilter(token);
   const [generatedStructure, setGeneratedStructure] = useState<{ molBlock: string; svg: string; cacheKey: string } | null>(null);
   const [isRdkitLoading, setIsRdkitLoading] = useState(false);
   const [hasRdkitRenderFailed, setHasRdkitRenderFailed] = useState(false);
@@ -546,7 +568,7 @@ const CompoundStructureView: React.FC<CompoundStructureViewProps> = ({
       icon: <ImageIcon size={13} />,
       onClick: (event: React.MouseEvent<HTMLElement>) => {
         event.stopPropagation();
-        void copySvgImageToClipboard(displaySvg)
+        void copySvgImageToClipboard(displaySvg, { imageFilter: structureImageCopyFilter })
           .then(() => {
             void message.success('구조 이미지 복사 완료');
           })

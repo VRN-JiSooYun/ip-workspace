@@ -4,6 +4,7 @@ import { Copy, Image as ImageIcon } from 'lucide-react';
 import {
   copySvgImageToClipboard,
   getCompoundStructureCopyText,
+  getStructureImageCopyFilter,
 } from './CompoundStructureView';
 
 type StructurePreviewModalProps = {
@@ -33,6 +34,7 @@ const StructurePreviewModal: React.FC<StructurePreviewModalProps> = ({
 }) => {
   const { token } = theme.useToken();
   const { message } = App.useApp();
+  const structureImageCopyFilter = getStructureImageCopyFilter(token);
   const copyText = getCompoundStructureCopyText({
     smiles,
     molBlock: molblock,
@@ -43,7 +45,7 @@ const StructurePreviewModal: React.FC<StructurePreviewModalProps> = ({
   const handleCopyImage = () => {
     if (!svg) return;
 
-    void copySvgImageToClipboard(svg, { scale: imageCopyScale })
+    void copySvgImageToClipboard(svg, { scale: imageCopyScale, imageFilter: structureImageCopyFilter })
       .then(() => {
         void message.success('구조 이미지 복사 완료');
       })

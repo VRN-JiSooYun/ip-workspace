@@ -50,6 +50,7 @@ import BenzeneIcon from '../components/common/BenzeneIcon';
 import CompoundStructureView, {
   copySvgImageToClipboard,
   getCompoundStructureCopyText,
+  getStructureImageCopyFilter,
 } from '../components/common/CompoundStructureView';
 import PatentPdfToolbar from '../components/patent-analysis/pdf/PatentPdfToolbar';
 import PatentPdfViewer from '../components/patent-analysis/pdf/PatentPdfViewer';
@@ -381,6 +382,7 @@ const createRoutePatent = (id: string): Patent => {
 const PatentAnalysisDetail: React.FC = () => {
   const { token } = theme.useToken();
   const { message } = App.useApp();
+  const structureImageCopyFilter = getStructureImageCopyFilter(token);
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const location = useLocation();
@@ -1346,7 +1348,7 @@ const PatentAnalysisDetail: React.FC = () => {
   const handlePreviewCopyImage = () => {
     if (!previewSvg) return;
 
-    void copySvgImageToClipboard(previewSvg, { scale: 4 })
+    void copySvgImageToClipboard(previewSvg, { scale: 4, imageFilter: structureImageCopyFilter })
       .then(() => {
         void message.success('구조 이미지 복사 완료');
       })
