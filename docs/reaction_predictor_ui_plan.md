@@ -1,17 +1,17 @@
-# Reaction Predictor UI/UX 구현 계획
+# Reaction Site Predictor UI/UX 구현 계획
 
 ## 목표
 
-`docs/prototype/reaction_predictor.png` 스케치를 기반으로 `Reaction Predictor / OA` 신규 메뉴 화면을 추가한다. 화면은 기존 프로젝트의 `MainLayout`, breadcrumb, Ant Design, 공통 CSS 유틸리티(`v-table-card`, `v-table-header`, `v-search-input`, `v-action-btn`, `c-card`)를 그대로 따르고, Mock 데이터 기반의 UI 우선 구현으로 진행한다.
+`docs/prototype/reaction_predictor.png` 스케치를 기반으로 `Reaction Site Predictor / OA` 신규 메뉴 화면을 추가한다. 화면은 기존 프로젝트의 `MainLayout`, breadcrumb, Ant Design, 공통 CSS 유틸리티(`v-table-card`, `v-table-header`, `v-search-input`, `v-action-btn`, `c-card`)를 그대로 따르고, Mock 데이터 기반의 UI 우선 구현으로 진행한다.
 
 ## 메뉴 및 라우팅
 
-- 신규 메뉴명: `Reaction Predictor`
+- 신규 메뉴명: `Reaction Site Predictor`
 - 권장 위치: 좌측 사이드바의 `Compounds` 하위 메뉴
   - 현재 스케치도 My Workspace 하위 실험/화합물 업무 흐름에 가깝다.
   - `My board`, `Chemical space`와 같은 compound workflow로 묶는 것이 자연스럽다.
 - 권장 라우트: `/reaction-predictor`
-- breadcrumb: `Compounds / Reaction Predictor`
+- breadcrumb: `Compounds / Reaction Site Predictor`
 - 페이지 컴포넌트: `frontend/src/pages/ReactionPredictor.tsx`
 
 ## 화면 IA

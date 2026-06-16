@@ -156,7 +156,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
       activeKeys: ['tools', 'reaction-predictor'],
       menu: {
         items: [
-          { key: 'reaction-predictor', label: renderMiniDropdownLabel('Reaction Predictor'), title: '', onClick: () => navigate('/reaction-predictor') },
+          { key: 'reaction-predictor', label: renderMiniDropdownLabel('Reaction Site Predictor'), title: '', onClick: () => navigate('/reaction-predictor') },
         ],
       },
     },
@@ -432,7 +432,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                 label: <span style={{ fontWeight: 600 }}>Tools</span>,
                 popupClassName: 'app-sidebar-popup-menu',
                 children: [
-                  { key: 'reaction-predictor', label: 'Reaction Predictor', onClick: () => navigate('/reaction-predictor') },
+                  { key: 'reaction-predictor', label: 'Reaction Site Predictor', onClick: () => navigate('/reaction-predictor') },
                 ],
               },
               {

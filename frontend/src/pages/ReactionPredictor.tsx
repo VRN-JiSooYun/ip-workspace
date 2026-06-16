@@ -98,7 +98,7 @@ const ReactionPredictor: React.FC = () => {
 
   useEffect(() => {
     setHeaderContent(
-      <PageHeaderBreadcrumb items={[{ label: 'Reaction Predictor' }]} />
+      <PageHeaderBreadcrumb items={[{ label: 'Reaction Site Predictor' }]} />
     );
 
     return () => setHeaderContent(null);

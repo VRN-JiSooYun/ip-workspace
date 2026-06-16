@@ -223,6 +223,7 @@ const MyBoard: React.FC = () => {
   const [assignedGroupIds, setAssignedGroupIds] = useState<string[]>([]);
   const [compoundRows, setCompoundRows] = useState<Compound[]>(mockCompounds);
   const [selectedDetailCompoundIds, setSelectedDetailCompoundIds] = useState<React.Key[]>([]);
+  const [detailPagination, setDetailPagination] = useState({ current: 1, pageSize: 10 });
   const [compoundGroupAction, setCompoundGroupAction] = useState<'move' | 'copy'>('move');
   const [selectedCompoundTargetGroupId, setSelectedCompoundTargetGroupId] = useState<string>();
   const [isLoading, setIsLoading] = useState(false);
@@ -845,6 +846,25 @@ const MyBoard: React.FC = () => {
       });
   }, [compoundRows, detailCompoundTypeFilter, hiddenCompoundIds, keyword, selectedGroupIds, selectedGroupOrderMap, selectedProjects, selectedShares, selectedSources]);
 
+  React.useEffect(() => {
+    setDetailPagination((prev) => (
+      prev.current === 1 ? prev : { ...prev, current: 1 }
+    ));
+  }, [detailCompoundTypeFilter, hiddenCompoundIds, keyword, selectedGroupIds, selectedProjects, selectedShares, selectedSources]);
+
+  React.useEffect(() => {
+    setDetailPagination((prev) => {
+      const totalPages = Math.max(1, Math.ceil(filteredCompounds.length / prev.pageSize));
+      const nextCurrent = Math.min(prev.current, totalPages);
+      return nextCurrent === prev.current ? prev : { ...prev, current: nextCurrent };
+    });
+  }, [filteredCompounds.length]);
+
+  const pagedDetailCompounds = React.useMemo(() => {
+    const startIndex = (detailPagination.current - 1) * detailPagination.pageSize;
+    return filteredCompounds.slice(startIndex, startIndex + detailPagination.pageSize);
+  }, [detailPagination.current, detailPagination.pageSize, filteredCompounds]);
+
   const detailStructureScaleRatio = React.useMemo(() => {
     if (selectedGroupIds.length !== 1) return 1;
 
@@ -858,7 +878,7 @@ const MyBoard: React.FC = () => {
   }, [groupStructureViewSettings, selectedGroupIds]);
 
   const detailStructureFrameSize = React.useMemo(() => {
-    const maxIntrinsicSize = filteredCompounds.reduce<SvgIntrinsicSize>((maxSize, compound) => {
+    const maxIntrinsicSize = pagedDetailCompounds.reduce<SvgIntrinsicSize>((maxSize, compound) => {
       const svgSize = detailStructureSvgSizes[compound.id]
         ?? getSvgIntrinsicSize(compound.rdkitSvg)
         ?? getSvgIntrinsicSize(compound.structureSvg);
@@ -884,7 +904,7 @@ const MyBoard: React.FC = () => {
       height: Math.ceil(maxIntrinsicSize.height * displayScale),
       scale: displayScale,
     };
-  }, [detailStructureScaleRatio, detailStructureSvgSizes, filteredCompounds]);
+  }, [detailStructureScaleRatio, detailStructureSvgSizes, pagedDetailCompounds]);
 
   const getDetailStructureDisplaySize = React.useCallback((compound: Compound): SvgIntrinsicSize => {
     const svgSize = detailStructureSvgSizes[compound.id]
@@ -1282,6 +1302,10 @@ const MyBoard: React.FC = () => {
   }, [canEditCompound]);
 
   const handleGroupRowSelection = React.useCallback((groupId: string, event: React.MouseEvent) => {
+    setDetailPagination((prev) => (
+      prev.current === 1 ? prev : { ...prev, current: 1 }
+    ));
+
     if (event.shiftKey) {
       event.preventDefault();
       const rangeIds = getRangeSelectionIds(visibleGroupRows, groupSelectionAnchorRef.current, groupId);
@@ -2094,6 +2118,9 @@ const MyBoard: React.FC = () => {
                   event.preventDefault();
 
                   if (!selectedGroupIds.includes(record.id)) {
+                    setDetailPagination((prev) => (
+                      prev.current === 1 ? prev : { ...prev, current: 1 }
+                    ));
                     setSelectedGroupIds([record.id]);
                   }
                   groupSelectionAnchorRef.current = record.id;
@@ -2363,9 +2390,13 @@ const MyBoard: React.FC = () => {
                   size="small"
                   rowKey="id"
                   pagination={{
-                    defaultPageSize: 10,
+                    current: detailPagination.current,
+                    pageSize: detailPagination.pageSize,
                     showSizeChanger: true,
                     pageSizeOptions: [10, 30, 50, 100],
+                    onChange: (current, pageSize) => {
+                      setDetailPagination({ current, pageSize });
+                    },
                   }}
                   loading={isLoading}
                   scroll={{ x: detailTableScrollX, y: isStackedSplitLayout ? undefined : 'calc(100vh - 430px)' }}

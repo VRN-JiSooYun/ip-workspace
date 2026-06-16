@@ -592,6 +592,7 @@ const PatentAnalysisDetail: React.FC = () => {
   const [cleanCardPageSize, setCleanCardPageSize] = React.useState(RAW_DATA_DEFAULT_PAGE_SIZE);
   const [cleanTableCurrentPage, setCleanTableCurrentPage] = React.useState(1);
   const [cleanTablePageSize, setCleanTablePageSize] = React.useState(RAW_DATA_DEFAULT_PAGE_SIZE);
+  const [downloadingExcelType, setDownloadingExcelType] = React.useState<'bioactivity' | 'modified_bioactivity' | null>(null);
   const [activeTab, setActiveTab] = React.useState<string>('summary');
   const [rGroupFilter, setRGroupFilter] = React.useState<{ key: string; smiles: string } | null>(null);
   const [previewSvg, setPreviewSvg] = React.useState<string | null>(null);
@@ -864,6 +865,8 @@ const PatentAnalysisDetail: React.FC = () => {
   const handleEmbodimentsExcelDownload = React.useCallback(async (
     bioactivityType: 'bioactivity' | 'modified_bioactivity',
   ) => {
+    if (downloadingExcelType) return;
+
     const publicationNumber = displayedPatent?.patentNumber;
     if (!publicationNumber) {
       message.error('다운로드할 특허 번호가 없습니다.');
@@ -879,6 +882,7 @@ const PatentAnalysisDetail: React.FC = () => {
 
     const normalizedPublicationNumber = normalizePublicationNumber(publicationNumber);
     const suffix = bioactivityType === 'modified_bioactivity' ? 'clean_data' : 'raw_data';
+    setDownloadingExcelType(bioactivityType);
     try {
       const { blob, filename } = await patentAnalysisApi.downloadEmbodimentsExcel(normalizedPublicationNumber, {
         ownerId: PATENT_ANALYSIS_OWNER_ID,
@@ -892,10 +896,13 @@ const PatentAnalysisDetail: React.FC = () => {
       link.click();
       document.body.removeChild(link);
       window.URL.revokeObjectURL(objectUrl);
+      message.success('Excel 다운로드가 완료되었습니다.');
     } catch (error) {
       message.error(error instanceof Error ? error.message : 'Excel 다운로드에 실패했습니다.');
+    } finally {
+      setDownloadingExcelType(null);
     }
-  }, [cleanDataExcelRowCount, displayedPatent?.patentNumber, message, rawDataExcelRowCount]);
+  }, [cleanDataExcelRowCount, displayedPatent?.patentNumber, downloadingExcelType, message, rawDataExcelRowCount]);
 
   const toggleFavoritePatent = React.useCallback(async () => {
     const publicationNumber = displayedPatent?.patentNumber;
@@ -1815,7 +1822,8 @@ const PatentAnalysisDetail: React.FC = () => {
                             <Button
                               size="small"
                               icon={<Download size={14} />}
-                              disabled={rawDataExcelRowCount === 0}
+                              loading={downloadingExcelType === 'bioactivity'}
+                              disabled={rawDataExcelRowCount === 0 || downloadingExcelType !== null}
                               title={rawDataExcelRowCount === 0 ? '다운로드할 Raw Data가 없습니다.' : undefined}
                               onClick={() => void handleEmbodimentsExcelDownload('bioactivity')}
                             >
@@ -2226,7 +2234,8 @@ const PatentAnalysisDetail: React.FC = () => {
                             <Button
                               size="small"
                               icon={<Download size={14} />}
-                              disabled={cleanDataExcelRowCount === 0}
+                              loading={downloadingExcelType === 'modified_bioactivity'}
+                              disabled={cleanDataExcelRowCount === 0 || downloadingExcelType !== null}
                               title={cleanDataExcelRowCount === 0 ? '다운로드할 Clean Data가 없습니다.' : undefined}
                               onClick={() => void handleEmbodimentsExcelDownload('modified_bioactivity')}
                             >
