@@ -69,6 +69,13 @@ type StructureSearchInputPreview = {
   svg: string | null;
 };
 
+type StructurePreviewState = {
+  svg: string;
+  smiles?: string | null;
+  molblock?: string | null;
+  title?: string;
+};
+
 const normalizeStructurePreviewSvg = (svg: string | null | undefined, width: number, height: number) => {
   if (typeof window === 'undefined' || !svg?.trim()) return svg ?? null;
 
@@ -399,7 +406,7 @@ const CompoundSearchCard: React.FC<{
   index: number;
   selected: boolean;
   onSelect: (checked: boolean) => void;
-  onPreview: (svg?: string) => void;
+  onPreview: (svg?: string, item?: CompoundSearchItem) => void;
   onOpenDetail: () => void;
 }> = ({ item, index, selected, onSelect, onPreview, onOpenDetail }) => {
   const counts = getSourceCounts(item);
@@ -434,7 +441,7 @@ const CompoundSearchCard: React.FC<{
           actionPlacement="overlay"
           showCopyAction
           showPreviewAction
-          onPreview={onPreview}
+          onPreview={(svg) => onPreview(svg, item)}
         />
         <div className="compound-search-formula-line">
           <Text>{item.common_name || getSynonymsText(item.synonyms) || item.canonical_smiles || '-'}</Text>
@@ -454,7 +461,7 @@ const CompoundSearchFullRow: React.FC<{
   index: number;
   selected: boolean;
   onSelect: (checked: boolean) => void;
-  onPreview: (svg?: string) => void;
+  onPreview: (svg?: string, item?: CompoundSearchItem) => void;
   onOpenDetail: () => void;
 }> = ({ item, index, selected, onSelect, onPreview, onOpenDetail }) => {
   const counts = getSourceCounts(item);
@@ -489,7 +496,7 @@ const CompoundSearchFullRow: React.FC<{
             actionPlacement="overlay"
             showPreviewAction
             showCopyAction
-            onPreview={onPreview}
+            onPreview={(svg) => onPreview(svg, item)}
           />
           <div className="compound-search-source-actions">
             <SourceCountButton type="literature" count={counts.literature} compact onClick={(event) => { event.stopPropagation(); onOpenDetail(); }} />
@@ -665,7 +672,7 @@ const UniversalSearch: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [hasSearched, setHasSearched] = useState(false);
   const [isChemDrawVisible, setIsChemDrawVisible] = useState(false);
-  const [previewSvg, setPreviewSvg] = useState<string | null>(null);
+  const [structurePreview, setStructurePreview] = useState<StructurePreviewState | null>(null);
   const [structureInputPreview, setStructureInputPreview] = useState<StructureSearchInputPreview | null>(null);
   const [detailCompound, setDetailCompound] = useState<CompoundSearchItem | null>(null);
   const [patentItems, setPatentItems] = useState<CompoundPatentItem[]>([]);
@@ -681,6 +688,34 @@ const UniversalSearch: React.FC = () => {
   const isScaffoldSearchType = searchMode === 'scaffold';
   const hasStructureSmiles = inputType === 'smiles' && Boolean((structureInputPreview?.smiles || query).trim());
   const canUseScaffoldSearch = hasStructureSmiles;
+
+  const openResultStructurePreview = (svg?: string, item?: CompoundSearchItem) => {
+    if (!svg) {
+      setStructurePreview(null);
+      return;
+    }
+
+    setStructurePreview({
+      svg,
+      smiles: item?.canonical_smiles,
+      title: item ? getCompoundId(item) : 'Structure Preview',
+    });
+  };
+
+  const openInputStructurePreview = (svg?: string | null) => {
+    const previewSvg = svg ?? structureInputPreview?.svg;
+    if (!previewSvg) {
+      setStructurePreview(null);
+      return;
+    }
+
+    setStructurePreview({
+      svg: previewSvg,
+      smiles: structureInputPreview?.smiles,
+      molblock: structureInputPreview?.molblock,
+      title: 'Structure Preview',
+    });
+  };
 
   useEffect(() => {
     setHeaderContent(<PageHeaderBreadcrumb items={[{ label: '통합검색' }]} />);
@@ -1045,7 +1080,7 @@ const UniversalSearch: React.FC = () => {
                 actionOverlayAnchor="container"
                 showCopyAction
                 showPreviewAction
-                onPreview={(svg) => setPreviewSvg(svg ?? structureInputPreview.svg)}
+                onPreview={openInputStructurePreview}
               />
             </div>
           ) : null}
@@ -1312,7 +1347,7 @@ const UniversalSearch: React.FC = () => {
                       index={(currentPage - 1) * pageSize + index}
                       selected={selectedIds.includes(compoundId)}
                       onSelect={(checked) => handleToggleSelect(compoundId, checked)}
-                      onPreview={(svg) => setPreviewSvg(svg ?? null)}
+                      onPreview={openResultStructurePreview}
                       onOpenDetail={() => openCompoundDetail(item)}
                     />
                   );
@@ -1330,7 +1365,7 @@ const UniversalSearch: React.FC = () => {
                     index={(currentPage - 1) * pageSize + index}
                     selected={selectedIds.includes(compoundId)}
                     onSelect={(checked) => handleToggleSelect(compoundId, checked)}
-                    onPreview={(svg) => setPreviewSvg(svg ?? null)}
+                    onPreview={openResultStructurePreview}
                     onOpenDetail={() => openCompoundDetail(item)}
                   />
                 );
@@ -1357,10 +1392,12 @@ const UniversalSearch: React.FC = () => {
       </Card>
 
       <StructurePreviewModal
-        open={Boolean(previewSvg)}
-        title="Structure Preview"
-        onCancel={() => setPreviewSvg(null)}
-        svg={previewSvg}
+        open={Boolean(structurePreview)}
+        title={structurePreview?.title ?? 'Structure Preview'}
+        onCancel={() => setStructurePreview(null)}
+        svg={structurePreview?.svg}
+        smiles={structurePreview?.smiles}
+        molblock={structurePreview?.molblock}
         className="compound-search-preview"
       />
       <ChemDrawModal

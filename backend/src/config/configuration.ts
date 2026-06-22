@@ -31,5 +31,9 @@ export default () => ({
       20,
     ),
   },
+  conformer: {
+    apiUrl: process.env.CONFORMER_API_URL ?? 'http://172.16.1.203:8000',
+    timeoutMs: parseNumber(process.env.CONFORMER_API_TIMEOUT_MS, 120000),
+  },
   httpTimeoutMs: parseNumber(process.env.HTTP_TIMEOUT_MS, 30000),
 });

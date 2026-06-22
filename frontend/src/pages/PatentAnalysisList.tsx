@@ -838,6 +838,7 @@ const PatentAnalysisList: React.FC = () => {
     svg: string | undefined,
     title: string,
     smiles?: string,
+    options?: { stopRowClick?: boolean },
   ) => {
     if (!svg) return <Text type="secondary">-</Text>;
     const width = PATENT_LIST_STRUCTURE_IMAGE_WIDTH;
@@ -846,6 +847,7 @@ const PatentAnalysisList: React.FC = () => {
     return (
       <div
         className="patent-analysis-compound-structure"
+        onClick={options?.stopRowClick ? (event) => event.stopPropagation() : undefined}
         style={{
           display: 'flex',
           alignItems: 'center',
@@ -1048,7 +1050,7 @@ const PatentAnalysisList: React.FC = () => {
       align: 'center' as const,
       className: 'table-center-column patent-analysis-list-structure-column my-board-structure-column',
       render: (svg: string | undefined, record: Patent) => (
-        renderStructureColumn(svg, `${record.patentNumber} Key Scaffold`)
+        renderStructureColumn(svg, `${record.patentNumber} Key Scaffold`, undefined, { stopRowClick: true })
       ),
     },
     {
@@ -1059,7 +1061,7 @@ const PatentAnalysisList: React.FC = () => {
       align: 'center' as const,
       className: 'table-center-column patent-analysis-list-structure-column my-board-structure-column',
       render: (svg: string | undefined, record: Patent) => (
-        renderStructureColumn(svg, `${record.patentNumber} AI Key Compound`, record.keyCompoundSmiles)
+        renderStructureColumn(svg, `${record.patentNumber} AI Key Compound`, record.keyCompoundSmiles, { stopRowClick: true })
       ),
     },
     {

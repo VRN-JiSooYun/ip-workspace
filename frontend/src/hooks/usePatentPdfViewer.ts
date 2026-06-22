@@ -509,11 +509,12 @@ export const usePatentPdfViewer = ({
       const position = bboxToPosition(target.rect, target.pageNumber);
       if (!position) return null;
       const baseId = `raw_data_bbox_${target.id}`;
+      const layoutId = `${baseId}__layout_${highlightLayoutRevision}`;
       const isSelected = baseId === selectedDataHighlightId;
       return {
-        // 선택 여부를 id에 반영해 라이브러리가 source만 바뀔 때 리렌더를 건너뛰는 것을 방지(강제 remount).
+        // 선택 여부와 레이아웃 revision을 id에 반영해 라이브러리의 초기 배치 캐시를 강제 갱신한다.
         // 단, 선택 매칭(selectedDataHighlightId)은 baseId 기준으로 유지한다.
-        id: isSelected ? `${baseId}__selected` : baseId,
+        id: isSelected ? `${layoutId}__selected` : layoutId,
         type: 'area',
         content: { text: '' },
         position,
@@ -567,13 +568,17 @@ export const usePatentPdfViewer = ({
   }, [activeBBox, bboxToPosition]);
 
   const dynamicHighlights = React.useMemo(() => {
-    const system = systemHighlights.map((highlight) => ({ ...highlight, type: highlight.type || 'system_match' }));
+    const system = systemHighlights.map((highlight) => ({
+      ...highlight,
+      id: `${highlight.id}__layout_${highlightLayoutRevision}`,
+      type: highlight.type || 'system_match',
+    }));
     const base = currentHighlights;
 
     const user = userHighlights;
 
     return [...base, ...dataHighlights, ...system, ...user];
-  }, [currentHighlights, dataHighlights, userHighlights, systemHighlights]);
+  }, [currentHighlights, dataHighlights, highlightLayoutRevision, userHighlights, systemHighlights]);
 
   // Public API
   return {

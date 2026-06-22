@@ -36,7 +36,6 @@ import {
   FileSpreadsheet,
   Copy,
   Download,
-  Image as ImageIcon,
   Star,
 } from 'lucide-react';
 import { Patent } from '../mocks/patents';
@@ -47,11 +46,8 @@ import PageHeaderBreadcrumb from '../components/common/PageHeaderBreadcrumb';
 import DataCardItem from '../components/patent-analysis/DataCardItem';
 import ChemDrawModal from '../components/common/ChemDrawModal';
 import BenzeneIcon from '../components/common/BenzeneIcon';
-import CompoundStructureView, {
-  copySvgImageToClipboard,
-  getCompoundStructureCopyText,
-  getStructureImageCopyFilter,
-} from '../components/common/CompoundStructureView';
+import CompoundStructureView from '../components/common/CompoundStructureView';
+import StructurePreviewModal from '../components/common/StructurePreviewModal';
 import PatentPdfToolbar from '../components/patent-analysis/pdf/PatentPdfToolbar';
 import PatentPdfViewer from '../components/patent-analysis/pdf/PatentPdfViewer';
 import { usePatentPdfViewer } from '../hooks/usePatentPdfViewer';
@@ -75,15 +71,6 @@ const PATENT_ANALYSIS_OWNER_ID = '256';
 const PATENT_ANALYSIS_FAVORITE_STATE_PREFIX = 'patent-analysis-favorite-state';
 const RAW_DATA_DEFAULT_PAGE_SIZE = 30;
 const RAW_DATA_PAGE_SIZE_OPTIONS = [10, 30, 50, 100];
-
-// SVG 렌더링 컴포넌트
-const SvgRenderer: React.FC<{ svg: string; height?: number | string }> = ({ svg, height = '100%' }) => (
-  <div 
-    className="svg-renderer-frame"
-    style={{ height, width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', boxSizing: 'border-box', padding: 0 }}
-    dangerouslySetInnerHTML={{ __html: svg }}
-  />
-);
 
 const PatentDetailLoadingState: React.FC<{ description?: string }> = ({ description = '특허 상세 데이터를 불러오는 중입니다.' }) => (
   <div style={{ minHeight: 220, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -382,7 +369,6 @@ const createRoutePatent = (id: string): Patent => {
 const PatentAnalysisDetail: React.FC = () => {
   const { token } = theme.useToken();
   const { message } = App.useApp();
-  const structureImageCopyFilter = getStructureImageCopyFilter(token);
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const location = useLocation();
@@ -1196,7 +1182,7 @@ const PatentAnalysisDetail: React.FC = () => {
 
     // 클릭한 블루 bbox만 빨간색(선택)으로 표시. 선택 매칭은 baseId 기준(이미 선택된 box 재클릭 시 __selected 접미사 제거).
     const selectedBboxKey = (highlight?.source?.baseId as string | undefined)
-      ?? String(highlight?.id ?? '').replace(/__selected$/, '');
+      ?? String(highlight?.id ?? '').replace(/__selected$/, '').replace(/__layout_\d+$/, '');
     if (selectedBboxKey) {
       // 우측 활성화로 생긴 red(active_compound_highlight)는 제거 → red는 항상 하나만 유지
       pdfViewer.clearActiveCompoundHighlight();
@@ -1326,44 +1312,7 @@ const PatentAnalysisDetail: React.FC = () => {
     setPreviewTitle(title);
   };
 
-  const previewCopyText = getCompoundStructureCopyText({
-    smiles: previewStructureMeta?.smiles,
-    molBlock: previewStructureMeta?.molblock,
-    cdxml: previewStructureMeta?.cdxml,
-    svg: previewSvg,
-  });
   const canOpenPreviewChemDraw = Boolean(previewStructureMeta?.smiles || previewStructureMeta?.molblock);
-
-  const handlePreviewCopyData = () => {
-    if (!previewCopyText) return;
-
-    const writePromise = navigator.clipboard?.writeText(previewCopyText);
-    if (!writePromise) {
-      void message.error('클립보드를 지원하지 않는 브라우저입니다.');
-      return;
-    }
-
-    void writePromise
-      .then(() => {
-        void message.success('구조 데이터 복사 완료');
-      })
-      .catch(() => {
-        void message.error('복사 실패');
-      });
-  };
-
-  const handlePreviewCopyImage = () => {
-    if (!previewSvg) return;
-
-    void copySvgImageToClipboard(previewSvg, { scale: 4, imageFilter: structureImageCopyFilter })
-      .then(() => {
-        void message.success('구조 이미지 복사 완료');
-      })
-      .catch((error) => {
-        const errorMessage = error instanceof Error ? error.message : '이미지 복사 실패';
-        void message.error(errorMessage);
-      });
-  };
 
   const handlePreviewOpenChemDraw = () => {
     if (!canOpenPreviewChemDraw) return;
@@ -1949,10 +1898,10 @@ const PatentAnalysisDetail: React.FC = () => {
                                       </div>
                                       <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                                         <Button size="small" type="text" icon={<ChevronLeft size={12} />}
-                                          onClick={() => { setActiveCompId(compKey); handlePageChange(compKey, -1, pageArr, bboxArr); }} />
+                                          onClick={(event) => { event.stopPropagation(); setActiveCompId(compKey); handlePageChange(compKey, -1, pageArr, bboxArr); }} />
                                         <Text style={{ fontSize: 10 }}>p.{pageArr[curIdx] ?? '-'}</Text>
                                         <Button size="small" type="text" style={{ transform: 'scaleX(-1)' }} icon={<ChevronLeft size={12} />}
-                                          onClick={() => { setActiveCompId(compKey); handlePageChange(compKey, 1, pageArr, bboxArr); }} />
+                                          onClick={(event) => { event.stopPropagation(); setActiveCompId(compKey); handlePageChange(compKey, 1, pageArr, bboxArr); }} />
                                       </div>
                                     </div>
                                   );
@@ -2371,10 +2320,10 @@ const PatentAnalysisDetail: React.FC = () => {
                                       </div>
                                       <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                                         <Button size="small" type="text" icon={<ChevronLeft size={12} />}
-                                          onClick={() => { setActiveCompId(compKey); handlePageChange(compKey, -1, pageArr, bboxArr); }} />
+                                          onClick={(event) => { event.stopPropagation(); setActiveCompId(compKey); handlePageChange(compKey, -1, pageArr, bboxArr); }} />
                                         <Text style={{ fontSize: 10 }}>p.{pageArr[curIdx] ?? '-'}</Text>
                                         <Button size="small" type="text" style={{ transform: 'scaleX(-1)' }} icon={<ChevronLeft size={12} />}
-                                          onClick={() => { setActiveCompId(compKey); handlePageChange(compKey, 1, pageArr, bboxArr); }} />
+                                          onClick={(event) => { event.stopPropagation(); setActiveCompId(compKey); handlePageChange(compKey, 1, pageArr, bboxArr); }} />
                                       </div>
                                     </div>
                                   );
@@ -3054,75 +3003,40 @@ const PatentAnalysisDetail: React.FC = () => {
         }
       `}</style>
 
-      <Modal
+      <StructurePreviewModal
         title={previewTitle}
-        open={!!previewSvg || !!previewImageSrc}
+        open={!!previewSvg}
         onCancel={() => {
           setPreviewSvg(null);
           setPreviewStructureMeta(null);
+        }}
+        svg={previewSvg}
+        smiles={previewStructureMeta?.smiles}
+        molblock={previewStructureMeta?.molblock}
+        cdxml={previewStructureMeta?.cdxml}
+        enableLigand3d={false}
+        className="patent-structure-preview"
+        extraActions={canOpenPreviewChemDraw ? [{
+          key: 'chemdraw',
+          title: 'ChemDraw',
+          icon: <BenzeneIcon size={14} />,
+          onClick: handlePreviewOpenChemDraw,
+        }] : []}
+      />
+
+      <Modal
+        title={previewTitle}
+        open={!!previewImageSrc}
+        onCancel={() => {
           setPreviewImageSrc(null);
         }}
         footer={null}
         width="min(1200px, calc(100vw - 48px))"
         centered
       >
-        {previewSvg || previewImageSrc ? (
-          <div className={previewSvg ? 'patent-structure-preview' : undefined} style={{ width: '100%', height: 'min(720px, calc(100vh - 180px))', background: token.colorBgContainer, borderRadius: 8, border: `1px solid ${token.colorBorderSecondary}`, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', position: 'relative' }}>
-            {previewImageSrc ? (
-              <img src={previewImageSrc} alt="table-preview" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
-            ) : null}
-            {previewSvg ? (
-            <SvgRenderer svg={previewSvg} />
-            ) : null}
-            {previewSvg ? (
-              <Space
-                className="patent-structure-preview-actions"
-                size={6}
-                style={{
-                  position: 'absolute',
-                  right: 16,
-                  bottom: 16,
-                  zIndex: 5,
-                  padding: 6,
-                  borderRadius: 999,
-                  border: `1px solid ${token.colorBorderSecondary}`,
-                  background: token.colorBgElevated,
-                  boxShadow: token.boxShadowSecondary,
-                }}
-              >
-                <Tooltip title="이미지 복사">
-                  <Button
-                    className="svg-action-btn compound-structure-action-button"
-                    size="small"
-                    type="text"
-                    icon={<ImageIcon size={13} />}
-                    onClick={handlePreviewCopyImage}
-                  />
-                </Tooltip>
-                {previewCopyText ? (
-                  <Tooltip title="구조 데이터 복사">
-                    <Button
-                      className="svg-action-btn compound-structure-action-button"
-                      size="small"
-                      type="text"
-                      icon={<Copy size={13} />}
-                      onClick={handlePreviewCopyData}
-                    />
-                  </Tooltip>
-                ) : null}
-                {canOpenPreviewChemDraw ? (
-                  <Tooltip title="ChemDraw">
-                    <Button
-                      className="svg-action-btn compound-structure-action-button"
-                      size="small"
-                      type="text"
-                      icon={<BenzeneIcon size={14} />}
-                      onClick={handlePreviewOpenChemDraw}
-                    />
-                  </Tooltip>
-                ) : null}
-              </Space>
-            ) : null}
+        {previewImageSrc ? (
+          <div style={{ width: '100%', height: 'min(720px, calc(100vh - 180px))', background: token.colorBgContainer, borderRadius: 8, border: `1px solid ${token.colorBorderSecondary}`, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', position: 'relative' }}>
+            <img src={previewImageSrc} alt="table-preview" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
           </div>
         ) : null}
       </Modal>

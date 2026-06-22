@@ -67,7 +67,7 @@ export interface CompoundQuickViewerAsset {
     points?: KinomeProfilePoint[];
     infoRows?: Array<{ label: string; value: string | number }>;
     structureUrl?: string;
-    structureFormat?: 'mmcif' | 'pdb';
+    structureFormat?: 'mmcif' | 'pdb' | 'sdf';
     pdbId?: string;
     sourceLabel?: string;
   };

@@ -247,6 +247,7 @@ const PatentInsight: React.FC = () => {
   const [splitRatio, setSplitRatio] = useState(readStoredSplitRatio);
   const [isResizingSplit, setIsResizingSplit] = useState(false);
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+  const [filingLanguageLegendSelected, setFilingLanguageLegendSelected] = useState<Record<string, boolean>>({});
 
   const layoutPreset = useMemo(() => getPatentAnalysisLayoutPreset(viewportWidth), [viewportWidth]);
   const isStackedLayout = viewportWidth < 1200;
@@ -286,6 +287,28 @@ const PatentInsight: React.FC = () => {
     () => normalizeFilingLanguageCounts(statistics.filingLanguageCounts),
     [statistics.filingLanguageCounts],
   );
+  const filingLanguageActiveTotal = useMemo(
+    () => filingLanguageChartData.reduce((total, item) => (
+      filingLanguageLegendSelected[item.name] === false ? total : total + item.count
+    ), 0),
+    [filingLanguageChartData, filingLanguageLegendSelected],
+  );
+  const filingLanguageChartEvents = useMemo(() => ({
+    legendselectchanged: (params: any) => {
+      setFilingLanguageLegendSelected(params?.selected ?? {});
+    },
+  }), []);
+
+  useEffect(() => {
+    setFilingLanguageLegendSelected((prev) => {
+      const validNames = new Set(filingLanguageChartData.map(item => item.name));
+      const next = Object.entries(prev).reduce<Record<string, boolean>>((acc, [name, selected]) => {
+        if (validNames.has(name)) acc[name] = selected;
+        return acc;
+      }, {});
+      return Object.keys(next).length === Object.keys(prev).length ? prev : next;
+    });
+  }, [filingLanguageChartData]);
 
   useEffect(() => {
     const onResize = () => setViewportWidth(window.innerWidth);
@@ -551,6 +574,7 @@ const PatentInsight: React.FC = () => {
       itemWidth: 8,
       itemHeight: 8,
       textStyle: { color: chartTextColor, fontSize: 10 },
+      selected: filingLanguageLegendSelected,
     },
     series: [{
       type: 'pie',
@@ -559,7 +583,7 @@ const PatentInsight: React.FC = () => {
       label: {
         show: true,
         position: 'center',
-        formatter: () => `{value|${formatInteger(filingLanguageChartData.reduce((total, item) => total + item.count, 0))}}\n{label|Total}`,
+        formatter: () => `{value|${formatInteger(filingLanguageActiveTotal)}}\n{label|Total}`,
         rich: {
           value: {
             color: token.colorText,
@@ -579,13 +603,13 @@ const PatentInsight: React.FC = () => {
       emphasis: {
         label: {
           show: true,
-          formatter: () => `{value|${formatInteger(filingLanguageChartData.reduce((total, item) => total + item.count, 0))}}\n{label|Total}`,
+          formatter: () => `{value|${formatInteger(filingLanguageActiveTotal)}}\n{label|Total}`,
         },
       },
       data: filingLanguageChartData.map(item => ({ name: item.name, value: item.count })),
       color: chartPrimaryPalette,
     }],
-  }), [chartPrimaryPalette, chartTextColor, chartTooltipBg, filingLanguageChartData, token.colorBorderSecondary, token.colorText, token.colorTextSecondary]);
+  }), [chartPrimaryPalette, chartTextColor, chartTooltipBg, filingLanguageActiveTotal, filingLanguageChartData, filingLanguageLegendSelected, token.colorBorderSecondary, token.colorText, token.colorTextSecondary]);
 
   const heatmapTargets = useMemo(() => {
     const targetTotals = statistics.patentCountByTargetAndApplicant.reduce<Record<string, number>>((acc, item) => {
@@ -910,7 +934,12 @@ const PatentInsight: React.FC = () => {
                   />
                 </ChartPanel>
                 <ChartPanel title="Filing language count">
-                  <SafeReactECharts option={donutOption} theme={chartTheme} style={{ width: '100%', height: '100%' }} />
+                  <SafeReactECharts
+                    option={donutOption}
+                    theme={chartTheme}
+                    style={{ width: '100%', height: '100%' }}
+                    onEvents={filingLanguageChartEvents}
+                  />
                 </ChartPanel>
                 <ChartPanel title="Patent per Patent Type">
                   <SafeReactECharts option={getBarOption(statistics.patentTypeCounts.slice(0, 7), { gridLeft: 128, labelWidth: 116 })} theme={chartTheme} style={{ width: '100%', height: '100%' }} />

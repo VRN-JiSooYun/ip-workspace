@@ -38,6 +38,8 @@ services:
       - PATENT_ANALYSIS_UPLOAD_API_URL=http://172.16.1.210:8000
       - PATENT_INSIGHT_API_URL=http://172.16.1.210:8000
       - PATENT_ANALYSIS_OWNER_ID=171
+      - CONFORMER_API_URL=http://172.16.1.203:8000
+      - CONFORMER_API_TIMEOUT_MS=120000
       - HTTP_TIMEOUT_MS=30000
     networks:
       - myworkspace-net

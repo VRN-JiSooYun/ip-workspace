@@ -1,13 +1,15 @@
 import React from 'react';
 import { Alert, Spin } from 'antd';
 
-export type MolstarStructureFormat = 'mmcif' | 'pdb';
+export type MolstarStructureFormat = 'mmcif' | 'pdb' | 'sdf';
 
 interface MolstarStructureViewerProps {
-  structureUrl: string;
+  structureUrl?: string;
+  structureData?: string;
   format: MolstarStructureFormat;
   title?: string;
   className?: string;
+  showHydrogens?: boolean;
 }
 
 interface MolstarHoverInfo {
@@ -20,17 +22,17 @@ const POLYMER_GAP_MARKERS = ['polymer-gap', 'polymer gap', 'polymer_gap'];
 const POLYMER_TRACE_ONLY_VISUALS = ['polymer-trace'];
 
 const buildStructureRepresentation = async (
-  plugin: any,
-  component: any,
-  params: Record<string, unknown>,
-  tag: string
+    plugin: any,
+    component: any,
+    params: Record<string, unknown>,
+    tag: string
 ) => {
   const update = plugin.state.data.build();
   plugin.builders.structure.representation.buildRepresentation(
-    update,
-    component,
-    params,
-    { tag }
+      update,
+      component,
+      params,
+      { tag }
   );
   await update.commit();
 };
@@ -49,10 +51,10 @@ const getMolstarStateSearchText = (candidate: any): string => {
   ];
 
   return values
-    .flatMap((value) => Array.isArray(value) ? value : [value])
-    .filter((value) => value !== undefined && value !== null)
-    .join(' ')
-    .toLowerCase();
+      .flatMap((value) => Array.isArray(value) ? value : [value])
+      .filter((value) => value !== undefined && value !== null)
+      .join(' ')
+      .toLowerCase();
 };
 
 const disablePolymerGapRepresentations = async (plugin: any) => {
@@ -108,15 +110,15 @@ const getPointValue = (point: any, index: number): number | null => {
 };
 
 const normalizeMolstarLabel = (label: string) => label
-  .replace(/<br\s*\/?>/gi, '\n')
-  .replace(/<[^>]*>/g, '')
-  .replace(/\n{3,}/g, '\n\n')
-  .trim();
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<[^>]*>/g, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
 
 const setupHoverTooltip = async (
-  plugin: any,
-  parent: HTMLDivElement,
-  setHoverInfo: React.Dispatch<React.SetStateAction<MolstarHoverInfo | null>>
+    plugin: any,
+    parent: HTMLDivElement,
+    setHoverInfo: React.Dispatch<React.SetStateAction<MolstarHoverInfo | null>>
 ) => {
   const [{ lociLabel }, { Loci }] = await Promise.all([
     import('molstar/lib/mol-theme/label'),
@@ -142,8 +144,8 @@ const setupHoverTooltip = async (
       Granularity?: { residue?: (loci: unknown) => unknown };
     }).Granularity?.residue;
     const residueLoci = typeof residueGranularity === 'function'
-      ? residueGranularity(loci)
-      : loci;
+        ? residueGranularity(loci)
+        : loci;
     const label = normalizeMolstarLabel(lociLabel(residueLoci, {
       granularity: 'residue',
       condensed: false,
@@ -166,9 +168,9 @@ const setupHoverTooltip = async (
 const applyPolymerTraceOnlyRepresentation = async (plugin: any, trajectory: any): Promise<boolean> => {
   try {
     const hierarchy = await plugin.builders.structure.hierarchy.applyPreset(
-      trajectory,
-      'default',
-      { representationPreset: 'empty' } as any
+        trajectory,
+        'default',
+        { representationPreset: 'empty' } as any
     );
     const structure = hierarchy?.structureProperties ?? hierarchy?.structure;
     if (!structure) return false;
@@ -177,31 +179,31 @@ const applyPolymerTraceOnlyRepresentation = async (plugin: any, trajectory: any)
     if (!polymer) return false;
 
     await buildStructureRepresentation(
-      plugin,
-      polymer,
-      {
-        type: 'cartoon',
-        typeParams: {
-          visuals: POLYMER_TRACE_ONLY_VISUALS,
+        plugin,
+        polymer,
+        {
+          type: 'cartoon',
+          typeParams: {
+            visuals: POLYMER_TRACE_ONLY_VISUALS,
+          },
+          color: 'uniform',
+          colorParams: {
+            value: 0x00FF00,
+          },
         },
-        color: 'uniform',
-        colorParams: {
-          value: 0x00FF00,
-        },
-      },
-      'quick-viewer-polymer-trace-only'
+        'quick-viewer-polymer-trace-only'
     );
 
     const ligand = await plugin.builders.structure.tryCreateComponentStatic(structure, 'ligand');
     if (ligand) {
       await buildStructureRepresentation(
-        plugin,
-        ligand,
-        {
-          type: 'ball-and-stick',
-          color: 'element-symbol',
-        },
-        'quick-viewer-ligand'
+          plugin,
+          ligand,
+          {
+            type: 'ball-and-stick',
+            color: 'element-symbol',
+          },
+          'quick-viewer-ligand'
       );
     }
 
@@ -211,18 +213,65 @@ const applyPolymerTraceOnlyRepresentation = async (plugin: any, trajectory: any)
   }
 };
 
+const applySmallMoleculeRepresentation = async (
+    plugin: any,
+    trajectory: any,
+    showHydrogens: boolean
+): Promise<boolean> => {
+  try {
+    const hierarchy = await plugin.builders.structure.hierarchy.applyPreset(
+        trajectory,
+        'default',
+        { representationPreset: 'empty' } as any
+    );
+    const structure = hierarchy?.structureProperties ?? hierarchy?.structure;
+    if (!structure) return false;
+
+    const component = await plugin.builders.structure.tryCreateComponentStatic(structure, 'ligand')
+        ?? await plugin.builders.structure.tryCreateComponentStatic(structure, 'all');
+    if (!component) return false;
+
+    await buildStructureRepresentation(
+        plugin,
+        component,
+        {
+          type: 'ball-and-stick',
+          typeParams: {
+            ignoreHydrogens: !showHydrogens,
+            ignoreHydrogensVariant: 'all',
+          },
+          color: 'element-symbol',
+        },
+        'quick-viewer-small-molecule'
+    );
+
+    return true;
+  } catch {
+    return false;
+  }
+};
+
 const MolstarStructureViewer: React.FC<MolstarStructureViewerProps> = ({
-  structureUrl,
-  format,
-  title,
-  className,
-}) => {
+                                                                         structureUrl,
+                                                                         structureData,
+                                                                         format,
+                                                                         title,
+                                                                         className,
+                                                                         showHydrogens = true,
+                                                                       }) => {
   const parentRef = React.useRef<HTMLDivElement | null>(null);
   const canvasRef = React.useRef<HTMLCanvasElement | null>(null);
   const pluginRef = React.useRef<any>(null);
   const [isLoading, setIsLoading] = React.useState(false);
   const [errorMessage, setErrorMessage] = React.useState<string | null>(null);
   const [hoverInfo, setHoverInfo] = React.useState<MolstarHoverInfo | null>(null);
+  const structureDataUrl = React.useMemo(() => {
+    if (!structureData) return undefined;
+    const contentType = format === 'sdf'
+        ? 'chemical/x-mdl-sdfile;charset=utf-8'
+        : 'text/plain;charset=utf-8';
+    return URL.createObjectURL(new Blob([structureData], { type: contentType }));
+  }, [format, structureData]);
 
   React.useEffect(() => {
     let disposed = false;
@@ -232,7 +281,8 @@ const MolstarStructureViewer: React.FC<MolstarStructureViewerProps> = ({
     const initViewer = async () => {
       const parent = parentRef.current;
       const canvas = canvasRef.current;
-      if (!parent || !canvas || !structureUrl) return;
+      const loadUrl = structureDataUrl ?? structureUrl;
+      if (!parent || !canvas || !loadUrl) return;
 
       setIsLoading(true);
       setErrorMessage(null);
@@ -273,11 +323,13 @@ const MolstarStructureViewer: React.FC<MolstarStructureViewerProps> = ({
         }
 
         const data = await plugin.builders.data.download(
-          { url: structureUrl },
-          { state: { isGhost: true } }
+            { url: loadUrl },
+            { state: { isGhost: true } }
         );
         const trajectory = await plugin.builders.structure.parseTrajectory(data, format);
-        const hasTraceOnlyRepresentation = await applyPolymerTraceOnlyRepresentation(plugin, trajectory);
+        const hasTraceOnlyRepresentation = format === 'sdf'
+            ? await applySmallMoleculeRepresentation(plugin, trajectory, showHydrogens)
+            : await applyPolymerTraceOnlyRepresentation(plugin, trajectory);
         if (!hasTraceOnlyRepresentation) {
           await plugin.builders.structure.hierarchy.applyPreset(trajectory, 'default');
           await disablePolymerGapRepresentations(plugin);
@@ -309,9 +361,10 @@ const MolstarStructureViewer: React.FC<MolstarStructureViewerProps> = ({
         // Mol* cleanup should never block React unmount.
       } finally {
         pluginRef.current = null;
+        if (structureDataUrl) URL.revokeObjectURL(structureDataUrl);
       }
     };
-  }, [format, structureUrl]);
+  }, [format, showHydrogens, structureDataUrl, structureUrl]);
 
   React.useEffect(() => {
     const parent = parentRef.current;
@@ -326,33 +379,33 @@ const MolstarStructureViewer: React.FC<MolstarStructureViewerProps> = ({
   }, []);
 
   return (
-    <div className={className ?? 'quick-viewer-molstar-stage'} ref={parentRef} aria-label={title}>
-      <canvas ref={canvasRef} className="quick-viewer-molstar-canvas" />
-      {isLoading && (
-        <div className="quick-viewer-molstar-overlay">
-          <div className="quick-viewer-molstar-loading">
-            <Spin />
-            <span>3D 구조를 불러오는 중입니다.</span>
-          </div>
-        </div>
-      )}
-      {errorMessage && (
-        <div className="quick-viewer-molstar-overlay quick-viewer-molstar-overlay-error">
-          <Alert type="error" showIcon message="3D 구조 로드 실패" description={errorMessage} />
-        </div>
-      )}
-      {hoverInfo && !isLoading && !errorMessage && (
-        <div
-          className="quick-viewer-molstar-tooltip"
-          style={{
-            left: hoverInfo.x,
-            top: hoverInfo.y,
-          }}
-        >
-          {hoverInfo.label}
-        </div>
-      )}
-    </div>
+      <div className={className ?? 'quick-viewer-molstar-stage'} ref={parentRef} aria-label={title}>
+        <canvas ref={canvasRef} className="quick-viewer-molstar-canvas" />
+        {isLoading && (
+            <div className="quick-viewer-molstar-overlay">
+              <div className="quick-viewer-molstar-loading">
+                <Spin />
+                <span>3D 구조를 불러오는 중입니다.</span>
+              </div>
+            </div>
+        )}
+        {errorMessage && (
+            <div className="quick-viewer-molstar-overlay quick-viewer-molstar-overlay-error">
+              <Alert type="error" showIcon message="3D 구조 로드 실패" description={errorMessage} />
+            </div>
+        )}
+        {hoverInfo && !isLoading && !errorMessage && (
+            <div
+                className="quick-viewer-molstar-tooltip"
+                style={{
+                  left: hoverInfo.x,
+                  top: hoverInfo.y,
+                }}
+            >
+              {hoverInfo.label}
+            </div>
+        )}
+      </div>
   );
 };
 

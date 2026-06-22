@@ -211,7 +211,13 @@ const MyBoard: React.FC = () => {
   const [cdjsInstance, setCdjsInstance] = useState<any>(null);
   const [designSmiles, setDesignSmiles] = useState('');
   const [searchedSvg, setSearchedSvg] = useState<string | null>(null);
-  const [structurePreview, setStructurePreview] = useState<{ title: string; svg: string } | null>(null);
+  const [structurePreview, setStructurePreview] = useState<{
+    title: string;
+    svg: string;
+    smiles?: string | null;
+    molblock?: string | null;
+    cdxml?: string | null;
+  } | null>(null);
   const [quickViewer, setQuickViewer] = useState<{
     compound: Compound;
     activeType: CompoundQuickViewerAssetType;
@@ -1040,6 +1046,9 @@ const MyBoard: React.FC = () => {
             setStructurePreview({
               title: representativeCompound?.compoundId || representativeCompound?.name || 'Structure',
               svg: previewSvg,
+              smiles: representativeCompound?.smiles,
+              molblock: representativeCompound?.molBlock ?? representativeCompound?.mol_block ?? representativeCompound?.molblock,
+              cdxml: representativeCompound?.draw,
             });
           }}
         />
@@ -1577,6 +1586,9 @@ const MyBoard: React.FC = () => {
               setStructurePreview({
                 title: record.compoundId || record.name || 'Structure',
                 svg: previewSvg,
+                smiles: record.smiles,
+                molblock: record.molBlock ?? record.mol_block ?? record.molblock,
+                cdxml: record.draw,
               });
             }}
           />
@@ -2907,6 +2919,9 @@ const MyBoard: React.FC = () => {
         open={!!structurePreview}
         onCancel={() => setStructurePreview(null)}
         svg={structurePreview?.svg}
+        smiles={structurePreview?.smiles}
+        molblock={structurePreview?.molblock}
+        cdxml={structurePreview?.cdxml}
         className="my-board-structure-preview"
       />
       <style>{`

@@ -199,6 +199,7 @@ const PlaceholderViewer: React.FC<{ asset: CompoundQuickViewerAsset; compound: C
       </div>
       {asset.type === 'pdb' && structureUrl ? (
         <MolstarStructureViewer
+          key={`pdb:${compound.id}:${structureUrl}`}
           structureUrl={structureUrl}
           format={structureFormat}
           title={resultTitle}
@@ -288,7 +289,7 @@ const QuickViewerPanel: React.FC<QuickViewerPanelProps> = ({
         {compound && activeAsset ? (
           activeAsset.type === 'kp'
             ? <KinomeTreeViewer asset={activeAsset} compound={compound} />
-            : <PlaceholderViewer asset={activeAsset} compound={compound} />
+            : <PlaceholderViewer key={`${compound.id}:${activeAsset.type}`} asset={activeAsset} compound={compound} />
         ) : (
           <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="No viewer data" />
         )}
