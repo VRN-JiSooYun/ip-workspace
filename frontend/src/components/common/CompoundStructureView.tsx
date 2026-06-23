@@ -243,6 +243,25 @@ const svgToPngBlob = (svg: string, options: CopySvgImageOptions = {}) => new Pro
   image.src = url;
 });
 
+const blobToDataUrl = (blob: Blob) => new Promise<string>((resolve, reject) => {
+  const reader = new FileReader();
+  reader.onload = () => {
+    if (typeof reader.result === 'string') {
+      resolve(reader.result);
+    } else {
+      reject(new Error('Image data URL creation failed'));
+    }
+  };
+  reader.onerror = () => reject(new Error('Image data URL creation failed'));
+  reader.readAsDataURL(blob);
+});
+
+const escapeHtmlAttribute = (value: string) => value
+  .replace(/&/g, '&amp;')
+  .replace(/"/g, '&quot;')
+  .replace(/</g, '&lt;')
+  .replace(/>/g, '&gt;');
+
 export const copySvgImageToClipboard = async (svg: string, options: CopySvgImageOptions = {}) => {
   const ClipboardItemConstructor = (window as any).ClipboardItem;
 
@@ -254,6 +273,48 @@ export const copySvgImageToClipboard = async (svg: string, options: CopySvgImage
   await navigator.clipboard.write([
     new ClipboardItemConstructor({ 'image/png': pngBlob }),
   ]);
+};
+
+export const copyLinkedSvgImageToClipboard = async (
+  svg: string,
+  linkUrl: string,
+  title: string,
+  options: CopySvgImageOptions = {},
+) => {
+  const ClipboardItemConstructor = (window as any).ClipboardItem;
+
+  if (!navigator.clipboard?.write || !ClipboardItemConstructor) {
+    throw new Error('HTML 클립보드를 지원하지 않는 브라우저입니다.');
+  }
+
+  const pngBlob = await svgToPngBlob(svg, options);
+  const pngDataUrl = await blobToDataUrl(pngBlob);
+  const safeUrl = escapeHtmlAttribute(linkUrl);
+  const safeTitle = escapeHtmlAttribute(title);
+  const html = [
+    '<html><body>',
+    `<a href="${safeUrl}" title="${safeTitle}">`,
+    `<img src="${pngDataUrl}" alt="${safeTitle}" style="display:block;max-width:100%;height:auto;" />`,
+    '</a>',
+    '</body></html>',
+  ].join('');
+
+  try {
+    await navigator.clipboard.write([
+      new ClipboardItemConstructor({
+        'text/html': new Blob([html], { type: 'text/html' }),
+        'text/plain': new Blob([linkUrl], { type: 'text/plain' }),
+        'image/png': pngBlob,
+      }),
+    ]);
+  } catch {
+    await navigator.clipboard.write([
+      new ClipboardItemConstructor({
+        'text/html': new Blob([html], { type: 'text/html' }),
+        'text/plain': new Blob([linkUrl], { type: 'text/plain' }),
+      }),
+    ]);
+  }
 };
 
 export const getStructureImageCopyFilter = (token: any) => {

@@ -243,46 +243,40 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
           height: '100vh'
         }}
       >
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '12px',
-          padding: '0 12px',
-          marginBottom: 28,
-          position: 'relative',
-          opacity: sidebarMode === 'hidden' ? 0 : 1,
-          transition: 'opacity 0.2s'
-        }}>
-          <div style={{
-            width: 40,
-            height: 40,
-            background: '#F87C63',
-            borderRadius: '12px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            color: '#fff',
-            flexShrink: 0
-          }} onClick={() => navigate('/dashboard')} className="cursor-pointer">
-            <FlaskConical size={24} />
-          </div>
-          {sidebarMode === 'full' && (
-            <div onClick={() => navigate('/dashboard')} style={{ cursor: 'pointer' }}>
-              <div style={{ fontWeight: 800, fontSize: '17px', color: isDarkMode ? '#e8e8e8' : '#191c1e', letterSpacing: '-0.5px' }}>MyWorkspace</div>
+        <div
+          className={`app-sidebar-brand app-sidebar-brand-${sidebarMode}`}
+          onClick={() => navigate('/dashboard')}
+        >
+          {sidebarMode === 'full' ? (
+            <>
+              <div className="app-sidebar-mini-logo">
+                <FlaskConical size={24} />
+              </div>
+              <div className="app-sidebar-wordmark" aria-label="Medichem Workspace">
+                <div className="app-sidebar-wordmark-medichem">Medichem</div>
+                <div className="app-sidebar-wordmark-workspace">Workspace</div>
+              </div>
+            </>
+          ) : (
+            <div className="app-sidebar-mini-logo">
+              <FlaskConical size={24} />
             </div>
           )}
         </div>
 
-        <div style={{ overflowY: 'auto', flex: '1 1 auto', minHeight: 0, padding: '0 8px', display: sidebarMode === 'hidden' ? 'none' : 'block' }}>
+        <div
+          className={`app-sidebar-scroll-area app-sidebar-scroll-area-${sidebarMode}`}
+          style={{ overflowY: 'auto', flex: '1 1 auto', minHeight: 0, padding: sidebarMode === 'full' ? '0 8px' : '0 4px', display: sidebarMode === 'hidden' ? 'none' : 'block' }}
+        >
           <Tooltip title={sidebarMode === 'mini' ? 'VORA' : ''} placement="right">
             <Button
               className="vora-link-button"
               onClick={() => window.open(voraExternalUrl, '_blank', 'noopener,noreferrer')}
               style={{
                 height: 34,
-                width: sidebarMode === 'full' ? 'calc(100% - 24px)' : 34,
-                marginLeft: sidebarMode === 'full' ? 12 : 'auto',
-                marginRight: sidebarMode === 'full' ? 0 : 'auto',
+                width: sidebarMode === 'full' ? '100%' : 34,
+                marginLeft: 'auto',
+                marginRight: 'auto',
                 marginBottom: 6,
                 display: 'flex',
                 alignItems: 'center',
@@ -302,9 +296,9 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
               className="medichem-eln-link-button"
               style={{
                 height: 34,
-                width: sidebarMode === 'full' ? 'calc(100% - 24px)' : 34,
-                marginLeft: sidebarMode === 'full' ? 12 : 'auto',
-                marginRight: sidebarMode === 'full' ? 0 : 'auto',
+                width: sidebarMode === 'full' ? '100%' : 34,
+                marginLeft: 'auto',
+                marginRight: 'auto',
                 marginBottom: 18,
                 display: 'flex',
                 alignItems: 'center',
@@ -743,12 +737,98 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
           border-color: ${isDarkMode ? '#a66f4a' : '#ffc19e'} !important;
           color: ${isDarkMode ? '#ffe6d8' : '#a94712'} !important;
         }
+        .app-sidebar-brand {
+          display: flex;
+          align-items: center;
+          min-height: 40px;
+          margin-bottom: 28px;
+          opacity: ${sidebarMode === 'hidden' ? 0 : 1};
+          cursor: pointer;
+          transition: opacity 0.2s;
+        }
+        .app-sidebar-brand-full {
+          justify-content: flex-start;
+          padding: 0 12px;
+          gap: 10px;
+        }
+        .app-sidebar-brand-mini {
+          justify-content: center;
+          padding: 0;
+        }
+        .app-sidebar-brand-hidden {
+          display: none;
+        }
+        .app-sidebar-wordmark {
+          display: flex;
+          flex-direction: column;
+          justify-content: center;
+          min-width: 0;
+          line-height: 1;
+        }
+        .app-sidebar-wordmark-medichem {
+          color: #6abf4b;
+          font-size: 12px;
+          font-weight: 800;
+          letter-spacing: 0;
+        }
+        .app-sidebar-wordmark-workspace {
+          margin-top: 3px;
+          color: ${isDarkMode ? '#e6e8eb' : '#191c1e'};
+          font-size: 20px;
+          font-weight: 800;
+          letter-spacing: 0;
+        }
+        .app-sidebar-mini-logo {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          width: 40px;
+          height: 40px;
+          flex-shrink: 0;
+          color: #fff;
+          background: #F87C63;
+          border-radius: 12px;
+        }
         .cursor-pointer { cursor: pointer; }
         .app-sidebar .ant-layout-sider-children {
           height: 100%;
           min-height: 0;
           display: flex;
           flex-direction: column;
+        }
+        .app-sidebar-scroll-area {
+          scrollbar-width: thin;
+          scrollbar-color: ${isDarkMode ? '#4b5563 transparent' : '#c4cbd3 transparent'};
+        }
+        .app-sidebar-scroll-area-full .vora-link-button,
+        .app-sidebar-scroll-area-full .medichem-eln-link-button {
+          width: calc(100% - 24px) !important;
+          margin-left: 12px !important;
+          margin-right: 0 !important;
+        }
+        .app-sidebar-scroll-area-mini .vora-link-button,
+        .app-sidebar-scroll-area-mini .medichem-eln-link-button {
+          width: 34px !important;
+          min-width: 34px !important;
+          margin-left: auto !important;
+          margin-right: auto !important;
+        }
+        .app-sidebar-scroll-area::-webkit-scrollbar {
+          width: 10px;
+        }
+        .app-sidebar-scroll-area::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        .app-sidebar-scroll-area::-webkit-scrollbar-thumb {
+          background: ${isDarkMode ? '#4b5563' : '#c4cbd3'};
+          border: 2px solid ${isDarkMode ? '#1a1a1a' : '#f2f4f6'};
+          border-radius: 999px;
+        }
+        .app-sidebar-scroll-area::-webkit-scrollbar-thumb:hover {
+          background: ${isDarkMode ? '#6b7280' : '#9aa3aa'};
+        }
+        .app-sidebar-scroll-area::-webkit-scrollbar-corner {
+          background: transparent;
         }
       `}</style>
       <style>{`

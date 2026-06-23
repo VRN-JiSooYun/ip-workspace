@@ -9,7 +9,8 @@ import {
   Search, Plus, Filter, Settings, List as ListIcon,
   Image as ImageIcon, GitBranch, Info, ChevronDown, ChevronUp, Beaker,
   Activity, GripVertical, Upload as UploadIcon, FileText,
-  PanelLeftClose, PanelLeftOpen, Copy, Trash2, Combine, Edit3, MoveRight, Minus, ArrowRight
+  PanelLeftClose, PanelLeftOpen, Copy, Trash2, Combine, Edit3, MoveRight, Minus, ArrowRight,
+  Bookmark, MoreHorizontal, ZoomIn, ZoomOut, Maximize2, Crosshair
 } from 'lucide-react';
 import { DEFAULT_GROUP_STRUCTURE_VIEW_SETTINGS, useBoardStore } from '../store/useBoardStore';
 import { mockCompounds, type Compound, type CompoundQuickViewerAssetType } from '../mocks/compounds';
@@ -31,7 +32,7 @@ import shareForwardIconRaw from '../assets/svg/share-forward-fill.svg?raw';
 import shareIconRaw from '../assets/svg/share.svg?raw';
 import bookmarkIconRaw from '../assets/svg/bookmark.svg?raw';
 import eyeOffIconRaw from '../assets/svg/eye-off.svg?raw';
-import { formatDisplayDate } from '../utils/displayFormat';
+import { formatDisplayDate, formatNumberWithComma } from '../utils/displayFormat';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
@@ -178,6 +179,33 @@ const MYBOARD_CENTER_COLUMN_KEYS = new Set([
   'researchNote',
 ]);
 
+interface MyBoardTreeMetric {
+  label: string;
+  value: number | string;
+  delta?: number;
+  unit?: string;
+}
+
+interface MyBoardTreeNode {
+  id: string;
+  parentId?: string;
+  compound: Compound;
+  x: number;
+  y: number;
+  depth: number;
+  changeType: 'Core' | 'Replace' | 'Expand' | 'Optimize';
+  changeLabel: string;
+  metrics: MyBoardTreeMetric[];
+}
+
+const MYBOARD_TREE_CANVAS_WIDTH = 2280;
+const MYBOARD_TREE_CANVAS_HEIGHT = 900;
+const MYBOARD_TREE_NODE_WIDTH = 392;
+const MYBOARD_TREE_NODE_HEIGHT = 138;
+const MYBOARD_TREE_ZOOM_MIN = 0.35;
+const MYBOARD_TREE_ZOOM_MAX = 1.6;
+const MYBOARD_TREE_ZOOM_STEP = 0.1;
+
 const MyBoard: React.FC = () => {
   const navigate = useNavigate();
   const { token } = theme.useToken();
@@ -224,6 +252,8 @@ const MyBoard: React.FC = () => {
   } | null>(null);
   const [showFilters, setShowFilters] = useState(false);
   const [viewMode, setViewMode] = useState<'table' | 'draw' | 'tree'>('table');
+  const [treeZoom, setTreeZoom] = useState(1);
+  const treeCanvasShellRef = React.useRef<HTMLDivElement | null>(null);
   const whiteboardCanvasStateRef = React.useRef<Record<string, unknown> | string | null>(null);
   const [detailCompoundTypeFilter, setDetailCompoundTypeFilter] = useState<'all' | 'design' | 'compound'>('all');
   const [assignedGroupIds, setAssignedGroupIds] = useState<string[]>([]);
@@ -851,6 +881,67 @@ const MyBoard: React.FC = () => {
         return compoundRows.indexOf(a) - compoundRows.indexOf(b);
       });
   }, [compoundRows, detailCompoundTypeFilter, hiddenCompoundIds, keyword, selectedGroupIds, selectedGroupOrderMap, selectedProjects, selectedShares, selectedSources]);
+
+  const treeCompounds = React.useMemo(() => {
+    const sourceRows = filteredCompounds.length > 0
+      ? filteredCompounds
+      : compoundRows.filter((compound) => !hiddenCompoundIds.includes(compound.id));
+
+    return sourceRows.slice(0, 14);
+  }, [compoundRows, filteredCompounds, hiddenCompoundIds]);
+
+  const treeNodes = React.useMemo<MyBoardTreeNode[]>(() => {
+    if (treeCompounds.length === 0) return [];
+
+    const positions = [
+      { id: 'root', x: 28, y: 286, depth: 1, parentId: undefined, changeType: 'Core' as const, changeLabel: '+Design' },
+      { id: 'branch-a', x: 472, y: 286, depth: 2, parentId: 'root', changeType: 'Replace' as const, changeLabel: 'Replace' },
+      { id: 'branch-b', x: 472, y: 554, depth: 2, parentId: 'root', changeType: 'Expand' as const, changeLabel: 'Expand' },
+      { id: 'a-1', x: 916, y: 78, depth: 3, parentId: 'branch-a', changeType: 'Replace' as const, changeLabel: 'R1' },
+      { id: 'a-2', x: 916, y: 244, depth: 3, parentId: 'branch-a', changeType: 'Replace' as const, changeLabel: 'R2' },
+      { id: 'a-3', x: 916, y: 410, depth: 3, parentId: 'branch-a', changeType: 'Replace' as const, changeLabel: 'R3' },
+      { id: 'b-1', x: 916, y: 626, depth: 3, parentId: 'branch-b', changeType: 'Optimize' as const, changeLabel: 'Linker' },
+      { id: 'a-1-1', x: 1360, y: 44, depth: 4, parentId: 'a-1', changeType: 'Optimize' as const, changeLabel: 'F scan' },
+      { id: 'a-1-2', x: 1360, y: 200, depth: 4, parentId: 'a-1', changeType: 'Replace' as const, changeLabel: 'N swap' },
+      { id: 'a-3-1', x: 1360, y: 398, depth: 4, parentId: 'a-3', changeType: 'Expand' as const, changeLabel: 'Solvent' },
+      { id: 'b-1-1', x: 1360, y: 626, depth: 4, parentId: 'b-1', changeType: 'Replace' as const, changeLabel: 'Tail' },
+      { id: 'a-1-1-1', x: 1804, y: 44, depth: 5, parentId: 'a-1-1', changeType: 'Optimize' as const, changeLabel: 'Lead' },
+      { id: 'a-3-1-1', x: 1804, y: 398, depth: 5, parentId: 'a-3-1', changeType: 'Optimize' as const, changeLabel: 'PK' },
+      { id: 'b-1-1-1', x: 1804, y: 626, depth: 5, parentId: 'b-1-1', changeType: 'Expand' as const, changeLabel: 'Backup' },
+    ];
+
+    return positions.map((position, index) => {
+      const compound = treeCompounds[index % treeCompounds.length];
+      const seed = index + 1;
+
+      return {
+        ...position,
+        compound,
+        metrics: [
+          {
+            label: 'Binding score',
+            value: Number((-6.9 - (seed % 5) * 0.28).toFixed(2)),
+            delta: index === 0 ? undefined : Number((((seed % 3) - 1) * 0.34).toFixed(2)),
+          },
+          {
+            label: 'LogP',
+            value: Number((1.4 + (seed % 6) * 0.22).toFixed(1)),
+            delta: index === 0 ? undefined : Number((((seed % 4) - 2) * 0.17).toFixed(2)),
+          },
+          {
+            label: 'TPSA',
+            value: 54 + (seed % 7) * 7,
+            delta: index === 0 ? undefined : (seed % 2 === 0 ? 11 + seed : -(5 + seed)),
+          },
+          {
+            label: 'MW',
+            value: Number((286.4 + seed * 8.7).toFixed(1)),
+            delta: index === 0 ? undefined : Number(((seed % 2 === 0 ? 1 : -1) * (4.8 + seed)).toFixed(1)),
+          },
+        ],
+      };
+    });
+  }, [treeCompounds]);
 
   React.useEffect(() => {
     setDetailPagination((prev) => (
@@ -1866,6 +1957,241 @@ const MyBoard: React.FC = () => {
     setIsStructureModalOpen(false);
   };
 
+  const clampTreeZoom = React.useCallback((value: number) => (
+    Math.min(MYBOARD_TREE_ZOOM_MAX, Math.max(MYBOARD_TREE_ZOOM_MIN, value))
+  ), []);
+
+  const changeTreeZoom = React.useCallback((delta: number) => {
+    setTreeZoom((current) => Number(clampTreeZoom(current + delta).toFixed(2)));
+  }, [clampTreeZoom]);
+
+  const fitTreeView = React.useCallback(() => {
+    const shell = treeCanvasShellRef.current;
+    if (!shell) return;
+
+    const widthRatio = (shell.clientWidth - 32) / MYBOARD_TREE_CANVAS_WIDTH;
+    const heightRatio = (shell.clientHeight - 32) / MYBOARD_TREE_CANVAS_HEIGHT;
+    const nextZoom = Number(clampTreeZoom(Math.min(widthRatio, heightRatio, 1)).toFixed(2));
+
+    setTreeZoom(nextZoom);
+    window.requestAnimationFrame(() => {
+      shell.scrollTo({ left: 0, top: 0, behavior: 'smooth' });
+    });
+  }, [clampTreeZoom]);
+
+  const renderTreeMetricValue = (metric: MyBoardTreeMetric) => {
+    const value = typeof metric.value === 'number'
+      ? formatNumberWithComma(metric.value)
+      : metric.value;
+    return `${value}${metric.unit ?? ''}`;
+  };
+
+  const renderTreeMetricDelta = (delta?: number) => {
+    if (typeof delta !== 'number') return null;
+    const isPositive = delta > 0;
+    const isNeutral = delta === 0;
+
+    return (
+      <span className={`my-board-tree-metric-delta ${isNeutral ? 'neutral' : isPositive ? 'positive' : 'negative'}`}>
+        {isPositive ? '+' : ''}{formatNumberWithComma(delta)}
+      </span>
+    );
+  };
+
+  const renderTreeNode = (node: MyBoardTreeNode) => {
+    const { compound } = node;
+
+    return (
+      <div
+        key={node.id}
+        className={`my-board-tree-node my-board-tree-node-depth-${node.depth}`}
+        style={{ left: node.x, top: node.y }}
+      >
+        <div className="my-board-tree-node-header">
+          <span className="my-board-tree-checkbox" aria-hidden="true" />
+          <Tag className={`my-board-tree-change-tag my-board-tree-change-${node.changeType.toLowerCase()}`}>
+            {node.changeLabel}
+          </Tag>
+          <Text strong ellipsis className="my-board-tree-compound-id">
+            {compound.compoundId || compound.designNo || compound.name}
+          </Text>
+          <Button
+            type="text"
+            size="small"
+            icon={<Bookmark size={13} />}
+            className="my-board-tree-icon-button"
+          />
+          <Button
+            type="text"
+            size="small"
+            icon={<MoreHorizontal size={14} />}
+            className="my-board-tree-icon-button"
+          />
+        </div>
+        <div className="my-board-tree-node-body">
+          <div className="my-board-tree-structure-pane">
+            <CompoundStructureView
+              svg={compound.structureSvg}
+              rdkitSvg={compound.rdkitSvg}
+              rdkitSvgCache={compound.rdkitSvgCache}
+              title={compound.compoundId || compound.name || 'Structure'}
+              smiles={compound.smiles}
+              molBlock={compound.molBlock ?? compound.mol_block ?? compound.molblock}
+              cdxml={compound.draw}
+              width={132}
+              height={96}
+              iconSize={34}
+              gap={0}
+              actionPlacement="overlay"
+              actionOverlayAnchor="frame"
+              actionOverlayPlacement="bottom-right"
+              frameless
+              preferRdkitSvg
+              rdkitScalePercent={112}
+              onStructureGenerated={(data) => handleCompoundStructureGenerated(compound.id, data)}
+              onPreview={(previewSvg) => {
+                if (!previewSvg) return;
+                setStructurePreview({
+                  title: compound.compoundId || compound.name || 'Structure',
+                  svg: previewSvg,
+                  smiles: compound.smiles,
+                  molblock: compound.molBlock ?? compound.mol_block ?? compound.molblock,
+                  cdxml: compound.draw,
+                });
+              }}
+            />
+          </div>
+          <div className="my-board-tree-metrics">
+            {node.metrics.map((metric) => (
+              <div key={metric.label} className="my-board-tree-metric-row">
+                <span className="my-board-tree-metric-label">{metric.label}</span>
+                <span className="my-board-tree-metric-value">{renderTreeMetricValue(metric)}</span>
+                {renderTreeMetricDelta(metric.delta)}
+              </div>
+            ))}
+          </div>
+          <div className="my-board-tree-molprops">
+            <Tooltip title="MolProp1">
+              <div className="my-board-tree-molprop-chart" aria-label="MolProp1">
+                {compound.properties1 ? <RadarChart data={compound.properties1} size={46} /> : <Text type="secondary">-</Text>}
+              </div>
+            </Tooltip>
+            <Tooltip title="MolProp2">
+              <div className="my-board-tree-molprop-chart" aria-label="MolProp2">
+                {compound.properties2 ? <RadarChart data={compound.properties2} size={46} color="#5856d6" /> : <Text type="secondary">-</Text>}
+              </div>
+            </Tooltip>
+          </div>
+        </div>
+        <button type="button" className="my-board-tree-add-child" aria-label="하위 디자인 추가">
+          <Plus size={14} />
+        </button>
+      </div>
+    );
+  };
+
+  const renderTreeView = () => {
+    const nodeMap = new Map(treeNodes.map((node) => [node.id, node]));
+    const edges = treeNodes
+      .filter((node) => node.parentId && nodeMap.has(node.parentId))
+      .map((node) => {
+        const parent = nodeMap.get(node.parentId!);
+        if (!parent) return null;
+
+        const startX = parent.x + MYBOARD_TREE_NODE_WIDTH;
+        const startY = parent.y + MYBOARD_TREE_NODE_HEIGHT / 2;
+        const endX = node.x;
+        const endY = node.y + MYBOARD_TREE_NODE_HEIGHT / 2;
+        const midX = startX + (endX - startX) / 2;
+
+        return {
+          id: `${parent.id}-${node.id}`,
+          path: `M ${startX} ${startY} H ${midX} V ${endY} H ${endX}`,
+        };
+      })
+      .filter(Boolean) as Array<{ id: string; path: string }>;
+
+    if (treeNodes.length === 0) {
+      return (
+        <div className="my-board-tree-empty">
+          <Text type="secondary">Tree에 표시할 화합물 mock 데이터가 없습니다.</Text>
+        </div>
+      );
+    }
+
+    return (
+      <div className="my-board-tree-view">
+        <div className="my-board-tree-toolbar">
+          <Space wrap size={10}>
+            <span className="my-board-tree-select-all">
+              <span className="my-board-tree-checkbox" aria-hidden="true" />
+              <Text>All</Text>
+            </span>
+            <Select
+              size="small"
+              value="management"
+              style={{ width: 138 }}
+              options={[{ value: 'management', label: 'Management' }]}
+            />
+            <Button size="small" icon={<Bookmark size={14} />}>Bookmark</Button>
+          </Space>
+          <Space size={8}>
+            <Text type="secondary" className="my-board-tree-zoom-value">
+              {Math.round(treeZoom * 100)}%
+            </Text>
+            <Tooltip title="축소">
+              <Button
+                size="small"
+                icon={<ZoomOut size={14} />}
+                disabled={treeZoom <= MYBOARD_TREE_ZOOM_MIN}
+                onClick={() => changeTreeZoom(-MYBOARD_TREE_ZOOM_STEP)}
+              />
+            </Tooltip>
+            <Tooltip title="확대">
+              <Button
+                size="small"
+                icon={<ZoomIn size={14} />}
+                disabled={treeZoom >= MYBOARD_TREE_ZOOM_MAX}
+                onClick={() => changeTreeZoom(MYBOARD_TREE_ZOOM_STEP)}
+              />
+            </Tooltip>
+            <Tooltip title="화면 맞춤">
+              <Button size="small" icon={<Maximize2 size={14} />} onClick={fitTreeView} />
+            </Tooltip>
+            <Tooltip title="선택 위치로 이동">
+              <Button size="small" icon={<Crosshair size={14} />} />
+            </Tooltip>
+          </Space>
+        </div>
+        <div className="my-board-tree-canvas-shell" ref={treeCanvasShellRef}>
+          <div
+            className="my-board-tree-stage"
+            style={{
+              width: Math.ceil(MYBOARD_TREE_CANVAS_WIDTH * treeZoom),
+              height: Math.ceil(MYBOARD_TREE_CANVAS_HEIGHT * treeZoom),
+            }}
+          >
+            <div
+              className="my-board-tree-canvas"
+              style={{
+                width: MYBOARD_TREE_CANVAS_WIDTH,
+                height: MYBOARD_TREE_CANVAS_HEIGHT,
+                transform: `scale(${treeZoom})`,
+              }}
+            >
+              <svg className="my-board-tree-connectors" width={MYBOARD_TREE_CANVAS_WIDTH} height={MYBOARD_TREE_CANVAS_HEIGHT}>
+                {edges.map((edge) => (
+                  <path key={edge.id} d={edge.path} />
+                ))}
+              </svg>
+              {treeNodes.map(renderTreeNode)}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div
       className="gx-main-content my-board-page"
@@ -2455,7 +2781,7 @@ const MyBoard: React.FC = () => {
                 />
               </div>
             ) : (
-              <div style={{ padding: 40, textAlign: 'center', color: token.colorTextTertiary }}>Tree View 준비 중...</div>
+              renderTreeView()
             )}
           </div>
         </div>

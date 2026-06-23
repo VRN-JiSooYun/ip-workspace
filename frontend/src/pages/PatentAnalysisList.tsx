@@ -31,7 +31,10 @@ import {
 import BenzeneIcon from '../components/common/BenzeneIcon';
 import { Patent, mockPatents } from '../mocks/patents';
 import ChemDrawModal from '../components/common/ChemDrawModal';
-import CompoundStructureView from '../components/common/CompoundStructureView';
+import CompoundStructureView, {
+  copyLinkedSvgImageToClipboard,
+  getStructureImageCopyFilter,
+} from '../components/common/CompoundStructureView';
 import StructurePreviewModal from '../components/common/StructurePreviewModal';
 import { getPatentAnalysisLayoutPreset } from '../config/patentAnalysisLayout';
 import { useUIStore } from '../store/useUIStore';
@@ -321,19 +324,23 @@ const readStoredPatentAnalysisListState = (): PatentAnalysisListStoredState => {
 
   const searchParams = new URLSearchParams(window.location.search);
   const applicant = searchParams.get('applicant')?.trim() ?? '';
+  const publicationNumber = searchParams.get('publicationNumber')?.trim() ?? '';
   const target = searchParams.get('target')?.trim() ?? '';
   const dateFrom = searchParams.get('dateFrom')?.trim() ?? '';
   const dateTo = searchParams.get('dateTo')?.trim() ?? '';
   const hasInsightParams = searchParams.get('source') === 'insight'
-    || Boolean(applicant || target || dateFrom || dateTo);
+    || Boolean(applicant || publicationNumber || target || dateFrom || dateTo);
 
   if (!hasInsightParams) return {};
 
+  const urlSearchType = publicationNumber ? 'publicationNumber' : applicant ? 'applicant' : 'title';
+  const urlSearchText = publicationNumber || applicant;
+
   return {
-    searchType: applicant ? 'applicant' : 'title',
-    appliedSearchType: applicant ? 'applicant' : 'title',
-    searchText: applicant,
-    appliedSearchText: applicant,
+    searchType: urlSearchType,
+    appliedSearchType: urlSearchType,
+    searchText: urlSearchText,
+    appliedSearchText: urlSearchText,
     selectedProjects: target ? [target] : [],
     appliedProjects: target ? [target] : [],
     period: dateFrom && dateTo ? '직접설정' : '전체',
@@ -838,12 +845,40 @@ const PatentAnalysisList: React.FC = () => {
     svg: string | undefined,
     title: string,
     smiles?: string,
-    options?: { stopRowClick?: boolean },
+    options?: {
+      stopRowClick?: boolean;
+      pptLink?: {
+        url: string;
+        title: string;
+      };
+    },
   ) => {
     if (!svg) return <Text type="secondary">-</Text>;
     const width = PATENT_LIST_STRUCTURE_IMAGE_WIDTH;
     const height = PATENT_LIST_STRUCTURE_IMAGE_HEIGHT;
     const normalizedSvg = normalizePatentListStructureSvg(svg, width, height);
+    const pptCopyAction = options?.pptLink ? [{
+      key: 'copy-ppt-link',
+      title: 'PPT 링크 복사',
+      icon: <Share2 size={13} />,
+      onClick: (event: React.MouseEvent<HTMLElement>) => {
+        event.stopPropagation();
+        void copyLinkedSvgImageToClipboard(
+          normalizedSvg,
+          options.pptLink.url,
+          options.pptLink.title,
+          { scale: 2, imageFilter: getStructureImageCopyFilter(token) },
+        )
+          .then(() => {
+            void message.success('PPT용 링크 구조 이미지 복사 완료');
+          })
+          .catch((error) => {
+            const errorMessage = error instanceof Error ? error.message : 'PPT용 링크 복사 실패';
+            void message.error(errorMessage);
+          });
+      },
+    }] : [];
+
     return (
       <div
         className="patent-analysis-compound-structure"
@@ -871,10 +906,11 @@ const PatentAnalysisList: React.FC = () => {
           frameClassName="patent-analysis-compound-structure-frame"
           svgClassName="patent-analysis-compound-structure-svg"
           onPreview={() => setPreviewStructure({ title, svg: normalizedSvg, smiles })}
+          actions={pptCopyAction}
         />
       </div>
     );
-  }, []);
+  }, [message, token]);
 
   const toggleFavorite = React.useCallback(async (
     event: React.MouseEvent<HTMLElement>,
@@ -949,6 +985,16 @@ const PatentAnalysisList: React.FC = () => {
       setIsSharingFavorites(false);
     }
   }, [message, shareCc]);
+
+  const getPatentListStructureLink = React.useCallback((patentNumber: string, focus: string) => {
+    const fallbackPath = `/patents/analysis?publicationNumber=${encodeURIComponent(patentNumber)}&focus=${encodeURIComponent(focus)}`;
+    if (typeof window === 'undefined') return fallbackPath;
+
+    const url = new URL('/patents/analysis', window.location.origin);
+    url.searchParams.set('publicationNumber', patentNumber);
+    url.searchParams.set('focus', focus);
+    return url.toString();
+  }, []);
 
   const columns = [
     {
@@ -1050,7 +1096,13 @@ const PatentAnalysisList: React.FC = () => {
       align: 'center' as const,
       className: 'table-center-column patent-analysis-list-structure-column my-board-structure-column',
       render: (svg: string | undefined, record: Patent) => (
-        renderStructureColumn(svg, `${record.patentNumber} Key Scaffold`, undefined, { stopRowClick: true })
+        renderStructureColumn(svg, `${record.patentNumber} Key Scaffold`, undefined, {
+          stopRowClick: true,
+          pptLink: {
+            url: getPatentListStructureLink(record.patentNumber, 'keyScaffold'),
+            title: `${record.patentNumber} Key Scaffold`,
+          },
+        })
       ),
     },
     {
