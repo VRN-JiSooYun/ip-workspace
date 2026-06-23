@@ -857,7 +857,8 @@ const PatentAnalysisList: React.FC = () => {
     const width = PATENT_LIST_STRUCTURE_IMAGE_WIDTH;
     const height = PATENT_LIST_STRUCTURE_IMAGE_HEIGHT;
     const normalizedSvg = normalizePatentListStructureSvg(svg, width, height);
-    const pptCopyAction = options?.pptLink ? [{
+    const pptLink = options?.pptLink;
+    const pptCopyAction = pptLink ? [{
       key: 'copy-ppt-link',
       title: 'PPT 링크 복사',
       icon: <Share2 size={13} />,
@@ -865,8 +866,8 @@ const PatentAnalysisList: React.FC = () => {
         event.stopPropagation();
         void copyLinkedSvgImageToClipboard(
           normalizedSvg,
-          options.pptLink.url,
-          options.pptLink.title,
+          pptLink.url,
+          pptLink.title,
           { scale: 2, imageFilter: getStructureImageCopyFilter(token) },
         )
           .then(() => {
