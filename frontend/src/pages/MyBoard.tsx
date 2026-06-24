@@ -1,6 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
+  Handle,
+  MarkerType,
+  MiniMap,
+  Position,
+  ReactFlow,
+  type Edge,
+  type Node,
+  type NodeProps,
+  type ReactFlowInstance,
+} from '@xyflow/react';
+import {
   Row, Col, Card, Table, Button, Input,
   Space, Typography, Modal, Form, Tag, List, Select, DatePicker, Avatar, Divider, Upload, Segmented, theme, Tooltip, Dropdown, App as AntApp
 } from 'antd';
@@ -10,7 +21,7 @@ import {
   Image as ImageIcon, GitBranch, Info, ChevronDown, ChevronUp, Beaker,
   Activity, GripVertical, Upload as UploadIcon, FileText,
   PanelLeftClose, PanelLeftOpen, Copy, Trash2, Combine, Edit3, MoveRight, Minus, ArrowRight,
-  Bookmark, MoreHorizontal, ZoomIn, ZoomOut, Maximize2, Crosshair
+  Bookmark, MoreHorizontal, ZoomIn, ZoomOut, Maximize2, Crosshair, Map as MapIcon
 } from 'lucide-react';
 import { DEFAULT_GROUP_STRUCTURE_VIEW_SETTINGS, useBoardStore } from '../store/useBoardStore';
 import { mockCompounds, type Compound, type CompoundQuickViewerAssetType } from '../mocks/compounds';
@@ -206,6 +217,121 @@ const MYBOARD_TREE_ZOOM_MIN = 0.35;
 const MYBOARD_TREE_ZOOM_MAX = 1.6;
 const MYBOARD_TREE_ZOOM_STEP = 0.1;
 
+interface MyBoardTreeFlowNodeData extends Record<string, unknown>, MyBoardTreeNode {
+  onStructureGenerated: (compoundId: string, data: { molBlock: string; svg: string; cacheKey: string }) => void;
+  onPreview: (compound: Compound, previewSvg: string) => void;
+}
+
+type MyBoardTreeFlowNode = Node<MyBoardTreeFlowNodeData, 'myBoardTree'>;
+type MyBoardTreeFlowEdge = Edge;
+
+const renderTreeMetricValue = (metric: MyBoardTreeMetric) => {
+  const value = typeof metric.value === 'number'
+    ? formatNumberWithComma(metric.value)
+    : metric.value;
+  return `${value}${metric.unit ?? ''}`;
+};
+
+const renderTreeMetricDelta = (delta?: number) => {
+  if (typeof delta !== 'number') return null;
+  const isPositive = delta > 0;
+  const isNeutral = delta === 0;
+
+  return (
+    <span className={`my-board-tree-metric-delta ${isNeutral ? 'neutral' : isPositive ? 'positive' : 'negative'}`}>
+      {isPositive ? '+' : ''}{formatNumberWithComma(delta)}
+    </span>
+  );
+};
+
+const MyBoardTreeFlowNode: React.FC<NodeProps<MyBoardTreeFlowNode>> = React.memo(({ data }) => {
+  const { compound } = data;
+
+  return (
+    <div className={`my-board-tree-node my-board-tree-node-depth-${data.depth}`}>
+      <Handle type="target" position={Position.Left} />
+      <div className="my-board-tree-node-header">
+        <span className="my-board-tree-checkbox" aria-hidden="true" />
+        <Tag className={`my-board-tree-change-tag my-board-tree-change-${data.changeType.toLowerCase()}`}>
+          {data.changeLabel}
+        </Tag>
+        <Text strong ellipsis className="my-board-tree-compound-id">
+          {compound.compoundId || compound.designNo || compound.name}
+        </Text>
+        <Button
+          type="text"
+          size="small"
+          icon={<Bookmark size={13} />}
+          className="my-board-tree-icon-button nodrag"
+        />
+        <Button
+          type="text"
+          size="small"
+          icon={<MoreHorizontal size={14} />}
+          className="my-board-tree-icon-button nodrag"
+        />
+      </div>
+      <div className="my-board-tree-node-body">
+        <div className="my-board-tree-structure-pane nodrag">
+          <CompoundStructureView
+            svg={compound.structureSvg}
+            rdkitSvg={compound.rdkitSvg}
+            rdkitSvgCache={compound.rdkitSvgCache}
+            title={compound.compoundId || compound.name || 'Structure'}
+            smiles={compound.smiles}
+            molBlock={compound.molBlock ?? compound.mol_block ?? compound.molblock}
+            cdxml={compound.draw}
+            width={132}
+            height={96}
+            iconSize={34}
+            gap={0}
+            actionPlacement="overlay"
+            actionOverlayAnchor="frame"
+            actionOverlayPlacement="bottom-right"
+            frameless
+            preferRdkitSvg
+            rdkitScalePercent={112}
+            onStructureGenerated={(generatedData) => data.onStructureGenerated(compound.id, generatedData)}
+            onPreview={(previewSvg) => {
+              if (!previewSvg) return;
+              data.onPreview(compound, previewSvg);
+            }}
+          />
+        </div>
+        <div className="my-board-tree-metrics">
+          {data.metrics.map((metric) => (
+            <div key={metric.label} className="my-board-tree-metric-row">
+              <span className="my-board-tree-metric-label">{metric.label}</span>
+              <span className="my-board-tree-metric-value">{renderTreeMetricValue(metric)}</span>
+              {renderTreeMetricDelta(metric.delta)}
+            </div>
+          ))}
+        </div>
+        <div className="my-board-tree-molprops">
+          <Tooltip title="MolProp1">
+            <div className="my-board-tree-molprop-chart" aria-label="MolProp1">
+              {compound.properties1 ? <RadarChart data={compound.properties1} size={46} /> : <Text type="secondary">-</Text>}
+            </div>
+          </Tooltip>
+          <Tooltip title="MolProp2">
+            <div className="my-board-tree-molprop-chart" aria-label="MolProp2">
+              {compound.properties2 ? <RadarChart data={compound.properties2} size={46} color="#5856d6" /> : <Text type="secondary">-</Text>}
+            </div>
+          </Tooltip>
+        </div>
+      </div>
+      <button type="button" className="my-board-tree-add-child nodrag" aria-label="하위 디자인 추가">
+        <Plus size={14} />
+      </button>
+      <Handle type="source" position={Position.Right} />
+    </div>
+  );
+});
+
+const myBoardTreeNodeTypes = {
+  myBoardTree: MyBoardTreeFlowNode,
+};
+
 const MyBoard: React.FC = () => {
   const navigate = useNavigate();
   const { token } = theme.useToken();
@@ -253,7 +379,8 @@ const MyBoard: React.FC = () => {
   const [showFilters, setShowFilters] = useState(false);
   const [viewMode, setViewMode] = useState<'table' | 'draw' | 'tree'>('table');
   const [treeZoom, setTreeZoom] = useState(1);
-  const treeCanvasShellRef = React.useRef<HTMLDivElement | null>(null);
+  const [treeFlowInstance, setTreeFlowInstance] = useState<ReactFlowInstance<MyBoardTreeFlowNode, MyBoardTreeFlowEdge> | null>(null);
+  const [isTreeMiniMapVisible, setIsTreeMiniMapVisible] = useState(true);
   const whiteboardCanvasStateRef = React.useRef<Record<string, unknown> | string | null>(null);
   const [detailCompoundTypeFilter, setDetailCompoundTypeFilter] = useState<'all' | 'design' | 'compound'>('all');
   const [assignedGroupIds, setAssignedGroupIds] = useState<string[]>([]);
@@ -1957,160 +2084,88 @@ const MyBoard: React.FC = () => {
     setIsStructureModalOpen(false);
   };
 
-  const clampTreeZoom = React.useCallback((value: number) => (
-    Math.min(MYBOARD_TREE_ZOOM_MAX, Math.max(MYBOARD_TREE_ZOOM_MIN, value))
-  ), []);
+  const handleTreeViewportChange = React.useCallback((zoom: number) => {
+    setTreeZoom(Number(zoom.toFixed(2)));
+  }, []);
 
   const changeTreeZoom = React.useCallback((delta: number) => {
-    setTreeZoom((current) => Number(clampTreeZoom(current + delta).toFixed(2)));
-  }, [clampTreeZoom]);
+    if (!treeFlowInstance) return;
+
+    if (delta > 0) {
+      void treeFlowInstance.zoomIn({ duration: 180 });
+    } else {
+      void treeFlowInstance.zoomOut({ duration: 180 });
+    }
+  }, [treeFlowInstance]);
 
   const fitTreeView = React.useCallback(() => {
-    const shell = treeCanvasShellRef.current;
-    if (!shell) return;
-
-    const widthRatio = (shell.clientWidth - 32) / MYBOARD_TREE_CANVAS_WIDTH;
-    const heightRatio = (shell.clientHeight - 32) / MYBOARD_TREE_CANVAS_HEIGHT;
-    const nextZoom = Number(clampTreeZoom(Math.min(widthRatio, heightRatio, 1)).toFixed(2));
-
-    setTreeZoom(nextZoom);
-    window.requestAnimationFrame(() => {
-      shell.scrollTo({ left: 0, top: 0, behavior: 'smooth' });
+    treeFlowInstance?.fitView({
+      duration: 240,
+      padding: 0.12,
+      minZoom: MYBOARD_TREE_ZOOM_MIN,
+      maxZoom: 1,
     });
-  }, [clampTreeZoom]);
+  }, [treeFlowInstance]);
 
-  const renderTreeMetricValue = (metric: MyBoardTreeMetric) => {
-    const value = typeof metric.value === 'number'
-      ? formatNumberWithComma(metric.value)
-      : metric.value;
-    return `${value}${metric.unit ?? ''}`;
-  };
+  const focusFirstTreeNode = React.useCallback(() => {
+    if (!treeFlowInstance || treeNodes.length === 0) return;
 
-  const renderTreeMetricDelta = (delta?: number) => {
-    if (typeof delta !== 'number') return null;
-    const isPositive = delta > 0;
-    const isNeutral = delta === 0;
-
-    return (
-      <span className={`my-board-tree-metric-delta ${isNeutral ? 'neutral' : isPositive ? 'positive' : 'negative'}`}>
-        {isPositive ? '+' : ''}{formatNumberWithComma(delta)}
-      </span>
+    treeFlowInstance.setCenter(
+      treeNodes[0].x + MYBOARD_TREE_NODE_WIDTH / 2,
+      treeNodes[0].y + MYBOARD_TREE_NODE_HEIGHT / 2,
+      { duration: 240, zoom: Math.max(treeZoom, 0.9) }
     );
-  };
+  }, [treeFlowInstance, treeNodes, treeZoom]);
 
-  const renderTreeNode = (node: MyBoardTreeNode) => {
-    const { compound } = node;
+  const handleTreeStructurePreview = React.useCallback((compound: Compound, previewSvg: string) => {
+    setStructurePreview({
+      title: compound.compoundId || compound.name || 'Structure',
+      svg: previewSvg,
+      smiles: compound.smiles,
+      molblock: compound.molBlock ?? compound.mol_block ?? compound.molblock,
+      cdxml: compound.draw,
+    });
+  }, []);
 
-    return (
-      <div
-        key={node.id}
-        className={`my-board-tree-node my-board-tree-node-depth-${node.depth}`}
-        style={{ left: node.x, top: node.y }}
-      >
-        <div className="my-board-tree-node-header">
-          <span className="my-board-tree-checkbox" aria-hidden="true" />
-          <Tag className={`my-board-tree-change-tag my-board-tree-change-${node.changeType.toLowerCase()}`}>
-            {node.changeLabel}
-          </Tag>
-          <Text strong ellipsis className="my-board-tree-compound-id">
-            {compound.compoundId || compound.designNo || compound.name}
-          </Text>
-          <Button
-            type="text"
-            size="small"
-            icon={<Bookmark size={13} />}
-            className="my-board-tree-icon-button"
-          />
-          <Button
-            type="text"
-            size="small"
-            icon={<MoreHorizontal size={14} />}
-            className="my-board-tree-icon-button"
-          />
-        </div>
-        <div className="my-board-tree-node-body">
-          <div className="my-board-tree-structure-pane">
-            <CompoundStructureView
-              svg={compound.structureSvg}
-              rdkitSvg={compound.rdkitSvg}
-              rdkitSvgCache={compound.rdkitSvgCache}
-              title={compound.compoundId || compound.name || 'Structure'}
-              smiles={compound.smiles}
-              molBlock={compound.molBlock ?? compound.mol_block ?? compound.molblock}
-              cdxml={compound.draw}
-              width={132}
-              height={96}
-              iconSize={34}
-              gap={0}
-              actionPlacement="overlay"
-              actionOverlayAnchor="frame"
-              actionOverlayPlacement="bottom-right"
-              frameless
-              preferRdkitSvg
-              rdkitScalePercent={112}
-              onStructureGenerated={(data) => handleCompoundStructureGenerated(compound.id, data)}
-              onPreview={(previewSvg) => {
-                if (!previewSvg) return;
-                setStructurePreview({
-                  title: compound.compoundId || compound.name || 'Structure',
-                  svg: previewSvg,
-                  smiles: compound.smiles,
-                  molblock: compound.molBlock ?? compound.mol_block ?? compound.molblock,
-                  cdxml: compound.draw,
-                });
-              }}
-            />
-          </div>
-          <div className="my-board-tree-metrics">
-            {node.metrics.map((metric) => (
-              <div key={metric.label} className="my-board-tree-metric-row">
-                <span className="my-board-tree-metric-label">{metric.label}</span>
-                <span className="my-board-tree-metric-value">{renderTreeMetricValue(metric)}</span>
-                {renderTreeMetricDelta(metric.delta)}
-              </div>
-            ))}
-          </div>
-          <div className="my-board-tree-molprops">
-            <Tooltip title="MolProp1">
-              <div className="my-board-tree-molprop-chart" aria-label="MolProp1">
-                {compound.properties1 ? <RadarChart data={compound.properties1} size={46} /> : <Text type="secondary">-</Text>}
-              </div>
-            </Tooltip>
-            <Tooltip title="MolProp2">
-              <div className="my-board-tree-molprop-chart" aria-label="MolProp2">
-                {compound.properties2 ? <RadarChart data={compound.properties2} size={46} color="#5856d6" /> : <Text type="secondary">-</Text>}
-              </div>
-            </Tooltip>
-          </div>
-        </div>
-        <button type="button" className="my-board-tree-add-child" aria-label="하위 디자인 추가">
-          <Plus size={14} />
-        </button>
-      </div>
-    );
-  };
+  const initialTreeFlowNodes = React.useMemo<MyBoardTreeFlowNode[]>(() => (
+    treeNodes.map((node) => ({
+      id: node.id,
+      type: 'myBoardTree',
+      position: { x: node.x, y: node.y },
+      data: {
+        ...node,
+        onStructureGenerated: handleCompoundStructureGenerated,
+        onPreview: handleTreeStructurePreview,
+      },
+      draggable: true,
+    }))
+  ), [handleCompoundStructureGenerated, handleTreeStructurePreview, treeNodes]);
+
+  const treeFlowEdges = React.useMemo<MyBoardTreeFlowEdge[]>(() => {
+    const nodeMap = new Map(treeNodes.map((node) => [node.id, node]));
+
+    return treeNodes
+      .filter((node) => node.parentId && nodeMap.has(node.parentId))
+      .map((node) => ({
+        id: `${node.parentId}-${node.id}`,
+        source: node.parentId!,
+        target: node.id,
+        type: 'smoothstep',
+        animated: false,
+        selectable: false,
+        markerEnd: {
+          type: MarkerType.ArrowClosed,
+          width: 14,
+          height: 14,
+        },
+      }));
+  }, [treeNodes]);
+
+  const treeFlowKey = React.useMemo(() => (
+    treeNodes.map((node) => `${node.id}:${node.compound.id}`).join('|')
+  ), [treeNodes]);
 
   const renderTreeView = () => {
-    const nodeMap = new Map(treeNodes.map((node) => [node.id, node]));
-    const edges = treeNodes
-      .filter((node) => node.parentId && nodeMap.has(node.parentId))
-      .map((node) => {
-        const parent = nodeMap.get(node.parentId!);
-        if (!parent) return null;
-
-        const startX = parent.x + MYBOARD_TREE_NODE_WIDTH;
-        const startY = parent.y + MYBOARD_TREE_NODE_HEIGHT / 2;
-        const endX = node.x;
-        const endY = node.y + MYBOARD_TREE_NODE_HEIGHT / 2;
-        const midX = startX + (endX - startX) / 2;
-
-        return {
-          id: `${parent.id}-${node.id}`,
-          path: `M ${startX} ${startY} H ${midX} V ${endY} H ${endX}`,
-        };
-      })
-      .filter(Boolean) as Array<{ id: string; path: string }>;
-
     if (treeNodes.length === 0) {
       return (
         <div className="my-board-tree-empty">
@@ -2159,34 +2214,53 @@ const MyBoard: React.FC = () => {
               <Button size="small" icon={<Maximize2 size={14} />} onClick={fitTreeView} />
             </Tooltip>
             <Tooltip title="선택 위치로 이동">
-              <Button size="small" icon={<Crosshair size={14} />} />
+              <Button size="small" icon={<Crosshair size={14} />} onClick={focusFirstTreeNode} />
+            </Tooltip>
+            <Tooltip title={isTreeMiniMapVisible ? '미니맵 숨기기' : '미니맵 보이기'}>
+              <Button
+                size="small"
+                icon={<MapIcon size={14} />}
+                type={isTreeMiniMapVisible ? 'primary' : 'default'}
+                onClick={() => setIsTreeMiniMapVisible((visible) => !visible)}
+              />
             </Tooltip>
           </Space>
         </div>
-        <div className="my-board-tree-canvas-shell" ref={treeCanvasShellRef}>
-          <div
-            className="my-board-tree-stage"
-            style={{
-              width: Math.ceil(MYBOARD_TREE_CANVAS_WIDTH * treeZoom),
-              height: Math.ceil(MYBOARD_TREE_CANVAS_HEIGHT * treeZoom),
+        <div className="my-board-tree-canvas-shell">
+          <ReactFlow<MyBoardTreeFlowNode, MyBoardTreeFlowEdge>
+            key={treeFlowKey}
+            defaultNodes={initialTreeFlowNodes}
+            defaultEdges={treeFlowEdges}
+            nodeTypes={myBoardTreeNodeTypes}
+            fitView
+            minZoom={MYBOARD_TREE_ZOOM_MIN}
+            maxZoom={MYBOARD_TREE_ZOOM_MAX}
+            panOnScroll
+            proOptions={{ hideAttribution: true }}
+            defaultViewport={{ x: 24, y: 48, zoom: 0.72 }}
+            translateExtent={[
+              [-240, -240],
+              [MYBOARD_TREE_CANVAS_WIDTH + 480, MYBOARD_TREE_CANVAS_HEIGHT + 480],
+            ]}
+            nodeExtent={[
+              [-120, -120],
+              [MYBOARD_TREE_CANVAS_WIDTH + 480, MYBOARD_TREE_CANVAS_HEIGHT + 480],
+            ]}
+            onInit={(instance) => {
+              setTreeFlowInstance(instance);
+              handleTreeViewportChange(instance.getZoom());
             }}
+            onMove={(_, viewport) => handleTreeViewportChange(viewport.zoom)}
           >
-            <div
-              className="my-board-tree-canvas"
-              style={{
-                width: MYBOARD_TREE_CANVAS_WIDTH,
-                height: MYBOARD_TREE_CANVAS_HEIGHT,
-                transform: `scale(${treeZoom})`,
-              }}
-            >
-              <svg className="my-board-tree-connectors" width={MYBOARD_TREE_CANVAS_WIDTH} height={MYBOARD_TREE_CANVAS_HEIGHT}>
-                {edges.map((edge) => (
-                  <path key={edge.id} d={edge.path} />
-                ))}
-              </svg>
-              {treeNodes.map(renderTreeNode)}
-            </div>
-          </div>
+            {isTreeMiniMapVisible && (
+              <MiniMap
+                pannable
+                zoomable
+                nodeColor={(node) => (node.data?.depth === 1 ? '#F87C63' : '#8FBFE8')}
+                maskColor="rgba(15, 23, 42, 0.08)"
+              />
+            )}
+          </ReactFlow>
         </div>
       </div>
     );
