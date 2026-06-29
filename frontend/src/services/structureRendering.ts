@@ -421,7 +421,6 @@ export const renderRdkitClusterSvgs = async ({
       })),
       scaffold_align: false,
       reverse_highlighting: mode === 'diff',
-      highlight_alpha: mode === 'diff' ? 0.62 : 0.48,
       group_by: 'cluster_id',
       angle: normalizedAngle,
       fixed_bond_length: fixedBondLength,
