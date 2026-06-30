@@ -252,7 +252,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
               <div className="app-sidebar-mini-logo">
                 <img
                   className="app-sidebar-mini-logo-image"
-                  src="/sidebar-mini-logo.png"
+                  src="/sidebar-mini-logo.svg"
                   alt="Medichem Workspace"
                 />
               </div>
@@ -265,7 +265,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
             <div className="app-sidebar-mini-logo">
               <img
                 className="app-sidebar-mini-logo-image"
-                src="/sidebar-mini-logo.png"
+                src="/sidebar-mini-logo.svg"
                 alt="Medichem Workspace"
               />
             </div>
