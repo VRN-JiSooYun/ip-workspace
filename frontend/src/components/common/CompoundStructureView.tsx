@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { App, Button, Skeleton, Tooltip, theme } from 'antd';
 import type { ButtonProps } from 'antd';
-import { Copy, Image as ImageIcon, Search } from 'lucide-react';
+import { Copy, Image as ImageIcon, Search, Share2 } from 'lucide-react';
 import BenzeneIcon from './BenzeneIcon';
 import { CHEMDRAW_CONFIG } from '../../config/chemdraw';
 import { createRdkitSvgCacheKey, renderRdkitSvg } from '../../services/structureRendering';
@@ -15,6 +15,15 @@ export interface CompoundStructureAction {
   onClick: (event: React.MouseEvent<HTMLElement>) => void;
   disabled?: boolean;
   buttonProps?: Omit<ButtonProps, 'icon' | 'onClick' | 'disabled' | 'type' | 'size'>;
+}
+
+export interface CompoundStructureLinkedImageCopy {
+  url: string;
+  title: string;
+  tooltip?: string;
+  successMessage?: string;
+  errorMessage?: string;
+  scale?: number;
 }
 
 export interface CompoundStructureViewProps {
@@ -41,6 +50,8 @@ export interface CompoundStructureViewProps {
   showPreviewAction?: boolean;
   showCopyAction?: boolean;
   showCopyImageAction?: boolean;
+  showLinkedImageCopyAction?: boolean;
+  linkedImageCopy?: CompoundStructureLinkedImageCopy;
   onPreview?: (svg?: string) => void;
   actionPlacement?: 'rail' | 'overlay';
   actionOverlayAnchor?: 'frame' | 'container';
@@ -471,6 +482,8 @@ const CompoundStructureView: React.FC<CompoundStructureViewProps> = ({
   showPreviewAction = true,
   showCopyAction = true,
   showCopyImageAction,
+  showLinkedImageCopyAction = true,
+  linkedImageCopy,
   onPreview,
   actionPlacement = 'rail',
   actionOverlayAnchor = 'frame',
@@ -639,7 +652,42 @@ const CompoundStructureView: React.FC<CompoundStructureViewProps> = ({
           });
       },
     }] : [];
-  const allActions = [...previewAction, ...copyImageAction, ...copyAction, ...actions];
+  const resolvedLinkedImageCopy = React.useMemo(() => {
+    if (linkedImageCopy?.url) return linkedImageCopy;
+    if (!showLinkedImageCopyAction || typeof window === 'undefined') return undefined;
+
+    return {
+      url: window.location.href,
+      title: title || document.title || 'Structure',
+    };
+  }, [linkedImageCopy, showLinkedImageCopyAction, title]);
+  const linkedImageCopyAction: CompoundStructureAction[] = resolvedLinkedImageCopy?.url && displaySvg ? [{
+      key: 'copy-linked-image',
+      title: resolvedLinkedImageCopy.tooltip ?? 'PPT 링크 복사',
+      icon: <Share2 size={13} />,
+      onClick: (event: React.MouseEvent<HTMLElement>) => {
+        event.stopPropagation();
+        void copyLinkedSvgImageToClipboard(
+          displaySvg,
+          resolvedLinkedImageCopy.url,
+          resolvedLinkedImageCopy.title,
+          {
+            scale: resolvedLinkedImageCopy.scale ?? 2,
+            imageFilter: structureImageCopyFilter,
+          },
+        )
+          .then(() => {
+            void message.success(resolvedLinkedImageCopy.successMessage ?? 'PPT용 링크 구조 이미지 복사 완료');
+          })
+          .catch((error) => {
+            const errorMessage = error instanceof Error
+              ? error.message
+              : resolvedLinkedImageCopy.errorMessage ?? 'PPT용 링크 복사 실패';
+            void message.error(errorMessage);
+          });
+      },
+    }] : [];
+  const allActions = [...previewAction, ...copyImageAction, ...linkedImageCopyAction, ...copyAction, ...actions];
   const overlayActions = actionPlacement === 'overlay' && allActions.length > 0 ? (
     <div className={`compound-structure-actions-overlay compound-structure-actions-overlay-${actionOverlayPlacement}`}>
       {allActions.map((action) => (

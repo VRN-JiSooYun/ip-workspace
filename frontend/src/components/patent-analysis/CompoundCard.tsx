@@ -1,6 +1,7 @@
 import React from 'react';
 import { Tag, Typography } from 'antd';
-import DataCardItem, { DataCardItemProps } from './DataCardItem';
+import DataCardItem from './DataCardItem';
+import type { CompoundStructureLinkedImageCopy } from '../common/CompoundStructureView';
 
 const { Text } = Typography;
 
@@ -25,6 +26,7 @@ export interface CompoundCardProps {
   onCardClick?: (compound: any) => void;
   onPreview?: (svg: string, title: string) => void;
   onPageChange?: (compId: string, direction: number) => void;
+  linkedImageCopy?: CompoundStructureLinkedImageCopy;
 }
 
 /**
@@ -37,6 +39,7 @@ export const CompoundCard: React.FC<CompoundCardProps> = ({
   onCardClick,
   onPreview,
   onPageChange,
+  linkedImageCopy,
 }) => {
   const compKey = String(compound.id);
   const pageArr: number[] = Array.isArray(compound.page) ? compound.page : [];
@@ -60,6 +63,7 @@ export const CompoundCard: React.FC<CompoundCardProps> = ({
       isActive={activeCompId === compKey}
       onClick={() => onCardClick?.(compound)}
       onPreview={() => onPreview?.(compound.compound_svg, compound.compound_id)}
+      linkedImageCopy={linkedImageCopy}
       extraInfo={
         rEntries.length > 0 && (
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
@@ -91,4 +95,3 @@ export const CompoundCard: React.FC<CompoundCardProps> = ({
 };
 
 export default CompoundCard;
-

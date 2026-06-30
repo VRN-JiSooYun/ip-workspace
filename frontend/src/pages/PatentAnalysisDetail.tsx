@@ -1266,6 +1266,8 @@ const PatentAnalysisDetail: React.FC = () => {
     height?: number | string;
     iconSize?: number;
     onClick?: React.MouseEventHandler<HTMLDivElement>;
+    linkedImageFocus?: string;
+    linkedImageTitle?: string;
   }) => (
     <CompoundStructureView
       svg={opts.svg}
@@ -1290,6 +1292,10 @@ const PatentAnalysisDetail: React.FC = () => {
         smiles: opts.smiles,
         molblock: opts.molblock,
       })}
+      linkedImageCopy={getPatentDetailStructureLinkedImageCopy(
+        opts.linkedImageTitle ?? opts.title,
+        opts.linkedImageFocus ?? opts.title,
+      )}
       actions={(opts.smiles || opts.molblock) ? [{
         key: 'chemdraw',
         title: 'ChemDraw',
@@ -1304,6 +1310,26 @@ const PatentAnalysisDetail: React.FC = () => {
       }] : []}
     />
   );
+
+  function getPatentDetailStructureLinkedImageCopy(title: string, focus: string) {
+    const patentNumber = displayedPatent?.patentNumber;
+    if (!patentNumber) return undefined;
+
+    const normalizedPatentNumber = normalizePublicationNumber(patentNumber);
+    const fallbackPath = `/patents/analysis/${encodeURIComponent(normalizedPatentNumber)}?focus=${encodeURIComponent(focus)}`;
+    const url = typeof window === 'undefined'
+      ? fallbackPath
+      : (() => {
+          const nextUrl = new URL(`/patents/analysis/${encodeURIComponent(normalizedPatentNumber)}`, window.location.origin);
+          nextUrl.searchParams.set('focus', focus);
+          return nextUrl.toString();
+        })();
+
+    return {
+      url,
+      title: `${normalizedPatentNumber} ${title}`,
+    };
+  }
 
   const openImagePreview = (src: string, title: string) => {
     setPreviewSvg(null);
@@ -1687,6 +1713,10 @@ const PatentAnalysisDetail: React.FC = () => {
                                           })}
                                           smiles={comp.smiles}
                                           molblock={comp.molblock}
+                                          linkedImageCopy={getPatentDetailStructureLinkedImageCopy(
+                                            `추천 Key Compound - ${comp.compound_id}`,
+                                            `recommendedKeyCompound:${comp.compound_id}`,
+                                          )}
                                           pagination={
                                             pageArr.length > 0
                                               ? {
@@ -2048,6 +2078,10 @@ const PatentAnalysisDetail: React.FC = () => {
                                           })}
                                           smiles={comp.smiles}
                                           molblock={comp.molblock}
+                                          linkedImageCopy={getPatentDetailStructureLinkedImageCopy(
+                                            comp.compound_id,
+                                            `rawCompound:${comp.compound_id}`,
+                                          )}
                                           extraInfo={
                                             rEntries.length > 0 && (
                                               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
@@ -2458,6 +2492,10 @@ const PatentAnalysisDetail: React.FC = () => {
                                           })}
                                           smiles={comp.smiles}
                                           molblock={comp.molblock}
+                                          linkedImageCopy={getPatentDetailStructureLinkedImageCopy(
+                                            comp.compound_id,
+                                            `cleanCompound:${comp.compound_id}`,
+                                          )}
                                           extraInfo={
                                             bioEntries.length > 0 && (
                                               <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>

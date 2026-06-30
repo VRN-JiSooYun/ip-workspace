@@ -19,6 +19,7 @@ import { useUIStore } from '../store/useUIStore';
 import PageHeaderBreadcrumb from '../components/common/PageHeaderBreadcrumb';
 import BenzeneIcon from '../components/common/BenzeneIcon';
 import ChemDrawModal from '../components/common/ChemDrawModal';
+import StructurePreviewModal from '../components/common/StructurePreviewModal';
 import ToggleTag from '../components/common/ToggleTag';
 import CompoundStructureView from '../components/common/CompoundStructureView';
 import QuickViewerPanel from '../components/myboard/QuickViewerPanel';
@@ -120,6 +121,7 @@ const SarTable: React.FC = () => {
   }, [setHeaderContent, navigate]);
 
   const [keyword, setKeyword] = useState<string>('');
+  const [structurePreview, setStructurePreview] = useState<{ title: string; svg: string } | null>(null);
   const [structureRenderVersion, setStructureRenderVersion] = useState(0);
   const [compoundStructureSvgSizes, setCompoundStructureSvgSizes] = useState<Record<string, SvgIntrinsicSize>>({});
   const firstCompoundByGroupId = useMemo(() => {
@@ -774,8 +776,20 @@ const SarTable: React.FC = () => {
           gap={0}
           svgClassName="sar-structure-svg"
           structureFitMode="contain"
-          showPreviewAction={false}
-          showCopyAction={false}
+          actionPlacement="overlay"
+          actionOverlayAnchor="container"
+          actionOverlayPlacement="bottom-right"
+          showPreviewAction
+          showCopyAction
+          showLinkedImageCopyAction
+          onPreview={(svg) => {
+            if (svg) {
+              setStructurePreview({
+                title: representativeCompound?.compoundId || representativeCompound?.name || record.name || 'Structure',
+                svg,
+              });
+            }
+          }}
           preferRdkitSvg
           rdkitAngleDeg={structureSettings.sarRotationDeg}
           rdkitScalePercent={structureSettings.sarImageScalePercent}
@@ -1707,8 +1721,17 @@ const SarTable: React.FC = () => {
                               iconSize={48}
                               className="sar-compound-structure-view"
                               svgClassName="sar-structure-svg"
-                              showPreviewAction={false}
-                              showCopyAction={false}
+                              actionPlacement="overlay"
+                              actionOverlayAnchor="container"
+                              actionOverlayPlacement="bottom-right"
+                              showPreviewAction
+                              showCopyAction
+                              showLinkedImageCopyAction
+                              onPreview={(svg) => {
+                                if (svg) {
+                                  setStructurePreview({ title: item.name || item.compoundId || 'Structure', svg });
+                                }
+                              }}
                               preferRdkitSvg
                               rdkitAngleDeg={itemStructureSettings.sarRotationDeg}
                               rdkitScalePercent={DEFAULT_GROUP_STRUCTURE_VIEW_SETTINGS.sarImageScalePercent}
@@ -2013,6 +2036,13 @@ const SarTable: React.FC = () => {
         open={isStructureModalOpen}
         onCancel={() => setIsStructureModalOpen(false)}
         onConfirm={handleStructureSearchConfirm}
+      />
+
+      <StructurePreviewModal
+        open={Boolean(structurePreview)}
+        title={structurePreview?.title}
+        svg={structurePreview?.svg}
+        onCancel={() => setStructurePreview(null)}
       />
 
       <style>{`

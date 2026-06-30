@@ -31,10 +31,7 @@ import {
 import BenzeneIcon from '../components/common/BenzeneIcon';
 import { Patent, mockPatents } from '../mocks/patents';
 import ChemDrawModal from '../components/common/ChemDrawModal';
-import CompoundStructureView, {
-  copyLinkedSvgImageToClipboard,
-  getStructureImageCopyFilter,
-} from '../components/common/CompoundStructureView';
+import CompoundStructureView from '../components/common/CompoundStructureView';
 import StructurePreviewModal from '../components/common/StructurePreviewModal';
 import { getPatentAnalysisLayoutPreset } from '../config/patentAnalysisLayout';
 import { useUIStore } from '../store/useUIStore';
@@ -857,28 +854,6 @@ const PatentAnalysisList: React.FC = () => {
     const width = PATENT_LIST_STRUCTURE_IMAGE_WIDTH;
     const height = PATENT_LIST_STRUCTURE_IMAGE_HEIGHT;
     const normalizedSvg = normalizePatentListStructureSvg(svg, width, height);
-    const pptLink = options?.pptLink;
-    const pptCopyAction = pptLink ? [{
-      key: 'copy-ppt-link',
-      title: 'PPT 링크 복사',
-      icon: <Share2 size={13} />,
-      onClick: (event: React.MouseEvent<HTMLElement>) => {
-        event.stopPropagation();
-        void copyLinkedSvgImageToClipboard(
-          normalizedSvg,
-          pptLink.url,
-          pptLink.title,
-          { scale: 2, imageFilter: getStructureImageCopyFilter(token) },
-        )
-          .then(() => {
-            void message.success('PPT용 링크 구조 이미지 복사 완료');
-          })
-          .catch((error) => {
-            const errorMessage = error instanceof Error ? error.message : 'PPT용 링크 복사 실패';
-            void message.error(errorMessage);
-          });
-      },
-    }] : [];
 
     return (
       <div
@@ -907,11 +882,11 @@ const PatentAnalysisList: React.FC = () => {
           frameClassName="patent-analysis-compound-structure-frame"
           svgClassName="patent-analysis-compound-structure-svg"
           onPreview={() => setPreviewStructure({ title, svg: normalizedSvg, smiles })}
-          actions={pptCopyAction}
+          linkedImageCopy={options?.pptLink}
         />
       </div>
     );
-  }, [message, token]);
+  }, []);
 
   const toggleFavorite = React.useCallback(async (
     event: React.MouseEvent<HTMLElement>,
@@ -1114,7 +1089,13 @@ const PatentAnalysisList: React.FC = () => {
       align: 'center' as const,
       className: 'table-center-column patent-analysis-list-structure-column my-board-structure-column',
       render: (svg: string | undefined, record: Patent) => (
-        renderStructureColumn(svg, `${record.patentNumber} AI Key Compound`, record.keyCompoundSmiles, { stopRowClick: true })
+        renderStructureColumn(svg, `${record.patentNumber} AI Key Compound`, record.keyCompoundSmiles, {
+          stopRowClick: true,
+          pptLink: {
+            url: getPatentListStructureLink(record.patentNumber, 'aiKeyCompound'),
+            title: `${record.patentNumber} AI Key Compound`,
+          },
+        })
       ),
     },
     {

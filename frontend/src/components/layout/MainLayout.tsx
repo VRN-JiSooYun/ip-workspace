@@ -250,7 +250,11 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
           {sidebarMode === 'full' ? (
             <>
               <div className="app-sidebar-mini-logo">
-                <FlaskConical size={24} />
+                <img
+                  className="app-sidebar-mini-logo-image"
+                  src="/sidebar-mini-logo.png"
+                  alt="Medichem Workspace"
+                />
               </div>
               <div className="app-sidebar-wordmark" aria-label="Medichem Workspace">
                 <div className="app-sidebar-wordmark-medichem">Medichem</div>
@@ -259,7 +263,11 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
             </>
           ) : (
             <div className="app-sidebar-mini-logo">
-              <FlaskConical size={24} />
+              <img
+                className="app-sidebar-mini-logo-image"
+                src="/sidebar-mini-logo.png"
+                alt="Medichem Workspace"
+              />
             </div>
           )}
         </div>
@@ -767,14 +775,14 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
         }
         .app-sidebar-wordmark-medichem {
           color: #6abf4b;
-          font-size: 12px;
+          font-size: 14px;
           font-weight: 800;
           letter-spacing: 0;
         }
         .app-sidebar-wordmark-workspace {
-          margin-top: 3px;
+          margin-top: 0.6px;
           color: ${isDarkMode ? '#e6e8eb' : '#191c1e'};
-          font-size: 20px;
+          font-size: 22px;
           font-weight: 800;
           letter-spacing: 0;
         }
@@ -786,8 +794,17 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
           height: 40px;
           flex-shrink: 0;
           color: #fff;
-          background: #F87C63;
+          background: ${isDarkMode ? '#24272b' : '#ffffff'};
+          border: 1px solid ${isDarkMode ? '#3b4148' : '#d8dee6'};
           border-radius: 12px;
+          overflow: hidden;
+        }
+        .app-sidebar-mini-logo-image {
+          display: block;
+          width: 34px;
+          height: 34px;
+          object-fit: contain;
+          image-rendering: auto;
         }
         .cursor-pointer { cursor: pointer; }
         .app-sidebar .ant-layout-sider-children {

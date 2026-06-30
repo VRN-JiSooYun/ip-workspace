@@ -4,6 +4,7 @@ import { ChevronLeft, Search } from 'lucide-react';
 import ChemDrawModal from '../common/ChemDrawModal';
 import BenzeneIcon from '../common/BenzeneIcon';
 import CompoundStructureView from '../common/CompoundStructureView';
+import type { CompoundStructureLinkedImageCopy } from '../common/CompoundStructureView';
 
 const { Text } = Typography;
 
@@ -41,6 +42,8 @@ export interface DataCardItemProps {
   smiles?: string;
   /** Molblock 문자열 (ChemDraw 로드용) */
   molblock?: string;
+  /** 링크가 포함된 구조 이미지를 클립보드에 복사하는 액션 설정 */
+  linkedImageCopy?: CompoundStructureLinkedImageCopy;
 
   // ===== 푸터 영역 =====
   /** 추가 정보 (R Groups 태그 등) */
@@ -91,6 +94,7 @@ const DataCardItem: React.FC<DataCardItemProps> = ({
   imageOverlayActions,
   smiles,
   molblock,
+  linkedImageCopy,
   extraInfo,
   footerText,
   pagination,
@@ -144,6 +148,7 @@ const DataCardItem: React.FC<DataCardItemProps> = ({
             actionOverlayPlacement="bottom-right"
             frameStyle={{ border: 0, outline: 0, boxShadow: 'none', background: 'transparent', overflow: 'visible' }}
             onPreview={onPreview}
+            linkedImageCopy={linkedImageCopy}
             actions={(smiles || molblock) ? [{
               key: 'chemdraw',
               title: 'ChemDraw',
