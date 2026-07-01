@@ -14,6 +14,7 @@ import PatentAnalysisList from './pages/PatentAnalysisList';
 import PatentAnalysisDetail from './pages/PatentAnalysisDetail';
 import PatentInsight from './pages/PatentInsight';
 import DevelopmentStatus from './pages/DevelopmentStatus';
+import Monitoring from './pages/Monitoring';
 import EmptyPage from './pages/EmptyPage';
 import UniversalSearch from './pages/UniversalSearch';
 
@@ -102,6 +103,7 @@ const App: React.FC = () => {
               <Route path="/conferences" element={<EmptyPage title="Conferences" breadcrumb={[{ label: 'Documents' }, { label: 'Conferences' }]} />} />
               <Route path="/pdbs" element={<EmptyPage title="PDBs" breadcrumb={[{ label: 'PDBs' }]} />} />
               <Route path="/universal-search" element={<UniversalSearch />} />
+              <Route path="/monitoring" element={<Monitoring />} />
               <Route path="/development-status" element={<DevelopmentStatus />} />
               <Route path="/contact" element={<EmptyPage title="문의하기" breadcrumb={[{ label: '문의하기' }]} />} />
               <Route path="*" element={<Navigate to="/dashboard" replace />} />

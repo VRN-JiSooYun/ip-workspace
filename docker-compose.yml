@@ -13,6 +13,7 @@ services:
       - VITE_API_URL=http://localhost:3000/api
       - VITE_RDKIT_API_URL=/rdkit-api
       - VITE_COMPOUND_SEARCH_API_URL=/compound-search-api
+      - VITE_MONITORING_URL=/monitoring/
     depends_on:
       - local-myworkspace-backend
       - local-myworkspace-rdkit-api

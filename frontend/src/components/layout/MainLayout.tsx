@@ -12,6 +12,7 @@ import {
   Sun,
   Palette,
   Activity,
+  Monitor,
   Microscope,
   Menu as MenuIcon,
   PanelLeftClose,
@@ -170,6 +171,12 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
 
   const bottomMiniMenuItems: MiniMenuItem[] = [
     {
+      key: 'monitoring',
+      label: '모니터링',
+      icon: <Monitor size={22} />,
+      onClick: () => navigate('/monitoring'),
+    },
+    {
       key: 'development-status',
       label: '수리응용2팀 서비스 개발 진행 현황',
       icon: <Activity size={22} />,
@@ -201,6 +208,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
     if (path === '/papers/manage') return 'paper-manage';
     if (path === '/conferences') return 'conferences';
     if (path === '/universal-search') return 'universal-search';
+    if (path === '/monitoring') return 'monitoring';
     if (path === '/development-status') return 'development-status';
     if (path === '/contact') return 'contact';
     return 'dashboard';
@@ -471,6 +479,12 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
               selectedKeys={[getSelectedKey()]}
               style={{ background: 'transparent', borderRight: 0 }}
               items={[
+              {
+                key: 'monitoring',
+                icon: renderSidebarIcon(<Monitor size={22} />),
+                label: <span style={{ fontWeight: 600 }}>모니터링</span>,
+                onClick: () => navigate('/monitoring')
+              },
               {
                 key: 'development-status',
                 icon: renderSidebarIcon(<Activity size={22} />),
