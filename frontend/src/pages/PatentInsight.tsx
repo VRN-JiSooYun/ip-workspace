@@ -4,11 +4,11 @@ import dayjs from 'dayjs';
 import { useNavigate } from 'react-router-dom';
 import { Alert, App, Button, Card, Col, DatePicker, Empty, Input, InputNumber, Row, Space, Spin, Table, Tooltip, Typography, theme } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
-import { BarChart3, ChevronDown, ChevronUp, Database, RefreshCw, RotateCcw, Search } from 'lucide-react';
+import { BarChart3, ChevronDown, ChevronUp, RefreshCw, RotateCcw, Search } from 'lucide-react';
 import PageHeaderBreadcrumb from '../components/common/PageHeaderBreadcrumb';
 import { getPatentAnalysisLayoutPreset } from '../config/patentAnalysisLayout';
 import { useTheme } from '../contexts/ThemeContext';
-import { mockPatentInsightStatistics, PatentInsightApplicantItem, PatentInsightCountItem, PatentInsightStatistics } from '../mocks/patentInsight';
+import { PatentInsightApplicantItem, PatentInsightCountItem, PatentInsightStatistics } from '../mocks/patentInsight';
 import { patentInsightApi } from '../services/patentInsightApi';
 import { useUIStore } from '../store/useUIStore';
 
@@ -236,7 +236,6 @@ const PatentInsight: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [isViewingMockData, setIsViewingMockData] = useState(false);
   const [applicant, setApplicant] = useState(storedFilters.applicant ?? '');
   const [dateRange, setDateRange] = useState<[any, any] | null>(() => {
     if (!storedFilters.dateRange?.[0] || !storedFilters.dateRange?.[1]) return [dayjs(DEFAULT_DATE_RANGE_START), dayjs()];
@@ -428,9 +427,7 @@ const PatentInsight: React.FC = () => {
         topNTarget,
       });
       setStatistics(nextStatistics);
-      setIsViewingMockData(false);
     } catch (nextError) {
-      setIsViewingMockData(false);
       setError(nextError instanceof Error ? nextError.message : 'Patent Insight statistics request failed.');
     } finally {
       setIsLoading(false);
@@ -454,13 +451,6 @@ const PatentInsight: React.FC = () => {
     } finally {
       setIsRefreshing(false);
     }
-  };
-
-  const handleShowMockData = () => {
-    setStatistics(mockPatentInsightStatistics);
-    setError(null);
-    setIsViewingMockData(true);
-    message.info('Mock statistics are displayed.');
   };
 
   const applicantColumns: ColumnsType<PatentInsightApplicantItem> = [
@@ -875,9 +865,6 @@ const PatentInsight: React.FC = () => {
               <Col xs={24} md={8} lg={12}>
                 <Text strong>Actions</Text><br />
                 <Space wrap size={8} style={{ marginTop: 6 }}>
-                  <Button icon={<Database size={18} />} onClick={handleShowMockData} className="v-action-btn">
-                    Mock Data
-                  </Button>
                   <Tooltip title="Daily statistics refresh">
                     <Button icon={<RefreshCw size={18} />} onClick={handleRefreshStatistics} className="v-action-btn">
                       Statistics Refresh
@@ -892,12 +879,12 @@ const PatentInsight: React.FC = () => {
 
       <div className="patent-insight-results-region">
         <Spin spinning={isLoading || isRefreshing} size="large">
-          {error || isViewingMockData ? (
+          {error ? (
             <Alert
-              type={isViewingMockData ? 'info' : 'error'}
+              type="error"
               showIcon
-              message={isViewingMockData ? 'Mock statistics를 표시 중입니다.' : 'Patent Insight API request failed.'}
-              description={isViewingMockData ? '검색을 누르면 현재 필터 조건으로 API 통계 조회를 다시 시도합니다.' : error}
+              message="Patent Insight API request failed."
+              description={error}
               style={{ marginBottom: 12 }}
             />
           ) : null}
