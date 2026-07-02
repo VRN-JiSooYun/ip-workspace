@@ -1463,7 +1463,7 @@ const SarTable: React.FC = () => {
             overflow: 'hidden',
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginBottom: 14, flexWrap: 'wrap' }}>
-              <Space size={8}>
+              <Space size={8} className="sar-compound-panel-title">
                 {isGroupStructureCollapsed && (
                   <Tooltip title="그룹 영역 펼치기">
                     <Button
@@ -1475,8 +1475,8 @@ const SarTable: React.FC = () => {
                     />
                   </Tooltip>
                 )}
-                <BenzeneIcon size={16} color={token.colorPrimary} />
-                <Text strong>화합물</Text>
+                <BenzeneIcon size={16} color={token.colorPrimary} className="sar-compound-panel-title-icon" />
+                <Text strong className="sar-compound-panel-title-text">화합물</Text>
                 <Text type="secondary" style={{ fontSize: 11 }}>{sarCompounds.length} compounds</Text>
                 <Segmented
                   className="sar-compound-highlight-toggle"
@@ -2665,6 +2665,24 @@ const SarTable: React.FC = () => {
           border-color: ${isDarkMode ? 'rgba(248, 124, 99, 0.42)' : 'rgba(248, 124, 99, 0.36)'};
           box-shadow: inset 0 2px 0 ${token.colorPrimary};
         }
+        .sar-compound-panel-title {
+          display: inline-flex;
+          align-items: center;
+          min-height: 24px;
+        }
+        .sar-compound-panel-title .ant-space-item {
+          display: inline-flex;
+          align-items: center;
+        }
+        .sar-compound-panel-title-icon {
+          display: block;
+          flex: 0 0 auto;
+        }
+        .sar-compound-panel-title-text {
+          display: inline-flex;
+          align-items: center;
+          line-height: 20px;
+        }
         .sar-compound-setting-stack {
           display: inline-flex;
           flex-direction: row;
@@ -2719,8 +2737,8 @@ const SarTable: React.FC = () => {
         }
         .sar-compound-setting-icon {
           display: block;
-          width: 16px;
-          height: 16px;
+          width: 18px;
+          height: 13px;
           filter: ${isDarkMode ? 'invert(1)' : 'none'};
           pointer-events: none;
         }
