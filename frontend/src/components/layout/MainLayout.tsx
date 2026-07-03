@@ -20,6 +20,7 @@ import {
   HelpCircle
 } from 'lucide-react';
 import BenzeneIcon from '../common/BenzeneIcon';
+import RdkitDrawOptionsModal from '../common/RdkitDrawOptionsModal';
 import { useUserStore } from '../../store/useUserStore';
 
 const { Header, Sider, Content } = Layout;
@@ -41,6 +42,7 @@ import { useUIStore } from '../../store/useUIStore';
 
 const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
   const [sidebarMode, setSidebarMode] = useState<'full' | 'mini' | 'hidden'>('full');
+  const [isRdkitDrawOptionsOpen, setIsRdkitDrawOptionsOpen] = useState(false);
   const [viewportWidth, setViewportWidth] = useState<number>(() => {
     if (typeof window === 'undefined') return 1920;
     return window.innerWidth;
@@ -568,7 +570,14 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
               <Button type="text" onClick={toggleTheme} icon={
                 isDarkMode ? <Sun size={20} color={token.colorTextSecondary} /> : <Moon size={20} color={token.colorTextSecondary} />
               } />
-              <Button type="text" icon={<Palette size={20} color={token.colorTextSecondary} />} />
+              <Tooltip title="RDKit Draw 설정">
+                <Button
+                  type="text"
+                  icon={<Palette size={20} color={token.colorTextSecondary} />}
+                  onClick={() => setIsRdkitDrawOptionsOpen(true)}
+                  aria-label="RDKit Draw 설정 열기"
+                />
+              </Tooltip>
             </Space>
             <Select
               value={currentUserId}
@@ -618,6 +627,10 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
           </div>
         </Content>
       </Layout>
+      <RdkitDrawOptionsModal
+        open={isRdkitDrawOptionsOpen}
+        onCancel={() => setIsRdkitDrawOptionsOpen(false)}
+      />
       <style>{`
         .app-sidebar .ant-menu-item-selected { 
           background-color: ${isDarkMode ? '#2b2b2b' : '#ffffff'} !important; 

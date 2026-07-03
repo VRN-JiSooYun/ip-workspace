@@ -2,12 +2,28 @@ import { create } from 'zustand';
 import { CompoundGroup, mockGroups } from '../mocks/compounds';
 
 export type SarHighlightMode = 'com' | 'diff' | 'off';
+export type SarAtomColorMode = 'black' | 'color';
+export type SarAbbreviationMode = 'keep' | 'all' | 'off';
+
+export interface SarScaffoldSettings {
+  mode: 'auto' | 'custom';
+  source: 'none' | 'auto' | 'custom';
+  smiles?: string;
+  molBlock?: string;
+  cdxml?: string;
+  color?: string;
+  svg?: string | null;
+  updatedAt?: number;
+}
 
 export interface GroupStructureViewSettings {
   sarImageScalePercent: number;
   sarRotationDeg: number;
   sarOverlapPercent: number;
   sarHighlightMode: SarHighlightMode;
+  sarAtomColorMode: SarAtomColorMode;
+  sarAbbreviationMode: SarAbbreviationMode;
+  sarScaffold: SarScaffoldSettings;
   myBoardImageScalePercent: number;
 }
 
@@ -16,6 +32,12 @@ export const DEFAULT_GROUP_STRUCTURE_VIEW_SETTINGS: GroupStructureViewSettings =
   sarRotationDeg: 0,
   sarOverlapPercent: 0,
   sarHighlightMode: 'off',
+  sarAtomColorMode: 'black',
+  sarAbbreviationMode: 'off',
+  sarScaffold: {
+    mode: 'auto',
+    source: 'none',
+  },
   myBoardImageScalePercent: 100,
 };
 

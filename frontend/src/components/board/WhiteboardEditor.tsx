@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import ChemDrawModal, { type ChemDrawStructureData } from '../common/ChemDrawModal';
 import BenzeneIcon from '../common/BenzeneIcon';
+import { createRdkitDrawOptionPayload, readRdkitDrawOptions } from '../../services/rdkitDrawOptions';
 
 interface WhiteboardEditorProps {
   height?: number;
@@ -99,8 +100,7 @@ const WhiteboardEditor: React.FC<WhiteboardEditorProps> = ({
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         molblock,
-        transparent_bg: true,
-        abbrev_option: 1,
+        ...createRdkitDrawOptionPayload(readRdkitDrawOptions()),
       }),
     });
 

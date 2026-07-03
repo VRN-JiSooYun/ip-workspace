@@ -4,7 +4,8 @@ import type { ButtonProps } from 'antd';
 import { Copy, Image as ImageIcon, Search, Share2 } from 'lucide-react';
 import BenzeneIcon from './BenzeneIcon';
 import { CHEMDRAW_CONFIG } from '../../config/chemdraw';
-import { createRdkitSvgCacheKey, renderRdkitSvg } from '../../services/structureRendering';
+import { createRdkitSvgCacheKey, getRdkitStructureSourceKey, renderRdkitSvg } from '../../services/structureRendering';
+import { subscribeRdkitDrawOptionsChange } from '../../services/rdkitDrawOptions';
 import { installCanvasReadbackPatch } from '../../utils/canvasReadback';
 import { installPassiveWheelListenerPatch } from '../../utils/passiveWheelListenerPatch';
 
@@ -66,6 +67,9 @@ export interface CompoundStructureViewProps {
   rdkitAngleDeg?: number;
   rdkitScalePercent?: number;
   rdkitMinSize?: [number, number];
+  rdkitAtomLabelBlock?: boolean;
+  rdkitAbbrevOption?: 0 | 1 | 2;
+  rdkitUseGlobalDrawOptions?: boolean;
   onStructureGenerated?: (data: { molBlock: string; svg: string; cacheKey: string }) => void;
 }
 
@@ -498,6 +502,9 @@ const CompoundStructureView: React.FC<CompoundStructureViewProps> = ({
   rdkitAngleDeg = 0,
   rdkitScalePercent = 100,
   rdkitMinSize,
+  rdkitAtomLabelBlock,
+  rdkitAbbrevOption,
+  rdkitUseGlobalDrawOptions = true,
   onStructureGenerated,
 }) => {
   const { token } = theme.useToken();
@@ -506,18 +513,22 @@ const CompoundStructureView: React.FC<CompoundStructureViewProps> = ({
   const [generatedStructure, setGeneratedStructure] = useState<{ molBlock: string; svg: string; cacheKey: string } | null>(null);
   const [isRdkitLoading, setIsRdkitLoading] = useState(false);
   const [hasRdkitRenderFailed, setHasRdkitRenderFailed] = useState(false);
+  const [rdkitDrawOptionsVersion, setRdkitDrawOptionsVersion] = useState(0);
   const onStructureGeneratedRef = React.useRef(onStructureGenerated);
   const displayMolBlock = generatedStructure?.molBlock || molBlock;
   const normalizedSmiles = smiles?.trim() || '';
   const rdkitMinSizeWidth = rdkitMinSize?.[0];
   const rdkitMinSizeHeight = rdkitMinSize?.[1];
-  const expectedRdkitSourceKey = displayMolBlock?.trim() || (normalizedSmiles ? `SMILES:${normalizedSmiles}` : '');
+  const expectedRdkitSourceKey = getRdkitStructureSourceKey({ molBlock, smiles: normalizedSmiles });
   const expectedRdkitSvgKey = expectedRdkitSourceKey
     ? createRdkitSvgCacheKey({
       molBlock: expectedRdkitSourceKey,
       angleDeg: rdkitAngleDeg,
       scalePercent: rdkitScalePercent,
       minSize: rdkitMinSizeWidth != null && rdkitMinSizeHeight != null ? [rdkitMinSizeWidth, rdkitMinSizeHeight] : undefined,
+      atomLabelBlock: rdkitAtomLabelBlock,
+      abbrevOption: rdkitAbbrevOption,
+      useGlobalDrawOptions: rdkitUseGlobalDrawOptions,
     })
     : '';
   const cachedRdkitSvg = expectedRdkitSvgKey ? rdkitSvgCache?.[expectedRdkitSvgKey] : undefined;
@@ -555,13 +566,25 @@ const CompoundStructureView: React.FC<CompoundStructureViewProps> = ({
       angle: rdkitAngleDeg,
       scale: rdkitScalePercent,
       minSize: rdkitMinSizeWidth != null && rdkitMinSizeHeight != null ? [rdkitMinSizeWidth, rdkitMinSizeHeight] : undefined,
+      atomLabelBlock: rdkitAtomLabelBlock,
+      abbrevOption: rdkitAbbrevOption,
+      useGlobalDrawOptions: rdkitUseGlobalDrawOptions,
+      globalOptionsVersion: rdkitUseGlobalDrawOptions ? rdkitDrawOptionsVersion : 0,
     }),
-    [molBlock, preferRdkitSvg, rdkitAngleDeg, rdkitMinSizeHeight, rdkitMinSizeWidth, rdkitScalePercent, renderedSvgOverride, smiles]
+    [molBlock, preferRdkitSvg, rdkitAbbrevOption, rdkitAngleDeg, rdkitAtomLabelBlock, rdkitDrawOptionsVersion, rdkitMinSizeHeight, rdkitMinSizeWidth, rdkitScalePercent, rdkitUseGlobalDrawOptions, renderedSvgOverride, smiles]
   );
 
   useEffect(() => {
     onStructureGeneratedRef.current = onStructureGenerated;
   }, [onStructureGenerated]);
+
+  useEffect(() => {
+    if (!rdkitUseGlobalDrawOptions) return;
+    return subscribeRdkitDrawOptionsChange(() => {
+      setRdkitDrawOptionsVersion((version) => version + 1);
+      setGeneratedStructure(null);
+    });
+  }, [rdkitUseGlobalDrawOptions]);
 
   useEffect(() => {
     if (renderedSvgOverride || !preferRdkitSvg || !(smiles?.trim() || molBlock?.trim())) {
@@ -588,6 +611,9 @@ const CompoundStructureView: React.FC<CompoundStructureViewProps> = ({
       angleDeg: rdkitAngleDeg,
       scalePercent: rdkitScalePercent,
       minSize: rdkitMinSizeWidth != null && rdkitMinSizeHeight != null ? [rdkitMinSizeWidth, rdkitMinSizeHeight] : undefined,
+      atomLabelBlock: rdkitAtomLabelBlock,
+      abbrevOption: rdkitAbbrevOption,
+      useGlobalDrawOptions: rdkitUseGlobalDrawOptions,
     })
       .then((data) => {
         if (isDisposed) return;
@@ -607,7 +633,7 @@ const CompoundStructureView: React.FC<CompoundStructureViewProps> = ({
     return () => {
       isDisposed = true;
     };
-  }, [cachedRdkitSvg, molBlock, preferRdkitSvg, rdkitAngleDeg, rdkitMinSizeHeight, rdkitMinSizeWidth, rdkitRenderKey, rdkitScalePercent, renderedSvgOverride, smiles]);
+  }, [cachedRdkitSvg, molBlock, preferRdkitSvg, rdkitAbbrevOption, rdkitAngleDeg, rdkitAtomLabelBlock, rdkitDrawOptionsVersion, rdkitMinSizeHeight, rdkitMinSizeWidth, rdkitRenderKey, rdkitScalePercent, rdkitUseGlobalDrawOptions, renderedSvgOverride, smiles]);
 
   const previewAction: CompoundStructureAction[] = showPreviewAction && displaySvg && onPreview ? [{
     key: 'preview',

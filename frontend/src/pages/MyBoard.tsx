@@ -114,6 +114,7 @@ const MYBOARD_STRUCTURE_IMAGE_SCALE_MIN = 70;
 const MYBOARD_STRUCTURE_IMAGE_SCALE_MAX = 160;
 const MYBOARD_STRUCTURE_IMAGE_SCALE_STEP = 5;
 type SvgIntrinsicSize = { width: number; height: number };
+type MyBoardGroupPinFilter = 'all' | 'pinned';
 
 const getSvgIntrinsicSize = (svg?: string | null): SvgIntrinsicSize | null => {
   if (!svg?.trim() || typeof DOMParser === 'undefined') return null;
@@ -407,6 +408,7 @@ const MyBoard: React.FC = () => {
   const [detailStructureSvgSizes, setDetailStructureSvgSizes] = useState<Record<string, SvgIntrinsicSize>>({});
   const [groupListMode, setGroupListMode] = useState<'full' | 'structure' | 'hidden'>('full');
   const [bookmarkedGroupIds, setBookmarkedGroupIds] = useState<string[]>([]);
+  const [groupPinFilter, setGroupPinFilter] = useState<MyBoardGroupPinFilter>('all');
   const [viewportWidth, setViewportWidth] = useState<number>(() => {
     if (typeof window === 'undefined') return 1920;
     return window.innerWidth;
@@ -477,15 +479,28 @@ const MyBoard: React.FC = () => {
   const [groupListTableWidth, setGroupListTableWidth] = useState(0);
   const groupSelectionAnchorRef = React.useRef<string | null>(null);
   const detailSelectionAnchorRef = React.useRef<string | null>(null);
-  const visibleGroupRows = React.useMemo(
+  const bookmarkedGroupIdSet = React.useMemo(() => new Set(bookmarkedGroupIds), [bookmarkedGroupIds]);
+  const pinnedGroupCount = React.useMemo(
+    () => groups.reduce((count, group) => count + (bookmarkedGroupIdSet.has(group.id) ? 1 : 0), 0),
+    [bookmarkedGroupIdSet, groups]
+  );
+  const sortedGroupRows = React.useMemo(
     () => [...groups]
       .sort((a, b) => {
-        const aBookmarked = bookmarkedGroupIds.includes(a.id);
-        const bBookmarked = bookmarkedGroupIds.includes(b.id);
+        const aBookmarked = bookmarkedGroupIdSet.has(a.id);
+        const bBookmarked = bookmarkedGroupIdSet.has(b.id);
         if (aBookmarked !== bBookmarked) return aBookmarked ? -1 : 1;
         return groups.indexOf(a) - groups.indexOf(b);
       }),
-    [bookmarkedGroupIds, groups]
+    [bookmarkedGroupIdSet, groups]
+  );
+  const visibleGroupRows = React.useMemo(
+    () => (
+      groupPinFilter === 'pinned'
+        ? sortedGroupRows.filter((group) => bookmarkedGroupIdSet.has(group.id))
+        : sortedGroupRows
+    ),
+    [bookmarkedGroupIdSet, groupPinFilter, sortedGroupRows]
   );
   const contentFitGroupTitleWidth = React.useMemo(() => {
     const longestTitleWidth = visibleGroupRows.reduce(
@@ -592,10 +607,10 @@ const MyBoard: React.FC = () => {
 
   useEffect(() => {
     setHeaderContent(
-      <PageHeaderBreadcrumb 
+      <PageHeaderBreadcrumb
         items={[
           { label: 'Design' }
-        ]} 
+        ]}
       />
     );
     return () => setHeaderContent(null);
@@ -2470,6 +2485,17 @@ const MyBoard: React.FC = () => {
                 >
                   Add Group
                 </Button>
+                <Space size={8} className="my-board-group-pin-filter">
+                  <Button
+                    type={groupPinFilter === 'pinned' ? 'primary' : 'default'}
+                    size="small"
+                    icon={<Bookmark size={12} />}
+                    onClick={() => setGroupPinFilter((value) => value === 'pinned' ? 'all' : 'pinned')}
+                  >
+                    핀 고정
+                    <span className="my-board-group-pin-filter-count">{formatNumberWithComma(pinnedGroupCount)}</span>
+                  </Button>
+                </Space>
               </div>
               <Space size={8}>
                 <Button
@@ -2517,6 +2543,7 @@ const MyBoard: React.FC = () => {
               pagination={false}
               size="small"
               rowKey="id"
+              locale={{ emptyText: groupPinFilter === 'pinned' ? '핀 고정된 그룹이 없습니다.' : '그룹이 없습니다.' }}
               scroll={isGroupListStructureOnly ? undefined : { x: groupTableScrollX }}
               tableLayout="fixed"
               onRow={(record) => ({
@@ -3334,6 +3361,25 @@ const MyBoard: React.FC = () => {
         }
         .my-board-group-row-selected:hover > td {
           background-color: var(--table-row-selected-hover-bg) !important;
+        }
+        .my-board-group-pin-filter {
+          flex: 0 0 auto;
+        }
+        .my-board-group-pin-filter .ant-btn {
+          display: inline-flex;
+          align-items: center;
+          gap: 4px;
+          height: 24px;
+          padding-inline: 8px;
+          font-size: 12px;
+          white-space: nowrap;
+        }
+        .my-board-group-pin-filter .ant-btn-primary .my-board-group-pin-filter-count {
+          color: rgba(255, 255, 255, 0.86);
+        }
+        .my-board-group-pin-filter-count {
+          color: ${token.colorTextSecondary};
+          font-size: 11px;
         }
         .my-board-detail-row-selected > td {
           background-color: var(--table-row-selected-bg) !important;

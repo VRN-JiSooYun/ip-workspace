@@ -26,6 +26,8 @@ interface ChemDrawModalProps {
   open: boolean;
   onCancel: () => void;
   onConfirm: (data: ChemDrawStructureData) => void;
+  onEditorInteraction?: () => void;
+  extraContent?: React.ReactNode;
   title?: string;
   confirmText?: string;
   initialCdxml?: string;
@@ -37,6 +39,8 @@ const ChemDrawModal: React.FC<ChemDrawModalProps> = ({
   open, 
   onCancel, 
   onConfirm,
+  onEditorInteraction,
+  extraContent,
   title = "구조 검색",
   confirmText = "확인",
   initialCdxml,
@@ -161,6 +165,24 @@ const ChemDrawModal: React.FC<ChemDrawModalProps> = ({
 
     return installChemDrawKoreanKeyboardBridge(container);
   }, [open, cdjsInstance, containerId]);
+
+  useEffect(() => {
+    if (!open || !cdjsInstance || !onEditorInteraction) return;
+
+    const container = document.getElementById(containerId);
+    if (!container) return;
+
+    const handleInteraction = () => onEditorInteraction();
+    container.addEventListener('pointerdown', handleInteraction);
+    container.addEventListener('keydown', handleInteraction);
+    container.addEventListener('paste', handleInteraction);
+
+    return () => {
+      container.removeEventListener('pointerdown', handleInteraction);
+      container.removeEventListener('keydown', handleInteraction);
+      container.removeEventListener('paste', handleInteraction);
+    };
+  }, [open, cdjsInstance, containerId, onEditorInteraction]);
 
   const handleCancel = () => {
     setCdjsInstance(null);
@@ -324,7 +346,9 @@ const ChemDrawModal: React.FC<ChemDrawModalProps> = ({
       }
     >
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, minWidth: 0 }}>
-        {flipControls}
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 8, flex: '0 0 auto' }}>
+          {flipControls}
+        </div>
         <div
           id={containerId}
           style={{
@@ -344,6 +368,11 @@ const ChemDrawModal: React.FC<ChemDrawModalProps> = ({
           구조를 완성한 후 '{confirmText}' 버튼을 눌러주세요.
         </Text>
       </div>
+      {extraContent ? (
+        <div style={{ marginTop: 12 }}>
+          {extraContent}
+        </div>
+      ) : null}
     </Modal>
   );
 };

@@ -2,28 +2,40 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Typography, Row, Col, Card, Table, Button, Input,
-  Space, Modal, Form, Tag, Select, DatePicker, Avatar, Divider, Segmented, Tooltip, theme, Spin
+  Space, Modal, Form, Tag, Select, DatePicker, Avatar, Divider, Segmented, Tooltip, theme, Spin, Popover
 } from 'antd';
 import {
   Search, ChevronDown, ChevronUp,
   Settings, Download, Info, GripVertical, CheckCircle2, XCircle, ArrowLeft,
-  PanelLeftClose, PanelLeftOpen, Minus, Plus, RotateCcw, RotateCw, Pin
+  PanelLeftClose, PanelLeftOpen, Minus, Plus, RotateCcw, RotateCw, Pin, Palette
 } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
 import { mockCompounds, type Compound, type CompoundQuickViewerAssetType } from '../mocks/compounds';
 import { useBoardStore } from '../store/useBoardStore';
-import { DEFAULT_GROUP_STRUCTURE_VIEW_SETTINGS, type SarHighlightMode } from '../store/useBoardStore';
+import {
+  DEFAULT_GROUP_STRUCTURE_VIEW_SETTINGS,
+  type SarAbbreviationMode,
+  type SarAtomColorMode,
+  type SarHighlightMode,
+} from '../store/useBoardStore';
 import { getPatentAnalysisLayoutPreset } from '../config/patentAnalysisLayout';
 import dayjs from 'dayjs';
 import { useUIStore } from '../store/useUIStore';
 import PageHeaderBreadcrumb from '../components/common/PageHeaderBreadcrumb';
 import BenzeneIcon from '../components/common/BenzeneIcon';
-import ChemDrawModal from '../components/common/ChemDrawModal';
+import ChemDrawModal, { type ChemDrawStructureData } from '../components/common/ChemDrawModal';
 import StructurePreviewModal from '../components/common/StructurePreviewModal';
 import ToggleTag from '../components/common/ToggleTag';
 import CompoundStructureView from '../components/common/CompoundStructureView';
 import QuickViewerPanel from '../components/myboard/QuickViewerPanel';
-import { createRdkitSvgCacheKey, renderRdkitClusterSvgs, type RdkitClusterHighlightMode } from '../services/structureRendering';
+import {
+  createRdkitSvgCacheKey,
+  getRdkitStructureSourceKey,
+  renderRdkitClusterSvgs,
+  type RdkitAbbrevOption,
+  type RdkitClusterHighlightMode,
+  type RdkitSubstructureColorInfo,
+} from '../services/structureRendering';
 import arrowDivideIcon from '../assets/svg/arrow-divide.svg';
 import arrowMergeIcon from '../assets/svg/arrow-merge.svg';
 
@@ -61,7 +73,36 @@ const SAR_DATA_RIGHT_ASSET_ORDER_INDEX = new Map(
 const SAR_QUICK_VIEWER_MIN_WIDTH = 360;
 const SAR_QUICK_VIEWER_MAX_WIDTH = 868;
 const SAR_QUICK_VIEWER_DEFAULT_WIDTH = 460;
+const SAR_SCAFFOLD_HIGHLIGHT_COLOR = 'red';
+const SAR_SCAFFOLD_COLOR_OPTIONS = [
+  { key: 'blue', color: '#0000ff' },
+  { key: 'red', color: '#ff6666' },
+  { key: 'green', color: '#00cc00' },
+  { key: 'yellow', color: '#e6c800' },
+  { key: 'gray', color: '#808080' },
+  { key: 'orange', color: '#ff8000' },
+  { key: 'purple', color: '#9900cc' },
+  { key: 'cyan', color: '#00cccc' },
+  { key: 'pink', color: '#ff6699' },
+  { key: 'lime', color: '#80ff00' },
+  { key: 'teal', color: '#008080' },
+  { key: 'magenta', color: '#ff00ff' },
+  { key: 'sky', color: '#4db3ff' },
+  { key: 'salmon', color: '#ff8066' },
+  { key: 'mint', color: '#66ffb3' },
+  { key: 'lavender', color: '#b380ff' },
+  { key: 'gold', color: '#ffcc00' },
+  { key: 'brown', color: '#99501a' },
+  { key: 'navy', color: '#000080' },
+  { key: 'olive', color: '#808000' },
+];
 type SvgIntrinsicSize = { width: number; height: number };
+
+const getSarAbbrevOption = (mode: SarAbbreviationMode): RdkitAbbrevOption => {
+  if (mode === 'all') return 2;
+  if (mode === 'off') return 0;
+  return 1;
+};
 
 const getSvgIntrinsicSize = (svg?: string | null): SvgIntrinsicSize | null => {
   if (!svg?.trim() || typeof DOMParser === 'undefined') return null;
@@ -110,18 +151,24 @@ const SarTable: React.FC = () => {
 
   useEffect(() => {
     setHeaderContent(
-      <PageHeaderBreadcrumb 
+      <PageHeaderBreadcrumb
         items={[
           { label: 'Design', onClick: () => navigate('/design') },
           { label: 'SAR Table' }
-        ]} 
+        ]}
       />
     );
     return () => setHeaderContent(null);
   }, [setHeaderContent, navigate]);
 
   const [keyword, setKeyword] = useState<string>('');
-  const [structurePreview, setStructurePreview] = useState<{ title: string; svg: string } | null>(null);
+  const [structurePreview, setStructurePreview] = useState<{
+    title: string;
+    svg: string;
+    smiles?: string | null;
+    molblock?: string | null;
+    cdxml?: string | null;
+  } | null>(null);
   const [structureRenderVersion, setStructureRenderVersion] = useState(0);
   const [compoundStructureSvgSizes, setCompoundStructureSvgSizes] = useState<Record<string, SvgIntrinsicSize>>({});
   const firstCompoundByGroupId = useMemo(() => {
@@ -179,9 +226,9 @@ const SarTable: React.FC = () => {
         ? mockCompounds.filter((compound) => selectedSarCompoundIds.includes(compound.id))
         : [];
     base = base.filter((compound) => !hiddenCompoundIds.includes(compound.id));
-    
+
     if (keyword) {
-      base = base.filter(c => 
+      base = base.filter(c =>
         c.id.toLowerCase().includes(keyword.toLowerCase()) ||
         c.name.toLowerCase().includes(keyword.toLowerCase()) ||
         c.smiles?.toLowerCase().includes(keyword.toLowerCase())
@@ -198,6 +245,8 @@ const SarTable: React.FC = () => {
   const [showFilters, setShowFilters] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [isStructureModalOpen, setIsStructureModalOpen] = useState(false);
+  const [isScaffoldModalOpen, setIsScaffoldModalOpen] = useState(false);
+  const [isScaffoldColorPickerOpen, setIsScaffoldColorPickerOpen] = useState(false);
   const [searchedSvg, setSearchedSvg] = useState<string | null>(null);
   const [activePreset, setActivePreset] = useState<number>(1);
   const [compoundCardViewMode, setCompoundCardViewMode] = useState<'single' | 'twoRows'>('single');
@@ -222,6 +271,8 @@ const SarTable: React.FC = () => {
   const clusterRequestSeqRef = React.useRef(0);
   const quickViewerPaneRef = React.useRef<HTMLDivElement | null>(null);
   const quickViewerResizeRafRef = React.useRef<number | null>(null);
+  const scaffoldEditBaselineRef = React.useRef<{ smiles?: string; molBlock?: string } | null>(null);
+  const scaffoldEditDirtyRef = React.useRef(false);
   const quickViewerStorageKey = 'sar-table-split:quick-viewer';
   const layoutPreset = useMemo(() => getPatentAnalysisLayoutPreset(viewportWidth), [viewportWidth]);
   const isResponsiveToolbar = viewportWidth <= 1100;
@@ -690,25 +741,97 @@ const SarTable: React.FC = () => {
     setIsStructureModalOpen(false);
   };
 
+  const openScaffoldModal = () => {
+    scaffoldEditDirtyRef.current = false;
+    scaffoldEditBaselineRef.current = activeSarScaffold.source === 'custom'
+      ? {
+          smiles: activeSarScaffold.smiles?.trim() || undefined,
+          molBlock: activeSarScaffold.molBlock?.trim() || undefined,
+        }
+      : null;
+    setIsScaffoldModalOpen(true);
+  };
+
+  const handleScaffoldConfirm = (data: ChemDrawStructureData) => {
+    const exportedMolBlock = (data.molV2000 || data.molfile || data.molV3000 || '').trim();
+    const smiles = data.smiles.trim();
+    const baseline = scaffoldEditBaselineRef.current;
+    const shouldKeepBaselineMolBlock = Boolean(baseline?.molBlock && !scaffoldEditDirtyRef.current);
+    const molBlock = shouldKeepBaselineMolBlock ? baseline?.molBlock || '' : exportedMolBlock;
+
+    updateActiveStructureSettings({
+      sarScaffold: {
+        mode: 'custom',
+        source: 'custom',
+        smiles: smiles || undefined,
+        molBlock: molBlock || undefined,
+        cdxml: data.cdxml?.trim() || undefined,
+        color: activeSarScaffold.color || SAR_SCAFFOLD_HIGHLIGHT_COLOR,
+        svg: data.svg,
+        updatedAt: Date.now(),
+      },
+    });
+    scaffoldEditBaselineRef.current = null;
+    scaffoldEditDirtyRef.current = false;
+    setIsScaffoldModalOpen(false);
+  };
+
+  const resetScaffoldToAuto = () => {
+    updateActiveStructureSettings({
+      sarScaffold: {
+        mode: 'auto',
+        source: 'none',
+      },
+    });
+    setIsScaffoldColorPickerOpen(false);
+  };
+
+  const changeScaffoldColor = (color: string) => {
+    updateActiveStructureSettings({
+      sarScaffold: {
+        ...activeSarScaffold,
+        color,
+      },
+    });
+    setIsScaffoldColorPickerOpen(false);
+  };
+
   const handleGroupStructureSelection = (groupId: string, event: React.MouseEvent) => {
     const nextSelectedGroupIds = event.ctrlKey || event.metaKey
       ? selectedGroupIds.includes(groupId)
         ? selectedGroupIds.filter((id) => id !== groupId)
         : [...selectedGroupIds, groupId]
       : [groupId];
+    const nextGroupCompounds = nextSelectedGroupIds.length > 0
+      ? mockCompounds
+        .filter((compound) => nextSelectedGroupIds.includes(compound.groupId) && !hiddenCompoundIds.includes(compound.id))
+      : [];
+    const normalizedKeyword = keyword.trim().toLowerCase();
+    const nextVisibleCompounds = normalizedKeyword
+      ? nextGroupCompounds.filter((compound) => (
+          compound.id.toLowerCase().includes(normalizedKeyword) ||
+          compound.name.toLowerCase().includes(normalizedKeyword) ||
+          compound.smiles?.toLowerCase().includes(normalizedKeyword)
+        ))
+      : nextGroupCompounds;
+    const shouldClearKeywordForGroupLoad = Boolean(normalizedKeyword && nextGroupCompounds.length > 0 && nextVisibleCompounds.length === 0);
+    const nextCompoundIds = (shouldClearKeywordForGroupLoad ? nextGroupCompounds : nextVisibleCompounds)
+      .map((compound) => compound.id);
 
     if (event.ctrlKey || event.metaKey) {
       toggleGroupSelection(groupId);
     } else {
       setSelectedGroupIds([groupId]);
     }
-    setSelectedSarCompoundIds(
-      nextSelectedGroupIds.length > 0
-        ? mockCompounds
-          .filter((compound) => nextSelectedGroupIds.includes(compound.groupId))
-          .map((compound) => compound.id)
-        : []
-    );
+    if (shouldClearKeywordForGroupLoad) {
+      setKeyword('');
+    }
+    setSelectedSarCompoundIds(nextCompoundIds);
+    setSelectedRowKey(nextCompoundIds[0] ?? null);
+    setSelectedCompoundIds(nextCompoundIds[0] ? [nextCompoundIds[0]] : []);
+    setHoveredRowKey(null);
+    setHasUserClearedSelection(false);
+    setIsScaffoldColorPickerOpen(false);
   };
 
   const clampSteppedPercent = (value: number, min: number, max: number) => {
@@ -748,7 +871,6 @@ const SarTable: React.FC = () => {
   const renderGroupStructure = (_: unknown, record: any) => {
     const representativeCompound = firstCompoundByGroupId[record.id];
     const structureSvg = representativeCompound?.structureSvg;
-    const structureSettings = getGroupStructureSettings(record.id);
 
     return (
       <div
@@ -787,13 +909,18 @@ const SarTable: React.FC = () => {
               setStructurePreview({
                 title: representativeCompound?.compoundId || representativeCompound?.name || record.name || 'Structure',
                 svg,
+                smiles: representativeCompound?.smiles,
+                molblock: (representativeCompound as any)?.molBlock ?? (representativeCompound as any)?.mol_block ?? (representativeCompound as any)?.molblock,
+                cdxml: (representativeCompound as any)?.draw,
               });
             }
           }}
           preferRdkitSvg
-          rdkitAngleDeg={structureSettings.sarRotationDeg}
-          rdkitScalePercent={structureSettings.sarImageScalePercent}
+          rdkitAngleDeg={DEFAULT_GROUP_STRUCTURE_VIEW_SETTINGS.sarRotationDeg}
+          rdkitScalePercent={DEFAULT_GROUP_STRUCTURE_VIEW_SETTINGS.sarImageScalePercent}
           rdkitMinSize={[SAR_GROUP_STRUCTURE_WIDTH, SAR_GROUP_STRUCTURE_HEIGHT]}
+          rdkitAtomLabelBlock
+          rdkitAbbrevOption={0}
           onStructureGenerated={(data) => {
             if (representativeCompound?.id) handleCompoundStructureGenerated(representativeCompound.id, data);
           }}
@@ -1142,7 +1269,7 @@ const SarTable: React.FC = () => {
   const getCompoundCardNoMinSizeCacheKey = React.useCallback((compound: Compound) => {
     const smiles = compound.smiles?.trim();
     const molBlock = ((compound as any).molBlock ?? (compound as any).mol_block ?? (compound as any).molblock)?.trim();
-    const sourceKey = molBlock || (smiles ? `SMILES:${smiles}` : '');
+    const sourceKey = getRdkitStructureSourceKey({ molBlock, smiles });
     if (!sourceKey) return '';
 
     const settings = getGroupStructureSettings(compound.groupId);
@@ -1150,6 +1277,9 @@ const SarTable: React.FC = () => {
       molBlock: sourceKey,
       angleDeg: settings.sarRotationDeg,
       scalePercent: DEFAULT_GROUP_STRUCTURE_VIEW_SETTINGS.sarImageScalePercent,
+      atomLabelBlock: settings.sarAtomColorMode === 'black',
+      abbrevOption: getSarAbbrevOption(settings.sarAbbreviationMode),
+      useGlobalDrawOptions: false,
     });
   }, [getGroupStructureSettings]);
   const getCompoundCardNoMinSizeSvg = React.useCallback((compound: Compound) => {
@@ -1218,10 +1348,32 @@ const SarTable: React.FC = () => {
   const sarScrollbarThumb = isDarkMode ? '#4b5563' : '#c4cbd3';
   const sarScrollbarThumbHover = isDarkMode ? '#6b7280' : '#9aa3aa';
   const sarScrollbarTrack = isDarkMode ? '#1f1f1f' : '#f8f9fa';
-  const activeSarHighlightMode = activeStructureSettings?.sarHighlightMode ?? 'off';
+  const activeSarHighlightMode = activeStructureSettings?.sarHighlightMode ?? DEFAULT_GROUP_STRUCTURE_VIEW_SETTINGS.sarHighlightMode;
+  const activeSarAtomColorMode = activeStructureSettings?.sarAtomColorMode ?? DEFAULT_GROUP_STRUCTURE_VIEW_SETTINGS.sarAtomColorMode;
+  const activeSarAbbreviationMode = activeStructureSettings?.sarAbbreviationMode ?? DEFAULT_GROUP_STRUCTURE_VIEW_SETTINGS.sarAbbreviationMode;
+  const activeSarScaffold = activeStructureSettings?.sarScaffold ?? DEFAULT_GROUP_STRUCTURE_VIEW_SETTINGS.sarScaffold;
+  const activeScaffoldColorKey = activeSarScaffold.color || SAR_SCAFFOLD_HIGHLIGHT_COLOR;
+  const activeScaffoldColorOption = SAR_SCAFFOLD_COLOR_OPTIONS.find((option) => option.key === activeScaffoldColorKey)
+    ?? SAR_SCAFFOLD_COLOR_OPTIONS.find((option) => option.key === SAR_SCAFFOLD_HIGHLIGHT_COLOR)
+    ?? SAR_SCAFFOLD_COLOR_OPTIONS[0];
   const clusterHighlightMode = activeSarHighlightMode === 'com' || activeSarHighlightMode === 'diff'
     ? activeSarHighlightMode
     : null;
+  const clusterAbbrevOption = getSarAbbrevOption(activeSarAbbreviationMode);
+  const scaffoldSubstructureMolBlock = activeSarScaffold.source === 'custom'
+    ? activeSarScaffold.molBlock?.trim() || ''
+    : '';
+  const scaffoldSubstructureKey = activeSarScaffold.source === 'custom' ? 'custom-scaffold' : '';
+  const scaffoldSubstructureColorDict = useMemo<Record<string, RdkitSubstructureColorInfo> | undefined>(() => (
+    scaffoldSubstructureMolBlock
+      ? {
+          [scaffoldSubstructureKey]: {
+            color: activeSarScaffold.color || SAR_SCAFFOLD_HIGHLIGHT_COLOR,
+            molblock: scaffoldSubstructureMolBlock,
+          },
+        }
+      : undefined
+  ), [activeSarScaffold.color, scaffoldSubstructureKey, scaffoldSubstructureMolBlock]);
 
   useEffect(() => {
     const requestSeq = clusterRequestSeqRef.current + 1;
@@ -1250,6 +1402,10 @@ const SarTable: React.FC = () => {
       angleDeg: activeStructureSettings?.sarRotationDeg ?? DEFAULT_GROUP_STRUCTURE_VIEW_SETTINGS.sarRotationDeg,
       scalePercent: DEFAULT_GROUP_STRUCTURE_VIEW_SETTINGS.sarImageScalePercent,
       minSize: undefined,
+      atomLabelBlock: activeSarAtomColorMode === 'black',
+      abbrevOption: clusterAbbrevOption,
+      substructureColorDict: scaffoldSubstructureColorDict,
+      useGlobalDrawOptions: false,
     })
       .then((result) => {
         if (clusterRequestSeqRef.current !== requestSeq) return;
@@ -1272,9 +1428,12 @@ const SarTable: React.FC = () => {
       });
   }, [
     activeStructureSettings?.sarRotationDeg,
+    activeSarAtomColorMode,
+    clusterAbbrevOption,
     clusterHighlightMode,
     displaySarCompounds,
     isStructureSettingsDisabled,
+    scaffoldSubstructureColorDict,
   ]);
 
   return (
@@ -1478,18 +1637,126 @@ const SarTable: React.FC = () => {
                 <BenzeneIcon size={16} color={token.colorPrimary} className="sar-compound-panel-title-icon" />
                 <Text strong className="sar-compound-panel-title-text">화합물</Text>
                 <Text type="secondary" style={{ fontSize: 11 }}>{sarCompounds.length} compounds</Text>
-                <Segmented
-                  className="sar-compound-highlight-toggle"
-                  size="small"
-                  value={activeStructureSettings?.sarHighlightMode}
-                  disabled={isStructureSettingsDisabled}
-                  onChange={(value) => updateActiveStructureSettings({ sarHighlightMode: value as SarHighlightMode })}
-                  options={[
-                    { label: <Tooltip title="동일 골격에 하이라이팅 표시">Com</Tooltip>, value: 'com' },
-                    { label: <Tooltip title="차이나는 부분만 하이라이팅 표시">Diff</Tooltip>, value: 'diff' },
-                    { label: <Tooltip title="끄기">Off</Tooltip>, value: 'off' },
-                  ]}
-                />
+                <div className="sar-compound-setting-group sar-rdkit-control-group">
+                  <span className="sar-compound-setting-label sar-rdkit-control-label">Atom</span>
+                  <Segmented
+                    className="sar-compound-highlight-toggle"
+                    size="small"
+                    value={activeSarAtomColorMode}
+                    disabled={isStructureSettingsDisabled}
+                    onChange={(value) => updateActiveStructureSettings({ sarAtomColorMode: value as SarAtomColorMode })}
+                    options={[
+                      { label: <Tooltip title="원자 라벨을 검정색으로 표시합니다">Black</Tooltip>, value: 'black' },
+                      { label: <Tooltip title="원자 라벨 색상을 RDKit 기본 색상으로 표시합니다">Color</Tooltip>, value: 'color' },
+                    ]}
+                  />
+                </div>
+                <div className="sar-compound-setting-group sar-rdkit-control-group">
+                  <span className="sar-compound-setting-label sar-rdkit-control-label">Abbreviation</span>
+                  <Segmented
+                    className="sar-compound-highlight-toggle"
+                    size="small"
+                    value={activeSarAbbreviationMode}
+                    disabled={isStructureSettingsDisabled}
+                    onChange={(value) => updateActiveStructureSettings({ sarAbbreviationMode: value as SarAbbreviationMode })}
+                    options={[
+                      { label: <Tooltip title="RDKit 약어 표기를 기본 규칙대로 유지합니다">Keep</Tooltip>, value: 'keep' },
+                      { label: <Tooltip title="가능한 약어 표기를 모두 적용합니다">All</Tooltip>, value: 'all' },
+                      { label: <Tooltip title="약어 표기를 끄고 원자 구조로 표시합니다">Off</Tooltip>, value: 'off' },
+                    ]}
+                  />
+                </div>
+                <div className="sar-compound-setting-group sar-rdkit-control-group">
+                  <span className="sar-compound-setting-label sar-rdkit-control-label">Highlight</span>
+                  <Segmented
+                    className="sar-compound-highlight-toggle"
+                    size="small"
+                    value={activeSarHighlightMode}
+                    disabled={isStructureSettingsDisabled}
+                    onChange={(value) => updateActiveStructureSettings({ sarHighlightMode: value as SarHighlightMode })}
+                    options={[
+                      { label: <Tooltip title="동일 골격에 하이라이팅 표시">Comm</Tooltip>, value: 'com' },
+                      { label: <Tooltip title="차이나는 부분만 하이라이팅 표시">Diff</Tooltip>, value: 'diff' },
+                      { label: <Tooltip title="끄기">Off</Tooltip>, value: 'off' },
+                    ]}
+                  />
+                  <Tooltip
+                    title={
+                      activeSarScaffold.source === 'custom'
+                        ? '사용자 지정 scaffold 적용 중'
+                        : 'ChemDraw로 사용자 지정 scaffold를 그립니다'
+                    }
+                  >
+                    <Button
+                      size="small"
+                      className={`sar-scaffold-button ${activeSarScaffold.source === 'custom' ? 'sar-scaffold-button-active' : ''}`}
+                      disabled={isStructureSettingsDisabled}
+                      onClick={openScaffoldModal}
+                    >
+                      Scaffold
+                    </Button>
+                  </Tooltip>
+                  {activeSarScaffold.source === 'custom' && (
+                    <Tooltip title={`Scaffold 하이라이트 색상: ${activeScaffoldColorOption.key}`}>
+                      <span className="sar-scaffold-color-trigger-wrap">
+                        <Popover
+                          trigger="click"
+                          placement="bottomLeft"
+                          open={isScaffoldColorPickerOpen}
+                          onOpenChange={(open) => setIsScaffoldColorPickerOpen(open)}
+                          content={(
+                            <div className="sar-scaffold-color-panel" aria-label="Scaffold highlight color">
+                              <Text strong className="sar-scaffold-color-title">Scaffold color</Text>
+                              <div className="sar-scaffold-color-palette">
+                                {SAR_SCAFFOLD_COLOR_OPTIONS.map((option) => {
+                                  const isSelected = activeScaffoldColorKey === option.key;
+
+                                  return (
+                                    <Tooltip key={option.key} title={option.key}>
+                                      <button
+                                        type="button"
+                                        className={`sar-scaffold-color-swatch ${isSelected ? 'sar-scaffold-color-swatch-selected' : ''}`}
+                                        style={{ backgroundColor: option.color }}
+                                        aria-label={`Scaffold color ${option.key}`}
+                                        aria-pressed={isSelected}
+                                        onClick={() => changeScaffoldColor(option.key)}
+                                      />
+                                    </Tooltip>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          )}
+                        >
+                          <Button
+                            size="small"
+                            className="sar-scaffold-color-trigger"
+                            disabled={isStructureSettingsDisabled}
+                            icon={<Palette size={12} />}
+                            aria-label="Scaffold 색상 선택"
+                          >
+                            <span
+                              className="sar-scaffold-color-trigger-swatch"
+                              style={{ backgroundColor: activeScaffoldColorOption.color }}
+                            />
+                          </Button>
+                        </Popover>
+                      </span>
+                    </Tooltip>
+                  )}
+                  {activeSarScaffold.source === 'custom' && (
+                    <Tooltip title="사용자 지정 scaffold 해제">
+                      <Button
+                        size="small"
+                        type="text"
+                        icon={<RotateCcw size={12} />}
+                        disabled={isStructureSettingsDisabled}
+                        onClick={resetScaffoldToAuto}
+                        aria-label="사용자 지정 scaffold 해제"
+                      />
+                    </Tooltip>
+                  )}
+                </div>
                 {isClusterLoading ? (
                   <Spin size="small" />
                 ) : clusterError ? (
@@ -1729,13 +1996,22 @@ const SarTable: React.FC = () => {
                               showLinkedImageCopyAction
                               onPreview={(svg) => {
                                 if (svg) {
-                                  setStructurePreview({ title: item.name || item.compoundId || 'Structure', svg });
+                                  setStructurePreview({
+                                    title: item.name || item.compoundId || 'Structure',
+                                    svg,
+                                    smiles: item.smiles,
+                                    molblock: (item as any).molBlock ?? (item as any).mol_block ?? (item as any).molblock,
+                                    cdxml: (item as any).draw,
+                                  });
                                 }
                               }}
                               preferRdkitSvg
                               rdkitAngleDeg={itemStructureSettings.sarRotationDeg}
                               rdkitScalePercent={DEFAULT_GROUP_STRUCTURE_VIEW_SETTINGS.sarImageScalePercent}
                               rdkitMinSize={undefined}
+                              rdkitAtomLabelBlock={itemStructureSettings.sarAtomColorMode === 'black'}
+                              rdkitAbbrevOption={getSarAbbrevOption(itemStructureSettings.sarAbbreviationMode)}
+                              rdkitUseGlobalDrawOptions={false}
                               onStructureGenerated={(data) => handleCompoundStructureGenerated(item.id, data)}
                               structureStyle={{ transformOrigin: 'center center' }}
                               frameStyle={{ border: 0, background: !isCompoundCardOverlapped ? token.colorBgContainer : 'transparent', boxShadow: 'none', overflow: 'visible' }}
@@ -2038,10 +2314,30 @@ const SarTable: React.FC = () => {
         onConfirm={handleStructureSearchConfirm}
       />
 
+      <ChemDrawModal
+        open={isScaffoldModalOpen}
+        title="Scaffold 사용자 지정"
+        confirmText="적용"
+        initialCdxml={activeSarScaffold.source === 'custom' ? activeSarScaffold.cdxml : undefined}
+        initialSmiles={activeSarScaffold.source === 'custom' && !activeSarScaffold.cdxml ? activeSarScaffold.smiles : undefined}
+        onEditorInteraction={() => {
+          scaffoldEditDirtyRef.current = true;
+        }}
+        onCancel={() => {
+          scaffoldEditBaselineRef.current = null;
+          scaffoldEditDirtyRef.current = false;
+          setIsScaffoldModalOpen(false);
+        }}
+        onConfirm={handleScaffoldConfirm}
+      />
+
       <StructurePreviewModal
         open={Boolean(structurePreview)}
         title={structurePreview?.title}
         svg={structurePreview?.svg}
+        smiles={structurePreview?.smiles}
+        molblock={structurePreview?.molblock}
+        cdxml={structurePreview?.cdxml}
         onCancel={() => setStructurePreview(null)}
       />
 
@@ -2682,6 +2978,98 @@ const SarTable: React.FC = () => {
           display: inline-flex;
           align-items: center;
           line-height: 20px;
+        }
+        .sar-rdkit-control-group {
+          gap: 4px;
+        }
+        .sar-rdkit-control-label {
+          min-width: auto;
+          white-space: nowrap;
+        }
+        .sar-rdkit-control-group .ant-segmented {
+          height: 22px;
+          padding: 1px;
+        }
+        .sar-rdkit-control-group .ant-segmented-item {
+          min-height: 20px;
+        }
+        .sar-rdkit-control-group .ant-segmented-item-label {
+          min-height: 20px;
+          line-height: 20px;
+          padding-inline: 7px;
+          font-size: 11px;
+          white-space: nowrap;
+        }
+        .sar-rdkit-control-group .ant-btn {
+          height: 22px;
+          padding-inline: 8px;
+          font-size: 11px;
+          line-height: 20px;
+        }
+        .sar-scaffold-color-trigger-wrap {
+          display: inline-flex;
+          align-items: center;
+        }
+        .sar-scaffold-color-trigger {
+          margin-left: 0;
+          width: 38px;
+          padding-inline: 6px !important;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          gap: 4px;
+        }
+        .sar-scaffold-color-trigger-swatch {
+          width: 10px;
+          height: 10px;
+          border-radius: 999px;
+          border: 1px solid ${token.colorBorderSecondary};
+          box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.28);
+        }
+        .sar-scaffold-button {
+          margin-left: 8px;
+        }
+        .sar-scaffold-button-active,
+        .sar-scaffold-button-active:hover,
+        .sar-scaffold-button-active:focus-visible {
+          color: ${token.colorPrimary} !important;
+          border-color: ${token.colorPrimary} !important;
+          background: ${isDarkMode ? 'rgba(248, 124, 99, 0.16)' : 'rgba(248, 124, 99, 0.1)'} !important;
+        }
+        .sar-scaffold-color-panel {
+          display: flex;
+          flex-direction: column;
+          align-items: flex-start;
+          gap: 8px;
+          width: 142px;
+          padding: 2px;
+        }
+        .sar-scaffold-color-title {
+          font-size: 11px;
+          line-height: 14px;
+        }
+        .sar-scaffold-color-palette {
+          display: grid;
+          grid-template-columns: repeat(5, 20px);
+          gap: 6px;
+        }
+        .sar-scaffold-color-swatch {
+          width: 20px;
+          height: 20px;
+          padding: 0;
+          border: 1px solid ${token.colorBorderSecondary};
+          border-radius: 4px;
+          cursor: pointer;
+          box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.24);
+        }
+        .sar-scaffold-color-swatch:hover,
+        .sar-scaffold-color-swatch:focus-visible {
+          outline: none;
+          box-shadow: 0 0 0 2px ${isDarkMode ? 'rgba(248, 124, 99, 0.26)' : 'rgba(248, 124, 99, 0.22)'};
+        }
+        .sar-scaffold-color-swatch-selected {
+          border-color: ${token.colorPrimary};
+          box-shadow: 0 0 0 2px ${token.colorPrimary};
         }
         .sar-compound-setting-stack {
           display: inline-flex;

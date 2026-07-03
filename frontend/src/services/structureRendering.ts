@@ -2,6 +2,11 @@ import { CHEMDRAW_CONFIG } from '../config/chemdraw';
 import { waitForChemDrawEditorReady } from '../utils/chemdrawCommit';
 import { installCanvasReadbackPatch } from '../utils/canvasReadback';
 import { installPassiveWheelListenerPatch } from '../utils/passiveWheelListenerPatch';
+import {
+  createRdkitDrawOptionPayload,
+  readRdkitDrawOptions,
+  type RdkitDrawGlobalOptions,
+} from './rdkitDrawOptions';
 
 const smilesToMolBlockCache = new Map<string, string>();
 const smilesToMolBlockInFlight = new Map<string, Promise<string>>();
@@ -190,9 +195,17 @@ export interface RdkitDrawOptions {
   angleDeg?: number;
   scalePercent?: number;
   minSize?: [number, number];
+  atomLabelBlock?: boolean;
+  abbrevOption?: RdkitAbbrevOption;
+  useGlobalDrawOptions?: boolean;
 }
 
 export type RdkitClusterHighlightMode = 'com' | 'diff';
+export type RdkitAbbrevOption = 0 | 1 | 2;
+export interface RdkitSubstructureColorInfo {
+  color: string;
+  molblock: string;
+}
 
 export interface RdkitClusterCompoundInput {
   id: string;
@@ -225,6 +238,32 @@ const normalizeMinSize = (minSize?: [number, number]): [number, number] | undefi
   ];
 };
 
+const getEffectiveDrawOptions = ({
+  useGlobalDrawOptions = true,
+  atomLabelBlock,
+  abbrevOption,
+}: {
+  useGlobalDrawOptions?: boolean;
+  atomLabelBlock?: boolean;
+  abbrevOption?: RdkitAbbrevOption;
+}) => {
+  const globalOptions: RdkitDrawGlobalOptions | undefined = useGlobalDrawOptions ? readRdkitDrawOptions() : undefined;
+  const effectiveOptions: RdkitDrawGlobalOptions | undefined = globalOptions
+    ? {
+        ...globalOptions,
+        fixedBondLength: globalOptions.fixedBondLength,
+        atomLabelBlock: typeof atomLabelBlock === 'boolean' ? atomLabelBlock : globalOptions.atomLabelBlock,
+        abbrevOption: abbrevOption ?? globalOptions.abbrevOption,
+      }
+    : undefined;
+
+  return {
+    effectiveOptions,
+    atomLabelBlock: effectiveOptions?.atomLabelBlock ?? atomLabelBlock,
+    abbrevOption: effectiveOptions?.abbrevOption ?? abbrevOption ?? 1,
+  };
+};
+
 const isLikelyMolBlock = (value: string) => {
   const lines = value.split(/\r?\n/);
   if (lines.length < 4) return false;
@@ -232,21 +271,56 @@ const isLikelyMolBlock = (value: string) => {
   return /^\s*\d+\s+\d+\s+/.test(lines[3]) && /M\s+END\b/.test(value);
 };
 
+export const getRdkitStructureSourceKey = ({
+  molBlock,
+  smiles,
+}: {
+  molBlock?: string | null;
+  smiles?: string | null;
+}) => {
+  const normalizedMolBlock = molBlock?.trim() || '';
+  const normalizedSmiles = smiles?.trim() || '';
+  return normalizedMolBlock && isLikelyMolBlock(normalizedMolBlock)
+    ? normalizedMolBlock
+    : normalizedSmiles
+      ? `SMILES:${normalizedSmiles}`
+      : '';
+};
+
 export const createRdkitSvgCacheKey = ({
   molBlock,
   angleDeg = 0,
   scalePercent = 100,
   minSize,
-}: Omit<RdkitDrawOptions, 'smiles'> & { molBlock: string }) => {
+  atomLabelBlock,
+  abbrevOption,
+  drawOptions,
+  useGlobalDrawOptions = true,
+}: Omit<RdkitDrawOptions, 'smiles'> & { molBlock: string; drawOptions?: RdkitDrawGlobalOptions }) => {
   const normalizedAngle = ((Math.round(angleDeg) % 360) + 360) % 360;
   const normalizedScale = Math.max(40, Math.min(180, Math.round(scalePercent)));
   const normalizedMinSize = normalizeMinSize(minSize);
+  const effectiveDraw = drawOptions
+    ? {
+        effectiveOptions: {
+          ...drawOptions,
+          atomLabelBlock: typeof atomLabelBlock === 'boolean' ? atomLabelBlock : drawOptions.atomLabelBlock,
+          abbrevOption: abbrevOption ?? drawOptions.abbrevOption,
+        },
+        atomLabelBlock: typeof atomLabelBlock === 'boolean' ? atomLabelBlock : drawOptions.atomLabelBlock,
+        abbrevOption: abbrevOption ?? drawOptions.abbrevOption,
+      }
+    : getEffectiveDrawOptions({ useGlobalDrawOptions, atomLabelBlock, abbrevOption });
 
   return JSON.stringify({
     molBlock,
     angle: normalizedAngle,
     scale: normalizedScale,
     minSize: normalizedMinSize,
+    atomLabelBlock: effectiveDraw.atomLabelBlock,
+    abbrevOption: effectiveDraw.abbrevOption,
+    drawOptions: effectiveDraw.effectiveOptions,
+    useGlobalDrawOptions,
   });
 };
 
@@ -256,12 +330,20 @@ const createRdkitClusterCacheKey = ({
   angleDeg = 0,
   scalePercent = 100,
   minSize,
+  atomLabelBlock,
+  abbrevOption,
+  substructureColorDict,
+  drawOptions,
 }: {
   compounds: RdkitClusterCompoundInput[];
   mode: RdkitClusterHighlightMode;
   angleDeg?: number;
   scalePercent?: number;
   minSize?: [number, number];
+  atomLabelBlock?: boolean;
+  abbrevOption?: RdkitAbbrevOption;
+  substructureColorDict?: Record<string, RdkitSubstructureColorInfo>;
+  drawOptions?: RdkitDrawGlobalOptions;
 }) => {
   const normalizedAngle = ((Math.round(angleDeg) % 360) + 360) % 360;
   const normalizedScale = Math.max(40, Math.min(180, Math.round(scalePercent)));
@@ -272,6 +354,10 @@ const createRdkitClusterCacheKey = ({
     angle: normalizedAngle,
     scale: normalizedScale,
     minSize: normalizedMinSize,
+    atomLabelBlock,
+    abbrevOption,
+    drawOptions,
+    substructureColorDict,
     compounds: compounds.map((compound) => ({
       id: compound.id,
       source: compound.molBlock?.trim() || (compound.smiles?.trim() ? `SMILES:${compound.smiles.trim()}` : ''),
@@ -289,6 +375,9 @@ export const renderRdkitSvg = async ({
   angleDeg = 0,
   scalePercent = 100,
   minSize,
+  atomLabelBlock,
+  abbrevOption,
+  useGlobalDrawOptions = true,
 }: RdkitDrawOptions) => {
   const normalizedMolBlock = molBlock?.trim() || '';
   const normalizedSmiles = smiles?.trim() || '';
@@ -304,12 +393,21 @@ export const renderRdkitSvg = async ({
   const normalizedAngle = ((Math.round(angleDeg) % 360) + 360) % 360;
   const normalizedScale = Math.max(40, Math.min(180, Math.round(scalePercent)));
   const normalizedMinSize = normalizeMinSize(minSize);
-  const fixedBondLength = Math.max(18, Math.round(42 * (normalizedScale / 100)));
+  const effectiveDraw = getEffectiveDrawOptions({
+    useGlobalDrawOptions,
+    atomLabelBlock,
+    abbrevOption,
+  });
+  const fixedBondLength = Math.max(18, Math.round((effectiveDraw.effectiveOptions?.fixedBondLength ?? 42) * (normalizedScale / 100)));
   const cacheKey = createRdkitSvgCacheKey({
     molBlock: renderSourceKey,
     angleDeg: normalizedAngle,
     scalePercent: normalizedScale,
     minSize: normalizedMinSize,
+    atomLabelBlock: effectiveDraw.atomLabelBlock,
+    abbrevOption: effectiveDraw.abbrevOption,
+    drawOptions: effectiveDraw.effectiveOptions,
+    useGlobalDrawOptions,
   });
 
   const cachedSvg = rdkitSvgCache.get(cacheKey);
@@ -325,11 +423,13 @@ export const renderRdkitSvg = async ({
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       ...(requestMolBlock ? { molblock: requestMolBlock } : { smiles: normalizedSmiles }),
+      ...(effectiveDraw.effectiveOptions ? createRdkitDrawOptionPayload(effectiveDraw.effectiveOptions) : {}),
       angle: normalizedAngle,
       fixed_bond_length: fixedBondLength,
       min_size: normalizedMinSize,
-      transparent_bg: true,
-      abbrev_option: 1,
+      ...(effectiveDraw.effectiveOptions ? {} : { transparent_bg: true }),
+      abbrev_option: effectiveDraw.abbrevOption,
+      ...(typeof effectiveDraw.atomLabelBlock === 'boolean' ? { atomLabelBlock: effectiveDraw.atomLabelBlock } : {}),
     }),
   })
     .then(async (response) => {
@@ -367,12 +467,20 @@ export const renderRdkitClusterSvgs = async ({
   angleDeg = 0,
   scalePercent = 100,
   minSize,
+  atomLabelBlock,
+  abbrevOption,
+  substructureColorDict,
+  useGlobalDrawOptions = true,
 }: {
   compounds: RdkitClusterCompoundInput[];
   mode: RdkitClusterHighlightMode;
   angleDeg?: number;
   scalePercent?: number;
   minSize?: [number, number];
+  atomLabelBlock?: boolean;
+  abbrevOption?: RdkitAbbrevOption;
+  substructureColorDict?: Record<string, RdkitSubstructureColorInfo>;
+  useGlobalDrawOptions?: boolean;
 }) => {
   const normalizedCompounds = compounds
     .map((compound) => {
@@ -392,12 +500,21 @@ export const renderRdkitClusterSvgs = async ({
     throw new Error('RDKit cluster 요청에 사용할 구조 데이터가 없습니다.');
   }
 
+  const effectiveDraw = getEffectiveDrawOptions({
+    useGlobalDrawOptions,
+    atomLabelBlock,
+    abbrevOption,
+  });
   const cacheKey = createRdkitClusterCacheKey({
     compounds: normalizedCompounds,
     mode,
     angleDeg,
     scalePercent,
     minSize,
+    atomLabelBlock: effectiveDraw.atomLabelBlock,
+    abbrevOption: effectiveDraw.abbrevOption,
+    drawOptions: effectiveDraw.effectiveOptions,
+    substructureColorDict,
   });
   const cached = rdkitClusterCache.get(cacheKey);
   if (cached) return cached;
@@ -408,7 +525,7 @@ export const renderRdkitClusterSvgs = async ({
   const normalizedAngle = ((Math.round(angleDeg) % 360) + 360) % 360;
   const normalizedScale = Math.max(40, Math.min(180, Math.round(scalePercent)));
   const normalizedMinSize = normalizeMinSize(minSize);
-  const fixedBondLength = Math.max(18, Math.round(42 * (normalizedScale / 100)));
+  const fixedBondLength = Math.max(18, Math.round((effectiveDraw.effectiveOptions?.fixedBondLength ?? 42) * (normalizedScale / 100)));
   const requestPromise = fetch(`${getRdkitApiBaseUrl()}/cluster_v1`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -422,11 +539,16 @@ export const renderRdkitClusterSvgs = async ({
       scaffold_align: false,
       reverse_highlighting: mode === 'diff',
       group_by: 'cluster_id',
+      ...(effectiveDraw.effectiveOptions ? createRdkitDrawOptionPayload(effectiveDraw.effectiveOptions) : {}),
       angle: normalizedAngle,
       fixed_bond_length: fixedBondLength,
       min_size: normalizedMinSize,
-      transparent_bg: true,
-      abbrev_option: 1,
+      ...(effectiveDraw.effectiveOptions ? {} : { transparent_bg: true }),
+      abbrev_option: effectiveDraw.abbrevOption,
+      ...(typeof effectiveDraw.atomLabelBlock === 'boolean' ? { atomLabelBlock: effectiveDraw.atomLabelBlock } : {}),
+      ...(substructureColorDict && Object.keys(substructureColorDict).length > 0
+        ? { substructure_color_dict: substructureColorDict }
+        : {}),
     }),
   })
     .then(async (response) => {
