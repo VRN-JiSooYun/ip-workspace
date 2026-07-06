@@ -128,12 +128,14 @@ const ROTATE180_METHODS: Record<ChemDrawFlipAxis, string[]> = {
 
 const ROTATE180_COMMAND_NAMES: Record<ChemDrawFlipAxis, string[]> = {
   horizontal: [
+    'rotateObjects180Horizontal',
     'rotate180Horizontal',
     'Rotate180Horizontal',
     'horizontalRotate180',
     'object.rotate180Horizontal',
   ],
   vertical: [
+    'rotateObjects180Vertical',
     'rotate180Vertical',
     'Rotate180Vertical',
     'verticalRotate180',
@@ -176,6 +178,29 @@ export const applyChemDrawFlip = (editor: any, axis: ChemDrawFlipAxis): boolean 
   return false;
 };
 
+const applyChemDrawFlipCommand = (editor: any, axis: ChemDrawFlipAxis): boolean => {
+  if (!editor) return false;
+
+  const availableCommandNames = toCommandNameArray(
+    typeof editor.getAvailableCommandNames === 'function'
+      ? editor.getAvailableCommandNames()
+      : [],
+  );
+  const matchingCommandNames = availableCommandNames.filter((name) =>
+    AXIS_COMMAND_PATTERNS[axis].some((pattern) => pattern.test(name)),
+  );
+
+  for (const commandName of matchingCommandNames) {
+    if (applyCommandByName(editor, commandName, true)) return true;
+  }
+
+  for (const commandName of FLIP_COMMAND_NAMES[axis]) {
+    if (applyCommandByName(editor, commandName, true)) return true;
+  }
+
+  return false;
+};
+
 /**
  * 선택 구조를 해당 축 기준으로 180° 회전한다.
  * ChemDraw JS가 회전 전용 method/command를 노출하면 그것을 우선 사용하고,
@@ -199,6 +224,47 @@ export const applyChemDrawRotate180 = (editor: any, axis: ChemDrawFlipAxis): boo
     if (applyCommandByName(editor, commandName, true)) return true;
   }
 
-  // 폴백: 축 기준 180° 회전은 해당 축 flip과 시각적으로 동일하다.
-  return applyChemDrawFlip(editor, axis);
+  // 폴백: native command dispatcher를 먼저 사용해야 stereochemistry 갱신 규칙이
+  // keyboard shortcut과 최대한 같아진다. Direct method는 마지막 수단이다.
+  return applyChemDrawFlipCommand(editor, axis) || applyChemDrawFlip(editor, axis);
+};
+
+export const dispatchChemDrawRotate180Shortcut = (
+  container: HTMLElement | null,
+  axis: ChemDrawFlipAxis,
+): boolean => {
+  if (!container) return false;
+
+  const isMacPlatform = /Mac|iPhone|iPad|iPod/i.test(window.navigator.platform || window.navigator.userAgent || '');
+  const activeElement = document.activeElement;
+  const eventTarget = activeElement instanceof HTMLElement && container.contains(activeElement)
+    ? activeElement
+    : container;
+  const key = axis === 'horizontal' ? 'H' : 'V';
+  const code = `Key${key}`;
+  const eventInit: KeyboardEventInit = {
+    key,
+    code,
+    ctrlKey: !isMacPlatform,
+    metaKey: isMacPlatform,
+    shiftKey: true,
+    bubbles: true,
+    cancelable: true,
+    composed: true,
+  };
+
+  eventTarget.focus?.({ preventScroll: true });
+
+  const keyDownEvent = new KeyboardEvent('keydown', eventInit);
+  const wasNotCanceled = eventTarget.dispatchEvent(keyDownEvent);
+  eventTarget.dispatchEvent(new KeyboardEvent('keyup', eventInit));
+
+  return !wasNotCanceled || keyDownEvent.defaultPrevented;
+};
+
+export const getChemDrawRotate180ShortcutLabel = (axis: ChemDrawFlipAxis): string => {
+  const isMacPlatform = /Mac|iPhone|iPad|iPod/i.test(window.navigator.platform || window.navigator.userAgent || '');
+  const key = axis === 'horizontal' ? 'H' : 'V';
+
+  return `${isMacPlatform ? 'Cmd' : 'Ctrl'}+Shift+${key}`;
 };

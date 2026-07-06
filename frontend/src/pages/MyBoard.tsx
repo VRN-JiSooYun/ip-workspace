@@ -81,12 +81,12 @@ const MYBOARD_RESPONSIVE_TEXT_COLUMN_MAX_WIDTH = 420;
 const MYBOARD_GROUP_TITLE_MIN_WIDTH = 120;
 const MYBOARD_GROUP_COLUMN_WIDTHS = {
   sequence: 48,
-  creDate: 100,
+  creDate: 82,
   target: 80,
   representativeStructure: 135,
-  count: 60,
-  groupOrder: 52,
-  shareStatus: 56,
+  count: 48,
+  groupOrder: 38,
+  shareStatus: 38,
 } as const;
 const MYBOARD_DATA_LEFT_ASSET_TYPES = new Set<CompoundQuickViewerAssetType>(['kp']);
 const MYBOARD_DATA_RIGHT_ASSET_ORDER: CompoundQuickViewerAssetType[] = ['pdb', 'docking', 'md'];
@@ -345,6 +345,8 @@ const MyBoard: React.FC = () => {
     setSelectedGroupIds,
     setSelectedSarCompoundIds,
     hideCompounds,
+    bookmarkedGroupIds,
+    toggleBookmarkedGroup,
     groups,
     groupStructureViewSettings,
     updateGroupStructureViewSettings,
@@ -404,10 +406,14 @@ const MyBoard: React.FC = () => {
     compoundId: string;
   } | null>(null);
   const detailTableWrapperRef = React.useRef<HTMLDivElement | null>(null);
+  const [groupTableScrollY, setGroupTableScrollY] = useState<number | undefined>(undefined);
+  const [detailTableScrollY, setDetailTableScrollY] = useState<number | undefined>(() => {
+    if (typeof window === 'undefined') return undefined;
+    return Math.max(160, window.innerHeight - 330);
+  });
   const [detailUniformRowHeight, setDetailUniformRowHeight] = useState<number | null>(null);
   const [detailStructureSvgSizes, setDetailStructureSvgSizes] = useState<Record<string, SvgIntrinsicSize>>({});
   const [groupListMode, setGroupListMode] = useState<'full' | 'structure' | 'hidden'>('full');
-  const [bookmarkedGroupIds, setBookmarkedGroupIds] = useState<string[]>([]);
   const [groupPinFilter, setGroupPinFilter] = useState<MyBoardGroupPinFilter>('all');
   const [viewportWidth, setViewportWidth] = useState<number>(() => {
     if (typeof window === 'undefined') return 1920;
@@ -490,9 +496,12 @@ const MyBoard: React.FC = () => {
         const aBookmarked = bookmarkedGroupIdSet.has(a.id);
         const bBookmarked = bookmarkedGroupIdSet.has(b.id);
         if (aBookmarked !== bBookmarked) return aBookmarked ? -1 : 1;
+        if (aBookmarked && bBookmarked) {
+          return bookmarkedGroupIds.indexOf(a.id) - bookmarkedGroupIds.indexOf(b.id);
+        }
         return groups.indexOf(a) - groups.indexOf(b);
       }),
-    [bookmarkedGroupIdSet, groups]
+    [bookmarkedGroupIdSet, bookmarkedGroupIds, groups]
   );
   const visibleGroupRows = React.useMemo(
     () => (
@@ -1198,14 +1207,6 @@ const MyBoard: React.FC = () => {
       return acc;
     }, {});
   }, [compoundRows]);
-
-  const toggleBookmarkedGroup = React.useCallback((groupId: string) => {
-    setBookmarkedGroupIds((prev) => (
-      prev.includes(groupId)
-        ? prev.filter((id) => id !== groupId)
-        : [groupId, ...prev]
-    ));
-  }, []);
 
   const renderGroupBookmarkButton = React.useCallback((groupId: string) => {
     const isBookmarked = bookmarkedGroupIds.includes(groupId);
@@ -2006,10 +2007,125 @@ const MyBoard: React.FC = () => {
     () => getTableScrollWidth(isGroupListStructureOnly ? styledStructureOnlyGroupColumns : styledGroupColumns),
     [getTableScrollWidth, isGroupListStructureOnly, styledGroupColumns, styledStructureOnlyGroupColumns]
   );
+  const shouldUseGroupTableHorizontalScroll = React.useMemo(() => {
+    if (isGroupListStructureOnly) return false;
+    if (groupListTableWidth <= 0) return true;
+
+    return groupListTableWidth < MYBOARD_GROUP_FIXED_COLUMN_WIDTH + MYBOARD_GROUP_TITLE_MIN_WIDTH + 16;
+  }, [groupListTableWidth, isGroupListStructureOnly]);
   const detailTableScrollX = React.useMemo(
     () => getTableScrollWidth(styledDynamicCompoundColumns),
     [getTableScrollWidth, styledDynamicCompoundColumns]
   );
+
+  const updateTableScrollHeights = React.useCallback(() => {
+    if (isStackedSplitLayout) {
+      setGroupTableScrollY(undefined);
+      setDetailTableScrollY(undefined);
+      return;
+    }
+
+    const bottomGap = 16;
+    const cardBottomInset = 2;
+    const minBodyHeight = 160;
+
+    const groupTable = groupListTableCardRef.current;
+    const groupBody = groupTable?.querySelector<HTMLElement>('.ant-table-body');
+    const groupTbody = groupTable?.querySelector<HTMLElement>('.my-board-group-table .ant-table-tbody');
+    const groupMeasureElement = groupBody ?? groupTbody;
+    if (groupMeasureElement && groupTbody) {
+      const maxGroupBodyHeight = Math.max(
+        minBodyHeight,
+        Math.floor(window.innerHeight - groupMeasureElement.getBoundingClientRect().top - bottomGap - cardBottomInset)
+      );
+      const groupRowsHeight = Math.ceil(groupTbody.getBoundingClientRect().height);
+      const nextGroupScrollY = groupRowsHeight <= maxGroupBodyHeight ? undefined : maxGroupBodyHeight;
+
+      setGroupTableScrollY((current) => (
+        current === nextGroupScrollY ? current : nextGroupScrollY
+      ));
+    }
+
+    const detailWrapper = detailTableWrapperRef.current;
+    const detailBody = detailWrapper?.querySelector<HTMLElement>('.my-board-detail-table .ant-table-body');
+    if (detailWrapper && detailBody) {
+      const pagination = detailWrapper.querySelector<HTMLElement>('.ant-pagination');
+      const paginationStyle = pagination ? window.getComputedStyle(pagination) : null;
+      const paginationReserve = pagination
+        ? Math.ceil(
+            pagination.getBoundingClientRect().height
+            + Number.parseFloat(paginationStyle?.marginTop || '0')
+            + Number.parseFloat(paginationStyle?.marginBottom || '0')
+          )
+        : 48;
+      const nextDetailScrollY = Math.max(
+        minBodyHeight,
+        Math.floor(window.innerHeight - detailBody.getBoundingClientRect().top - paginationReserve - bottomGap - cardBottomInset)
+      );
+
+      setDetailTableScrollY((current) => (
+        current === nextDetailScrollY ? current : nextDetailScrollY
+      ));
+    }
+  }, [isStackedSplitLayout]);
+
+  const groupTableScroll = React.useMemo(() => {
+    const nextScroll: { x?: number; y?: number } = {};
+
+    if (shouldUseGroupTableHorizontalScroll) {
+      nextScroll.x = groupTableScrollX;
+    }
+    if (!isStackedSplitLayout && groupTableScrollY !== undefined) {
+      nextScroll.y = groupTableScrollY;
+    }
+
+    return nextScroll.x !== undefined || nextScroll.y !== undefined ? nextScroll : undefined;
+  }, [groupTableScrollX, groupTableScrollY, isStackedSplitLayout, shouldUseGroupTableHorizontalScroll]);
+
+  React.useLayoutEffect(() => {
+    const frameId = window.requestAnimationFrame(updateTableScrollHeights);
+    return () => window.cancelAnimationFrame(frameId);
+  }, [
+    activeColumns,
+    columnOrder,
+    detailPagination.current,
+    detailPagination.pageSize,
+    detailTableScrollX,
+    filteredCompounds.length,
+    groupListMode,
+    groupPinFilter,
+    groupTableScrollX,
+    isGroupListStructureOnly,
+    quickViewer,
+    showFilters,
+    updateTableScrollHeights,
+    viewMode,
+    visibleGroupRows.length,
+  ]);
+
+  React.useEffect(() => {
+    if (isStackedSplitLayout) return undefined;
+
+    const onResize = () => {
+      window.requestAnimationFrame(updateTableScrollHeights);
+    };
+    window.addEventListener('resize', onResize);
+
+    const resizeObserver = new ResizeObserver(() => {
+      window.requestAnimationFrame(updateTableScrollHeights);
+    });
+    if (groupListTableCardRef.current) {
+      resizeObserver.observe(groupListTableCardRef.current);
+    }
+    if (detailTableWrapperRef.current) {
+      resizeObserver.observe(detailTableWrapperRef.current);
+    }
+
+    return () => {
+      window.removeEventListener('resize', onResize);
+      resizeObserver.disconnect();
+    };
+  }, [isStackedSplitLayout, updateTableScrollHeights]);
 
   const measureDetailTableRowHeight = React.useCallback(() => {
     const wrapper = detailTableWrapperRef.current;
@@ -2291,7 +2407,7 @@ const MyBoard: React.FC = () => {
         width: '100%',
         boxSizing: 'border-box',
         height: '100%',
-        overflowY: isStackedSplitLayout ? 'auto' : 'visible',
+        overflowY: isStackedSplitLayout ? 'auto' : 'hidden',
         overflowX: isStackedSplitLayout ? 'visible' : 'hidden'
       }}
     >
@@ -2413,6 +2529,7 @@ const MyBoard: React.FC = () => {
 
       <div
         ref={splitContainerRef}
+        className="my-board-split"
         style={{
           display: 'flex',
           flexDirection: isStackedSplitLayout ? 'column' : 'row',
@@ -2423,6 +2540,7 @@ const MyBoard: React.FC = () => {
       >
         {!isGroupListHidden && (
         <div
+          className="my-board-group-panel"
           style={{
             flex: isStackedSplitLayout
               ? undefined
@@ -2438,7 +2556,7 @@ const MyBoard: React.FC = () => {
             transition: isResizingSplit ? 'none' : 'width 0.2s ease, flex-basis 0.2s ease'
           }}
         >
-          <div className="v-table-card" ref={groupListTableCardRef}>
+          <div className="v-table-card my-board-list-card" ref={groupListTableCardRef}>
             <div className="v-table-header" style={{ padding: isGroupListStructureOnly ? '8px' : undefined, justifyContent: isGroupListStructureOnly ? 'center' : 'space-between' }}>
               {isGroupListStructureOnly ? (
                 <Space size={10}>
@@ -2537,14 +2655,19 @@ const MyBoard: React.FC = () => {
               />
             </Dropdown>
             <Table
-              className={`my-board-table my-board-group-table${isGroupListStructureOnly ? ' my-board-group-table-structure-only' : ''}`}
+              className={[
+                'my-board-table',
+                'my-board-group-table',
+                isGroupListStructureOnly ? 'my-board-group-table-structure-only' : undefined,
+                !shouldUseGroupTableHorizontalScroll ? 'my-board-group-table-no-horizontal-scroll' : undefined,
+              ].filter(Boolean).join(' ')}
               dataSource={visibleGroupRows}
               columns={isGroupListStructureOnly ? styledStructureOnlyGroupColumns : styledGroupColumns}
               pagination={false}
               size="small"
               rowKey="id"
               locale={{ emptyText: groupPinFilter === 'pinned' ? '핀 고정된 그룹이 없습니다.' : '그룹이 없습니다.' }}
-              scroll={isGroupListStructureOnly ? undefined : { x: groupTableScrollX }}
+              scroll={groupTableScroll}
               tableLayout="fixed"
               onRow={(record) => ({
                 onClick: (event) => {
@@ -2610,8 +2733,8 @@ const MyBoard: React.FC = () => {
           />
         </div>
 
-        <div style={{ flex: isStackedSplitLayout ? '0 0 auto' : 1, minWidth: 0, width: isStackedSplitLayout || isGroupListHidden ? '100%' : undefined }}>
-          <div className="v-table-card">
+        <div className="my-board-detail-panel" style={{ flex: isStackedSplitLayout ? '0 0 auto' : 1, minWidth: 0, width: isStackedSplitLayout || isGroupListHidden ? '100%' : undefined }}>
+          <div className="v-table-card my-board-list-card">
             <div className="v-table-header" style={{ flexWrap: 'wrap', gap: '12px', alignItems: 'center' }}>
               <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
                 {isGroupListHidden && (
@@ -2821,7 +2944,7 @@ const MyBoard: React.FC = () => {
                   }}
                 />
               </Dropdown>
-              <div ref={detailTableWrapperRef}>
+              <div className="my-board-detail-table-wrapper" ref={detailTableWrapperRef}>
                 <Table
                   className="my-board-table my-board-detail-table"
                   dataSource={selectedGroupIds.length > 0 ? filteredCompounds : []}
@@ -2838,7 +2961,7 @@ const MyBoard: React.FC = () => {
                     },
                   }}
                   loading={isLoading}
-                  scroll={{ x: detailTableScrollX, y: isStackedSplitLayout ? undefined : 'calc(100vh - 430px)' }}
+                  scroll={{ x: detailTableScrollX, y: detailTableScrollY }}
                   tableLayout="fixed"
                   onRow={(record) => ({
                     onClick: (event) => {
@@ -3387,6 +3510,27 @@ const MyBoard: React.FC = () => {
         .my-board-detail-row-selected:hover > td {
           background-color: var(--table-row-selected-hover-bg) !important;
         }
+        .my-board-page {
+          min-height: 0;
+        }
+        .my-board-workspace {
+          min-height: 0;
+        }
+        .my-board-workspace-main {
+          min-height: 0;
+        }
+        .my-board-split {
+          min-height: 0;
+        }
+        .my-board-group-panel,
+        .my-board-detail-panel,
+        .my-board-list-card {
+          min-height: 0;
+        }
+        .my-board-list-card > .ant-table-wrapper,
+        .my-board-detail-table-wrapper {
+          min-height: 0;
+        }
         .my-board-detail-table .ant-table-tbody > tr > td.my-board-structure-column {
           padding: 4px !important;
           line-height: 0 !important;
@@ -3406,8 +3550,17 @@ const MyBoard: React.FC = () => {
           overscroll-behavior-x: contain;
           -webkit-overflow-scrolling: touch;
         }
+        .my-board-group-table-no-horizontal-scroll .ant-table-container,
+        .my-board-group-table-no-horizontal-scroll .ant-table-content,
+        .my-board-group-table-no-horizontal-scroll .ant-table-body {
+          overflow-x: hidden !important;
+        }
         .my-board-detail-table .ant-table-body {
           overflow-x: auto !important;
+        }
+        .my-board-group-table .ant-table-body {
+          padding-bottom: 2px;
+          box-sizing: border-box;
         }
         .my-board-page,
         .my-board-page .ant-table-body,
@@ -3790,6 +3943,17 @@ const MyBoard: React.FC = () => {
           .my-board-workspace {
             display: block;
           }
+          .my-board-page,
+          .my-board-workspace-main,
+          .my-board-split,
+          .my-board-group-panel,
+          .my-board-detail-panel,
+          .my-board-list-card,
+          .my-board-detail-table-wrapper {
+            display: block;
+            height: auto;
+            max-height: none;
+          }
           .my-board-quick-viewer-resizer {
             display: none;
           }
@@ -3935,6 +4099,8 @@ const MyBoard: React.FC = () => {
           overflow-y: auto !important;
         }
         .my-board-detail-table .ant-pagination {
+          margin-bottom: 2px;
+          padding-bottom: 2px;
           padding-right: 16px;
           box-sizing: border-box;
         }

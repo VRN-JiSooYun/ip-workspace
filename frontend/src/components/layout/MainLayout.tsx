@@ -613,7 +613,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
           </div>
         </Header>
         <Content style={{
-          padding: '0 12px 24px 12px',
+          padding: '0 12px 16px 12px',
           overflow: 'hidden', // 전체 스크롤 방지를 위해 hidden으로 변경
           boxSizing: 'border-box',
           height: `calc(100vh - ${headerHeight}px)`,

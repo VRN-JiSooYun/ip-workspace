@@ -4,7 +4,11 @@ import { ArrowLeftRight, ArrowUpDown, Info } from 'lucide-react';
 import { CHEMDRAW_CONFIG } from '../../config/chemdraw';
 import { installChemDrawKoreanKeyboardBridge } from '../../utils/chemdrawKeyboard';
 import { commitChemDrawActiveInput, waitForChemDrawEditorReady } from '../../utils/chemdrawCommit';
-import { applyChemDrawRotate180 } from '../../utils/chemdrawTransform';
+import {
+  applyChemDrawRotate180,
+  dispatchChemDrawRotate180Shortcut,
+  getChemDrawRotate180ShortcutLabel,
+} from '../../utils/chemdrawTransform';
 import type { ChemDrawFlipAxis } from '../../utils/chemdrawTransform';
 import { installCanvasReadbackPatch } from '../../utils/canvasReadback';
 import { installPassiveWheelListenerPatch } from '../../utils/passiveWheelListenerPatch';
@@ -48,6 +52,8 @@ const ChemDrawModal: React.FC<ChemDrawModalProps> = ({
   initialMolblock
 }) => {
   const { token } = theme.useToken();
+  const rotateHorizontalShortcutLabel = getChemDrawRotate180ShortcutLabel('horizontal');
+  const rotateVerticalShortcutLabel = getChemDrawRotate180ShortcutLabel('vertical');
   const [cdjsInstance, setCdjsInstance] = useState<any>(null);
   const [containerId] = useState(`chemdraw-${Math.random().toString(36).substr(2, 9)}`);
 
@@ -190,26 +196,16 @@ const ChemDrawModal: React.FC<ChemDrawModalProps> = ({
   };
 
   const handleRotate180 = (axis: ChemDrawFlipAxis) => {
-    applyChemDrawRotate180(cdjsInstance, axis);
+    const container = document.getElementById(containerId);
+    const didApplyCommand = applyChemDrawRotate180(cdjsInstance, axis);
+    if (!didApplyCommand) {
+      dispatchChemDrawRotate180Shortcut(container, axis);
+    }
   };
 
-  // 단축키: Shift+Ctrl+H → 수평(Horizontal) 180° 회전, Shift+Ctrl+V → 수직(Vertical) 180° 회전
-  useEffect(() => {
-    if (!open || !cdjsInstance) return;
-
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (!event.ctrlKey || !event.shiftKey || event.altKey || event.metaKey) return;
-      const code = event.code;
-      if (code !== 'KeyH' && code !== 'KeyV') return;
-      event.preventDefault();
-      event.stopPropagation();
-      handleRotate180(code === 'KeyH' ? 'horizontal' : 'vertical');
-    };
-
-    // capture 단계에서 처리해 ChemDraw 내부 키 핸들링보다 먼저 가로챈다.
-    document.addEventListener('keydown', onKeyDown, true);
-    return () => document.removeEventListener('keydown', onKeyDown, true);
-  }, [open, cdjsInstance]);
+  const handleRotateButtonMouseDown = (event: React.MouseEvent<HTMLElement>) => {
+    event.preventDefault();
+  };
 
   const flushActiveEditorInput = async () => {
     await commitChemDrawActiveInput(containerId, cdjsInstance);
@@ -304,16 +300,18 @@ const ChemDrawModal: React.FC<ChemDrawModalProps> = ({
 
   const flipControls = (
     <Space direction="vertical">
-      <Tooltip title="180° 회전 - 수평 (Shift+Ctrl+H)" placement="left">
+      <Tooltip title={`180° 회전 - 수평 (${rotateHorizontalShortcutLabel})`} placement="left">
         <Button
           icon={<ArrowLeftRight size={16} />}
+          onMouseDown={handleRotateButtonMouseDown}
           onClick={() => handleRotate180('horizontal')}
           disabled={!cdjsInstance}
         />
       </Tooltip>
-      <Tooltip title="180° 회전 - 수직 (Shift+Ctrl+V)" placement="left">
+      <Tooltip title={`180° 회전 - 수직 (${rotateVerticalShortcutLabel})`} placement="left">
         <Button
           icon={<ArrowUpDown size={16} />}
+          onMouseDown={handleRotateButtonMouseDown}
           onClick={() => handleRotate180('vertical')}
           disabled={!cdjsInstance}
         />

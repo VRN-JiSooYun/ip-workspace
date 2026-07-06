@@ -38,6 +38,7 @@ import {
 } from '../services/structureRendering';
 import arrowDivideIcon from '../assets/svg/arrow-divide.svg';
 import arrowMergeIcon from '../assets/svg/arrow-merge.svg';
+import bookmarkIconRaw from '../assets/svg/bookmark.svg?raw';
 
 const { Title, Text } = Typography;
 
@@ -97,6 +98,8 @@ const SAR_SCAFFOLD_COLOR_OPTIONS = [
   { key: 'olive', color: '#808000' },
 ];
 type SvgIntrinsicSize = { width: number; height: number };
+const createSvgMaskUrl = (svg: string) => `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+const bookmarkIconMaskUrl = createSvgMaskUrl(bookmarkIconRaw);
 
 const getSarAbbrevOption = (mode: SarAbbreviationMode): RdkitAbbrevOption => {
   if (mode === 'all') return 2;
@@ -132,6 +135,19 @@ const getSvgIntrinsicSize = (svg?: string | null): SvgIntrinsicSize | null => {
   return null;
 };
 
+function getRangeSelectionIds<T extends { id: string }>(rows: T[], anchorId: string | null, targetId: string) {
+  if (!anchorId) return [targetId];
+
+  const anchorIndex = rows.findIndex((row) => row.id === anchorId);
+  const targetIndex = rows.findIndex((row) => row.id === targetId);
+
+  if (anchorIndex < 0 || targetIndex < 0) return [targetId];
+
+  const startIndex = Math.min(anchorIndex, targetIndex);
+  const endIndex = Math.max(anchorIndex, targetIndex);
+  return rows.slice(startIndex, endIndex + 1).map((row) => row.id);
+}
+
 const SarTable: React.FC = () => {
   const navigate = useNavigate();
   const { token } = theme.useToken();
@@ -140,11 +156,12 @@ const SarTable: React.FC = () => {
     selectedGroupIds,
     selectedSarCompoundIds,
     hiddenCompoundIds,
+    bookmarkedGroupIds,
     groups,
     groupStructureViewSettings,
-    toggleGroupSelection,
     setSelectedGroupIds,
     setSelectedSarCompoundIds,
+    toggleBookmarkedGroup,
     updateGroupStructureViewSettings,
   } = useBoardStore();
   const { setHeaderContent } = useUIStore();
@@ -271,12 +288,34 @@ const SarTable: React.FC = () => {
   const clusterRequestSeqRef = React.useRef(0);
   const quickViewerPaneRef = React.useRef<HTMLDivElement | null>(null);
   const quickViewerResizeRafRef = React.useRef<number | null>(null);
+  const groupStructureSelectionAnchorRef = React.useRef<string | null>(null);
+  const compoundSelectionAnchorRef = React.useRef<string | null>(null);
+  const suppressNextSarAutoSelectionRef = React.useRef(false);
   const scaffoldEditBaselineRef = React.useRef<{ smiles?: string; molBlock?: string } | null>(null);
   const scaffoldEditDirtyRef = React.useRef(false);
   const quickViewerStorageKey = 'sar-table-split:quick-viewer';
   const layoutPreset = useMemo(() => getPatentAnalysisLayoutPreset(viewportWidth), [viewportWidth]);
   const isResponsiveToolbar = viewportWidth <= 1100;
+  const bookmarkedGroupIdSet = useMemo(() => new Set(bookmarkedGroupIds), [bookmarkedGroupIds]);
   const pinnedCompoundIdSet = useMemo(() => new Set(pinnedCompoundIds), [pinnedCompoundIds]);
+  const sortedGroupStructureRows = useMemo(
+    () => [...groups].sort((a, b) => {
+      const aPinned = bookmarkedGroupIdSet.has(a.id);
+      const bPinned = bookmarkedGroupIdSet.has(b.id);
+      if (aPinned !== bPinned) return aPinned ? -1 : 1;
+      if (aPinned && bPinned) {
+        return bookmarkedGroupIds.indexOf(a.id) - bookmarkedGroupIds.indexOf(b.id);
+      }
+      return groups.indexOf(a) - groups.indexOf(b);
+    }),
+    [bookmarkedGroupIdSet, bookmarkedGroupIds, groups]
+  );
+  useEffect(() => {
+    const visibleIds = new Set(sortedGroupStructureRows.map((group) => group.id));
+    if (groupStructureSelectionAnchorRef.current && !visibleIds.has(groupStructureSelectionAnchorRef.current)) {
+      groupStructureSelectionAnchorRef.current = null;
+    }
+  }, [sortedGroupStructureRows]);
   const displaySarCompounds = useMemo(() => {
     return [...sarCompounds].sort((a, b) => {
       const aPinned = pinnedCompoundIdSet.has(a.id);
@@ -285,6 +324,12 @@ const SarTable: React.FC = () => {
       return sarCompounds.indexOf(a) - sarCompounds.indexOf(b);
     });
   }, [pinnedCompoundIdSet, sarCompounds]);
+  useEffect(() => {
+    const visibleIds = new Set(displaySarCompounds.map((compound) => compound.id));
+    if (compoundSelectionAnchorRef.current && !visibleIds.has(compoundSelectionAnchorRef.current)) {
+      compoundSelectionAnchorRef.current = null;
+    }
+  }, [displaySarCompounds]);
   const pinnedCompoundOrderMap = useMemo(() => (
     displaySarCompounds.reduce<Record<string, number>>((acc, compound) => {
       if (pinnedCompoundIdSet.has(compound.id)) {
@@ -304,15 +349,15 @@ const SarTable: React.FC = () => {
         ...groupStructureViewSettings[activeStructureSettingsGroupId],
       }
     : null;
-  const sarPinnedRowColor = isDarkMode ? '#60A5FA' : '#2563EB';
-  const sarPinnedRowBg = isDarkMode ? 'rgba(96, 165, 250, 0.16)' : 'rgba(37, 99, 235, 0.08)';
-  const sarPinnedRowHoverBg = isDarkMode ? 'rgba(96, 165, 250, 0.24)' : 'rgba(37, 99, 235, 0.14)';
+  const sarPinnedRowColor = isDarkMode ? '#4ADE80' : '#16A34A';
+  const sarPinnedRowBg = isDarkMode ? 'rgba(74, 222, 128, 0.16)' : 'rgba(22, 163, 74, 0.08)';
+  const sarPinnedRowHoverBg = isDarkMode ? 'rgba(74, 222, 128, 0.24)' : 'rgba(22, 163, 74, 0.14)';
   const sarPinnedSelectedCardBg = isDarkMode
-    ? `color-mix(in srgb, ${token.colorPrimary} 16%, ${token.colorBgContainer})`
-    : `color-mix(in srgb, ${token.colorPrimary} 10%, ${token.colorBgContainer})`;
+    ? `color-mix(in srgb, ${sarPinnedRowColor} 18%, ${token.colorBgContainer})`
+    : `color-mix(in srgb, ${sarPinnedRowColor} 10%, ${token.colorBgContainer})`;
   const sarPinnedSelectedCardHoverBg = isDarkMode
-    ? `color-mix(in srgb, ${token.colorPrimary} 22%, ${token.colorBgContainer})`
-    : `color-mix(in srgb, ${token.colorPrimary} 14%, ${token.colorBgContainer})`;
+    ? `color-mix(in srgb, ${sarPinnedRowColor} 24%, ${token.colorBgContainer})`
+    : `color-mix(in srgb, ${sarPinnedRowColor} 15%, ${token.colorBgContainer})`;
   const isStructureSettingsDisabled = !activeStructureSettingsGroupId;
   const updateActiveStructureSettings = (settings: Partial<typeof DEFAULT_GROUP_STRUCTURE_VIEW_SETTINGS>) => {
     if (!activeStructureSettingsGroupId) return;
@@ -363,6 +408,11 @@ const SarTable: React.FC = () => {
   }), [groupStructureViewSettings]);
 
   useEffect(() => {
+    if (suppressNextSarAutoSelectionRef.current) {
+      suppressNextSarAutoSelectionRef.current = false;
+      return;
+    }
+
     setHasUserClearedSelection(false);
   }, [sarCompoundIdSignature]);
 
@@ -370,6 +420,7 @@ const SarTable: React.FC = () => {
     if (sarCompounds.length === 0) {
       setSelectedRowKey(null);
       setSelectedCompoundIds([]);
+      compoundSelectionAnchorRef.current = null;
       return;
     }
 
@@ -377,17 +428,34 @@ const SarTable: React.FC = () => {
     if (!hasSelectedRow && !hasUserClearedSelection) {
       setSelectedRowKey(displaySarCompounds[0].id);
       setSelectedCompoundIds([displaySarCompounds[0].id]);
+      compoundSelectionAnchorRef.current = displaySarCompounds[0].id;
     }
   }, [displaySarCompounds, hasUserClearedSelection, sarCompounds.length, selectedRowKey]);
 
   const handleCompoundSelection = React.useCallback((compoundId: string, event?: React.MouseEvent) => {
+    if (event?.shiftKey) {
+      event.preventDefault();
+      const rangeIds = getRangeSelectionIds(displaySarCompounds, compoundSelectionAnchorRef.current, compoundId);
+      const next = event.ctrlKey || event.metaKey
+        ? Array.from(new Set([...selectedCompoundIds, ...rangeIds]))
+        : rangeIds;
+
+      setSelectedCompoundIds(next);
+      setSelectedRowKey(compoundId);
+      setHasUserClearedSelection(next.length === 0);
+      compoundSelectionAnchorRef.current = compoundSelectionAnchorRef.current ?? compoundId;
+      return;
+    }
+
     if (!event?.ctrlKey && !event?.metaKey) {
       setSelectedCompoundIds([compoundId]);
       setSelectedRowKey(compoundId);
       setHasUserClearedSelection(false);
+      compoundSelectionAnchorRef.current = compoundId;
       return;
     }
 
+    event.preventDefault();
     setSelectedCompoundIds((current) => {
       const next = current.includes(compoundId)
         ? current.filter((id) => id !== compoundId)
@@ -395,9 +463,10 @@ const SarTable: React.FC = () => {
 
       setSelectedRowKey(next.includes(compoundId) ? compoundId : next[next.length - 1] ?? null);
       setHasUserClearedSelection(next.length === 0);
+      compoundSelectionAnchorRef.current = compoundId;
       return next;
     });
-  }, []);
+  }, [displaySarCompounds, selectedCompoundIds]);
 
   const togglePinnedCompound = React.useCallback((compoundId: string) => {
     setPinnedCompoundIds((current) => (
@@ -431,6 +500,23 @@ const SarTable: React.FC = () => {
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
   }, []);
+
+  const clearTableRowSelection = React.useCallback(() => {
+    setSelectedRowKey(null);
+    setSelectedCompoundIds([]);
+    setHoveredRowKey(null);
+    setHasUserClearedSelection(true);
+    compoundSelectionAnchorRef.current = null;
+  }, []);
+
+  const handlePageMouseDown = React.useCallback((event: React.MouseEvent<HTMLDivElement>) => {
+    const target = event.target instanceof Element ? event.target : null;
+    if (!target) return;
+    if (target.closest('.sar-table-card, .sar-compound-card-list, .quick-viewer-panel')) return;
+    if (!selectedRowKey && selectedCompoundIds.length === 0) return;
+
+    clearTableRowSelection();
+  }, [clearTableRowSelection, selectedCompoundIds.length, selectedRowKey]);
 
   useEffect(() => {
     const raw = window.localStorage.getItem(quickViewerStorageKey);
@@ -622,6 +708,7 @@ const SarTable: React.FC = () => {
       setSelectedRowKey(nextCompound.id);
       setSelectedCompoundIds([nextCompound.id]);
       setHasUserClearedSelection(false);
+      compoundSelectionAnchorRef.current = nextCompound.id;
       setHoveredRowKey(nextCompound.id);
       document.getElementById(`sar-compound-card-${nextCompound.id}`)?.scrollIntoView({
         behavior: 'smooth',
@@ -797,11 +884,27 @@ const SarTable: React.FC = () => {
   };
 
   const handleGroupStructureSelection = (groupId: string, event: React.MouseEvent) => {
-    const nextSelectedGroupIds = event.ctrlKey || event.metaKey
-      ? selectedGroupIds.includes(groupId)
+    const isToggleModifier = event.altKey || event.ctrlKey || event.metaKey;
+    let nextSelectedGroupIds: string[];
+
+    if (event.shiftKey) {
+      event.preventDefault();
+      const rangeIds = getRangeSelectionIds(sortedGroupStructureRows, groupStructureSelectionAnchorRef.current, groupId);
+      nextSelectedGroupIds = isToggleModifier
+        ? Array.from(new Set([...selectedGroupIds, ...rangeIds]))
+        : rangeIds;
+      groupStructureSelectionAnchorRef.current = groupStructureSelectionAnchorRef.current ?? groupId;
+    } else if (isToggleModifier) {
+      event.preventDefault();
+      nextSelectedGroupIds = selectedGroupIds.includes(groupId)
         ? selectedGroupIds.filter((id) => id !== groupId)
-        : [...selectedGroupIds, groupId]
-      : [groupId];
+        : [...selectedGroupIds, groupId];
+      groupStructureSelectionAnchorRef.current = groupId;
+    } else {
+      nextSelectedGroupIds = [groupId];
+      groupStructureSelectionAnchorRef.current = groupId;
+    }
+
     const nextGroupCompounds = nextSelectedGroupIds.length > 0
       ? mockCompounds
         .filter((compound) => nextSelectedGroupIds.includes(compound.groupId) && !hiddenCompoundIds.includes(compound.id))
@@ -818,19 +921,17 @@ const SarTable: React.FC = () => {
     const nextCompoundIds = (shouldClearKeywordForGroupLoad ? nextGroupCompounds : nextVisibleCompounds)
       .map((compound) => compound.id);
 
-    if (event.ctrlKey || event.metaKey) {
-      toggleGroupSelection(groupId);
-    } else {
-      setSelectedGroupIds([groupId]);
-    }
+    setSelectedGroupIds(nextSelectedGroupIds);
     if (shouldClearKeywordForGroupLoad) {
       setKeyword('');
     }
+    suppressNextSarAutoSelectionRef.current = true;
     setSelectedSarCompoundIds(nextCompoundIds);
-    setSelectedRowKey(nextCompoundIds[0] ?? null);
-    setSelectedCompoundIds(nextCompoundIds[0] ? [nextCompoundIds[0]] : []);
+    setSelectedRowKey(null);
+    setSelectedCompoundIds([]);
+    compoundSelectionAnchorRef.current = null;
     setHoveredRowKey(null);
-    setHasUserClearedSelection(false);
+    setHasUserClearedSelection(true);
     setIsScaffoldColorPickerOpen(false);
   };
 
@@ -871,10 +972,11 @@ const SarTable: React.FC = () => {
   const renderGroupStructure = (_: unknown, record: any) => {
     const representativeCompound = firstCompoundByGroupId[record.id];
     const structureSvg = representativeCompound?.structureSvg;
+    const isBookmarked = bookmarkedGroupIdSet.has(record.id);
 
     return (
       <div
-        className="sar-group-representative-structure"
+        className={`sar-group-representative-structure${isBookmarked ? ' is-bookmarked' : ''}`}
         style={{
           margin: '0 auto',
           display: 'inline-flex',
@@ -883,8 +985,25 @@ const SarTable: React.FC = () => {
           minWidth: SAR_GROUP_STRUCTURE_WIDTH,
           minHeight: SAR_GROUP_STRUCTURE_HEIGHT,
           lineHeight: 0,
+          position: 'relative',
         }}
       >
+        <div className="sar-group-structure-bookmark">
+          <Tooltip title={isBookmarked ? '상단 고정 해제' : '상단 고정'}>
+            <Button
+              size="small"
+              type="text"
+              aria-label={isBookmarked ? '상단 고정 해제' : '상단 고정'}
+              className={`sar-group-structure-pin-button${isBookmarked ? ' active' : ''}`}
+              onClick={(event) => {
+                event.stopPropagation();
+                toggleBookmarkedGroup(record.id);
+              }}
+            >
+              <span className="sar-group-structure-pin-icon" />
+            </Button>
+          </Tooltip>
+        </div>
         <CompoundStructureView
           svg={structureSvg}
           rdkitSvg={(representativeCompound as any)?.rdkitSvg}
@@ -1439,10 +1558,11 @@ const SarTable: React.FC = () => {
   return (
     <div
       className="gx-main-content sar-page"
+      onMouseDown={handlePageMouseDown}
       style={{
         maxWidth: layoutPreset.maxWidth,
         margin: '0 auto',
-        padding: `0 ${layoutPreset.sidePadding}px 24px`,
+        padding: `0 ${layoutPreset.sidePadding}px`,
         width: '100%',
         height: '100%',
         minHeight: 0,
@@ -1596,7 +1716,7 @@ const SarTable: React.FC = () => {
           </div>
           <Table
             className="sar-group-structure-table"
-            dataSource={groups}
+            dataSource={sortedGroupStructureRows}
             columns={groupStructureColumns}
             rowKey="id"
             size="small"
@@ -1607,7 +1727,9 @@ const SarTable: React.FC = () => {
               onClick: (event) => handleGroupStructureSelection(record.id, event),
               style: { cursor: 'pointer' },
             })}
-            rowClassName={(record) => selectedGroupIds.includes(record.id) ? 'row-selected sar-group-row-selected' : ''}
+            rowClassName={(record) => [
+              selectedGroupIds.includes(record.id) ? 'row-selected sar-group-row-selected' : '',
+            ].filter(Boolean).join(' ')}
           />
         </div>
         )}
@@ -2353,10 +2475,96 @@ const SarTable: React.FC = () => {
         .sar-group-structure-card {
           width: ${SAR_GROUP_STRUCTURE_PANEL_WIDTH}px;
           flex: 0 0 ${SAR_GROUP_STRUCTURE_PANEL_WIDTH}px;
-          overflow: visible;
+          overflow: hidden;
+          box-shadow: inset 0 0 0 1px ${token.colorBorderSecondary};
         }
         .sar-group-structure-card .ant-table-wrapper {
           margin: 0;
+          padding-bottom: 1px;
+          box-sizing: border-box;
+        }
+        .sar-group-structure-card .ant-table,
+        .sar-group-structure-card .ant-table-container {
+          border-radius: 0 0 8px 8px;
+        }
+        .sar-group-structure-bookmark {
+          position: absolute;
+          top: 2px;
+          left: 2px;
+          z-index: 12;
+          line-height: 1;
+          opacity: 0;
+          pointer-events: none;
+          transition: opacity 0.16s ease;
+        }
+        .sar-group-representative-structure:hover .sar-group-structure-bookmark,
+        .sar-group-representative-structure.is-bookmarked .sar-group-structure-bookmark {
+          opacity: 1;
+          pointer-events: auto;
+        }
+        .sar-group-structure-pin-button {
+          width: 16px;
+          min-width: 16px;
+          height: 16px;
+          padding: 0;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          color: ${token.colorTextQuaternary};
+          background: color-mix(in srgb, ${token.colorBgContainer} 88%, transparent) !important;
+          border: 1px solid transparent;
+          border-radius: 4px;
+          backdrop-filter: blur(2px);
+          transition: background-color 0.16s ease, color 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease;
+        }
+        .sar-group-structure-pin-icon {
+          width: 12px;
+          height: 12px;
+          display: inline-block;
+          background-color: currentColor;
+          -webkit-mask: url("${bookmarkIconMaskUrl}") center / contain no-repeat;
+          mask: url("${bookmarkIconMaskUrl}") center / contain no-repeat;
+        }
+        .sar-group-structure-pin-button:hover .sar-group-structure-pin-icon,
+        .sar-group-structure-pin-button:focus .sar-group-structure-pin-icon,
+        .sar-group-structure-pin-button:focus-visible .sar-group-structure-pin-icon,
+        .sar-group-structure-pin-button:active .sar-group-structure-pin-icon {
+          color: inherit !important;
+          background-color: currentColor !important;
+        }
+        .sar-group-structure-pin-button:not(.active):hover .sar-group-structure-pin-icon,
+        .sar-group-structure-pin-button:not(.active):focus .sar-group-structure-pin-icon,
+        .sar-group-structure-pin-button:not(.active):focus-visible .sar-group-structure-pin-icon,
+        .sar-group-structure-pin-button:not(.active):active .sar-group-structure-pin-icon {
+          color: ${token.colorTextQuaternary} !important;
+          background-color: ${token.colorTextQuaternary} !important;
+        }
+        .sar-group-structure-pin-button.active,
+        .sar-group-structure-pin-button.active:hover,
+        .sar-group-structure-pin-button.active:focus-visible {
+          color: ${token.colorPrimary};
+          background: color-mix(in srgb, ${token.colorBgContainer} 88%, transparent) !important;
+          border-color: transparent;
+          box-shadow: none;
+          outline: 0;
+        }
+        .sar-group-structure-pin-button.active:hover .sar-group-structure-pin-icon,
+        .sar-group-structure-pin-button.active:focus .sar-group-structure-pin-icon,
+        .sar-group-structure-pin-button.active:focus-visible .sar-group-structure-pin-icon,
+        .sar-group-structure-pin-button.active:active .sar-group-structure-pin-icon {
+          color: ${token.colorPrimary} !important;
+          background-color: ${token.colorPrimary} !important;
+        }
+        .sar-group-structure-pin-button:hover {
+          color: ${token.colorTextQuaternary};
+          background: color-mix(in srgb, ${token.colorBgContainer} 88%, transparent) !important;
+        }
+        .sar-group-structure-pin-button:focus,
+        .sar-group-structure-pin-button:focus-visible,
+        .sar-group-structure-pin-button:active {
+          background: color-mix(in srgb, ${token.colorBgContainer} 88%, transparent) !important;
+          box-shadow: none !important;
+          outline: 0 !important;
         }
         .sar-board-content {
           flex: 1 1 auto;
@@ -3214,7 +3422,7 @@ const SarTable: React.FC = () => {
           align-items: center;
           justify-content: center;
           color: ${token.colorBgContainer};
-          background: ${token.colorPrimary};
+          background: ${sarPinnedRowColor};
           box-shadow: 0 2px 6px rgba(0, 0, 0, 0.16);
           pointer-events: none;
         }

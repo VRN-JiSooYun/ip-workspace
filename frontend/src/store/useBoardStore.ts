@@ -41,15 +41,43 @@ export const DEFAULT_GROUP_STRUCTURE_VIEW_SETTINGS: GroupStructureViewSettings =
   myBoardImageScalePercent: 100,
 };
 
+const BOOKMARKED_GROUP_IDS_STORAGE_KEY = 'my-board:bookmarked-group-ids';
+
+const readBookmarkedGroupIds = (): string[] => {
+  if (typeof window === 'undefined') return [];
+
+  try {
+    const raw = window.localStorage.getItem(BOOKMARKED_GROUP_IDS_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === 'string') : [];
+  } catch {
+    return [];
+  }
+};
+
+const writeBookmarkedGroupIds = (groupIds: string[]) => {
+  if (typeof window === 'undefined') return;
+
+  try {
+    window.localStorage.setItem(BOOKMARKED_GROUP_IDS_STORAGE_KEY, JSON.stringify(groupIds));
+  } catch {
+    // Ignore temporary UX persistence failures.
+  }
+};
+
 interface BoardState {
   selectedGroupIds: string[];
   selectedSarCompoundIds: string[];
   hiddenCompoundIds: string[];
+  bookmarkedGroupIds: string[];
   groups: CompoundGroup[];
   groupStructureViewSettings: Record<string, GroupStructureViewSettings>;
   toggleGroupSelection: (groupId: string) => void;
   setSelectedGroupIds: (groupIds: string[]) => void;
   setSelectedSarCompoundIds: (compoundIds: string[]) => void;
+  toggleBookmarkedGroup: (groupId: string) => void;
+  setBookmarkedGroupIds: (groupIds: string[]) => void;
   clearSelectedSarCompoundIds: () => void;
   hideCompounds: (compoundIds: string[]) => void;
   unhideCompounds: (compoundIds: string[]) => void;
@@ -64,6 +92,7 @@ export const useBoardStore = create<BoardState>((set) => ({
   selectedGroupIds: [],
   selectedSarCompoundIds: [],
   hiddenCompoundIds: [],
+  bookmarkedGroupIds: readBookmarkedGroupIds(),
   groups: mockGroups,
   groupStructureViewSettings: {},
   toggleGroupSelection: (groupId) => set((state) => ({
@@ -73,6 +102,18 @@ export const useBoardStore = create<BoardState>((set) => ({
   })),
   setSelectedGroupIds: (groupIds) => set({ selectedGroupIds: groupIds }),
   setSelectedSarCompoundIds: (compoundIds) => set({ selectedSarCompoundIds: compoundIds }),
+  toggleBookmarkedGroup: (groupId) => set((state) => {
+    const nextBookmarkedGroupIds = state.bookmarkedGroupIds.includes(groupId)
+      ? state.bookmarkedGroupIds.filter((id) => id !== groupId)
+      : [...state.bookmarkedGroupIds, groupId];
+
+    writeBookmarkedGroupIds(nextBookmarkedGroupIds);
+    return { bookmarkedGroupIds: nextBookmarkedGroupIds };
+  }),
+  setBookmarkedGroupIds: (groupIds) => {
+    writeBookmarkedGroupIds(groupIds);
+    set({ bookmarkedGroupIds: groupIds });
+  },
   clearSelectedSarCompoundIds: () => set({ selectedSarCompoundIds: [] }),
   hideCompounds: (compoundIds) => set((state) => ({
     hiddenCompoundIds: Array.from(new Set([...state.hiddenCompoundIds, ...compoundIds])),

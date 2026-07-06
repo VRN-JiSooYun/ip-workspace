@@ -4,7 +4,11 @@ import { ArrowLeftRight, ArrowUpDown, Info } from 'lucide-react';
 import { CHEMDRAW_CONFIG } from '../../config/chemdraw';
 import { installChemDrawKoreanKeyboardBridge } from '../../utils/chemdrawKeyboard';
 import { commitChemDrawActiveInput, waitForChemDrawEditorReady } from '../../utils/chemdrawCommit';
-import { applyChemDrawRotate180 } from '../../utils/chemdrawTransform';
+import {
+  applyChemDrawRotate180,
+  dispatchChemDrawRotate180Shortcut,
+  getChemDrawRotate180ShortcutLabel,
+} from '../../utils/chemdrawTransform';
 import type { ChemDrawFlipAxis } from '../../utils/chemdrawTransform';
 import { installCanvasReadbackPatch } from '../../utils/canvasReadback';
 import { installPassiveWheelListenerPatch } from '../../utils/passiveWheelListenerPatch';
@@ -35,6 +39,8 @@ const ChemDrawEditor: React.FC<ChemDrawEditorProps> = ({
   flipControlsPlacement = 'top'
 }) => {
   const { token } = theme.useToken();
+  const rotateHorizontalShortcutLabel = getChemDrawRotate180ShortcutLabel('horizontal');
+  const rotateVerticalShortcutLabel = getChemDrawRotate180ShortcutLabel('vertical');
   const [containerId] = useState(`chemdraw-${Math.random().toString(36).slice(2, 11)}`);
   const [editorInstance, setEditorInstance] = useState<any>(null);
   const lastEmittedSmilesRef = useRef('');
@@ -248,41 +254,34 @@ const ChemDrawEditor: React.FC<ChemDrawEditorProps> = ({
   }, [active, editorInstance, containerId]);
 
   const handleRotate180 = (axis: ChemDrawFlipAxis) => {
-    applyChemDrawRotate180(editorInstance, axis);
+    const container = document.getElementById(containerId);
+    const didApplyCommand = applyChemDrawRotate180(editorInstance, axis);
+    if (!didApplyCommand) {
+      dispatchChemDrawRotate180Shortcut(container, axis);
+    }
   };
 
-  // 단축키: Shift+Ctrl+H → 수평(Horizontal) 180° 회전, Shift+Ctrl+V → 수직(Vertical) 180° 회전
-  useEffect(() => {
-    if (!active || !editorInstance) return;
-
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (!event.ctrlKey || !event.shiftKey || event.altKey || event.metaKey) return;
-      const code = event.code;
-      if (code !== 'KeyH' && code !== 'KeyV') return;
-      event.preventDefault();
-      event.stopPropagation();
-      handleRotate180(code === 'KeyH' ? 'horizontal' : 'vertical');
-    };
-
-    document.addEventListener('keydown', onKeyDown, true);
-    return () => document.removeEventListener('keydown', onKeyDown, true);
-  }, [active, editorInstance]);
+  const handleRotateButtonMouseDown = (event: React.MouseEvent<HTMLElement>) => {
+    event.preventDefault();
+  };
 
   const flipControls = (
     <Space
       direction={flipControlsPlacement === 'left' ? 'vertical' : 'horizontal'}
       style={flipControlsPlacement === 'top' ? { marginBottom: 8 } : undefined}
     >
-      <Tooltip title="180° 회전 - 수평 (Shift+Ctrl+H)" placement="left">
+      <Tooltip title={`180° 회전 - 수평 (${rotateHorizontalShortcutLabel})`} placement="left">
         <Button
           icon={<ArrowLeftRight size={16} />}
+          onMouseDown={handleRotateButtonMouseDown}
           onClick={() => handleRotate180('horizontal')}
           disabled={!editorInstance}
         />
       </Tooltip>
-      <Tooltip title="180° 회전 - 수직 (Shift+Ctrl+V)" placement="left">
+      <Tooltip title={`180° 회전 - 수직 (${rotateVerticalShortcutLabel})`} placement="left">
         <Button
           icon={<ArrowUpDown size={16} />}
+          onMouseDown={handleRotateButtonMouseDown}
           onClick={() => handleRotate180('vertical')}
           disabled={!editorInstance}
         />
