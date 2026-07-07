@@ -5,6 +5,7 @@ import { validateEnv } from './config/env.validation';
 import { HealthModule } from './health/health.module';
 import { PatentAnalysisModule } from './patent-analysis/patent-analysis.module';
 import { ConformerModule } from './conformer/conformer.module';
+import { CompoundApiModule } from './compound-api/compound-api.module';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { ConformerModule } from './conformer/conformer.module';
     HealthModule,
     PatentAnalysisModule,
     ConformerModule,
+    CompoundApiModule,
   ],
 })
 export class AppModule {}

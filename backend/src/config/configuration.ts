@@ -35,5 +35,10 @@ export default () => ({
     apiUrl: process.env.CONFORMER_API_URL ?? 'http://172.16.1.203:8000',
     timeoutMs: parseNumber(process.env.CONFORMER_API_TIMEOUT_MS, 120000),
   },
+  compoundApi: {
+    apiUrl: process.env.COMPOUND_API_URL ?? 'http://172.16.1.32:10050',
+    authToken: process.env.COMPOUND_API_AUTH_TOKEN ?? '',
+    timeoutMs: parseNumber(process.env.COMPOUND_API_TIMEOUT_MS, 30000),
+  },
   httpTimeoutMs: parseNumber(process.env.HTTP_TIMEOUT_MS, 30000),
 });

@@ -226,6 +226,7 @@ const StructurePreviewModal: React.FC<StructurePreviewModalProps> = ({
                   minHeight: 0,
                   overflow: 'hidden',
                   contain: 'paint',
+                  filter: structureImageCopyFilter,
                 }}
                 dangerouslySetInnerHTML={{ __html: svg }}
               />

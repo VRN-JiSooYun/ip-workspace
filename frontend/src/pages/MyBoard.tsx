@@ -39,6 +39,7 @@ import CompoundStructureView from '../components/common/CompoundStructureView';
 import StructurePreviewModal from '../components/common/StructurePreviewModal';
 import ToggleTag from '../components/common/ToggleTag';
 import QuickViewerPanel from '../components/myboard/QuickViewerPanel';
+import { compoundApi, type CompoundSearchResult } from '../services/compoundApi';
 import shareForwardIconRaw from '../assets/svg/share-forward-fill.svg?raw';
 import shareIconRaw from '../assets/svg/share.svg?raw';
 import bookmarkIconRaw from '../assets/svg/bookmark.svg?raw';
@@ -115,6 +116,22 @@ const MYBOARD_STRUCTURE_IMAGE_SCALE_MAX = 160;
 const MYBOARD_STRUCTURE_IMAGE_SCALE_STEP = 5;
 type SvgIntrinsicSize = { width: number; height: number };
 type MyBoardGroupPinFilter = 'all' | 'pinned';
+
+const insertCompoundsAfterGroupTail = (rows: Compound[], compoundsToInsert: Compound[]) => (
+  compoundsToInsert.reduce<Compound[]>((currentRows, compound) => {
+    const rowsWithoutCompound = currentRows.filter((row) => row.id !== compound.id);
+    const lastGroupIndex = rowsWithoutCompound.reduce((lastIndex, row, index) => (
+      row.groupId === compound.groupId ? index : lastIndex
+    ), -1);
+    const insertIndex = lastGroupIndex >= 0 ? lastGroupIndex + 1 : rowsWithoutCompound.length;
+
+    return [
+      ...rowsWithoutCompound.slice(0, insertIndex),
+      compound,
+      ...rowsWithoutCompound.slice(insertIndex),
+    ];
+  }, rows)
+);
 
 const getSvgIntrinsicSize = (svg?: string | null): SvgIntrinsicSize | null => {
   if (!svg?.trim() || typeof DOMParser === 'undefined') return null;
@@ -347,6 +364,11 @@ const MyBoard: React.FC = () => {
     hideCompounds,
     bookmarkedGroupIds,
     toggleBookmarkedGroup,
+    compoundLoginToken,
+    externalCompoundRows,
+    addExternalCompoundRow,
+    setExternalCompoundRows,
+    setCompoundSarData,
     groups,
     groupStructureViewSettings,
     updateGroupStructureViewSettings,
@@ -365,6 +387,12 @@ const MyBoard: React.FC = () => {
   const [isCompoundEditModalOpen, setIsCompoundEditModalOpen] = useState(false);
   const [mergeGroupName, setMergeGroupName] = useState('');
   const [quickAddCode, setQuickAddCode] = useState('');
+  const [quickAddResults, setQuickAddResults] = useState<CompoundSearchResult[]>([]);
+  const [selectedQuickAddCode, setSelectedQuickAddCode] = useState('');
+  const [isQuickAddSearching, setIsQuickAddSearching] = useState(false);
+  const [isQuickAddAdding, setIsQuickAddAdding] = useState(false);
+  const [quickAddError, setQuickAddError] = useState<string | null>(null);
+  const [isSarDataLoading, setIsSarDataLoading] = useState(false);
   const [cdjsInstance, setCdjsInstance] = useState<any>(null);
   const [designSmiles, setDesignSmiles] = useState('');
   const [searchedSvg, setSearchedSvg] = useState<string | null>(null);
@@ -387,7 +415,12 @@ const MyBoard: React.FC = () => {
   const whiteboardCanvasStateRef = React.useRef<Record<string, unknown> | string | null>(null);
   const [detailCompoundTypeFilter, setDetailCompoundTypeFilter] = useState<'all' | 'design' | 'compound'>('all');
   const [assignedGroupIds, setAssignedGroupIds] = useState<string[]>([]);
-  const [compoundRows, setCompoundRows] = useState<Compound[]>(mockCompounds);
+  const [compoundRows, setCompoundRows] = useState<Compound[]>(() => (
+    insertCompoundsAfterGroupTail(
+      mockCompounds.filter((compound) => !externalCompoundRows.some((external) => external.id === compound.id)),
+      externalCompoundRows
+    )
+  ));
   const [selectedDetailCompoundIds, setSelectedDetailCompoundIds] = useState<React.Key[]>([]);
   const [detailPagination, setDetailPagination] = useState({ current: 1, pageSize: 10 });
   const [compoundGroupAction, setCompoundGroupAction] = useState<'move' | 'copy'>('move');
@@ -419,6 +452,52 @@ const MyBoard: React.FC = () => {
     if (typeof window === 'undefined') return 1920;
     return window.innerWidth;
   });
+
+  useEffect(() => {
+    const query = quickAddCode.trim();
+    setSelectedQuickAddCode((current) => current && current !== query ? '' : current);
+
+    if (!isQuickAddModalOpen || !query || !compoundLoginToken.trim()) {
+      setQuickAddResults([]);
+      setIsQuickAddSearching(false);
+      setQuickAddError(null);
+      return;
+    }
+
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => {
+      setIsQuickAddSearching(true);
+      setQuickAddError(null);
+      compoundApi.searchCompounds(compoundLoginToken, query, { signal: controller.signal })
+        .then((results) => {
+          setQuickAddResults(results);
+        })
+        .catch((error) => {
+          if (controller.signal.aborted) return;
+          setQuickAddResults([]);
+          setQuickAddError(error instanceof Error ? error.message : 'Compound 조회에 실패했습니다.');
+        })
+        .finally(() => {
+          if (!controller.signal.aborted) {
+            setIsQuickAddSearching(false);
+          }
+        });
+    }, 350);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+      controller.abort();
+    };
+  }, [compoundLoginToken, isQuickAddModalOpen, quickAddCode]);
+
+  useEffect(() => {
+    if (externalCompoundRows.length === 0) return;
+
+    setCompoundRows((prev) => insertCompoundsAfterGroupTail(
+      prev.filter((compound) => !externalCompoundRows.some((external) => external.id === compound.id)),
+      externalCompoundRows
+    ));
+  }, [externalCompoundRows]);
   const handleCompoundStructureGenerated = React.useCallback((
     compoundId: string,
     data: { molBlock: string; svg: string; cacheKey: string }
@@ -1473,11 +1552,12 @@ const MyBoard: React.FC = () => {
       onOk: () => {
         const selectedIds = new Set(selectedDetailCompoundIds.map(String));
         setCompoundRows((prev) => prev.filter((compound) => !selectedIds.has(compound.id)));
+        setExternalCompoundRows(externalCompoundRows.filter((compound) => !selectedIds.has(compound.id)));
         setSelectedDetailCompoundIds([]);
         setCompoundContextMenu(null);
       },
     });
-  }, [canDeleteCompound, modal, selectedDetailCompoundIds]);
+  }, [canDeleteCompound, externalCompoundRows, modal, selectedDetailCompoundIds, setExternalCompoundRows]);
 
   const handleHideSelectedCompounds = React.useCallback(() => {
     if (!canHideCompound) return;
@@ -1486,57 +1566,148 @@ const MyBoard: React.FC = () => {
     setCompoundContextMenu(null);
   }, [canHideCompound, hideCompounds, selectedDetailCompoundIds]);
 
-  const handleQuickAddCompound = React.useCallback(() => {
-    const compoundCode = quickAddCode.trim();
+  const handleQuickAddCompound = React.useCallback(async () => {
+    const compoundCode = (selectedQuickAddCode || quickAddCode).trim();
     const targetGroupId = selectedGroupIds[0];
     if (!compoundCode || !targetGroupId) return;
+    if (!compoundLoginToken.trim()) {
+      modal.error({
+        title: 'Login token 필요',
+        content: '헤더의 login token 버튼에서 compound_api login_token을 먼저 입력해주세요.',
+      });
+      return;
+    }
 
-    const timestamp = Date.now();
-    const targetGroup = groups.find((group) => group.id === targetGroupId);
-    const newCompound: Compound = {
-      id: `quick-${targetGroupId}-${timestamp}`,
-      groupId: targetGroupId,
-      compoundId: compoundCode,
-      name: compoundCode,
-      source: 'Manual',
-      smiles: '',
-      creDate: formatDisplayDate(new Date().toISOString()),
-      manager: currentUser?.name ?? '문태훈',
-      status: '디자인',
-      project: targetGroup?.target && targetGroup.target !== '-' ? targetGroup.target : 'Unassigned',
-      shareStatus: '내 물질',
-      designSource: 'Quick add',
-      properties1: [50, 50, 50, 50],
-      properties2: [50, 50, 50, 50],
-      requiredCalcs: [],
-      designNo: `D-${compoundCode}`,
-      designMemo: 'Quick add로 등록된 내부 화합물 코드',
-      requiredAmountMg: 10,
-      assayPurpose: '내부 화합물 코드 기반 quick add',
-      expectedEffect: '-',
-      requestDate: formatDisplayDate(new Date().toISOString()),
-      synthesisExpansionLevel: '하',
-      requestMemo: '-',
-      synthesisOwner: currentUser?.name ?? '문태훈',
-      synthesisAcceptedDate: '-',
-      synthesisTargetDate: '-',
-      progressMemo: 'quick add',
-      isCompleted: false,
-      registeredDate: formatDisplayDate(new Date().toISOString()),
-      researchNote: '-',
-      reportData: '-',
-      synthesisEndReason: '-',
-      experimentStage: 1,
-      quickViewerAssets: [],
-    };
+    setIsQuickAddAdding(true);
 
-    setCompoundRows((prev) => [newCompound, ...prev]);
-    mockCompounds.unshift(newCompound);
-    setSelectedDetailCompoundIds([newCompound.id]);
-    detailSelectionAnchorRef.current = newCompound.id;
-    setQuickAddCode('');
-    setIsQuickAddModalOpen(false);
-  }, [currentUser?.name, groups, quickAddCode, selectedGroupIds]);
+    try {
+      const response = await compoundApi.getCompounds(compoundLoginToken, [compoundCode]);
+      const compoundData = response.compounds.find((compound) => (
+        compound.compound_code.toLowerCase() === compoundCode.toLowerCase()
+      )) ?? response.compounds[0];
+
+      const compoundSmiles = compoundData?.smiles?.trim() ?? '';
+      if (!compoundData || !compoundSmiles || compoundSmiles.toLowerCase() === 'no permission') {
+        modal.error({
+          title: '권한 없음',
+          content: `${compoundCode} compound의 구조 권한이 없어 그룹 상세 목록에 추가할 수 없습니다.`,
+        });
+        return;
+      }
+
+      const resolvedCompoundCode = compoundData.compound_code || compoundCode;
+      const timestamp = Date.now();
+      const targetGroup = groups.find((group) => group.id === targetGroupId);
+      const newCompound: Compound = {
+        id: `quick-${targetGroupId}-${resolvedCompoundCode}-${timestamp}`,
+        groupId: targetGroupId,
+        compoundId: resolvedCompoundCode,
+        name: resolvedCompoundCode,
+        source: 'Manual',
+        externalSource: 'compound_api',
+        smiles: compoundSmiles,
+        creDate: formatDisplayDate(new Date().toISOString()),
+        manager: currentUser?.name ?? '문태훈',
+        status: '디자인',
+        project: targetGroup?.target && targetGroup.target !== '-' ? targetGroup.target : 'Unassigned',
+        shareStatus: '내 물질',
+        designSource: 'Quick add',
+        properties1: [50, 50, 50, 50],
+        properties2: [50, 50, 50, 50],
+        requiredCalcs: [],
+        designNo: `D-${resolvedCompoundCode}`,
+        designMemo: 'Quick add로 등록된 내부 화합물 코드',
+        requiredAmountMg: 10,
+        assayPurpose: '내부 화합물 코드 기반 quick add',
+        expectedEffect: '-',
+        requestDate: formatDisplayDate(new Date().toISOString()),
+        synthesisExpansionLevel: '하',
+        requestMemo: '-',
+        synthesisOwner: currentUser?.name ?? '문태훈',
+        synthesisAcceptedDate: '-',
+        synthesisTargetDate: '-',
+        progressMemo: 'quick add',
+        isCompleted: false,
+        registeredDate: formatDisplayDate(new Date().toISOString()),
+        researchNote: '-',
+        reportData: '-',
+        synthesisEndReason: '-',
+        experimentStage: 1,
+        quickViewerAssets: [],
+      };
+
+      setCompoundRows((prev) => insertCompoundsAfterGroupTail(prev, [newCompound]));
+      addExternalCompoundRow(newCompound);
+      setSelectedDetailCompoundIds([newCompound.id]);
+      detailSelectionAnchorRef.current = newCompound.id;
+      setQuickAddCode('');
+      setSelectedQuickAddCode('');
+      setQuickAddResults([]);
+      setIsQuickAddModalOpen(false);
+    } catch (error) {
+      modal.error({
+        title: 'Compound 추가 실패',
+        content: error instanceof Error ? error.message : 'Compound 정보를 불러오지 못했습니다.',
+      });
+    } finally {
+      setIsQuickAddAdding(false);
+    }
+  }, [
+    addExternalCompoundRow,
+    compoundLoginToken,
+    currentUser?.name,
+    groups,
+    modal,
+    quickAddCode,
+    selectedGroupIds,
+    selectedQuickAddCode,
+  ]);
+
+  const handleOpenSarTable = React.useCallback(async () => {
+    const sarTargetIds = filteredCompounds.map((compound) => compound.id);
+    const externalCompoundCodes = Array.from(new Set(
+      filteredCompounds
+        .filter((compound) => compound.externalSource === 'compound_api' && compound.compoundId.trim())
+        .map((compound) => compound.compoundId.trim()),
+    ));
+
+    setSelectedSarCompoundIds(sarTargetIds);
+
+    if (externalCompoundCodes.length === 0) {
+      setCompoundSarData([], []);
+      navigate('/myboard/sar-table');
+      return;
+    }
+
+    if (!compoundLoginToken.trim()) {
+      modal.error({
+        title: 'Login token 필요',
+        content: 'SAR 데이터를 조회하려면 헤더의 login token 버튼에서 compound_api login_token을 먼저 입력해주세요.',
+      });
+      return;
+    }
+
+    setIsSarDataLoading(true);
+    try {
+      const response = await compoundApi.getCompoundSarData(compoundLoginToken, externalCompoundCodes);
+      setCompoundSarData(response.rows, response.groups);
+      navigate('/myboard/sar-table');
+    } catch (error) {
+      modal.error({
+        title: 'SAR 데이터 조회 실패',
+        content: error instanceof Error ? error.message : 'SAR 데이터를 불러오지 못했습니다.',
+      });
+    } finally {
+      setIsSarDataLoading(false);
+    }
+  }, [
+    compoundLoginToken,
+    filteredCompounds,
+    modal,
+    navigate,
+    setCompoundSarData,
+    setSelectedSarCompoundIds,
+  ]);
 
   const handleOpenCompoundEdit = React.useCallback(() => {
     if (!canEditCompound) return;
@@ -1691,30 +1862,41 @@ const MyBoard: React.FC = () => {
     const selectedIds = new Set(selectedDetailCompoundIds.map(String));
 
     if (compoundGroupAction === 'move') {
-      setCompoundRows((prev) => prev.map((compound) => (
+      const moveCompound = (compound: Compound) => (
         selectedIds.has(compound.id)
           ? { ...compound, groupId: selectedCompoundTargetGroupId }
           : compound
-      )));
+      );
+      setCompoundRows((prev) => prev.map(moveCompound));
+      setExternalCompoundRows(externalCompoundRows.map(moveCompound));
     } else {
       const selectedRows = compoundRows.filter((compound) => selectedIds.has(compound.id));
       const timestamp = Date.now();
-      setCompoundRows((prev) => [
-        ...prev,
-        ...selectedRows.map((compound, index) => ({
-          ...compound,
-          id: `${compound.id}-copy-${timestamp}-${index}`,
-          groupId: selectedCompoundTargetGroupId,
-          compoundId: `${compound.compoundId}-COPY`,
-          name: `${compound.name} Copy`,
-        })),
-      ]);
+      const copiedRows = selectedRows.map((compound, index) => ({
+        ...compound,
+        id: `${compound.id}-copy-${timestamp}-${index}`,
+        groupId: selectedCompoundTargetGroupId,
+        compoundId: compound.externalSource === 'compound_api' ? compound.compoundId : `${compound.compoundId}-COPY`,
+        name: compound.externalSource === 'compound_api' ? compound.name : `${compound.name} Copy`,
+      }));
+      setCompoundRows((prev) => insertCompoundsAfterGroupTail(prev, copiedRows));
+      setExternalCompoundRows(insertCompoundsAfterGroupTail(
+        externalCompoundRows,
+        copiedRows.filter((compound) => compound.externalSource === 'compound_api')
+      ));
     }
 
     setSelectedDetailCompoundIds([]);
     setIsCompoundGroupSelectModalOpen(false);
     setSelectedCompoundTargetGroupId(undefined);
-  }, [compoundGroupAction, compoundRows, selectedCompoundTargetGroupId, selectedDetailCompoundIds]);
+  }, [
+    compoundGroupAction,
+    compoundRows,
+    externalCompoundRows,
+    selectedCompoundTargetGroupId,
+    selectedDetailCompoundIds,
+    setExternalCompoundRows,
+  ]);
 
   const handleGroupContextMenuClick: MenuProps['onClick'] = ({ key }) => {
     const contextGroupIds = getContextGroupIds();
@@ -2454,11 +2636,9 @@ const MyBoard: React.FC = () => {
               icon={<ArrowRight size={18} />}
               iconPosition="end"
               disabled={sarTargetCount === 0}
+              loading={isSarDataLoading}
               style={{ ...getCompoundActionButtonStyle(sarTargetCount > 0), minWidth: 117, width: isStackedSplitLayout ? '100%' : undefined }}
-              onClick={() => {
-                setSelectedSarCompoundIds(filteredCompounds.map((compound) => compound.id));
-                navigate('/myboard/sar-table');
-              }}
+              onClick={handleOpenSarTable}
             >
               SAR table
             </Button>
@@ -3190,11 +3370,17 @@ const MyBoard: React.FC = () => {
         onCancel={() => {
           setIsQuickAddModalOpen(false);
           setQuickAddCode('');
+          setSelectedQuickAddCode('');
+          setQuickAddResults([]);
+          setQuickAddError(null);
         }}
         onOk={handleQuickAddCompound}
         okText="추가"
         cancelText="취소"
-        okButtonProps={{ disabled: !quickAddCode.trim() || selectedGroupIds.length === 0 }}
+        okButtonProps={{
+          disabled: !(selectedQuickAddCode || quickAddCode).trim() || selectedGroupIds.length === 0 || !compoundLoginToken.trim(),
+          loading: isQuickAddAdding,
+        }}
       >
         <Form layout="vertical" style={{ marginTop: 16 }}>
           <Form.Item label="내부 화합물 코드 번호" required>
@@ -3202,14 +3388,54 @@ const MyBoard: React.FC = () => {
               autoFocus
               placeholder="예: VNA-G01-001"
               value={quickAddCode}
-              onChange={(event) => setQuickAddCode(event.target.value)}
+              onChange={(event) => {
+                setQuickAddCode(event.target.value);
+                setSelectedQuickAddCode('');
+              }}
               onPressEnter={() => {
-                if (quickAddCode.trim() && selectedGroupIds.length > 0) {
-                  handleQuickAddCompound();
+                if ((selectedQuickAddCode || quickAddCode).trim() && selectedGroupIds.length > 0) {
+                  void handleQuickAddCompound();
                 }
               }}
             />
           </Form.Item>
+          {!compoundLoginToken.trim() ? (
+            <Text type="danger" style={{ fontSize: 12 }}>
+              헤더의 login token 버튼에서 compound_api login_token을 먼저 입력해주세요.
+            </Text>
+          ) : null}
+          {quickAddError ? (
+            <Text type="danger" style={{ display: 'block', marginTop: 8, fontSize: 12 }}>
+              {quickAddError}
+            </Text>
+          ) : null}
+          <List
+            className="my-board-quick-add-list"
+            size="small"
+            loading={isQuickAddSearching}
+            dataSource={quickAddResults}
+            locale={{ emptyText: quickAddCode.trim() ? '조회 결과 없음' : 'compound code를 입력하세요' }}
+            style={{ marginTop: 12, maxHeight: 220, overflowY: 'auto' }}
+            renderItem={(item) => {
+              const isSelected = selectedQuickAddCode === item.compound_code;
+              return (
+                <List.Item
+                  onClick={() => {
+                    setSelectedQuickAddCode(item.compound_code);
+                    setQuickAddCode(item.compound_code);
+                  }}
+                  style={{
+                    cursor: 'pointer',
+                    borderRadius: 6,
+                    paddingInline: 8,
+                    background: isSelected ? token.colorPrimaryBg : undefined,
+                  }}
+                >
+                  <Text strong={isSelected}>{item.compound_code}</Text>
+                </List.Item>
+              );
+            }}
+          />
         </Form>
       </Modal>
 
@@ -3565,6 +3791,7 @@ const MyBoard: React.FC = () => {
         .my-board-page,
         .my-board-page .ant-table-body,
         .my-board-page .ant-table-content,
+        .my-board-quick-add-list,
         .quick-viewer-body {
           scrollbar-width: thin;
           scrollbar-color: ${token.colorBorder} ${token.colorBgContainer};
@@ -3572,6 +3799,7 @@ const MyBoard: React.FC = () => {
         .my-board-page::-webkit-scrollbar,
         .my-board-page .ant-table-body::-webkit-scrollbar,
         .my-board-page .ant-table-content::-webkit-scrollbar,
+        .my-board-quick-add-list::-webkit-scrollbar,
         .quick-viewer-body::-webkit-scrollbar {
           width: 10px;
           height: 10px;
@@ -3579,12 +3807,14 @@ const MyBoard: React.FC = () => {
         .my-board-page::-webkit-scrollbar-track,
         .my-board-page .ant-table-body::-webkit-scrollbar-track,
         .my-board-page .ant-table-content::-webkit-scrollbar-track,
+        .my-board-quick-add-list::-webkit-scrollbar-track,
         .quick-viewer-body::-webkit-scrollbar-track {
           background: ${token.colorBgContainer};
         }
         .my-board-page::-webkit-scrollbar-thumb,
         .my-board-page .ant-table-body::-webkit-scrollbar-thumb,
         .my-board-page .ant-table-content::-webkit-scrollbar-thumb,
+        .my-board-quick-add-list::-webkit-scrollbar-thumb,
         .quick-viewer-body::-webkit-scrollbar-thumb {
           background: ${token.colorBorder};
           border: 2px solid ${token.colorBgContainer};
@@ -3593,6 +3823,7 @@ const MyBoard: React.FC = () => {
         .my-board-page::-webkit-scrollbar-thumb:hover,
         .my-board-page .ant-table-body::-webkit-scrollbar-thumb:hover,
         .my-board-page .ant-table-content::-webkit-scrollbar-thumb:hover,
+        .my-board-quick-add-list::-webkit-scrollbar-thumb:hover,
         .quick-viewer-body::-webkit-scrollbar-thumb:hover {
           background: ${token.colorTextTertiary};
         }

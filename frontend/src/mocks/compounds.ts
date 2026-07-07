@@ -18,6 +18,7 @@ export interface CompoundGroup {
 }
 
 export interface SARData {
+  tsa_tm?: number;
   enzyme?: {
     wt?: number;
     d1228n?: number;
@@ -25,6 +26,9 @@ export interface SARData {
     wt_f1250k?: number;
   };
   cell?: {
+    ebc1?: number;
+    hs746t?: number;
+    snu16?: number;
     naive?: number;
     fgfr3?: number;
     fgfr3_v555m?: number;
@@ -33,9 +37,19 @@ export interface SARData {
   };
   ms?: { h?: number; m?: number; };
   ppb?: { h?: number; m?: number; };
-  cyp?: { '1a2'?: number; '2c9'?: number; '2c19'?: number; '2d6'?: number; '3a4'?: number; };
+  cyp?: {
+    '1a2'?: number;
+    '2c9'?: number;
+    '2c19'?: number;
+    '2d6'?: number;
+    '3a_m'?: number;
+    '3a_t'?: number;
+    '3a4'?: number;
+  };
   herg?: number;
   pk?: {
+    pe?: number;
+    salt_form?: string;
     dose?: number;
     plasma_1h?: number;
     plasma_4h?: number;
@@ -79,6 +93,7 @@ export interface Compound {
   compoundId: string;
   name: string;
   source: string;
+  externalSource?: 'compound_api';
   smiles: string;
   structureSvg?: string;
   rdkitSvg?: string;
@@ -116,6 +131,7 @@ export interface Compound {
   experimentStage?: number;
   quickViewerAssets?: CompoundQuickViewerAsset[];
   sar?: SARData;
+  sarApiRows?: Record<string, string | number | null>[];
 }
 
 interface ExampleCompoundCsvRow {
@@ -202,6 +218,7 @@ const myBoardGroup4Cdxml = "<?xml version=\"1.0\" encoding=\"UTF-8\" ?>\n<!DOCTY
 const myBoardGroup5Cdxml = "<?xml version=\"1.0\" encoding=\"UTF-8\" ?>\n<!DOCTYPE CDXML SYSTEM \"http://www.cambridgesoft.com/xml/cdxml.dtd\" >\n<CDXML\n CreationProgram=\"ChemDraw JS 2.0.0.7\"\n Name=\"ACS Document 1996\"\n BoundingBox=\"165.30 94.85 402.70 193.82\"\n WindowPosition=\"0 0\"\n WindowSize=\"0 0\"\n FractionalWidths=\"yes\"\n InterpretChemically=\"yes\"\n ShowAtomQuery=\"yes\"\n ShowAtomStereo=\"no\"\n ShowAtomEnhancedStereo=\"yes\"\n ShowAtomNumber=\"no\"\n ShowResidueID=\"no\"\n ShowBondQuery=\"yes\"\n ShowBondRxn=\"yes\"\n ShowBondStereo=\"no\"\n ShowTerminalCarbonLabels=\"no\"\n ShowNonTerminalCarbonLabels=\"no\"\n HideImplicitHydrogens=\"no\"\n Magnification=\"666\"\n LabelFont=\"24\"\n LabelSize=\"10\"\n LabelFace=\"96\"\n CaptionFont=\"24\"\n CaptionSize=\"10\"\n HashSpacing=\"2.50\"\n MarginWidth=\"1.60\"\n LineWidth=\"0.60\"\n BoldWidth=\"2\"\n BondLength=\"14.40\"\n BondSpacing=\"18\"\n ChainAngle=\"120\"\n LabelJustification=\"Auto\"\n CaptionJustification=\"Left\"\n AminoAcidTermini=\"HOH\"\n ShowSequenceTermini=\"yes\"\n ShowSequenceBonds=\"yes\"\n ShowSequenceUnlinkedBranches=\"no\"\n ResidueWrapCount=\"40\"\n ResidueBlockCount=\"10\"\n ResidueZigZag=\"yes\"\n NumberResidueBlocks=\"no\"\n PrintMargins=\"36 36 36 36\"\n MacPrintInfo=\"0003000001200120000000000B6608A0FF84FF880BE309180367052703FC0002000001200120000000000B6608A0000100000064000000010001010100000001270F000100010000000000000000000000000002001901900000000000400000000000000000000100000000000000000000000000000000\"\n ChemPropName=\"\"\n ChemPropFormula=\"Chemical Formula: \"\n ChemPropExactMass=\"Exact Mass: \"\n ChemPropMolWt=\"Molecular Weight: \"\n ChemPropMOverZ=\"m/z: \"\n ChemPropAnalysis=\"Elemental Analysis: \"\n ChemPropBoilingPt=\"Boiling Point: \"\n ChemPropMeltingPt=\"Melting Point: \"\n ChemPropCritTemp=\"Critical Temp: \"\n ChemPropCritPres=\"Critical Pres: \"\n ChemPropCritVol=\"Critical Vol: \"\n ChemPropGibbs=\"Gibbs Energy: \"\n ChemPropLogP=\"Log P: \"\n ChemPropMR=\"MR: \"\n ChemPropHenry=\"Henry&apos;s Law: \"\n ChemPropEForm=\"Heat of Form: \"\n ChemProptPSA=\"tPSA: \"\n ChemPropID=\"\"\n ChemPropFragmentLabel=\"\"\n color=\"0\"\n bgcolor=\"1\"\n RxnAutonumberStart=\"1\"\n RxnAutonumberConditions=\"no\"\n RxnAutonumberStyle=\"Roman\"\n RxnAutonumberFormat=\"(#)\"\n><colortable>\n<color r=\"1\" g=\"1\" b=\"1\"/>\n<color r=\"0\" g=\"0\" b=\"0\"/>\n<color r=\"1\" g=\"0\" b=\"0\"/>\n<color r=\"1\" g=\"1\" b=\"0\"/>\n<color r=\"0\" g=\"1\" b=\"0\"/>\n<color r=\"0\" g=\"1\" b=\"1\"/>\n<color r=\"0\" g=\"0\" b=\"1\"/>\n<color r=\"1\" g=\"0\" b=\"1\"/>\n</colortable><fonttable>\n<font id=\"24\" charset=\"utf-8\" name=\"Arial\"/>\n</fonttable><page\n id=\"100\"\n BoundingBox=\"0 0 568 288.67\"\n Width=\"568\"\n Height=\"288.67\"\n HeaderPosition=\"36\"\n FooterPosition=\"36\"\n PageOverlap=\"0\"\n PrintTrimMarks=\"yes\"\n HeightPages=\"1\"\n WidthPages=\"1\"\n DrawingSpace=\"poster\"\n><fragment\n id=\"98\"\n BoundingBox=\"165.30 94.85 402.70 193.82\"\n Z=\"1\"\n><n\n id=\"1\"\n p=\"327.72 121.47\"\n Z=\"2\"\n AS=\"N\"\n/><n\n id=\"2\"\n p=\"315.25 128.67\"\n Z=\"3\"\n AS=\"N\"\n/><n\n id=\"3\"\n p=\"302.78 121.47\"\n Z=\"4\"\n AS=\"N\"\n/><n\n id=\"4\"\n p=\"290.31 128.67\"\n Z=\"5\"\n AS=\"N\"\n/><n\n id=\"5\"\n p=\"290.31 143.07\"\n Z=\"6\"\n AS=\"N\"\n/><n\n id=\"6\"\n p=\"302.78 150.27\"\n Z=\"7\"\n AS=\"N\"\n/><n\n id=\"7\"\n p=\"315.25 143.07\"\n Z=\"8\"\n AS=\"N\"\n/><n\n id=\"8\"\n p=\"327.72 150.27\"\n Z=\"9\"\n Element=\"7\"\n NumHydrogens=\"0\"\n NeedsClean=\"yes\"\n AS=\"N\"\n><t\n p=\"324.11 153.88\"\n BoundingBox=\"324.11 145.25 331.33 154.08\"\n LabelJustification=\"Left\"\n><s font=\"24\" size=\"10\" color=\"0\" face=\"96\">N</s></t></n><n\n id=\"9\"\n p=\"340.19 143.07\"\n Z=\"10\"\n AS=\"N\"\n/><n\n id=\"10\"\n p=\"352.66 150.27\"\n Z=\"11\"\n AS=\"N\"\n/><n\n id=\"11\"\n p=\"352.66 164.67\"\n Z=\"12\"\n AS=\"N\"\n/><n\n id=\"12\"\n p=\"340.19 171.87\"\n Z=\"13\"\n AS=\"N\"\n/><n\n id=\"13\"\n p=\"327.72 164.67\"\n Z=\"14\"\n AS=\"N\"\n/><n\n id=\"14\"\n p=\"365.13 171.87\"\n Z=\"15\"\n Element=\"7\"\n NumHydrogens=\"0\"\n NeedsClean=\"yes\"\n AS=\"N\"\n><t\n p=\"361.52 175.48\"\n BoundingBox=\"361.52 166.85 368.75 175.68\"\n LabelJustification=\"Left\"\n><s font=\"24\" size=\"10\" color=\"0\" face=\"96\">N</s></t></n><n\n id=\"15\"\n p=\"377.61 164.67\"\n Z=\"16\"\n AS=\"N\"\n/><n\n id=\"16\"\n p=\"390.08 171.87\"\n Z=\"17\"\n AS=\"N\"\n/><n\n id=\"17\"\n p=\"390.08 186.27\"\n Z=\"18\"\n Element=\"7\"\n NumHydrogens=\"0\"\n NeedsClean=\"yes\"\n AS=\"N\"\n><t\n p=\"386.47 189.88\"\n BoundingBox=\"386.47 181.25 393.69 190.08\"\n LabelJustification=\"Left\"\n><s font=\"24\" size=\"10\" color=\"0\" face=\"96\">N</s></t></n><n\n id=\"18\"\n p=\"377.61 193.47\"\n Z=\"19\"\n AS=\"N\"\n/><n\n id=\"19\"\n p=\"365.13 186.27\"\n Z=\"20\"\n AS=\"N\"\n/><n\n id=\"20\"\n p=\"402.55 193.47\"\n Z=\"21\"\n AS=\"N\"\n/><n\n id=\"21\"\n p=\"277.84 150.27\"\n Z=\"22\"\n Element=\"8\"\n NumHydrogens=\"0\"\n NeedsClean=\"yes\"\n AS=\"N\"\n><t\n p=\"273.95 153.88\"\n BoundingBox=\"273.95 145.25 281.73 153.88\"\n LabelJustification=\"Left\"\n><s font=\"24\" size=\"10\" color=\"0\" face=\"96\">O</s></t></n><n\n id=\"22\"\n p=\"277.84 164.67\"\n Z=\"23\"\n AS=\"N\"\n/><n\n id=\"23\"\n p=\"277.84 121.47\"\n Z=\"24\"\n Element=\"7\"\n NumHydrogens=\"1\"\n NeedsClean=\"yes\"\n AS=\"N\"\n><t\n p=\"274.23 116.25\"\n BoundingBox=\"274.23 107.62 281.45 125.28\"\n LabelJustification=\"Left\"\n LabelAlignment=\"Above\"\n LineStarts=\"2 4\"\n><s font=\"24\" size=\"10\" color=\"0\" face=\"96\">NH</s></t></n><n\n id=\"24\"\n p=\"265.37 128.67\"\n Z=\"25\"\n AS=\"N\"\n/><n\n id=\"25\"\n p=\"265.37 143.07\"\n Z=\"26\"\n Element=\"7\"\n NumHydrogens=\"0\"\n NeedsClean=\"yes\"\n AS=\"N\"\n><t\n p=\"261.76 146.68\"\n BoundingBox=\"261.76 138.05 268.98 146.88\"\n LabelJustification=\"Left\"\n><s font=\"24\" size=\"10\" color=\"0\" face=\"96\">N</s></t></n><n\n id=\"26\"\n p=\"252.90 150.27\"\n Z=\"27\"\n AS=\"N\"\n/><n\n id=\"27\"\n p=\"240.43 143.07\"\n Z=\"28\"\n AS=\"N\"\n/><n\n id=\"28\"\n p=\"240.43 128.67\"\n Z=\"29\"\n AS=\"N\"\n/><n\n id=\"29\"\n p=\"252.90 121.47\"\n Z=\"30\"\n Element=\"7\"\n NumHydrogens=\"0\"\n NeedsClean=\"yes\"\n AS=\"N\"\n><t\n p=\"249.29 125.08\"\n BoundingBox=\"249.29 116.45 256.51 125.28\"\n LabelJustification=\"Left\"\n><s font=\"24\" size=\"10\" color=\"0\" face=\"96\">N</s></t></n><n\n id=\"30\"\n p=\"227.96 121.47\"\n Z=\"31\"\n Element=\"7\"\n NumHydrogens=\"1\"\n NeedsClean=\"yes\"\n AS=\"N\"\n><t\n p=\"224.35 116.25\"\n BoundingBox=\"224.35 107.62 231.57 125.28\"\n LabelJustification=\"Left\"\n LabelAlignment=\"Above\"\n LineStarts=\"2 4\"\n><s font=\"24\" size=\"10\" color=\"0\" face=\"96\">NH</s></t></n><n\n id=\"31\"\n p=\"215.49 128.67\"\n Z=\"32\"\n AS=\"N\"\n/><n\n id=\"32\"\n p=\"203.02 121.47\"\n Z=\"33\"\n AS=\"N\"\n/><n\n id=\"33\"\n p=\"190.54 128.67\"\n Z=\"34\"\n AS=\"N\"\n/><n\n id=\"34\"\n p=\"178.07 121.47\"\n Z=\"35\"\n Element=\"7\"\n NumHydrogens=\"0\"\n NeedsClean=\"yes\"\n AS=\"N\"\n><t\n p=\"174.46 125.08\"\n BoundingBox=\"174.46 116.45 181.68 125.28\"\n LabelJustification=\"Left\"\n><s font=\"24\" size=\"10\" color=\"0\" face=\"96\">N</s></t></n><n\n id=\"35\"\n p=\"165.60 128.67\"\n Z=\"36\"\n AS=\"N\"\n/><n\n id=\"36\"\n p=\"165.60 143.07\"\n Z=\"37\"\n AS=\"N\"\n/><n\n id=\"37\"\n p=\"178.07 150.27\"\n Z=\"38\"\n Element=\"7\"\n NumHydrogens=\"0\"\n NeedsClean=\"yes\"\n AS=\"N\"\n><t\n p=\"174.46 153.88\"\n BoundingBox=\"174.46 145.25 181.68 154.08\"\n LabelJustification=\"Left\"\n><s font=\"24\" size=\"10\" color=\"0\" face=\"96\">N</s></t></n><n\n id=\"38\"\n p=\"190.54 143.07\"\n Z=\"39\"\n AS=\"N\"\n/><n\n id=\"39\"\n p=\"203.02 150.27\"\n Z=\"40\"\n AS=\"N\"\n/><n\n id=\"40\"\n p=\"215.49 143.07\"\n Z=\"41\"\n AS=\"N\"\n/><n\n id=\"41\"\n p=\"203.02 107.07\"\n Z=\"42\"\n Element=\"15\"\n NumHydrogens=\"0\"\n NeedsClean=\"yes\"\n AS=\"N\"\n><t\n p=\"199.68 110.68\"\n BoundingBox=\"199.68 102.05 206.35 110.88\"\n LabelJustification=\"Left\"\n><s font=\"24\" size=\"10\" color=\"0\" face=\"96\">P</s></t></n><n\n id=\"42\"\n p=\"190.54 99.87\"\n Z=\"43\"\n Element=\"8\"\n NumHydrogens=\"0\"\n NeedsClean=\"yes\"\n AS=\"N\"\n><t\n p=\"186.66 103.48\"\n BoundingBox=\"186.66 94.85 194.43 103.48\"\n LabelJustification=\"Left\"\n><s font=\"24\" size=\"10\" color=\"0\" face=\"96\">O</s></t></n><n\n id=\"43\"\n p=\"215.49 114.27\"\n Z=\"44\"\n AS=\"N\"\n/><n\n id=\"44\"\n p=\"215.49 99.87\"\n Z=\"45\"\n AS=\"N\"\n/><n\n id=\"45\"\n p=\"227.96 150.27\"\n Z=\"46\"\n Element=\"35\"\n NumHydrogens=\"0\"\n NeedsClean=\"yes\"\n AS=\"N\"\n><t\n p=\"229.62 153.88\"\n BoundingBox=\"219.62 145.25 229.62 154.08\"\n LabelJustification=\"Right\"\n Justification=\"Right\"\n LabelAlignment=\"Right\"\n><s font=\"24\" size=\"10\" color=\"0\" face=\"96\">Br</s></t></n><b\n id=\"47\"\n Z=\"47\"\n B=\"1\"\n E=\"2\"\n BS=\"N\"\n/><b\n id=\"48\"\n Z=\"48\"\n B=\"2\"\n E=\"3\"\n Order=\"2\"\n BS=\"N\"\n BondCircularOrdering=\"53 47 0 49\"\n/><b\n id=\"49\"\n Z=\"49\"\n B=\"3\"\n E=\"4\"\n BS=\"N\"\n/><b\n id=\"50\"\n Z=\"50\"\n B=\"4\"\n E=\"5\"\n Order=\"2\"\n BS=\"N\"\n BondCircularOrdering=\"49 71 69 51\"\n/><b\n id=\"51\"\n Z=\"51\"\n B=\"5\"\n E=\"6\"\n BS=\"N\"\n/><b\n id=\"52\"\n Z=\"52\"\n B=\"6\"\n E=\"7\"\n Order=\"2\"\n BS=\"N\"\n BondCircularOrdering=\"51 0 54 53\"\n/><b\n id=\"53\"\n Z=\"53\"\n B=\"2\"\n E=\"7\"\n BS=\"N\"\n/><b\n id=\"54\"\n Z=\"54\"\n B=\"7\"\n E=\"8\"\n BS=\"N\"\n/><b\n id=\"55\"\n Z=\"55\"\n B=\"8\"\n E=\"9\"\n BS=\"N\"\n/><b\n id=\"56\"\n Z=\"56\"\n B=\"9\"\n E=\"10\"\n BS=\"N\"\n/><b\n id=\"57\"\n Z=\"57\"\n B=\"10\"\n E=\"11\"\n BS=\"N\"\n/><b\n id=\"58\"\n Z=\"58\"\n B=\"11\"\n E=\"12\"\n BS=\"N\"\n/><b\n id=\"59\"\n Z=\"59\"\n B=\"12\"\n E=\"13\"\n BS=\"N\"\n/><b\n id=\"60\"\n Z=\"60\"\n B=\"8\"\n E=\"13\"\n BS=\"N\"\n/><b\n id=\"61\"\n Z=\"61\"\n B=\"11\"\n E=\"14\"\n BS=\"N\"\n/><b\n id=\"62\"\n Z=\"62\"\n B=\"14\"\n E=\"15\"\n BS=\"N\"\n/><b\n id=\"63\"\n Z=\"63\"\n B=\"15\"\n E=\"16\"\n BS=\"N\"\n/><b\n id=\"64\"\n Z=\"64\"\n B=\"16\"\n E=\"17\"\n BS=\"N\"\n/><b\n id=\"65\"\n Z=\"65\"\n B=\"17\"\n E=\"18\"\n BS=\"N\"\n/><b\n id=\"66\"\n Z=\"66\"\n B=\"18\"\n E=\"19\"\n BS=\"N\"\n/><b\n id=\"67\"\n Z=\"67\"\n B=\"14\"\n E=\"19\"\n BS=\"N\"\n/><b\n id=\"68\"\n Z=\"68\"\n B=\"17\"\n E=\"20\"\n BS=\"N\"\n/><b\n id=\"69\"\n Z=\"69\"\n B=\"5\"\n E=\"21\"\n BS=\"N\"\n/><b\n id=\"70\"\n Z=\"70\"\n B=\"21\"\n E=\"22\"\n BS=\"N\"\n/><b\n id=\"71\"\n Z=\"71\"\n B=\"4\"\n E=\"23\"\n BS=\"N\"\n/><b\n id=\"72\"\n Z=\"72\"\n B=\"23\"\n E=\"24\"\n BS=\"N\"\n/><b\n id=\"73\"\n Z=\"73\"\n B=\"24\"\n E=\"25\"\n Order=\"2\"\n BS=\"N\"\n BondCircularOrdering=\"72 78 74 0\"\n/><b\n id=\"74\"\n Z=\"74\"\n B=\"25\"\n E=\"26\"\n BS=\"N\"\n/><b\n id=\"75\"\n Z=\"75\"\n B=\"26\"\n E=\"27\"\n Order=\"2\"\n BS=\"N\"\n BondCircularOrdering=\"0 74 76 96\"\n/><b\n id=\"76\"\n Z=\"76\"\n B=\"27\"\n E=\"28\"\n BS=\"N\"\n/><b\n id=\"77\"\n Z=\"77\"\n B=\"28\"\n E=\"29\"\n Order=\"2\"\n BS=\"N\"\n BondCircularOrdering=\"79 76 78 0\"\n/><b\n id=\"78\"\n Z=\"78\"\n B=\"24\"\n E=\"29\"\n BS=\"N\"\n/><b\n id=\"79\"\n Z=\"79\"\n B=\"28\"\n E=\"30\"\n BS=\"N\"\n/><b\n id=\"80\"\n Z=\"80\"\n B=\"30\"\n E=\"31\"\n BS=\"N\"\n/><b\n id=\"81\"\n Z=\"81\"\n B=\"31\"\n E=\"32\"\n Order=\"2\"\n BS=\"N\"\n BondCircularOrdering=\"91 80 92 82\"\n/><b\n id=\"82\"\n Z=\"82\"\n B=\"32\"\n E=\"33\"\n BS=\"N\"\n/><b\n id=\"83\"\n Z=\"83\"\n B=\"33\"\n E=\"34\"\n Order=\"2\"\n BS=\"N\"\n BondCircularOrdering=\"88 82 0 84\"\n/><b\n id=\"84\"\n Z=\"84\"\n B=\"34\"\n E=\"35\"\n BS=\"N\"\n/><b\n id=\"85\"\n Z=\"85\"\n B=\"35\"\n E=\"36\"\n Order=\"2\"\n BS=\"N\"\n BondCircularOrdering=\"84 0 0 86\"\n/><b\n id=\"86\"\n Z=\"86\"\n B=\"36\"\n E=\"37\"\n BS=\"N\"\n/><b\n id=\"87\"\n Z=\"87\"\n B=\"37\"\n E=\"38\"\n Order=\"2\"\n BS=\"N\"\n BondCircularOrdering=\"86 0 89 88\"\n/><b\n id=\"88\"\n Z=\"88\"\n B=\"33\"\n E=\"38\"\n BS=\"N\"\n/><b\n id=\"89\"\n Z=\"89\"\n B=\"38\"\n E=\"39\"\n BS=\"N\"\n/><b\n id=\"90\"\n Z=\"90\"\n B=\"39\"\n E=\"40\"\n Order=\"2\"\n BS=\"N\"\n BondCircularOrdering=\"89 0 0 91\"\n/><b\n id=\"91\"\n Z=\"91\"\n B=\"31\"\n E=\"40\"\n BS=\"N\"\n/><b\n id=\"92\"\n Z=\"92\"\n B=\"32\"\n E=\"41\"\n BS=\"N\"\n/><b\n id=\"93\"\n Z=\"93\"\n B=\"41\"\n E=\"42\"\n Order=\"2\"\n BS=\"N\"\n/><b\n id=\"94\"\n Z=\"94\"\n B=\"41\"\n E=\"43\"\n BS=\"N\"\n/><b\n id=\"95\"\n Z=\"95\"\n B=\"41\"\n E=\"44\"\n BS=\"N\"\n/><b\n id=\"96\"\n Z=\"96\"\n B=\"27\"\n E=\"45\"\n BS=\"N\"\n/></fragment></page></CDXML>";
 
 const createSarData = (seed: number): SARData => ({
+  tsa_tm: Number((2.1 + (seed % 9) * 0.7).toFixed(1)),
   enzyme: {
     wt: Number((0.04 + (seed % 7) * 0.13).toFixed(2)),
     d1228n: Number((0.07 + (seed % 5) * 0.16).toFixed(2)),
@@ -209,6 +226,9 @@ const createSarData = (seed: number): SARData => ({
     wt_f1250k: Number((0.4 + (seed % 8) * 2.7).toFixed(1)),
   },
   cell: {
+    ebc1: Number((0.05 + (seed % 8) * 0.12).toFixed(2)),
+    hs746t: Number((0.08 + (seed % 7) * 0.16).toFixed(2)),
+    snu16: Number((0.03 + (seed % 9) * 0.1).toFixed(2)),
     naive: Number((2.5 + (seed % 6) * 1.4).toFixed(2)),
     fgfr3: Number((0.01 + (seed % 9) * 0.08).toFixed(3)),
     fgfr3_v555m: Number((0.03 + (seed % 7) * 0.09).toFixed(2)),
@@ -222,10 +242,14 @@ const createSarData = (seed: number): SARData => ({
     '2c9': 80 + (seed % 18),
     '2c19': 65 + (seed % 30),
     '2d6': 58 + (seed % 35),
+    '3a_m': 70 + (seed % 25),
+    '3a_t': 55 + (seed % 28),
     '3a4': 70 + (seed % 25),
   },
   herg: Number((2 + (seed % 10) * 2.8).toFixed(1)),
   pk: {
+    pe: Number((0.08 + (seed % 8) * 0.05).toFixed(2)),
+    salt_form: seed % 2 === 0 ? 'Free' : 'HCl',
     dose: 10,
     plasma_1h: 520 + seed * 37,
     plasma_4h: 260 + seed * 24,

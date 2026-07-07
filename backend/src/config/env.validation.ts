@@ -20,9 +20,11 @@ export const validateEnv = (config: EnvConfig): EnvConfig => {
   ensureNumber('PORT', config.PORT);
   ensureNumber('HTTP_TIMEOUT_MS', config.HTTP_TIMEOUT_MS);
   ensureNumber('CONFORMER_API_TIMEOUT_MS', config.CONFORMER_API_TIMEOUT_MS);
+  ensureNumber('COMPOUND_API_TIMEOUT_MS', config.COMPOUND_API_TIMEOUT_MS);
   ensureUrl('PATENT_ANALYSIS_HELPER_API_URL', config.PATENT_ANALYSIS_HELPER_API_URL);
   ensureUrl('PATENT_ANALYSIS_UPLOAD_API_URL', config.PATENT_ANALYSIS_UPLOAD_API_URL);
   ensureUrl('PATENT_INSIGHT_API_URL', config.PATENT_INSIGHT_API_URL);
   ensureUrl('CONFORMER_API_URL', config.CONFORMER_API_URL);
+  ensureUrl('COMPOUND_API_URL', config.COMPOUND_API_URL);
   return config;
 };

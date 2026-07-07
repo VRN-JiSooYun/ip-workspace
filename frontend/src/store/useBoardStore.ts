@@ -1,5 +1,6 @@
 import { create } from 'zustand';
-import { CompoundGroup, mockGroups } from '../mocks/compounds';
+import { Compound, CompoundGroup, mockGroups } from '../mocks/compounds';
+import type { GroupedCompoundSarData, CompoundSarDataRow } from '../services/compoundApi';
 
 export type SarHighlightMode = 'com' | 'diff' | 'off';
 export type SarAtomColorMode = 'black' | 'color';
@@ -42,6 +43,7 @@ export const DEFAULT_GROUP_STRUCTURE_VIEW_SETTINGS: GroupStructureViewSettings =
 };
 
 const BOOKMARKED_GROUP_IDS_STORAGE_KEY = 'my-board:bookmarked-group-ids';
+const COMPOUND_LOGIN_TOKEN_STORAGE_KEY = 'compound-api:login-token';
 
 const readBookmarkedGroupIds = (): string[] => {
   if (typeof window === 'undefined') return [];
@@ -66,11 +68,53 @@ const writeBookmarkedGroupIds = (groupIds: string[]) => {
   }
 };
 
+const readCompoundLoginToken = (): string => {
+  if (typeof window === 'undefined') return '';
+
+  try {
+    return window.localStorage.getItem(COMPOUND_LOGIN_TOKEN_STORAGE_KEY) ?? '';
+  } catch {
+    return '';
+  }
+};
+
+const writeCompoundLoginToken = (loginToken: string) => {
+  if (typeof window === 'undefined') return;
+
+  try {
+    if (loginToken) {
+      window.localStorage.setItem(COMPOUND_LOGIN_TOKEN_STORAGE_KEY, loginToken);
+    } else {
+      window.localStorage.removeItem(COMPOUND_LOGIN_TOKEN_STORAGE_KEY);
+    }
+  } catch {
+    // Ignore temporary UX persistence failures.
+  }
+};
+
+const insertCompoundAfterGroupTail = (rows: Compound[], compound: Compound) => {
+  const rowsWithoutCompound = rows.filter((item) => item.id !== compound.id);
+  const lastGroupIndex = rowsWithoutCompound.reduce((lastIndex, item, index) => (
+    item.groupId === compound.groupId ? index : lastIndex
+  ), -1);
+  const insertIndex = lastGroupIndex >= 0 ? lastGroupIndex + 1 : rowsWithoutCompound.length;
+
+  return [
+    ...rowsWithoutCompound.slice(0, insertIndex),
+    compound,
+    ...rowsWithoutCompound.slice(insertIndex),
+  ];
+};
+
 interface BoardState {
   selectedGroupIds: string[];
   selectedSarCompoundIds: string[];
   hiddenCompoundIds: string[];
   bookmarkedGroupIds: string[];
+  compoundLoginToken: string;
+  externalCompoundRows: Compound[];
+  compoundSarRows: CompoundSarDataRow[];
+  groupedCompoundSarData: GroupedCompoundSarData[];
   groups: CompoundGroup[];
   groupStructureViewSettings: Record<string, GroupStructureViewSettings>;
   toggleGroupSelection: (groupId: string) => void;
@@ -78,6 +122,10 @@ interface BoardState {
   setSelectedSarCompoundIds: (compoundIds: string[]) => void;
   toggleBookmarkedGroup: (groupId: string) => void;
   setBookmarkedGroupIds: (groupIds: string[]) => void;
+  setCompoundLoginToken: (loginToken: string) => void;
+  addExternalCompoundRow: (compound: Compound) => void;
+  setExternalCompoundRows: (compounds: Compound[]) => void;
+  setCompoundSarData: (rows: CompoundSarDataRow[], groups: GroupedCompoundSarData[]) => void;
   clearSelectedSarCompoundIds: () => void;
   hideCompounds: (compoundIds: string[]) => void;
   unhideCompounds: (compoundIds: string[]) => void;
@@ -93,6 +141,10 @@ export const useBoardStore = create<BoardState>((set) => ({
   selectedSarCompoundIds: [],
   hiddenCompoundIds: [],
   bookmarkedGroupIds: readBookmarkedGroupIds(),
+  compoundLoginToken: readCompoundLoginToken(),
+  externalCompoundRows: [],
+  compoundSarRows: [],
+  groupedCompoundSarData: [],
   groups: mockGroups,
   groupStructureViewSettings: {},
   toggleGroupSelection: (groupId) => set((state) => ({
@@ -114,6 +166,18 @@ export const useBoardStore = create<BoardState>((set) => ({
     writeBookmarkedGroupIds(groupIds);
     set({ bookmarkedGroupIds: groupIds });
   },
+  setCompoundLoginToken: (loginToken) => {
+    writeCompoundLoginToken(loginToken);
+    set({ compoundLoginToken: loginToken });
+  },
+  addExternalCompoundRow: (compound) => set((state) => ({
+    externalCompoundRows: insertCompoundAfterGroupTail(state.externalCompoundRows, compound),
+  })),
+  setExternalCompoundRows: (compounds) => set({ externalCompoundRows: compounds }),
+  setCompoundSarData: (rows, groups) => set({
+    compoundSarRows: rows,
+    groupedCompoundSarData: groups,
+  }),
   clearSelectedSarCompoundIds: () => set({ selectedSarCompoundIds: [] }),
   hideCompounds: (compoundIds) => set((state) => ({
     hiddenCompoundIds: Array.from(new Set([...state.hiddenCompoundIds, ...compoundIds])),

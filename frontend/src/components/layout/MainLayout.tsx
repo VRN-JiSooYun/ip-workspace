@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Layout, Menu, Button, theme, Input, Avatar, Space, Select, Tag, Dropdown, Tooltip } from 'antd';
+import { Layout, Menu, Button, theme, Input, Avatar, Space, Select, Tag, Dropdown, Tooltip, Modal, Form, Typography } from 'antd';
 import type { MenuProps } from 'antd';
 import { useTheme } from '../../contexts/ThemeContext';
 import {
@@ -17,13 +17,15 @@ import {
   Menu as MenuIcon,
   PanelLeftClose,
   FileText,
-  HelpCircle
+  HelpCircle,
+  KeyRound
 } from 'lucide-react';
 import BenzeneIcon from '../common/BenzeneIcon';
 import RdkitDrawOptionsModal from '../common/RdkitDrawOptionsModal';
 import { useUserStore } from '../../store/useUserStore';
 
 const { Header, Sider, Content } = Layout;
+const { Text } = Typography;
 
 interface MainLayoutProps {
   children: React.ReactNode;
@@ -39,10 +41,13 @@ interface MiniMenuItem {
 }
 
 import { useUIStore } from '../../store/useUIStore';
+import { useBoardStore } from '../../store/useBoardStore';
 
 const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
   const [sidebarMode, setSidebarMode] = useState<'full' | 'mini' | 'hidden'>('full');
   const [isRdkitDrawOptionsOpen, setIsRdkitDrawOptionsOpen] = useState(false);
+  const [isLoginTokenModalOpen, setIsLoginTokenModalOpen] = useState(false);
+  const [draftLoginToken, setDraftLoginToken] = useState('');
   const [viewportWidth, setViewportWidth] = useState<number>(() => {
     if (typeof window === 'undefined') return 1920;
     return window.innerWidth;
@@ -50,6 +55,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
   const { token } = theme.useToken();
   const { isDarkMode, toggleTheme } = useTheme();
   const { headerContent } = useUIStore();
+  const { compoundLoginToken, setCompoundLoginToken } = useBoardStore();
   const { users, currentUserId, currentUser, setCurrentUserId } = useUserStore();
   const navigate = useNavigate();
   const location = useLocation();
@@ -62,6 +68,16 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
   }, []);
+
+  const openLoginTokenModal = () => {
+    setDraftLoginToken(compoundLoginToken);
+    setIsLoginTokenModalOpen(true);
+  };
+
+  const saveLoginToken = () => {
+    setCompoundLoginToken(draftLoginToken.trim());
+    setIsLoginTokenModalOpen(false);
+  };
 
   const renderSidebarIcon = (icon: React.ReactNode) => (
     <span className="sidebar-menu-icon">{icon}</span>
@@ -578,6 +594,14 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                   aria-label="RDKit Draw 설정 열기"
                 />
               </Tooltip>
+              <Tooltip title={compoundLoginToken ? 'Compound login token 설정됨' : 'Compound login token 입력'}>
+                <Button
+                  type={compoundLoginToken ? 'primary' : 'text'}
+                  icon={<KeyRound size={18} color={compoundLoginToken ? '#fff' : token.colorTextSecondary} />}
+                  onClick={openLoginTokenModal}
+                  aria-label="Compound login token 설정"
+                />
+              </Tooltip>
             </Space>
             <Select
               value={currentUserId}
@@ -631,6 +655,29 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
         open={isRdkitDrawOptionsOpen}
         onCancel={() => setIsRdkitDrawOptionsOpen(false)}
       />
+      <Modal
+        title="Compound login token"
+        open={isLoginTokenModalOpen}
+        onOk={saveLoginToken}
+        onCancel={() => setIsLoginTokenModalOpen(false)}
+        okText="저장"
+        cancelText="취소"
+      >
+        <Form layout="vertical" style={{ marginTop: 16 }}>
+          <Form.Item label="Login token">
+            <Input.Password
+              autoFocus
+              value={draftLoginToken}
+              onChange={(event) => setDraftLoginToken(event.target.value)}
+              placeholder="compound_api login_token"
+              onPressEnter={saveLoginToken}
+            />
+          </Form.Item>
+          <Text type="secondary" style={{ fontSize: 12 }}>
+            임시 저장 값입니다. 추후 로그인/DB 연동 시 localStorage key compound-api:login-token은 제거 대상입니다.
+          </Text>
+        </Form>
+      </Modal>
       <style>{`
         .app-sidebar .ant-menu-item-selected { 
           background-color: ${isDarkMode ? '#2b2b2b' : '#ffffff'} !important; 

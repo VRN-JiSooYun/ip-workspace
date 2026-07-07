@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Typography, Row, Col, Card, Table, Button, Input,
-  Space, Modal, Form, Tag, Select, DatePicker, Avatar, Divider, Segmented, Tooltip, theme, Spin, Popover
+  Space, Modal, Form, Select, DatePicker, Avatar, Divider, Segmented, Tooltip, theme, Spin, Popover
 } from 'antd';
 import {
   Search, ChevronDown, ChevronUp,
@@ -28,6 +28,7 @@ import StructurePreviewModal from '../components/common/StructurePreviewModal';
 import ToggleTag from '../components/common/ToggleTag';
 import CompoundStructureView from '../components/common/CompoundStructureView';
 import QuickViewerPanel from '../components/myboard/QuickViewerPanel';
+import { formatNumberWithComma } from '../utils/displayFormat';
 import {
   createRdkitSvgCacheKey,
   getRdkitStructureSourceKey,
@@ -98,6 +99,28 @@ const SAR_SCAFFOLD_COLOR_OPTIONS = [
   { key: 'olive', color: '#808000' },
 ];
 type SvgIntrinsicSize = { width: number; height: number };
+type SarApiCellValue = string | number | null | undefined;
+type SarApiRow = Record<string, string | number | null>;
+type SarTableRow = Compound & {
+  sarTableRowKey: string;
+  sarApiRow?: SarApiRow;
+  children?: SarTableRow[];
+};
+const insertCompoundsAfterGroupTail = (rows: Compound[], compoundsToInsert: Compound[]) => (
+  compoundsToInsert.reduce<Compound[]>((currentRows, compound) => {
+    const rowsWithoutCompound = currentRows.filter((row) => row.id !== compound.id);
+    const lastGroupIndex = rowsWithoutCompound.reduce((lastIndex, row, index) => (
+      row.groupId === compound.groupId ? index : lastIndex
+    ), -1);
+    const insertIndex = lastGroupIndex >= 0 ? lastGroupIndex + 1 : rowsWithoutCompound.length;
+
+    return [
+      ...rowsWithoutCompound.slice(0, insertIndex),
+      compound,
+      ...rowsWithoutCompound.slice(insertIndex),
+    ];
+  }, rows)
+);
 const createSvgMaskUrl = (svg: string) => `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
 const bookmarkIconMaskUrl = createSvgMaskUrl(bookmarkIconRaw);
 
@@ -157,6 +180,8 @@ const SarTable: React.FC = () => {
     selectedSarCompoundIds,
     hiddenCompoundIds,
     bookmarkedGroupIds,
+    externalCompoundRows,
+    groupedCompoundSarData,
     groups,
     groupStructureViewSettings,
     setSelectedGroupIds,
@@ -188,16 +213,46 @@ const SarTable: React.FC = () => {
   } | null>(null);
   const [structureRenderVersion, setStructureRenderVersion] = useState(0);
   const [compoundStructureSvgSizes, setCompoundStructureSvgSizes] = useState<Record<string, SvgIntrinsicSize>>({});
+  const allCompoundRows = useMemo(() => {
+    return insertCompoundsAfterGroupTail(
+      mockCompounds.filter((compound) => !externalCompoundRows.some((external) => external.id === compound.id)),
+      externalCompoundRows
+    );
+  }, [externalCompoundRows, structureRenderVersion]);
+  const compoundBaseOrderMap = useMemo(() => (
+    allCompoundRows.reduce<Record<string, number>>((acc, compound, index) => {
+      acc[compound.id] = index;
+      return acc;
+    }, {})
+  ), [allCompoundRows]);
+  const selectedGroupOrderMap = useMemo(() => (
+    selectedGroupIds.reduce<Record<string, number>>((acc, groupId, index) => {
+      acc[groupId] = index + 1;
+      return acc;
+    }, {})
+  ), [selectedGroupIds]);
+  const selectedSarCompoundOrderMap = useMemo(() => (
+    selectedSarCompoundIds.reduce<Record<string, number>>((acc, compoundId, index) => {
+      acc[compoundId] = index;
+      return acc;
+    }, {})
+  ), [selectedSarCompoundIds]);
+  const sarApiRowsByCompoundCode = useMemo(() => (
+    groupedCompoundSarData.reduce<Record<string, typeof groupedCompoundSarData[number]['rows']>>((acc, group) => {
+      acc[group.compound_code] = group.rows;
+      return acc;
+    }, {})
+  ), [groupedCompoundSarData]);
   const firstCompoundByGroupId = useMemo(() => {
-    return mockCompounds
+    return allCompoundRows
       .filter((compound) => !hiddenCompoundIds.includes(compound.id))
-      .reduce<Record<string, typeof mockCompounds[number]>>((acc, compound) => {
+      .reduce<Record<string, Compound>>((acc, compound) => {
       if (!acc[compound.groupId]) {
         acc[compound.groupId] = compound;
       }
       return acc;
     }, {});
-  }, [hiddenCompoundIds, structureRenderVersion]);
+  }, [allCompoundRows, hiddenCompoundIds]);
   const handleCompoundStructureGenerated = React.useCallback((
     compoundId: string,
     data: { molBlock: string; svg: string; cacheKey: string }
@@ -238,21 +293,48 @@ const SarTable: React.FC = () => {
 
   const sarCompounds = useMemo(() => {
     let base = selectedGroupIds.length > 0
-      ? mockCompounds.filter((compound) => selectedGroupIds.includes(compound.groupId))
+      ? allCompoundRows.filter((compound) => selectedGroupIds.includes(compound.groupId))
       : selectedSarCompoundIds.length > 0
-        ? mockCompounds.filter((compound) => selectedSarCompoundIds.includes(compound.id))
+        ? allCompoundRows.filter((compound) => selectedSarCompoundIds.includes(compound.id))
         : [];
     base = base.filter((compound) => !hiddenCompoundIds.includes(compound.id));
+    base = base.map((compound) => ({
+      ...compound,
+      sarApiRows: sarApiRowsByCompoundCode[compound.compoundId],
+    }));
 
     if (keyword) {
       base = base.filter(c =>
         c.id.toLowerCase().includes(keyword.toLowerCase()) ||
+        c.compoundId.toLowerCase().includes(keyword.toLowerCase()) ||
         c.name.toLowerCase().includes(keyword.toLowerCase()) ||
         c.smiles?.toLowerCase().includes(keyword.toLowerCase())
       );
     }
-    return base;
-  }, [hiddenCompoundIds, selectedGroupIds, selectedSarCompoundIds, keyword, structureRenderVersion]);
+    return base.sort((a, b) => {
+      if (selectedGroupIds.length > 0) {
+        const aGroupOrder = selectedGroupOrderMap[a.groupId] ?? Number.MAX_SAFE_INTEGER;
+        const bGroupOrder = selectedGroupOrderMap[b.groupId] ?? Number.MAX_SAFE_INTEGER;
+        if (aGroupOrder !== bGroupOrder) return aGroupOrder - bGroupOrder;
+      } else if (selectedSarCompoundIds.length > 0) {
+        const aSelectedOrder = selectedSarCompoundOrderMap[a.id] ?? Number.MAX_SAFE_INTEGER;
+        const bSelectedOrder = selectedSarCompoundOrderMap[b.id] ?? Number.MAX_SAFE_INTEGER;
+        if (aSelectedOrder !== bSelectedOrder) return aSelectedOrder - bSelectedOrder;
+      }
+
+      return (compoundBaseOrderMap[a.id] ?? Number.MAX_SAFE_INTEGER) - (compoundBaseOrderMap[b.id] ?? Number.MAX_SAFE_INTEGER);
+    });
+  }, [
+    allCompoundRows,
+    compoundBaseOrderMap,
+    hiddenCompoundIds,
+    keyword,
+    sarApiRowsByCompoundCode,
+    selectedGroupIds,
+    selectedGroupOrderMap,
+    selectedSarCompoundIds,
+    selectedSarCompoundOrderMap,
+  ]);
 
   const [isColorActive, setIsColorActive] = useState(false);
   const [selectedRowKey, setSelectedRowKey] = useState<string | null>(null);
@@ -324,6 +406,24 @@ const SarTable: React.FC = () => {
       return sarCompounds.indexOf(a) - sarCompounds.indexOf(b);
     });
   }, [pinnedCompoundIdSet, sarCompounds]);
+  const sarTableRows = useMemo<SarTableRow[]>(() => (
+    displaySarCompounds.map((compound) => {
+      const sarApiRows = compound.sarApiRows ?? [];
+      const children = sarApiRows.length > 1 ? sarApiRows.map((sarApiRow, index) => ({
+        ...compound,
+        sarApiRow,
+        sarTableRowKey: `compound-${compound.id}-sar-${index}`,
+        sarApiRows: undefined,
+      })) : undefined;
+
+      return {
+        ...compound,
+        sarApiRow: sarApiRows.length === 1 ? sarApiRows[0] : undefined,
+        sarTableRowKey: `compound-${compound.id}`,
+        children,
+      };
+    })
+  ), [displaySarCompounds]);
   useEffect(() => {
     const visibleIds = new Set(displaySarCompounds.map((compound) => compound.id));
     if (compoundSelectionAnchorRef.current && !visibleIds.has(compoundSelectionAnchorRef.current)) {
@@ -759,21 +859,13 @@ const SarTable: React.FC = () => {
   ]);
 
   // Default states for columns
-  const defaultOrder = ['Compound', 'Enzyme', 'Cell', 'MS', 'PPB', 'CYP', 'hERG', 'PK'];
-  const defaultActive = ['Compound', 'Enzyme', 'Cell', 'MS', 'PPB', 'CYP', 'hERG', 'PK'];
+  const defaultOrder = ['Compound', 'TSA', 'CYP', 'Cell', 'MS', 'PPB', 'PK'];
+  const defaultActive = ['Compound', 'TSA', 'CYP', 'Cell', 'MS', 'PPB', 'PK'];
   const defaultSubConfig = {
-    'Enzyme': [
-      { key: 'wt', title: 'WT', visible: true },
-      { key: 'd1228n', title: 'D1228N', visible: true },
-      { key: 'f1250k', title: 'F1250K', visible: true },
-      { key: 'wtf1250k', title: 'WT/F1250K', visible: true }
-    ],
     'Cell': [
-      { key: 'naive', title: 'Ba/F3 Naive', visible: true },
-      { key: 'fgfr3', title: 'Ba/F3 FGFR3', visible: true },
-      { key: 'v555m', title: 'FGFR3 V555M', visible: true },
-      { key: 'rt112', title: 'RT-112', visible: true },
-      { key: 'mkn45', title: 'MKN45', visible: true }
+      { key: 'ebc1', title: 'EBC1', visible: true },
+      { key: 'hs746t', title: 'Hs746T', visible: true },
+      { key: 'snu16', title: 'SNU16', visible: true }
     ],
     'MS': [
       { key: 'ms_h', title: 'H', visible: true },
@@ -788,13 +880,15 @@ const SarTable: React.FC = () => {
       { key: '2c9', title: '2C9', visible: true },
       { key: '2c19', title: '2C19', visible: true },
       { key: '2d6', title: '2D6', visible: true },
-      { key: '3a4', title: '3A4', visible: true }
+      { key: '3a_m', title: '3A(M)', visible: true },
+      { key: '3a_t', title: '3A(T)', visible: true }
     ],
     'PK': [
+      { key: 'pe', title: 'Pe', visible: true },
+      { key: 'salt_form', title: 'salt form', visible: true },
       { key: 'dose', title: 'Dose', visible: true },
-      { key: 'plasma', title: 'Plasma (1h, 4h)', visible: true },
-      { key: 'lung', title: 'Lung (1h, 4h)', visible: true },
-      { key: 'brain', title: 'Brain (1h, 4h)', visible: true }
+      { key: 'plasma_4h', title: 'Plasma 4 h', visible: true },
+      { key: 'brain_4h', title: 'Brain 4 h', visible: true }
     ]
   };
 
@@ -906,13 +1000,14 @@ const SarTable: React.FC = () => {
     }
 
     const nextGroupCompounds = nextSelectedGroupIds.length > 0
-      ? mockCompounds
+      ? allCompoundRows
         .filter((compound) => nextSelectedGroupIds.includes(compound.groupId) && !hiddenCompoundIds.includes(compound.id))
       : [];
     const normalizedKeyword = keyword.trim().toLowerCase();
     const nextVisibleCompounds = normalizedKeyword
       ? nextGroupCompounds.filter((compound) => (
           compound.id.toLowerCase().includes(normalizedKeyword) ||
+          compound.compoundId.toLowerCase().includes(normalizedKeyword) ||
           compound.name.toLowerCase().includes(normalizedKeyword) ||
           compound.smiles?.toLowerCase().includes(normalizedKeyword)
         ))
@@ -973,6 +1068,7 @@ const SarTable: React.FC = () => {
     const representativeCompound = firstCompoundByGroupId[record.id];
     const structureSvg = representativeCompound?.structureSvg;
     const isBookmarked = bookmarkedGroupIdSet.has(record.id);
+    const groupStructureSettings = getGroupStructureSettings(record.id);
 
     return (
       <div
@@ -1035,11 +1131,9 @@ const SarTable: React.FC = () => {
             }
           }}
           preferRdkitSvg
-          rdkitAngleDeg={DEFAULT_GROUP_STRUCTURE_VIEW_SETTINGS.sarRotationDeg}
+          rdkitAngleDeg={groupStructureSettings.sarRotationDeg}
           rdkitScalePercent={DEFAULT_GROUP_STRUCTURE_VIEW_SETTINGS.sarImageScalePercent}
           rdkitMinSize={[SAR_GROUP_STRUCTURE_WIDTH, SAR_GROUP_STRUCTURE_HEIGHT]}
-          rdkitAtomLabelBlock
-          rdkitAbbrevOption={0}
           onStructureGenerated={(data) => {
             if (representativeCompound?.id) handleCompoundStructureGenerated(representativeCompound.id, data);
           }}
@@ -1061,10 +1155,10 @@ const SarTable: React.FC = () => {
 
   // COLUMN STATES (Order & Visibility)
   const [columnOrder, setColumnOrder] = useState<string[]>([
-    'Compound', 'Enzyme', 'Cell', 'MS', 'PPB', 'CYP', 'hERG', 'PK'
+    'Compound', 'TSA', 'CYP', 'Cell', 'MS', 'PPB', 'PK'
   ]);
   const [activeColumns, setActiveColumns] = useState<string[]>([
-    'Compound', 'Enzyme', 'Cell', 'MS', 'PPB', 'CYP', 'hERG', 'PK'
+    'Compound', 'TSA', 'CYP', 'Cell', 'MS', 'PPB', 'PK'
   ]);
   const [draggedItemIndex, setDraggedItemIndex] = useState<number | null>(null);
   const [expandedColumns, setExpandedColumns] = useState<string[]>([]);
@@ -1077,18 +1171,10 @@ const SarTable: React.FC = () => {
 
   // Sub-column config: { parentKey: [ { key: 'wt', visible: true, ... } ] }
   const [subColumnConfig, setSubColumnConfig] = useState<Record<string, { key: string, title: string, visible: boolean }[]>>({
-    'Enzyme': [
-      { key: 'wt', title: 'WT', visible: true },
-      { key: 'd1228n', title: 'D1228N', visible: true },
-      { key: 'f1250k', title: 'F1250K', visible: true },
-      { key: 'wtf1250k', title: 'WT/F1250K', visible: true }
-    ],
     'Cell': [
-      { key: 'naive', title: 'Ba/F3 Naive', visible: true },
-      { key: 'fgfr3', title: 'Ba/F3 FGFR3', visible: true },
-      { key: 'v555m', title: 'FGFR3 V555M', visible: true },
-      { key: 'rt112', title: 'RT-112', visible: true },
-      { key: 'mkn45', title: 'MKN45', visible: true }
+      { key: 'ebc1', title: 'EBC1', visible: true },
+      { key: 'hs746t', title: 'Hs746T', visible: true },
+      { key: 'snu16', title: 'SNU16', visible: true }
     ],
     'MS': [
       { key: 'ms_h', title: 'H', visible: true },
@@ -1103,13 +1189,15 @@ const SarTable: React.FC = () => {
       { key: '2c9', title: '2C9', visible: true },
       { key: '2c19', title: '2C19', visible: true },
       { key: '2d6', title: '2D6', visible: true },
-      { key: '3a4', title: '3A4', visible: true }
+      { key: '3a_m', title: '3A(M)', visible: true },
+      { key: '3a_t', title: '3A(T)', visible: true }
     ],
     'PK': [
+      { key: 'pe', title: 'Pe', visible: true },
+      { key: 'salt_form', title: 'salt form', visible: true },
       { key: 'dose', title: 'Dose', visible: true },
-      { key: 'plasma', title: 'Plasma (1h, 4h)', visible: true },
-      { key: 'lung', title: 'Lung (1h, 4h)', visible: true },
-      { key: 'brain', title: 'Brain (1h, 4h)', visible: true }
+      { key: 'plasma_4h', title: 'Plasma 4 h', visible: true },
+      { key: 'brain_4h', title: 'Brain 4 h', visible: true }
     ]
   });
 
@@ -1197,18 +1285,74 @@ const SarTable: React.FC = () => {
   };
 
   // Heatmap rendering logic (relative scaling)
-  const renderValue = (val: number | undefined, group: string) => {
-    if (val === undefined) return '-';
+  const isPresentSarValue = (value: SarApiCellValue) => (
+    value !== null && value !== undefined && value !== ''
+  );
+
+  const getSarApiRowsForValue = (record: SarTableRow) => (
+    record.sarApiRow ? [record.sarApiRow] : record.sarApiRows ?? []
+  );
+
+  const getFirstSarApiValue = (record: SarTableRow, keys: string[]) => {
+    for (const row of getSarApiRowsForValue(record)) {
+      for (const key of keys) {
+        const value = row[key];
+        if (isPresentSarValue(value)) return value;
+      }
+    }
+    return undefined;
+  };
+
+  const getThermalShiftValue = (record: SarTableRow) => {
+    for (const row of getSarApiRowsForValue(record)) {
+      const projectName = String(row.project_name ?? '').trim().toUpperCase();
+      const thermalEntries = Object.entries(row)
+        .filter(([key, value]) => key.startsWith('Thermal Shift#_#') && isPresentSarValue(value));
+      if (thermalEntries.length === 0) continue;
+
+      const projectMatch = thermalEntries.find(([key]) => (
+        projectName && key.toUpperCase().includes(projectName)
+      ));
+      return (projectMatch ?? thermalEntries[0])[1];
+    }
+
+    return record.sar?.tsa_tm;
+  };
+
+  const getPkPeValue = (record: SarTableRow) => {
+    const explicitPe = getFirstSarApiValue(record, ['PK#_#pe', 'PK#_#Pe', 'PK#_#PE']);
+    if (isPresentSarValue(explicitPe)) return explicitPe;
+
+    const plasma4h = getFirstSarApiValue(record, ['PK#_#plasma_4hr']);
+    const brain4h = getFirstSarApiValue(record, ['PK#_#brain_4hr']);
+    const plasmaNumber = Number(plasma4h);
+    const brainNumber = Number(brain4h);
+    if (Number.isFinite(plasmaNumber) && plasmaNumber > 0 && Number.isFinite(brainNumber)) {
+      return Number((brainNumber / plasmaNumber).toFixed(2));
+    }
+
+    return record.sar?.pk?.pe;
+  };
+
+  const getSarCellValue = (record: SarTableRow, apiKeys: string[], mockValue: SarApiCellValue) => {
+    const apiValue = getFirstSarApiValue(record, apiKeys);
+    return isPresentSarValue(apiValue) ? apiValue : mockValue;
+  };
+
+  const renderValue = (val: SarApiCellValue, group?: string) => {
+    if (!isPresentSarValue(val)) return '-';
+    const numericValue = typeof val === 'number' ? val : Number(val);
+    const isNumeric = Number.isFinite(numericValue);
 
     let bgColor = 'transparent';
     let textColor = 'inherit';
 
-    if (isColorActive) {
-      if (val < 0.1) { bgColor = isDarkMode ? '#065f46' : '#10b981'; textColor = isDarkMode ? '#6ee7b7' : token.colorBgContainer; }
-      else if (val < 0.5) { bgColor = isDarkMode ? '#064e3b' : '#d1fae5'; textColor = isDarkMode ? '#a7f3d0' : '#065f46'; }
-      else if (val < 1.0) { bgColor = isDarkMode ? '#78350f' : '#fef3c7'; textColor = isDarkMode ? '#fde68a' : '#92400e'; }
-      else if (val < 10) { bgColor = isDarkMode ? '#713f12' : '#fffbeb'; textColor = isDarkMode ? '#fcd34d' : '#92400e'; }
-      else if (val >= 10) { bgColor = isDarkMode ? '#7f1d1d' : '#fee2e2'; textColor = isDarkMode ? '#fca5a5' : '#991b1b'; }
+    if (isColorActive && isNumeric) {
+      if (numericValue < 0.1) { bgColor = isDarkMode ? '#065f46' : '#10b981'; textColor = isDarkMode ? '#6ee7b7' : token.colorBgContainer; }
+      else if (numericValue < 0.5) { bgColor = isDarkMode ? '#064e3b' : '#d1fae5'; textColor = isDarkMode ? '#a7f3d0' : '#065f46'; }
+      else if (numericValue < 1.0) { bgColor = isDarkMode ? '#78350f' : '#fef3c7'; textColor = isDarkMode ? '#fde68a' : '#92400e'; }
+      else if (numericValue < 10) { bgColor = isDarkMode ? '#713f12' : '#fffbeb'; textColor = isDarkMode ? '#fcd34d' : '#92400e'; }
+      else if (numericValue >= 10) { bgColor = isDarkMode ? '#7f1d1d' : '#fee2e2'; textColor = isDarkMode ? '#fca5a5' : '#991b1b'; }
     }
 
     return (
@@ -1220,95 +1364,71 @@ const SarTable: React.FC = () => {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        fontWeight: isColorActive && val < 0.5 ? 600 : 400
+        fontWeight: isColorActive && isNumeric && numericValue < 0.5 ? 600 : 400
       }}>
-        {val}
+        {isNumeric && Number.isInteger(numericValue) ? formatNumberWithComma(numericValue) : String(val)}
       </div>
     );
   };
 
   const allColumnsMap: Record<string, any> = {
     'Compound': {
-      title: 'Compound',
+      title: 'VNA Code',
       dataIndex: 'compoundId',
       key: 'compoundId',
-      fixed: 'left' as const,
-      width: 120,
-      render: (text: string) => <Text strong style={{ color: token.colorPrimary }}>{text}</Text>
+      minWidth: 140,
+      render: (text: string, record: SarTableRow) => {
+        const apiCode = getFirstSarApiValue(record, ['compound_code']);
+        return <Text strong style={{ color: token.colorPrimary }}>{String(apiCode ?? text ?? '-')}</Text>;
+      }
     },
-    'Enzyme': {
-      title: 'Enzyme IC50 (µM)',
-      children: [
-        { title: 'WT', dataIndex: ['sar', 'enzyme', 'wt'], key: 'wt', width: 70, render: (v: any) => renderValue(v, 'e') },
-        { title: 'D1228N', dataIndex: ['sar', 'enzyme', 'd1228n'], key: 'd1228n', width: 80, render: (v: any) => renderValue(v, 'e') },
-        { title: 'F1250K', dataIndex: ['sar', 'enzyme', 'f1250k'], key: 'f1250k', width: 80, render: (v: any) => renderValue(v, 'e') },
-        { title: 'WT/F1250K', dataIndex: ['sar', 'enzyme', 'wt_f1250k'], key: 'wtf1250k', width: 100, render: (v: any) => renderValue(v, 'e') },
-      ]
+    'TSA': {
+      title: 'TSA (Tm)',
+      key: 'tsa_tm',
+      minWidth: 90,
+      render: (_: unknown, record: SarTableRow) => renderValue(getThermalShiftValue(record), 'tsa')
     },
     'Cell': {
-      title: 'Cell GI50 (µM)',
+      title: 'Cell (GI50uM)',
       children: [
-        { title: 'Ba/F3 Naive', dataIndex: ['sar', 'cell', 'naive'], key: 'naive', width: 90, render: (v: any) => renderValue(v, 'c') },
-        { title: 'Ba/F3 FGFR3', dataIndex: ['sar', 'cell', 'fgfr3'], key: 'fgfr3', width: 90, render: (v: any) => renderValue(v, 'c') },
-        { title: 'FGFR3 V555M', dataIndex: ['sar', 'cell', 'fgfr3_v555m'], key: 'v555m', width: 100, render: (v: any) => renderValue(v, 'c') },
-        { title: 'RT-112', dataIndex: ['sar', 'cell', 'rt112'], key: 'rt112', width: 80, render: (v: any) => renderValue(v, 'c') },
-        { title: 'MKN45', dataIndex: ['sar', 'cell', 'mkn45'], key: 'mkn45', width: 80, render: (v: any) => renderValue(v, 'c') },
+        { title: 'EBC1', key: 'ebc1', minWidth: 80, render: (_: unknown, record: SarTableRow) => renderValue(getSarCellValue(record, ['Cell#_#EBC-1CEL0034'], record.sar?.cell?.ebc1), 'c') },
+        { title: 'Hs746T', key: 'hs746t', minWidth: 80, render: (_: unknown, record: SarTableRow) => renderValue(getSarCellValue(record, ['Cell#_#Hs746TCEL0043'], record.sar?.cell?.hs746t), 'c') },
+        { title: 'SNU16', key: 'snu16', minWidth: 80, render: (_: unknown, record: SarTableRow) => renderValue(getSarCellValue(record, ['Cell#_#SNU-16CEL0060'], record.sar?.cell?.snu16), 'c') },
       ]
     },
     'MS': {
-      title: 'MS (rem.%)',
+      title: 'MS (remain %)',
       children: [
-        { title: 'H', dataIndex: ['sar', 'ms', 'h'], key: 'ms_h', width: 60, render: (v: any) => renderValue(v, 'm') },
-        { title: 'Target', dataIndex: 'target', key: 'target', width: 80, render: (text: string) => <Tag color="blue" style={{ fontSize: 10 }}>{text}</Tag> },
-        { title: 'M', dataIndex: ['sar', 'ms', 'm'], key: 'ms_m', width: 60, render: (v: any) => renderValue(v, 'm') },
+        { title: 'H', key: 'ms_h', minWidth: 80, render: (_: unknown, record: SarTableRow) => renderValue(getSarCellValue(record, ['MS#_#human'], record.sar?.ms?.h), 'm') },
+        { title: 'M', key: 'ms_m', minWidth: 80, render: (_: unknown, record: SarTableRow) => renderValue(getSarCellValue(record, ['MS#_#mouse'], record.sar?.ms?.m), 'm') },
       ]
     },
     'PPB': {
       title: 'PPB (bound %)',
       children: [
-        { title: 'H', dataIndex: ['sar', 'ppb', 'h'], key: 'ppb_h', width: 60, render: (v: any) => renderValue(v, 'p') },
-        { title: 'M', dataIndex: ['sar', 'ppb', 'm'], key: 'ppb_m', width: 60, render: (v: any) => renderValue(v, 'p') },
+        { title: 'H', key: 'ppb_h', minWidth: 80, render: (_: unknown, record: SarTableRow) => renderValue(getSarCellValue(record, ['PPB#_#human'], record.sar?.ppb?.h), 'p') },
+        { title: 'M', key: 'ppb_m', minWidth: 80, render: (_: unknown, record: SarTableRow) => renderValue(getSarCellValue(record, ['PPB#_#mouse'], record.sar?.ppb?.m), 'p') },
       ]
     },
     'CYP': {
-      title: 'CYP inhibition (10µM, % of control)',
+      title: 'CYP',
       children: [
-        { title: '1A2', dataIndex: ['sar', 'cyp', '1a2'], key: '1a2', width: 60 },
-        { title: '2C9', dataIndex: ['sar', 'cyp', '2c9'], key: '2c9', width: 60 },
-        { title: '2C19', dataIndex: ['sar', 'cyp', '2c19'], key: '2c19', width: 60 },
-        { title: '2D6', dataIndex: ['sar', 'cyp', '2d6'], key: '2d6', width: 60 },
-        { title: '3A4', dataIndex: ['sar', 'cyp', '3a4'], key: '3a4', width: 60 },
+        { title: '1A2', key: '1a2', minWidth: 80, render: (_: unknown, record: SarTableRow) => renderValue(getSarCellValue(record, ['CYP#_#Inhibition#_#CYP1A2'], record.sar?.cyp?.['1a2']), 'cyp') },
+        { title: '2C9', key: '2c9', minWidth: 80, render: (_: unknown, record: SarTableRow) => renderValue(getSarCellValue(record, ['CYP#_#Inhibition#_#CYP2C9'], record.sar?.cyp?.['2c9']), 'cyp') },
+        { title: '2C19', key: '2c19', minWidth: 80, render: (_: unknown, record: SarTableRow) => renderValue(getSarCellValue(record, ['CYP#_#Inhibition#_#CYP2C19'], record.sar?.cyp?.['2c19']), 'cyp') },
+        { title: '2D6', key: '2d6', minWidth: 80, render: (_: unknown, record: SarTableRow) => renderValue(getSarCellValue(record, ['CYP#_#Inhibition#_#CYP2D6'], record.sar?.cyp?.['2d6']), 'cyp') },
+        { title: '3A(M)', key: '3a_m', minWidth: 80, render: (_: unknown, record: SarTableRow) => renderValue(getSarCellValue(record, ['CYP#_#Inhibition#_#CYP3A4'], record.sar?.cyp?.['3a_m'] ?? record.sar?.cyp?.['3a4']), 'cyp') },
+        { title: '3A(T)', key: '3a_t', minWidth: 80, render: (_: unknown, record: SarTableRow) => renderValue(getSarCellValue(record, ['CYP#_#Inhibition#_#CYP3A_T'], record.sar?.cyp?.['3a_t']), 'cyp') },
       ]
     },
-    'hERG': { title: 'hERG (IC50, µM)', dataIndex: ['sar', 'herg'], key: 'herg', width: 80 },
     'PK': {
-      title: 'PK (ng/mL)',
+      title: 'PK ng/ml (T/P ratio)',
       children: [
-        { title: 'Dose', dataIndex: ['sar', 'pk', 'dose'], key: 'dose', width: 60 },
-        {
-          title: 'Plasma',
-          key: 'plasma',
-          children: [
-            { title: '1h', dataIndex: ['sar', 'pk', 'plasma_1h'], key: 'p1h', width: 70 },
-            { title: '4h', dataIndex: ['sar', 'pk', 'plasma_4h'], key: 'p4h', width: 70 },
-          ]
-        },
-        {
-          title: 'Lung',
-          key: 'lung',
-          children: [
-            { title: '1h', dataIndex: ['sar', 'pk', 'lung_1h'], key: 'l1h', width: 70 },
-            { title: '4h', dataIndex: ['sar', 'pk', 'lung_4h'], key: 'l4h', width: 70 },
-          ]
-        },
-        {
-          title: 'Brain',
-          key: 'brain',
-          children: [
-            { title: '1h', dataIndex: ['sar', 'pk', 'brain_1h'], key: 'b1h', width: 70 },
-            { title: '4h', dataIndex: ['sar', 'pk', 'brain_4h'], key: 'b4h', width: 70 },
-          ]
-        }
+        { title: 'Pe', key: 'pe', minWidth: 80, render: (_: unknown, record: SarTableRow) => renderValue(getPkPeValue(record), 'pk') },
+        { title: 'salt form', key: 'salt_form', minWidth: 100, render: (_: unknown, record: SarTableRow) => renderValue(getSarCellValue(record, ['PK#_#salt_form'], record.sar?.pk?.salt_form), 'pk') },
+        { title: 'Dose', key: 'dose', minWidth: 80, render: (_: unknown, record: SarTableRow) => renderValue(getSarCellValue(record, ['PK#_#dose'], record.sar?.pk?.dose), 'pk') },
+        { title: 'Plasma[4 h]', key: 'plasma_4h', minWidth: 120, render: (_: unknown, record: SarTableRow) => renderValue(getSarCellValue(record, ['PK#_#plasma_4hr'], record.sar?.pk?.plasma_4h), 'pk') },
+        { title: 'Brain[4 h]', key: 'brain_4h', minWidth: 120, render: (_: unknown, record: SarTableRow) => renderValue(getSarCellValue(record, ['PK#_#brain_4hr'], record.sar?.pk?.brain_4h), 'pk') },
       ]
     }
   };
@@ -2208,20 +2328,25 @@ const SarTable: React.FC = () => {
             </div>
             <Table
               className="sar-table"
-              dataSource={displaySarCompounds}
+              dataSource={sarTableRows}
               columns={dynamicColumns}
-              rowKey="id"
+              rowKey="sarTableRowKey"
               size="small"
               pagination={false}
-              scroll={{ x: 1800, y: sarTableBodyHeight }}
+              tableLayout="auto"
+              scroll={{ x: 'max-content', y: sarTableBodyHeight }}
+              expandable={{
+                rowExpandable: (record) => Boolean(record.children?.length),
+              }}
               onRow={(record) => ({
-                id: `sar-table-row-${record.id}`,
+                id: `sar-table-row-${record.sarTableRowKey}`,
                 onClick: (event) => handleCompoundSelection(record.id, event),
                 onMouseEnter: () => setHoveredRowKey(record.id),
                 onMouseLeave: () => setHoveredRowKey(null)
               })}
               rowClassName={(record) => {
                 let classes = [];
+                if (record.sarApiRow) classes.push('sar-row-response');
                 if (pinnedCompoundIdSet.has(record.id)) classes.push('sar-row-pinned');
                 if (selectedCompoundIds.includes(record.id)) classes.push('sar-row-selected');
                 if (record.id === hoveredRowKey) classes.push('sar-row-hovered');
@@ -2713,6 +2838,42 @@ const SarTable: React.FC = () => {
         .sar-table .ant-table-thead > tr > th,
         .sar-table .ant-table-thead > tr > td {
           border-bottom: 0 !important;
+          white-space: nowrap !important;
+        }
+        .sar-table .ant-table-cell {
+          white-space: nowrap !important;
+        }
+        .sar-table .ant-table-cell .ant-typography {
+          white-space: nowrap !important;
+        }
+        .sar-table .ant-table-cell-with-append {
+          position: relative;
+          vertical-align: middle !important;
+          padding-left: 28px !important;
+        }
+        .sar-table .ant-table-cell-with-append > .ant-table-row-expand-icon {
+          position: absolute;
+          top: 50%;
+          left: 8px;
+          display: inline-flex !important;
+          align-items: center;
+          justify-content: center;
+          width: 17px;
+          height: 17px;
+          margin: 0 !important;
+          line-height: 15px;
+          transform: translateY(-50%);
+        }
+        .sar-table .ant-table-cell-with-append > .ant-table-row-indent {
+          display: inline-block;
+          height: 17px;
+          vertical-align: middle;
+        }
+        .sar-table .ant-table-tbody > tr.sar-row-response > td {
+          background: ${isDarkMode ? '#171717' : '#fbfcfe'} !important;
+        }
+        .sar-table .ant-table-tbody > tr.sar-row-response:hover > td {
+          background: ${isDarkMode ? '#1f1f1f' : '#f3f6fb'} !important;
         }
         .sar-table .ant-table-thead > tr:last-child > th,
         .sar-table .ant-table-thead > tr:last-child > td,
@@ -3137,6 +3298,36 @@ const SarTable: React.FC = () => {
         .ant-table-tbody > tr.sar-row-selected:hover > td {
           background-color: var(--table-row-selected-hover-bg) !important;
         }
+        .sar-table .ant-table-tbody > tr.sar-row-pinned > td {
+          background-color: ${sarPinnedRowBg} !important;
+          border-bottom: 1px solid color-mix(in srgb, ${sarPinnedRowColor} ${isDarkMode ? 36 : 24}%, transparent) !important;
+        }
+        .sar-table .ant-table-tbody > tr.sar-row-pinned.sar-row-hovered > td,
+        .sar-table .ant-table-tbody > tr.sar-row-pinned.sar-row-selected > td,
+        .sar-table .ant-table-tbody > tr.sar-row-pinned.sar-row-selected:hover > td,
+        .sar-table .ant-table-tbody > tr.sar-row-pinned.sar-row-selected.sar-row-hovered > td {
+          background-color: ${sarPinnedRowHoverBg} !important;
+          border-bottom: 1px solid color-mix(in srgb, ${sarPinnedRowColor} ${isDarkMode ? 48 : 32}%, transparent) !important;
+        }
+        .sar-table .ant-table-tbody > tr.sar-row-pinned > td:first-child {
+          box-shadow: inset 3px 0 0 ${sarPinnedRowColor};
+        }
+        .sar-table .ant-table-tbody > tr.sar-row-pinned > .ant-table-cell-fix-left,
+        .sar-table .ant-table-tbody > tr.sar-row-pinned > .ant-table-cell-fix-left-last {
+          background: ${sarPinnedRowBg} !important;
+          background-clip: padding-box !important;
+          box-shadow: inset 3px 0 0 ${sarPinnedRowColor};
+        }
+        .sar-table .ant-table-tbody > tr.sar-row-pinned.sar-row-hovered > .ant-table-cell-fix-left,
+        .sar-table .ant-table-tbody > tr.sar-row-pinned.sar-row-hovered > .ant-table-cell-fix-left-last,
+        .sar-table .ant-table-tbody > tr.sar-row-pinned.sar-row-selected > .ant-table-cell-fix-left,
+        .sar-table .ant-table-tbody > tr.sar-row-pinned.sar-row-selected > .ant-table-cell-fix-left-last,
+        .sar-table .ant-table-tbody > tr.sar-row-pinned.sar-row-selected:hover > .ant-table-cell-fix-left,
+        .sar-table .ant-table-tbody > tr.sar-row-pinned.sar-row-selected:hover > .ant-table-cell-fix-left-last {
+          background: ${sarPinnedRowHoverBg} !important;
+          background-clip: padding-box !important;
+          box-shadow: inset 3px 0 0 ${sarPinnedRowColor};
+        }
         .sar-color-toggle {
           min-width: 46px;
           height: 26px;
@@ -3409,6 +3600,12 @@ const SarTable: React.FC = () => {
         .sar-compound-card.selected::after,
         .sar-compound-card.hovered::after {
           border-color: ${token.colorPrimary};
+        }
+        .sar-compound-card.pinned.selected::after,
+        .sar-compound-card.pinned.hovered::after,
+        .sar-compound-card.pinned.selected:hover::after,
+        .sar-compound-card.pinned.hovered:hover::after {
+          border-color: ${sarPinnedRowColor};
         }
         .sar-compound-pin-badge {
           position: absolute;
