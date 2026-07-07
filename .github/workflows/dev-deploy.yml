@@ -18,6 +18,8 @@ jobs:
           submodules: recursive
 
       - name: Build and Run Docker Containers
+        env:
+          COMPOUND_API_AUTH_TOKEN: ${{ secrets.COMPOUND_API_AUTH_TOKEN }}
         run: |
           # self-hosted runner는 checkout한 디렉토리에서 직접 실행됩니다.
           docker compose -f docker-compose.dev.yml up --build -d --force-recreate
