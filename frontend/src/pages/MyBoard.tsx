@@ -119,6 +119,9 @@ type MyBoardGroupPinFilter = 'all' | 'pinned';
 type DesignPurposeValue = (string | number)[];
 type DesignExpansionValue = (string | number)[];
 type DesignFormInitialValues = Record<string, unknown>;
+type DesignMemoPreviewBlock =
+  | { type: 'text'; text: string }
+  | { type: 'image'; src: string };
 
 const IDEA_COMPOUND_COUNTER_STORAGE_PREFIX = 'my-board:idea-compound-counter';
 const IDEA_COMPOUND_PREFIX = 'LYH';
@@ -1504,7 +1507,7 @@ const MyBoard: React.FC = () => {
     return text || (doc.body.querySelector('img') ? '이미지 첨부' : '-');
   }, []);
 
-  const getDesignMemoPreviewBlocks = React.useCallback((value: unknown) => {
+  const getDesignMemoPreviewBlocks = React.useCallback((value: unknown): DesignMemoPreviewBlock[] => {
     const html = String(value ?? '').trim();
     if (!html || html === '-') return [{ type: 'text' as const, text: '-' }];
 
@@ -1513,14 +1516,15 @@ const MyBoard: React.FC = () => {
       const imageSources = Array.from(html.matchAll(/<img[^>]+src=["']([^"']+)["']/gi))
         .map((match) => match[1])
         .filter(Boolean);
-      return [
+      const blocks: DesignMemoPreviewBlock[] = [
         ...(text ? [{ type: 'text' as const, text }] : []),
-        ...imageSources.map((src) => ({ type: 'image' as const, src })),
+        ...imageSources.map((src): DesignMemoPreviewBlock => ({ type: 'image', src })),
       ];
+      return blocks.length > 0 ? blocks : [{ type: 'text', text: '-' }];
     }
 
     const doc = new DOMParser().parseFromString(html, 'text/html');
-    const blocks: Array<{ type: 'text'; text: string } | { type: 'image'; src: string }> = [];
+    const blocks: DesignMemoPreviewBlock[] = [];
 
     Array.from(doc.body.childNodes).forEach((node) => {
       if (node.nodeType === Node.TEXT_NODE) {
@@ -1878,6 +1882,9 @@ const MyBoard: React.FC = () => {
   const getDesignExpansionText = React.useCallback(() => (
     selectedDesignExpansions.map(getCascaderLeafLabel).filter(Boolean).join(', ')
   ), [getCascaderLeafLabel, selectedDesignExpansions]);
+  const getCascaderStringValue = React.useCallback((value: Array<Array<string | number>>) => (
+    value.map((path) => path.map(String))
+  ), []);
 
   const handleRegisterDesignIdea = React.useCallback(async () => {
     if (!selectedGroupIds[0]) return;
@@ -4007,7 +4014,7 @@ const MyBoard: React.FC = () => {
                   options={designPurposeOptions}
                   classNames={{ popup: { root: 'idea-compound-popup-scroll' } }}
                   showCheckedStrategy={Cascader.SHOW_CHILD}
-                  value={selectedDesignPurposes}
+                  value={getCascaderStringValue(selectedDesignPurposes)}
                   onChange={(value) => handleDesignPurposeChange(value as DesignPurposeValue[])}
                   displayRender={(labels) => labels[labels.length - 1]}
                   placeholder="합성 목적 선택"
@@ -4026,7 +4033,7 @@ const MyBoard: React.FC = () => {
                   options={designExpansionOptions}
                   classNames={{ popup: { root: 'idea-compound-popup-scroll' } }}
                   showCheckedStrategy={Cascader.SHOW_CHILD}
-                  value={selectedDesignExpansions}
+                  value={getCascaderStringValue(selectedDesignExpansions)}
                   onChange={(value) => handleDesignExpansionChange(value as DesignExpansionValue[])}
                   displayRender={(labels) => labels[labels.length - 1]}
                   placeholder="확장 필요 정도 선택"
