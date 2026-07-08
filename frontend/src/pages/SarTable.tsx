@@ -106,6 +106,9 @@ type SarTableRow = Compound & {
   sarApiRow?: SarApiRow;
   children?: SarTableRow[];
 };
+const isSarCompoundSelectionSurface = (target: Element) => (
+  Boolean(target.closest('.sar-table-card, .sar-compound-card-list, .quick-viewer-panel'))
+);
 const insertCompoundsAfterGroupTail = (rows: Compound[], compoundsToInsert: Compound[]) => (
   compoundsToInsert.reduce<Compound[]>((currentRows, compound) => {
     const rowsWithoutCompound = currentRows.filter((row) => row.id !== compound.id);
@@ -349,7 +352,6 @@ const SarTable: React.FC = () => {
   const [searchedSvg, setSearchedSvg] = useState<string | null>(null);
   const [activePreset, setActivePreset] = useState<number>(1);
   const [compoundCardViewMode, setCompoundCardViewMode] = useState<'single' | 'twoRows'>('single');
-  const [hasUserClearedSelection, setHasUserClearedSelection] = useState(false);
   const [isCompoundStructureCollapsed, setIsCompoundStructureCollapsed] = useState(false);
   const [isGroupStructureCollapsed, setIsGroupStructureCollapsed] = useState(false);
   const [viewportWidth, setViewportWidth] = useState<number>(() => {
@@ -372,7 +374,6 @@ const SarTable: React.FC = () => {
   const quickViewerResizeRafRef = React.useRef<number | null>(null);
   const groupStructureSelectionAnchorRef = React.useRef<string | null>(null);
   const compoundSelectionAnchorRef = React.useRef<string | null>(null);
-  const suppressNextSarAutoSelectionRef = React.useRef(false);
   const scaffoldEditBaselineRef = React.useRef<{ smiles?: string; molBlock?: string } | null>(null);
   const scaffoldEditDirtyRef = React.useRef(false);
   const quickViewerStorageKey = 'sar-table-split:quick-viewer';
@@ -438,10 +439,6 @@ const SarTable: React.FC = () => {
       return acc;
     }, {})
   ), [displaySarCompounds, pinnedCompoundIdSet]);
-  const sarCompoundIdSignature = useMemo(
-    () => sarCompounds.map((compound) => compound.id).join('|'),
-    [sarCompounds]
-  );
   const activeStructureSettingsGroupId = selectedGroupIds.length === 1 ? selectedGroupIds[0] : null;
   const activeStructureSettings = activeStructureSettingsGroupId
     ? {
@@ -508,15 +505,6 @@ const SarTable: React.FC = () => {
   }), [groupStructureViewSettings]);
 
   useEffect(() => {
-    if (suppressNextSarAutoSelectionRef.current) {
-      suppressNextSarAutoSelectionRef.current = false;
-      return;
-    }
-
-    setHasUserClearedSelection(false);
-  }, [sarCompoundIdSignature]);
-
-  useEffect(() => {
     if (sarCompounds.length === 0) {
       setSelectedRowKey(null);
       setSelectedCompoundIds([]);
@@ -524,13 +512,17 @@ const SarTable: React.FC = () => {
       return;
     }
 
-    const hasSelectedRow = displaySarCompounds.some((compound) => compound.id === selectedRowKey);
-    if (!hasSelectedRow && !hasUserClearedSelection) {
-      setSelectedRowKey(displaySarCompounds[0].id);
-      setSelectedCompoundIds([displaySarCompounds[0].id]);
-      compoundSelectionAnchorRef.current = displaySarCompounds[0].id;
+    const hasSelectedRow = selectedRowKey
+      ? displaySarCompounds.some((compound) => compound.id === selectedRowKey)
+      : true;
+    if (!hasSelectedRow) {
+      setSelectedRowKey(null);
+      setSelectedCompoundIds((current) => current.filter((compoundId) => (
+        displaySarCompounds.some((compound) => compound.id === compoundId)
+      )));
+      compoundSelectionAnchorRef.current = null;
     }
-  }, [displaySarCompounds, hasUserClearedSelection, sarCompounds.length, selectedRowKey]);
+  }, [displaySarCompounds, sarCompounds.length, selectedRowKey]);
 
   const handleCompoundSelection = React.useCallback((compoundId: string, event?: React.MouseEvent) => {
     if (event?.shiftKey) {
@@ -542,7 +534,6 @@ const SarTable: React.FC = () => {
 
       setSelectedCompoundIds(next);
       setSelectedRowKey(compoundId);
-      setHasUserClearedSelection(next.length === 0);
       compoundSelectionAnchorRef.current = compoundSelectionAnchorRef.current ?? compoundId;
       return;
     }
@@ -550,7 +541,6 @@ const SarTable: React.FC = () => {
     if (!event?.ctrlKey && !event?.metaKey) {
       setSelectedCompoundIds([compoundId]);
       setSelectedRowKey(compoundId);
-      setHasUserClearedSelection(false);
       compoundSelectionAnchorRef.current = compoundId;
       return;
     }
@@ -562,7 +552,6 @@ const SarTable: React.FC = () => {
         : [...current, compoundId];
 
       setSelectedRowKey(next.includes(compoundId) ? compoundId : next[next.length - 1] ?? null);
-      setHasUserClearedSelection(next.length === 0);
       compoundSelectionAnchorRef.current = compoundId;
       return next;
     });
@@ -605,17 +594,31 @@ const SarTable: React.FC = () => {
     setSelectedRowKey(null);
     setSelectedCompoundIds([]);
     setHoveredRowKey(null);
-    setHasUserClearedSelection(true);
     compoundSelectionAnchorRef.current = null;
   }, []);
 
   const handlePageMouseDown = React.useCallback((event: React.MouseEvent<HTMLDivElement>) => {
     const target = event.target instanceof Element ? event.target : null;
     if (!target) return;
-    if (target.closest('.sar-table-card, .sar-compound-card-list, .quick-viewer-panel')) return;
+    if (isSarCompoundSelectionSurface(target)) return;
     if (!selectedRowKey && selectedCompoundIds.length === 0) return;
 
     clearTableRowSelection();
+  }, [clearTableRowSelection, selectedCompoundIds.length, selectedRowKey]);
+
+  useEffect(() => {
+    if (!selectedRowKey && selectedCompoundIds.length === 0) return;
+
+    const handleDocumentMouseDown = (event: MouseEvent) => {
+      const target = event.target instanceof Element ? event.target : null;
+      if (!target) return;
+      if (isSarCompoundSelectionSurface(target)) return;
+
+      clearTableRowSelection();
+    };
+
+    document.addEventListener('mousedown', handleDocumentMouseDown);
+    return () => document.removeEventListener('mousedown', handleDocumentMouseDown);
   }, [clearTableRowSelection, selectedCompoundIds.length, selectedRowKey]);
 
   useEffect(() => {
@@ -807,7 +810,6 @@ const SarTable: React.FC = () => {
     if (nextCompound) {
       setSelectedRowKey(nextCompound.id);
       setSelectedCompoundIds([nextCompound.id]);
-      setHasUserClearedSelection(false);
       compoundSelectionAnchorRef.current = nextCompound.id;
       setHoveredRowKey(nextCompound.id);
       document.getElementById(`sar-compound-card-${nextCompound.id}`)?.scrollIntoView({
@@ -1020,13 +1022,11 @@ const SarTable: React.FC = () => {
     if (shouldClearKeywordForGroupLoad) {
       setKeyword('');
     }
-    suppressNextSarAutoSelectionRef.current = true;
     setSelectedSarCompoundIds(nextCompoundIds);
     setSelectedRowKey(null);
     setSelectedCompoundIds([]);
     compoundSelectionAnchorRef.current = null;
     setHoveredRowKey(null);
-    setHasUserClearedSelection(true);
     setIsScaffoldColorPickerOpen(false);
   };
 
@@ -1844,6 +1844,12 @@ const SarTable: React.FC = () => {
             scroll={undefined}
             tableLayout="fixed"
             onRow={(record) => ({
+              onMouseDown: (event) => {
+                if (!event.shiftKey) return;
+                const target = event.target as HTMLElement;
+                if (target.closest('button, a, input, textarea, .ant-checkbox-wrapper, .ant-select, .ant-dropdown')) return;
+                event.preventDefault();
+              },
               onClick: (event) => handleGroupStructureSelection(record.id, event),
               style: { cursor: 'pointer' },
             })}
@@ -2148,6 +2154,12 @@ const SarTable: React.FC = () => {
                     <div
                       id={`sar-compound-card-${item.id}`}
                       key={item.id}
+                      onMouseDown={(event) => {
+                        if (!event.shiftKey) return;
+                        const target = event.target as HTMLElement;
+                        if (target.closest('button, a, input, textarea, .ant-checkbox-wrapper, .ant-select, .ant-dropdown')) return;
+                        event.preventDefault();
+                      }}
                       onClick={(event) => handleCompoundSelection(item.id, event)}
                       role="option"
                       aria-selected={isSelectedCompound}
@@ -2340,6 +2352,12 @@ const SarTable: React.FC = () => {
               }}
               onRow={(record) => ({
                 id: `sar-table-row-${record.sarTableRowKey}`,
+                onMouseDown: (event) => {
+                  if (!event.shiftKey) return;
+                  const target = event.target as HTMLElement;
+                  if (target.closest('button, a, input, textarea, .ant-checkbox-wrapper, .ant-select, .ant-dropdown')) return;
+                  event.preventDefault();
+                },
                 onClick: (event) => handleCompoundSelection(record.id, event),
                 onMouseEnter: () => setHoveredRowKey(record.id),
                 onMouseLeave: () => setHoveredRowKey(null)
@@ -2589,6 +2607,14 @@ const SarTable: React.FC = () => {
       />
 
       <style>{`
+        .sar-page {
+          --table-row-hover-bg: rgba(248, 124, 99, 0.06);
+          --table-row-selected-hover-bg: rgba(248, 124, 99, 0.16);
+        }
+        [data-theme='dark'] .sar-page {
+          --table-row-hover-bg: rgba(248, 124, 99, 0.10);
+          --table-row-selected-hover-bg: rgba(248, 124, 99, 0.24);
+        }
         .sar-board-layout {
           display: flex;
           align-items: flex-start;

@@ -177,7 +177,7 @@ const StructurePreviewModal: React.FC<StructurePreviewModalProps> = ({
       >
         {svg ? (
           <div
-            className={className}
+            className={['structure-preview-modal', className].filter(Boolean).join(' ')}
             style={{
               width: '100%',
               height: 'min(720px, calc(100vh - 180px))',
@@ -226,6 +226,7 @@ const StructurePreviewModal: React.FC<StructurePreviewModalProps> = ({
                   minHeight: 0,
                   overflow: 'hidden',
                   contain: 'paint',
+                  // Keep preview dark-mode handling centralized for every page using this modal.
                   filter: structureImageCopyFilter,
                 }}
                 dangerouslySetInnerHTML={{ __html: svg }}

@@ -684,7 +684,7 @@ const SynthesisBoard: React.FC = () => {
 
   return (
     <div
-      className="gx-main-content"
+      className="gx-main-content synthesis-page"
       style={{
         maxWidth: layoutPreset.maxWidth,
         margin: '0 auto',
@@ -1048,6 +1048,14 @@ const SynthesisBoard: React.FC = () => {
       />
 
       <style>{`
+        .synthesis-page {
+          --table-row-hover-bg: rgba(248, 124, 99, 0.06);
+          --table-row-selected-hover-bg: rgba(248, 124, 99, 0.16);
+        }
+        [data-theme='dark'] .synthesis-page {
+          --table-row-hover-bg: rgba(248, 124, 99, 0.10);
+          --table-row-selected-hover-bg: rgba(248, 124, 99, 0.24);
+        }
         .row-selected {
           background-color: var(--table-row-selected-bg) !important;
         }

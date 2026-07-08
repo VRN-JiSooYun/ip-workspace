@@ -2293,11 +2293,8 @@ span.ant-typography {
 [data-theme='dark'] .svg-renderer-frame svg,
 [data-theme='dark'] .compound-structure-svg svg,
 [data-theme='dark'] .my-board-structure-svg svg,
-[data-theme='dark'] .my-board-structure-preview svg,
 [data-theme='dark'] .sar-structure-svg svg,
-[data-theme='dark'] .sar-structure-preview svg,
-[data-theme='dark'] .synthesis-structure-svg svg,
-[data-theme='dark'] .synthesis-structure-preview svg {
+[data-theme='dark'] .synthesis-structure-svg svg {
   filter: invert(0.88) hue-rotate(180deg);
 }
 

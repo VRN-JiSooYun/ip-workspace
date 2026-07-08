@@ -13,7 +13,7 @@ import {
 } from '@xyflow/react';
 import {
   Row, Col, Card, Table, Button, Input,
-  Space, Typography, Modal, Form, Tag, List, Select, DatePicker, Avatar, Divider, Upload, Segmented, theme, Tooltip, Dropdown, App as AntApp
+  Space, Typography, Modal, Form, Tag, List, Select, DatePicker, Avatar, Divider, Upload, Segmented, theme, Tooltip, Dropdown, App as AntApp, Cascader, InputNumber
 } from 'antd';
 import type { MenuProps } from 'antd';
 import {
@@ -89,10 +89,9 @@ const MYBOARD_GROUP_COLUMN_WIDTHS = {
   groupOrder: 38,
   shareStatus: 38,
 } as const;
-const MYBOARD_DATA_LEFT_ASSET_TYPES = new Set<CompoundQuickViewerAssetType>(['kp']);
-const MYBOARD_DATA_RIGHT_ASSET_ORDER: CompoundQuickViewerAssetType[] = ['pdb', 'docking', 'md'];
-const MYBOARD_DATA_RIGHT_ASSET_ORDER_INDEX = new Map(
-  MYBOARD_DATA_RIGHT_ASSET_ORDER.map((assetType, index) => [assetType, index])
+const MYBOARD_DATA_ASSET_ORDER: CompoundQuickViewerAssetType[] = ['kp', 'pdb', 'docking', 'md'];
+const MYBOARD_DATA_ASSET_ORDER_INDEX = new Map(
+  MYBOARD_DATA_ASSET_ORDER.map((assetType, index) => [assetType, index])
 );
 const createFixedGroupColumnStyle = (width: number): React.CSSProperties => ({
   width,
@@ -116,6 +115,83 @@ const MYBOARD_STRUCTURE_IMAGE_SCALE_MAX = 160;
 const MYBOARD_STRUCTURE_IMAGE_SCALE_STEP = 5;
 type SvgIntrinsicSize = { width: number; height: number };
 type MyBoardGroupPinFilter = 'all' | 'pinned';
+type DesignPurposeValue = (string | number)[];
+type DesignExpansionValue = (string | number)[];
+type DesignFormInitialValues = Record<string, unknown>;
+
+const IDEA_COMPOUND_COUNTER_STORAGE_PREFIX = 'my-board:idea-compound-counter';
+const IDEA_COMPOUND_PREFIX = 'LYH';
+const SYNTHESIS_REQUEST_COUNTER_STORAGE_PREFIX = 'my-board:synthesis-request-counter';
+const SYNTHESIS_REQUEST_PREFIX = 'LYH';
+
+const getIdeaYearMonth = () => {
+  const now = new Date();
+  return `${String(now.getFullYear()).slice(-2)}${String(now.getMonth() + 1).padStart(2, '0')}`;
+};
+
+const getIdeaCounterStorageKey = (prefix: string, yearMonth: string) => (
+  `${IDEA_COMPOUND_COUNTER_STORAGE_PREFIX}:${prefix}:${yearMonth}`
+);
+
+const readIdeaCounter = (prefix: string, yearMonth: string) => {
+  if (typeof window === 'undefined') return 0;
+  const value = Number(window.localStorage.getItem(getIdeaCounterStorageKey(prefix, yearMonth)) || '0');
+  return Number.isFinite(value) ? value : 0;
+};
+
+const formatIdeaNumber = (prefix: string, yearMonth: string, sequence: number) => (
+  `${prefix}-${yearMonth}-${String(sequence).padStart(4, '0')}`
+);
+
+const getCurrentYearSuffix = () => (
+  String(new Date().getFullYear()).slice(-2)
+);
+
+const peekNextIdeaNumber = () => {
+  const prefix = IDEA_COMPOUND_PREFIX;
+  const yearMonth = getIdeaYearMonth();
+  return formatIdeaNumber(prefix, yearMonth, readIdeaCounter(prefix, yearMonth) + 1);
+};
+
+const reserveNextIdeaNumber = () => {
+  const prefix = IDEA_COMPOUND_PREFIX;
+  const yearMonth = getIdeaYearMonth();
+  const nextSequence = readIdeaCounter(prefix, yearMonth) + 1;
+  if (typeof window !== 'undefined') {
+    window.localStorage.setItem(getIdeaCounterStorageKey(prefix, yearMonth), String(nextSequence));
+  }
+  return formatIdeaNumber(prefix, yearMonth, nextSequence);
+};
+
+const getSynthesisRequestCounterStorageKey = (prefix: string, year: string) => (
+  `${SYNTHESIS_REQUEST_COUNTER_STORAGE_PREFIX}:${prefix}:${year}`
+);
+
+const readSynthesisRequestCounter = (prefix: string, year: string) => {
+  if (typeof window === 'undefined') return 0;
+  const value = Number(window.localStorage.getItem(getSynthesisRequestCounterStorageKey(prefix, year)) || '0');
+  return Number.isFinite(value) ? value : 0;
+};
+
+const formatSynthesisRequestNumber = (prefix: string, year: string, sequence: number) => (
+  `${prefix}-${year}-${String(sequence).padStart(4, '0')}`
+);
+
+const peekNextSynthesisRequestNumber = () => {
+  const prefix = SYNTHESIS_REQUEST_PREFIX;
+  const year = getCurrentYearSuffix();
+  return formatSynthesisRequestNumber(prefix, year, readSynthesisRequestCounter(prefix, year) + 1);
+};
+
+const reserveNextSynthesisRequestNumber = () => {
+  const prefix = SYNTHESIS_REQUEST_PREFIX;
+  const year = getCurrentYearSuffix();
+  const nextSequence = readSynthesisRequestCounter(prefix, year) + 1;
+  if (typeof window !== 'undefined') {
+    window.localStorage.setItem(getSynthesisRequestCounterStorageKey(prefix, year), String(nextSequence));
+  }
+  return formatSynthesisRequestNumber(prefix, year, nextSequence);
+};
 
 const insertCompoundsAfterGroupTail = (rows: Compound[], compoundsToInsert: Compound[]) => (
   compoundsToInsert.reduce<Compound[]>((currentRows, compound) => {
@@ -377,6 +453,8 @@ const MyBoard: React.FC = () => {
     deleteGroups,
   } = useBoardStore();
   const { currentUser } = useUserStore();
+  const [designForm] = Form.useForm();
+  const [designFormInitialValues, setDesignFormInitialValues] = useState<DesignFormInitialValues>({});
   const [isGroupModalOpen, setIsGroupModalOpen] = useState(false);
   const [isDesignModalOpen, setIsDesignModalOpen] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
@@ -395,6 +473,8 @@ const MyBoard: React.FC = () => {
   const [isSarDataLoading, setIsSarDataLoading] = useState(false);
   const [cdjsInstance, setCdjsInstance] = useState<any>(null);
   const [designSmiles, setDesignSmiles] = useState('');
+  const [selectedDesignPurposes, setSelectedDesignPurposes] = useState<DesignPurposeValue[]>([]);
+  const [selectedDesignExpansions, setSelectedDesignExpansions] = useState<DesignExpansionValue[]>([]);
   const [searchedSvg, setSearchedSvg] = useState<string | null>(null);
   const [structurePreview, setStructurePreview] = useState<{
     title: string;
@@ -414,7 +494,6 @@ const MyBoard: React.FC = () => {
   const [isTreeMiniMapVisible, setIsTreeMiniMapVisible] = useState(true);
   const whiteboardCanvasStateRef = React.useRef<Record<string, unknown> | string | null>(null);
   const [detailCompoundTypeFilter, setDetailCompoundTypeFilter] = useState<'all' | 'design' | 'compound'>('all');
-  const [assignedGroupIds, setAssignedGroupIds] = useState<string[]>([]);
   const [compoundRows, setCompoundRows] = useState<Compound[]>(() => (
     insertCompoundsAfterGroupTail(
       mockCompounds.filter((compound) => !externalCompoundRows.some((external) => external.id === compound.id)),
@@ -686,12 +765,10 @@ const MyBoard: React.FC = () => {
     };
   };
 
-  // Sync selectedGroupIds to local state when modal opens
   React.useEffect(() => {
-    if (isDesignModalOpen) {
-      setAssignedGroupIds(selectedGroupIds);
-    }
-  }, [isDesignModalOpen, selectedGroupIds]);
+    if (!isDesignModalOpen && !isCompoundEditModalOpen) return;
+    designForm.setFieldValue('smiles', designSmiles);
+  }, [designForm, designSmiles, isCompoundEditModalOpen, isDesignModalOpen]);
 
   useEffect(() => {
     setHeaderContent(
@@ -954,17 +1031,13 @@ const MyBoard: React.FC = () => {
   const designColumnKeys = React.useMemo(() => [
     '디자인 번호', '필요량 (mg)', '목적 (개선하고자 하는 assay)', '기대 개선 효과', '의뢰일자', '합성 확장 필요 정도', '의뢰 비고'
   ], []);
-  const synthesisColumnKeys = React.useMemo(() => [
-    '합성 담당자', '합성 스터디 그룹 수락일자', '합성 목표일', '진행사항 비고', '완료 여부', '등록일', '연구노트', '리포트 자료', '합성 종료 이유'
-  ], []);
-  const permissionColumnKeys = currentUser.role === 'design' ? designColumnKeys : synthesisColumnKeys;
   const defaultOrder = React.useMemo(
-    () => [...alwaysColumnKeys, ...permissionColumnKeys],
-    [alwaysColumnKeys, permissionColumnKeys]
+    () => [...alwaysColumnKeys, ...designColumnKeys],
+    [alwaysColumnKeys, designColumnKeys]
   );
   const defaultActive = React.useMemo(
-    () => [...alwaysColumnKeys, ...permissionColumnKeys],
-    [alwaysColumnKeys, permissionColumnKeys]
+    () => [...alwaysColumnKeys, ...designColumnKeys],
+    [alwaysColumnKeys, designColumnKeys]
   );
 
   // COLUMN STATES (Order & Visibility)
@@ -994,7 +1067,7 @@ const MyBoard: React.FC = () => {
     setActiveColumns([...defaultActive]);
     setPresets(nextPresets);
     setActivePreset(1);
-  }, [currentUser.role, defaultOrder, defaultActive]);
+  }, [defaultOrder, defaultActive]);
 
   const handleSavePreset = () => {
     setPresets({
@@ -1026,6 +1099,35 @@ const MyBoard: React.FC = () => {
   const calculationOptions = [
     '3D TPSA QM', 'Solubility QM', 'Solubility DL', 'E-Sol QM',
     'Permeability MD', '특허성', '합성기능성'
+  ];
+  const designPurposeOptions = [
+    {
+      value: '신규 컨셉 탐색',
+      label: '신규 컨셉 탐색',
+      children: ['신규 코어', '포켓 확장', '공유 결합'].map((label) => ({ value: label, label })),
+    },
+    {
+      value: '활성/물성 최적화',
+      label: '활성/물성 최적화',
+      children: ['활성', '선택성', '뇌투과', '용해도', 'PPB', 'MS', 'CYP', 'hERG', 'PK', 'Salt formation/charge'].map((label) => ({ value: label, label })),
+    },
+    {
+      value: '레퍼런스',
+      label: '레퍼런스',
+      children: [{ value: '레퍼런스 이름 입력', label: '레퍼런스 이름 입력' }],
+    },
+    { value: '필요량', label: '필요량' },
+    { value: '특허 대응', label: '특허 대응' },
+  ];
+  const designExpansionOptions = [
+    { value: '컨셉 확인 (5종 이하)', label: '컨셉 확인 (5종 이하)' },
+    { value: '컨셉 확장 (10종 이상)', label: '컨셉 확장 (10종 이상)' },
+    { value: '컨셉 집중 (50종 이상)', label: '컨셉 집중 (50종 이상)' },
+    {
+      value: '기타',
+      label: '기타',
+      children: ['PK', 'in vivo', '재합성', '레퍼런스', '스케일업'].map((label) => ({ value: label, label })),
+    },
   ];
   const [selectedProjects, setSelectedProjects] = useState<string[]>(['ALL', ...projectList]);
   const [selectedShares, setSelectedShares] = useState<string[]>(['ALL', ...shareList]);
@@ -1259,9 +1361,6 @@ const MyBoard: React.FC = () => {
     [compoundRows, selectedDetailCompoundKeys]
   );
   const selectedEditableCompound = selectedDetailCompounds.length === 1 ? selectedDetailCompounds[0] : null;
-  const isSelectedCompoundSynthesized = Boolean(
-    selectedEditableCompound?.isCompleted || selectedEditableCompound?.status === '합성완료'
-  );
 
   React.useEffect(() => {
     const visibleIds = new Set(filteredCompounds.map((compound) => compound.id));
@@ -1527,12 +1626,234 @@ const MyBoard: React.FC = () => {
   const canDeleteCompound = hasSelectedDetailCompounds;
   const canEditCompound = selectedDetailCompoundIds.length === 1;
   const canHideCompound = hasSelectedDetailCompounds;
+  const selectedDesignGroups = React.useMemo(
+    () => groups.filter((group) => selectedGroupIds.includes(group.id)),
+    [groups, selectedGroupIds]
+  );
+  const selectedDesignTargetText = React.useMemo(() => {
+    const targets = Array.from(new Set(selectedDesignGroups.map((group) => group.target).filter((target) => target && target !== '-')));
+    return targets.length > 0 ? targets.join(', ') : '-';
+  }, [selectedDesignGroups]);
+  const selectedDesignGroupText = React.useMemo(
+    () => selectedDesignGroups.map((group) => group.name).join(', '),
+    [selectedDesignGroups]
+  );
+  const isDesignReferencePurposeSelected = React.useMemo(
+    () => selectedDesignPurposes.some((path) => path.includes('레퍼런스')),
+    [selectedDesignPurposes]
+  );
+  const expandDesignPurposeParentPath = React.useCallback((path: DesignPurposeValue): DesignPurposeValue[] => {
+    if (path.length !== 1) return [path];
+    const parentOption = designPurposeOptions.find((option) => option.value === path[0]);
+    return parentOption?.children?.length
+      ? parentOption.children.map((child) => [path[0], child.value])
+      : [path];
+  }, [designPurposeOptions]);
+  const handleDesignPurposeChange = React.useCallback((value: DesignPurposeValue[]) => {
+    const nextPaths = value.filter((path) => path.length > 0);
+    if (nextPaths.length <= 1) {
+      setSelectedDesignPurposes(nextPaths.flatMap(expandDesignPurposeParentPath));
+      return;
+    }
+
+    const pathKey = (path: DesignPurposeValue) => path.join('>');
+    const previousKeys = new Set(selectedDesignPurposes.map(pathKey));
+    const addedPath = nextPaths.find((path) => !previousKeys.has(pathKey(path)));
+    const activeRoot = String((addedPath ?? nextPaths[0])[0]);
+    const sameRootPaths = nextPaths.filter((path) => String(path[0]) === activeRoot);
+    const normalizedPaths = sameRootPaths.some((path) => path.length === 1)
+      ? expandDesignPurposeParentPath(sameRootPaths.find((path) => path.length === 1) ?? sameRootPaths[sameRootPaths.length - 1])
+      : sameRootPaths;
+
+    setSelectedDesignPurposes(normalizedPaths);
+  }, [expandDesignPurposeParentPath, selectedDesignPurposes]);
+  const handleDesignExpansionChange = React.useCallback((value: DesignExpansionValue[]) => {
+    const nextPaths = value.filter((path) => path.length > 0);
+    if (nextPaths.length <= 1) {
+      setSelectedDesignExpansions(nextPaths);
+      return;
+    }
+
+    const pathKey = (path: DesignExpansionValue) => path.join('>');
+    const previousKeys = new Set(selectedDesignExpansions.map(pathKey));
+    const addedPath = nextPaths.find((path) => !previousKeys.has(pathKey(path)));
+    if (addedPath && String(addedPath[0]) !== '기타') {
+      setSelectedDesignExpansions([addedPath]);
+      return;
+    }
+
+    const otherPaths = nextPaths.filter((path) => String(path[0]) === '기타' && path.length > 1);
+    setSelectedDesignExpansions(otherPaths.length > 0 ? otherPaths : [nextPaths[nextPaths.length - 1]]);
+  }, [selectedDesignExpansions]);
 
   const getCompoundActionButtonStyle = React.useCallback((enabled: boolean): React.CSSProperties => ({
     background: enabled ? token.colorPrimary : token.colorBgLayout,
     borderColor: enabled ? token.colorPrimary : token.colorBorderSecondary,
     color: enabled ? token.colorBgContainer : token.colorTextTertiary,
   }), [token]);
+
+  const resetDesignModalState = React.useCallback(() => {
+    setDesignFormInitialValues({});
+    setDesignSmiles('');
+    setSelectedCalculations([]);
+    setSelectedDesignPurposes([]);
+    setSelectedDesignExpansions([]);
+    setCdjsInstance(null);
+  }, []);
+
+  const handleOpenDesignModal = React.useCallback(() => {
+    if (!canAddCompound) return;
+    const nextIdeaNumber = peekNextIdeaNumber();
+    const nextSynthesisRequestNumber = peekNextSynthesisRequestNumber();
+    resetDesignModalState();
+    setIsCompoundEditModalOpen(false);
+    setDesignFormInitialValues({
+      target: selectedDesignTargetText,
+      group: selectedDesignGroupText,
+      ideaNumber: nextIdeaNumber,
+      synthesisRequestNo: nextSynthesisRequestNumber,
+      requiredAmountMg: 10,
+    });
+    setIsDesignModalOpen(true);
+  }, [canAddCompound, resetDesignModalState, selectedDesignGroupText, selectedDesignTargetText]);
+
+  const handleCloseDesignModal = React.useCallback(() => {
+    setIsDesignModalOpen(false);
+    setIsCompoundEditModalOpen(false);
+    resetDesignModalState();
+  }, [resetDesignModalState]);
+
+  const parseCascaderText = React.useCallback((value?: string) => (
+    String(value || '')
+      .split(',')
+      .map((item) => item.trim())
+      .filter((item) => item && item !== '-')
+      .filter((item) => !item.startsWith('레퍼런스:'))
+      .map((item) => item.split(' > ').map((part) => part.trim()).filter(Boolean))
+      .filter((path) => path.length > 0)
+  ), []);
+
+  const getCascaderLeafLabel = React.useCallback((path: (string | number)[]) => (
+    String(path[path.length - 1] ?? '')
+  ), []);
+
+  const getDesignPurposeText = React.useCallback((referenceName?: string) => [
+    ...(selectedDesignPurposes.length > 0 ? selectedDesignPurposes.map(getCascaderLeafLabel).filter(Boolean) : []),
+    referenceName ? `레퍼런스: ${referenceName}` : '',
+  ].filter(Boolean).join(', '), [getCascaderLeafLabel, selectedDesignPurposes]);
+
+  const handleRegisterDesignIdea = React.useCallback(async () => {
+    if (!selectedGroupIds[0]) return;
+    await cdjsInstance?.__flushPendingInput?.();
+    const values = await designForm.validateFields();
+    const ideaNumber = reserveNextIdeaNumber();
+    const reservedSynthesisRequestNumber = reserveNextSynthesisRequestNumber();
+    const synthesisRequestNumber = String(values.synthesisRequestNo || '').trim() || reservedSynthesisRequestNumber;
+    const targetGroupId = selectedGroupIds[0];
+    const targetGroup = groups.find((group) => group.id === targetGroupId);
+    const timestamp = Date.now();
+    const purposeText = getDesignPurposeText(values.referenceName);
+    const expansionText = selectedDesignExpansions.map((path) => path.join(' > ')).join(', ');
+    const newCompound: Compound = {
+      id: `idea-${targetGroupId}-${ideaNumber}-${timestamp}`,
+      groupId: targetGroupId,
+      compoundId: '',
+      name: ideaNumber,
+      source: values.source || 'Manual',
+      smiles: designSmiles.trim(),
+      creDate: formatDisplayDate(new Date().toISOString()),
+      manager: currentUser?.name ?? '문태훈',
+      status: '디자인',
+      project: targetGroup?.target && targetGroup.target !== '-' ? targetGroup.target : 'Unassigned',
+      shareStatus: '내 물질',
+      designSource: values.source || '-',
+      properties1: [50, 50, 50, 50],
+      properties2: [50, 50, 50, 50],
+      requiredCalcs: selectedCalculations,
+      designNo: ideaNumber,
+      designMemo: values.designMemo || '-',
+      requiredAmountMg: Number(values.requiredAmountMg) || 0,
+      assayPurpose: purposeText || '-',
+      expectedEffect: values.expectedEffect || '-',
+      requestDate: formatDisplayDate(new Date().toISOString()),
+      synthesisExpansionLevel: expansionText || '-',
+      requestMemo: values.requestMemo || '-',
+      synthesisOwner: currentUser?.name ?? '문태훈',
+      synthesisAcceptedDate: '-',
+      synthesisTargetDate: '-',
+      progressMemo: synthesisRequestNumber,
+      isCompleted: false,
+      registeredDate: formatDisplayDate(new Date().toISOString()),
+      researchNote: '-',
+      reportData: '-',
+      synthesisEndReason: '-',
+      experimentStage: 1,
+      quickViewerAssets: [],
+    };
+
+    setCompoundRows((prev) => insertCompoundsAfterGroupTail(prev, [newCompound]));
+    setSelectedDetailCompoundIds([newCompound.id]);
+    detailSelectionAnchorRef.current = newCompound.id;
+    setIsDesignModalOpen(false);
+    resetDesignModalState();
+  }, [
+    cdjsInstance,
+    currentUser?.name,
+    designForm,
+    designSmiles,
+    getDesignPurposeText,
+    groups,
+    resetDesignModalState,
+    selectedCalculations,
+    selectedDesignExpansions,
+    selectedGroupIds,
+  ]);
+
+  const handleUpdateDesignIdea = React.useCallback(async () => {
+    if (!selectedEditableCompound) return;
+    await cdjsInstance?.__flushPendingInput?.();
+    const values = await designForm.validateFields();
+    const purposeText = getDesignPurposeText(values.referenceName);
+    const expansionText = selectedDesignExpansions.map((path) => path.join(' > ')).join(', ');
+    const nextSource = values.source || '-';
+    const updateCompound = (compound: Compound): Compound => (
+      compound.id === selectedEditableCompound.id
+        ? {
+          ...compound,
+          source: nextSource,
+          smiles: designSmiles.trim(),
+          designSource: nextSource,
+          requiredCalcs: selectedCalculations,
+          designNo: values.ideaNumber || compound.designNo,
+          name: values.ideaNumber || compound.name,
+          designMemo: values.designMemo || '-',
+          requiredAmountMg: Number(values.requiredAmountMg) || 0,
+          assayPurpose: purposeText || '-',
+          expectedEffect: values.expectedEffect || '-',
+          synthesisExpansionLevel: expansionText || '-',
+          requestMemo: values.requestMemo || '-',
+          progressMemo: values.synthesisRequestNo || '-',
+        }
+        : compound
+    );
+
+    setCompoundRows((prev) => prev.map(updateCompound));
+    setExternalCompoundRows(externalCompoundRows.map(updateCompound));
+    setIsDesignModalOpen(false);
+    setIsCompoundEditModalOpen(false);
+    resetDesignModalState();
+  }, [
+    cdjsInstance,
+    designForm,
+    designSmiles,
+    externalCompoundRows,
+    getDesignPurposeText,
+    resetDesignModalState,
+    selectedCalculations,
+    selectedDesignExpansions,
+    selectedEditableCompound,
+    setExternalCompoundRows,
+  ]);
 
   const openCompoundGroupSelectModal = React.useCallback((action: 'move' | 'copy') => {
     if (!hasSelectedDetailCompounds) return;
@@ -1611,22 +1932,22 @@ const MyBoard: React.FC = () => {
         status: '디자인',
         project: targetGroup?.target && targetGroup.target !== '-' ? targetGroup.target : 'Unassigned',
         shareStatus: '내 물질',
-        designSource: 'Quick add',
+        designSource: '',
         properties1: [50, 50, 50, 50],
         properties2: [50, 50, 50, 50],
         requiredCalcs: [],
         designNo: `D-${resolvedCompoundCode}`,
-        designMemo: 'Quick add로 등록된 내부 화합물 코드',
+        designMemo: '',
         requiredAmountMg: 10,
-        assayPurpose: '내부 화합물 코드 기반 quick add',
+        assayPurpose: '',
         expectedEffect: '-',
         requestDate: formatDisplayDate(new Date().toISOString()),
-        synthesisExpansionLevel: '하',
+        synthesisExpansionLevel: '',
         requestMemo: '-',
         synthesisOwner: currentUser?.name ?? '문태훈',
         synthesisAcceptedDate: '-',
         synthesisTargetDate: '-',
-        progressMemo: 'quick add',
+        progressMemo: '',
         isCompleted: false,
         registeredDate: formatDisplayDate(new Date().toISOString()),
         researchNote: '-',
@@ -1710,10 +2031,33 @@ const MyBoard: React.FC = () => {
   ]);
 
   const handleOpenCompoundEdit = React.useCallback(() => {
-    if (!canEditCompound) return;
+    if (!canEditCompound || !selectedEditableCompound) return;
+    const targetGroup = groups.find((group) => group.id === selectedEditableCompound.groupId);
+    const referenceName = String(selectedEditableCompound.assayPurpose || '').match(/레퍼런스:\s*([^,]+)/)?.[1]?.trim();
+    const purposePaths = parseCascaderText(selectedEditableCompound.assayPurpose);
+
+    resetDesignModalState();
+    setDesignSmiles(selectedEditableCompound.smiles || '');
+    setSelectedCalculations(selectedEditableCompound.requiredCalcs ?? []);
+    setSelectedDesignPurposes(referenceName ? [...purposePaths, ['레퍼런스', '레퍼런스 이름 입력']] : purposePaths);
+    setSelectedDesignExpansions(parseCascaderText(selectedEditableCompound.synthesisExpansionLevel));
+    setDesignFormInitialValues({
+      target: targetGroup?.target && targetGroup.target !== '-' ? targetGroup.target : '-',
+      group: targetGroup?.name || '-',
+      ideaNumber: selectedEditableCompound.designNo || selectedEditableCompound.name || selectedEditableCompound.compoundId,
+      smiles: selectedEditableCompound.smiles || '',
+      designMemo: selectedEditableCompound.designMemo === '-' ? '' : selectedEditableCompound.designMemo,
+      synthesisRequestNo: selectedEditableCompound.progressMemo === '-' ? '' : selectedEditableCompound.progressMemo,
+      requiredAmountMg: selectedEditableCompound.requiredAmountMg ?? 0,
+      expectedEffect: selectedEditableCompound.expectedEffect === '-' ? '' : selectedEditableCompound.expectedEffect,
+      referenceName,
+      requestMemo: selectedEditableCompound.requestMemo === '-' ? '' : selectedEditableCompound.requestMemo,
+      source: selectedEditableCompound.designSource || selectedEditableCompound.source,
+    });
+    setIsDesignModalOpen(false);
     setIsCompoundEditModalOpen(true);
     setCompoundContextMenu(null);
-  }, [canEditCompound]);
+  }, [canEditCompound, groups, parseCascaderText, resetDesignModalState, selectedEditableCompound]);
 
   const handleGroupRowSelection = React.useCallback((groupId: string, event: React.MouseEvent) => {
     setDetailPagination((prev) => (
@@ -2015,7 +2359,7 @@ const MyBoard: React.FC = () => {
       title: '데이터',
       dataIndex: 'quickViewerAssets',
       key: 'quickViewerAssets',
-      width: 108,
+      width: 88,
       align: 'center' as const,
       render: (_: unknown, record: Compound) => {
         const assets = record.quickViewerAssets ?? [];
@@ -2024,14 +2368,11 @@ const MyBoard: React.FC = () => {
           return <Text type="secondary">-</Text>;
         }
 
-        const leftAssets = assets.filter(asset => MYBOARD_DATA_LEFT_ASSET_TYPES.has(asset.type));
-        const rightAssets = assets
-          .filter(asset => !MYBOARD_DATA_LEFT_ASSET_TYPES.has(asset.type))
+        const orderedAssets = [...assets]
           .sort((first, second) => (
-            (MYBOARD_DATA_RIGHT_ASSET_ORDER_INDEX.get(first.type) ?? Number.MAX_SAFE_INTEGER)
-            - (MYBOARD_DATA_RIGHT_ASSET_ORDER_INDEX.get(second.type) ?? Number.MAX_SAFE_INTEGER)
+            (MYBOARD_DATA_ASSET_ORDER_INDEX.get(first.type) ?? Number.MAX_SAFE_INTEGER)
+            - (MYBOARD_DATA_ASSET_ORDER_INDEX.get(second.type) ?? Number.MAX_SAFE_INTEGER)
           ));
-        const hasBothSides = leftAssets.length > 0 && rightAssets.length > 0;
         const renderAssetButton = (asset: NonNullable<Compound['quickViewerAssets']>[number]) => (
           <button
             key={asset.type}
@@ -2050,17 +2391,8 @@ const MyBoard: React.FC = () => {
         );
 
         return (
-          <div className={`my-board-data-tags ${hasBothSides ? 'my-board-data-tags-split' : 'my-board-data-tags-centered'}`}>
-            {leftAssets.length > 0 && (
-              <div className="my-board-data-tag-group my-board-data-tag-group-left">
-                {leftAssets.map(renderAssetButton)}
-              </div>
-            )}
-            {rightAssets.length > 0 && (
-              <div className="my-board-data-tag-group my-board-data-tag-group-right">
-                {rightAssets.map(renderAssetButton)}
-              </div>
-            )}
+          <div className="my-board-data-tags">
+            {orderedAssets.map(renderAssetButton)}
           </div>
         );
       },
@@ -2166,6 +2498,25 @@ const MyBoard: React.FC = () => {
     }))
   ), [responsiveTextColumnWidth]);
 
+  const shouldCenterDetailColumn = React.useCallback((column: any) => (
+    !MYBOARD_MULTILINE_TEXT_COLUMN_KEYS.has(column.key)
+  ), []);
+
+  const withMyBoardDetailHeaderCell = React.useCallback((columns: any[]) => (
+    withMyBoardHeaderCell(columns).map((column) => {
+      const shouldCenter = shouldCenterDetailColumn(column);
+
+      return {
+        ...column,
+        align: shouldCenter ? 'center' as const : column.align,
+        className: [
+          column.className,
+          shouldCenter ? 'table-center-column' : undefined,
+        ].filter(Boolean).join(' ') || undefined,
+      };
+    })
+  ), [shouldCenterDetailColumn, withMyBoardHeaderCell]);
+
   const styledGroupColumns = React.useMemo(() => withMyBoardHeaderCell(groupColumns), [groupColumns, withMyBoardHeaderCell]);
   const styledStructureOnlyGroupColumns = React.useMemo(() => withMyBoardHeaderCell(structureOnlyGroupColumns), [structureOnlyGroupColumns, withMyBoardHeaderCell]);
 
@@ -2174,8 +2525,8 @@ const MyBoard: React.FC = () => {
     .map(key => allColumnsMap[key])
     .filter(Boolean);
   const styledDynamicCompoundColumns = React.useMemo(
-    () => withMyBoardHeaderCell(dynamicCompoundColumns),
-    [dynamicCompoundColumns, withMyBoardHeaderCell]
+    () => withMyBoardDetailHeaderCell(dynamicCompoundColumns),
+    [dynamicCompoundColumns, withMyBoardDetailHeaderCell]
   );
   const getTableScrollWidth = React.useCallback((columns: any[]) => (
     columns.reduce((sum, column) => {
@@ -2850,6 +3201,12 @@ const MyBoard: React.FC = () => {
               scroll={groupTableScroll}
               tableLayout="fixed"
               onRow={(record) => ({
+                onMouseDown: (event) => {
+                  if (!event.shiftKey) return;
+                  const target = event.target as HTMLElement;
+                  if (target.closest('button, a, input, textarea, .ant-checkbox-wrapper, .ant-select, .ant-dropdown')) return;
+                  event.preventDefault();
+                },
                 onClick: (event) => {
                   setIsLoading(true);
                   handleGroupRowSelection(record.id, event);
@@ -2945,7 +3302,7 @@ const MyBoard: React.FC = () => {
                     icon={<Plus size={14} />}
                     disabled={!canAddCompound}
                     style={getCompoundActionButtonStyle(canAddCompound)}
-                    onClick={() => setIsDesignModalOpen(true)}
+                    onClick={handleOpenDesignModal}
                   >
                     Add
                   </Button>
@@ -3144,6 +3501,12 @@ const MyBoard: React.FC = () => {
                   scroll={{ x: detailTableScrollX, y: detailTableScrollY }}
                   tableLayout="fixed"
                   onRow={(record) => ({
+                    onMouseDown: (event) => {
+                      if (!event.shiftKey) return;
+                      const target = event.target as HTMLElement;
+                      if (target.closest('button, a, input, textarea, .ant-checkbox-wrapper, .ant-select, .ant-dropdown')) return;
+                      event.preventDefault();
+                    },
                     onClick: (event) => {
                       const target = event.target as HTMLElement;
                       if (target.closest('button, a, input, textarea, .ant-checkbox-wrapper, .ant-select, .ant-dropdown')) return;
@@ -3304,67 +3667,6 @@ const MyBoard: React.FC = () => {
       </Modal>
 
       <Modal
-        title="화합물 수정"
-        open={isCompoundEditModalOpen}
-        okText="저장"
-        cancelText="취소"
-        onCancel={() => setIsCompoundEditModalOpen(false)}
-        onOk={() => setIsCompoundEditModalOpen(false)}
-        width={760}
-        destroyOnHidden
-      >
-        {selectedEditableCompound ? (
-          <Form layout="vertical" style={{ marginTop: 16 }}>
-            <Row gutter={16}>
-              <Col span={12}>
-                <Form.Item label="물질 번호">
-                  <Input defaultValue={selectedEditableCompound.compoundId} />
-                </Form.Item>
-              </Col>
-              <Col span={12}>
-                <Form.Item label="단계">
-                  <Input defaultValue={selectedEditableCompound.experimentStage} />
-                </Form.Item>
-              </Col>
-              <Col span={24}>
-                <Form.Item label="구조">
-                  <Input.TextArea
-                    rows={3}
-                    defaultValue={selectedEditableCompound.smiles}
-                    disabled={isSelectedCompoundSynthesized}
-                    placeholder={isSelectedCompoundSynthesized ? '합성 후 화합물은 구조를 수정할 수 없습니다.' : 'SMILES 또는 구조 정보를 입력하세요.'}
-                  />
-                </Form.Item>
-              </Col>
-              <Col span={12}>
-                <Form.Item label="계산값">
-                  <Input value="계산값은 수정할 수 없습니다." disabled />
-                </Form.Item>
-              </Col>
-              <Col span={12}>
-                <Form.Item label="실험값">
-                  <Input
-                    value={isSelectedCompoundSynthesized ? '합성 후 화합물은 실험값을 수정할 수 없습니다.' : '실험값은 수정할 수 없습니다.'}
-                    disabled
-                  />
-                </Form.Item>
-              </Col>
-              <Col span={24}>
-                <Form.Item label="세부 정보">
-                  <Input.TextArea rows={3} defaultValue={selectedEditableCompound.designMemo} />
-                </Form.Item>
-              </Col>
-            </Row>
-            <Text type="secondary" style={{ fontSize: 11 }}>
-              {isSelectedCompoundSynthesized
-                ? '합성 후 화합물은 세부 정보만 수정할 수 있습니다.'
-                : '합성 전 화합물은 구조와 세부 정보를 수정할 수 있으며 계산값은 수정할 수 없습니다.'}
-            </Text>
-          </Form>
-        ) : null}
-      </Modal>
-
-      <Modal
         title="Quick add"
         open={isQuickAddModalOpen}
         onCancel={() => {
@@ -3441,17 +3743,11 @@ const MyBoard: React.FC = () => {
 
       {/* Create Design Modal */}
       <Modal
-        title="디자인 등록 (Create Design)"
-        open={isDesignModalOpen}
-        onCancel={() => {
-          setIsDesignModalOpen(false);
-          setCdjsInstance(null);
-        }}
-        onOk={async () => {
-          await cdjsInstance?.__flushPendingInput?.();
-          setIsDesignModalOpen(false);
-          setCdjsInstance(null);
-        }}
+        className="idea-compound-modal"
+        title={isCompoundEditModalOpen ? '아이디어 화합물 수정' : '아이디어 화합물 등록'}
+        open={isDesignModalOpen || isCompoundEditModalOpen}
+        onCancel={handleCloseDesignModal}
+        onOk={isCompoundEditModalOpen ? handleUpdateDesignIdea : handleRegisterDesignIdea}
         okButtonProps={{
           disabled: !cdjsInstance,
           onMouseDown: (event: React.MouseEvent<HTMLElement>) => {
@@ -3459,55 +3755,41 @@ const MyBoard: React.FC = () => {
             void cdjsInstance?.__flushPendingInput?.();
           },
         }}
-        okText="등록"
+        okText={isCompoundEditModalOpen ? '수정' : '등록'}
         cancelText="취소"
-        width={1200}
-        style={{ top: 40 }}
+        width="min(1440px, calc(100vw - 24px))"
+        style={{ top: 18 }}
+        styles={{ body: { maxHeight: 'calc(100vh - 132px)', overflowX: 'hidden', overflowY: 'auto', paddingTop: 12 } }}
         destroyOnHidden
       >
-        <Form layout="vertical" style={{ marginTop: 16 }}>
-          <Row gutter={24}>
+        <Form
+          form={designForm}
+          layout="vertical"
+          className="idea-compound-form"
+          initialValues={designFormInitialValues}
+        >
+          <Row gutter={[32, 10]}>
             <Col span={8}>
-              <Form.Item label="Group" tooltip="선택된 그룹이 자동 지정됩니다.">
-                <Select
-                  mode="multiple"
-                  placeholder="그룹 선택"
-                  value={assignedGroupIds}
-                  onChange={(ids) => {
-                    setAssignedGroupIds(ids);
-                  }}
-                >
-                  {groups.map(g => <Option key={g.id} value={g.id}>{g.name}</Option>)}
-                </Select>
+              <Form.Item name="target" label="타겟" className="idea-inline-form-item">
+                <Input disabled />
               </Form.Item>
             </Col>
             <Col span={8}>
-              <Form.Item label="Source" required rules={[{ required: true, message: '출처를 선택하거나 입력해주세요' }]}>
-                <Select placeholder="출처 선택" showSearch allowClear>
-                  {sourceList.map(s => <Option key={s} value={s}>{s}</Option>)}
-                </Select>
+              <Form.Item name="group" label="그룹" className="idea-inline-form-item">
+                <Input disabled />
               </Form.Item>
             </Col>
             <Col span={8}>
-              <Form.Item label="Name" required rules={[{ required: true, message: '이름을 입력해주세요' }]}>
-                <Input placeholder="디자인 이름을 입력하세요 (예: VNA-12345)" />
+              <Form.Item name="ideaNumber" label="아이디어 번호" className="idea-inline-form-item">
+                <Input disabled />
               </Form.Item>
             </Col>
+
             <Col span={24}>
-              <Form.Item label="SMILES" required rules={[{ required: true, message: 'SMILES 상식을 입력해주세요' }]}>
-                <Input.TextArea
-                  rows={2}
-                  placeholder="SMILES 문자열을 입력하세요"
-                  value={designSmiles}
-                  onChange={(e) => setDesignSmiles(e.target.value)}
-                />
-              </Form.Item>
-            </Col>
-            <Col span={24}>
-              <Form.Item label="Draw (Structure)" required style={{ marginBottom: 0, marginTop: 4 }}>
+              <Form.Item label="화합물 구조" required className="idea-structure-form-item">
                 <ChemDrawEditor
-                  active={isDesignModalOpen}
-                  height={420}
+                  active={isDesignModalOpen || isCompoundEditModalOpen}
+                  height={300}
                   flipControlsPlacement="left"
                   smilesValue={designSmiles}
                   onSmilesChange={setDesignSmiles}
@@ -3515,80 +3797,147 @@ const MyBoard: React.FC = () => {
                 />
               </Form.Item>
             </Col>
-          </Row>
 
-          <Divider style={{ margin: '24px 0 16px 0' }} />
-
-          <Form.Item
-            label={(
-              <Space size={8}>
-                <Text strong><Activity size={14} style={{ marginRight: 6 }} />Calculations (다중 선택)</Text>
-                <ToggleTag
-                  checked={areAllCalculationsSelected}
-                  onChange={(checked) => {
-                    setSelectedCalculations(checked ? [...calculationOptions] : []);
+            <Col span={24}>
+              <Form.Item
+                name="smiles"
+                required
+                rules={[{ required: true, message: 'SMILES 또는 구조 정보를 입력해주세요' }]}
+                style={{ marginBottom: 8 }}
+              >
+                <Input.TextArea
+                  rows={1}
+                  placeholder="SMILES"
+                  value={designSmiles}
+                  onChange={(event) => {
+                    setDesignSmiles(event.target.value);
+                    designForm.setFieldValue('smiles', event.target.value);
                   }}
-                  style={{ minHeight: 24, padding: '2px 10px', fontSize: 10, marginInlineEnd: 0 }}
-                >
-                  All
-                </ToggleTag>
-              </Space>
-            )}
-          >
-            <div
-              style={{
-                width: '100%',
-                boxSizing: 'border-box',
-                background: token.colorBgLayout,
-                padding: 16,
-                borderRadius: 8,
-                overflow: 'hidden',
-              }}
-            >
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 8 }}>
-                {calculationOptions.map(item => (
-                  <ToggleTag
-                    key={item}
-                    checked={selectedCalculations.includes(item)}
-                    onChange={(checked) => {
-                      setSelectedCalculations((prev) => (
-                        checked ? [...prev, item] : prev.filter(value => value !== item)
-                      ));
-                    }}
-                    style={{
-                      width: '100%',
-                      minHeight: 30,
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      textAlign: 'center',
-                      whiteSpace: 'normal',
-                      lineHeight: 1.25,
-                    }}
+                />
+              </Form.Item>
+            </Col>
+
+            <Col span={24}>
+              <Form.Item name="designMemo" label="디자인 비고" className="idea-inline-form-item">
+                <Input placeholder="디자인 의도나 참고 사항을 입력하세요" />
+              </Form.Item>
+            </Col>
+
+            <Col span={8}>
+              <Form.Item name="synthesisRequestNo" label="합성 의뢰 번호" className="idea-inline-form-item">
+                <Input placeholder="LYH-26-0001" />
+              </Form.Item>
+            </Col>
+            <Col span={8}>
+              <Form.Item name="requiredAmountMg" label="필요량(mg)" className="idea-inline-form-item">
+                <InputNumber
+                  className="patent-insight-filter-number-input"
+                  min={0}
+                  step={1}
+                  placeholder="10"
+                  style={{ width: '100%' }}
+                />
+              </Form.Item>
+            </Col>
+            <Col span={8}>
+              <Form.Item name="expectedEffect" label="기대 개선 효과" className="idea-inline-form-item">
+                <Input placeholder="기대 개선 효과" />
+              </Form.Item>
+            </Col>
+
+            <Col span={8}>
+              <Form.Item label="합성 목적" className="idea-inline-form-item">
+                <Cascader
+                  multiple
+                  maxTagCount="responsive"
+                  options={designPurposeOptions}
+                  classNames={{ popup: { root: 'idea-compound-popup-scroll' } }}
+                  value={selectedDesignPurposes}
+                  onChange={(value) => handleDesignPurposeChange(value as DesignPurposeValue[])}
+                  displayRender={(labels) => labels[labels.length - 1]}
+                  placeholder="합성 목적 선택"
+                />
+                {isDesignReferencePurposeSelected ? (
+                  <Form.Item name="referenceName" style={{ margin: '6px 0 0' }}>
+                    <Input placeholder="레퍼런스 이름" />
+                  </Form.Item>
+                ) : null}
+              </Form.Item>
+            </Col>
+            <Col span={8}>
+              <Form.Item label="합성 확장필요 정도" className="idea-inline-form-item">
+                <Cascader
+                  multiple
+                  maxTagCount="responsive"
+                  options={designExpansionOptions}
+                  classNames={{ popup: { root: 'idea-compound-popup-scroll' } }}
+                  value={selectedDesignExpansions}
+                  onChange={(value) => handleDesignExpansionChange(value as DesignExpansionValue[])}
+                  placeholder="확장 필요 정도 선택"
+                />
+              </Form.Item>
+            </Col>
+            <Col span={8}>
+              <Form.Item name="requestMemo" label="합성 의뢰 비고" className="idea-inline-form-item">
+                <Input placeholder="합성 의뢰 비고" />
+              </Form.Item>
+            </Col>
+
+            <Col span={8}>
+              <div className="idea-source-stack">
+                <Form.Item name="source" label="출처" className="idea-inline-form-item">
+                  <Select
+                    classNames={{ popup: { root: 'idea-compound-popup-scroll' } }}
+                    placeholder="출처 선택"
+                    showSearch
+                    allowClear
                   >
-                    {item}
-                  </ToggleTag>
-                ))}
+                    {sourceList.map(s => <Option key={s} value={s}>{s}</Option>)}
+                  </Select>
+                </Form.Item>
+                <Form.Item label="첨부파일" className="idea-inline-form-item idea-attachment-form-item">
+                  <Upload multiple showUploadList={true} beforeUpload={() => false}>
+                    <Button icon={<UploadIcon size={14} />}>파일 첨부</Button>
+                  </Upload>
+                </Form.Item>
               </div>
-            </div>
-            <Text type="secondary" style={{ fontSize: '11px', marginTop: 8, display: 'block' }}>
-              * 체크된 항목은 API를 통해 계산 결과가 리포트에 포함됩니다.
-            </Text>
-          </Form.Item>
-
-          <Form.Item label="Memo (Notes)">
-            <Input.TextArea rows={2} placeholder="디자인 의도나 참고 사항을 입력하세요" />
-          </Form.Item>
-
-          <Form.Item label="Attachment (첨부파일)">
-            <Upload.Dragger multiple showUploadList={true} beforeUpload={() => false}>
-              <p className="ant-upload-drag-icon" style={{ color: token.colorPrimary }}>
-                <UploadIcon size={32} />
-              </p>
-              <p className="ant-upload-text">파일을 클릭하거나 이 영역으로 드래그하여 업로드하세요</p>
-              <p className="ant-upload-hint">실험 데이터, 문서 또는 관련 이미지 등 디자인을 보충할 파일을 첨부할 수 있습니다.</p>
-            </Upload.Dragger>
-          </Form.Item>
+            </Col>
+            <Col span={16}>
+              <Form.Item
+                label={(
+                  <div className="idea-calculation-label">
+                    <Text strong style={{ fontSize: 12 }}><Activity size={13} style={{ marginRight: 4 }} />Calculations</Text>
+                    <ToggleTag
+                      checked={areAllCalculationsSelected}
+                      onChange={(checked) => {
+                        setSelectedCalculations(checked ? [...calculationOptions] : []);
+                      }}
+                      style={{ minHeight: 22, padding: '1px 8px', fontSize: 10, marginInlineEnd: 0 }}
+                    >
+                      All
+                    </ToggleTag>
+                  </div>
+                )}
+                className="idea-calculation-form-item"
+              >
+                <div className="idea-calculation-grid">
+                  {calculationOptions.map(item => (
+                    <ToggleTag
+                      key={item}
+                      checked={selectedCalculations.includes(item)}
+                      onChange={(checked) => {
+                        setSelectedCalculations((prev) => (
+                          checked ? [...prev, item] : prev.filter(value => value !== item)
+                        ));
+                      }}
+                    >
+                      {item}
+                    </ToggleTag>
+                  ))}
+                </div>
+              </Form.Item>
+            </Col>
+          </Row>
         </Form>
       </Modal>
 
@@ -3701,6 +4050,205 @@ const MyBoard: React.FC = () => {
         className="my-board-structure-preview"
       />
       <style>{`
+        .idea-compound-form .ant-form-item {
+          margin-bottom: 8px;
+        }
+        .idea-inline-form-item,
+        .idea-structure-form-item,
+        .idea-calculation-form-item {
+          display: block;
+        }
+        .idea-inline-form-item .ant-form-item-row,
+        .idea-structure-form-item .ant-form-item-row,
+        .idea-calculation-form-item .ant-form-item-row {
+          display: grid !important;
+          grid-template-columns: 104px minmax(0, 1fr);
+          column-gap: 4px;
+        }
+        .idea-inline-form-item .ant-form-item-row {
+          align-items: center;
+        }
+        .idea-structure-form-item .ant-form-item-row,
+        .idea-calculation-form-item .ant-form-item-row {
+          align-items: start;
+        }
+        .idea-inline-form-item .ant-form-item-label,
+        .idea-structure-form-item .ant-form-item-label,
+        .idea-calculation-form-item .ant-form-item-label {
+          grid-column: 1;
+          max-width: none !important;
+          flex: none !important;
+          padding: 0;
+          text-align: right;
+          white-space: nowrap;
+        }
+        .idea-inline-form-item .ant-form-item-label > label,
+        .idea-structure-form-item .ant-form-item-label > label,
+        .idea-calculation-form-item .ant-form-item-label > label {
+          height: 28px;
+          color: ${token.colorTextSecondary};
+          font-size: 12px;
+          font-weight: 700;
+        }
+        .idea-structure-form-item .ant-form-item-label > label,
+        .idea-calculation-form-item .ant-form-item-label > label {
+          padding-top: 4px;
+        }
+        .idea-calculation-form-item .ant-form-item-label > label {
+          height: auto;
+          align-items: flex-start;
+          justify-content: flex-end;
+        }
+        .idea-calculation-label {
+          display: inline-flex;
+          flex-direction: column;
+          align-items: flex-end;
+          gap: 4px;
+          line-height: 1.2;
+        }
+        .idea-structure-form-item .ant-form-item-row {
+          display: block !important;
+        }
+        .idea-structure-form-item .ant-form-item-label {
+          display: block;
+          text-align: left;
+          margin-bottom: 4px;
+        }
+        .idea-structure-form-item .ant-form-item-label > label {
+          height: 22px;
+          padding-top: 0;
+        }
+        .idea-structure-form-item .ant-form-item-control {
+          display: block;
+        }
+        .idea-inline-form-item .ant-form-item-control,
+        .idea-structure-form-item .ant-form-item-control,
+        .idea-calculation-form-item .ant-form-item-control {
+          grid-column: 2;
+          max-width: none !important;
+          flex: none !important;
+          min-width: 0;
+        }
+        .idea-inline-form-item .ant-input,
+        .idea-inline-form-item .ant-input-number,
+        .idea-inline-form-item .ant-select-selector,
+        .idea-inline-form-item .ant-cascader-picker,
+        .idea-inline-form-item .ant-btn {
+          min-height: 28px;
+        }
+        .idea-source-stack {
+          display: grid;
+          grid-template-rows: 32px 78px;
+          row-gap: 12px;
+        }
+        .idea-source-stack .ant-form-item {
+          margin-bottom: 0;
+        }
+        .idea-attachment-form-item {
+          padding-top: 2px;
+        }
+        .idea-attachment-form-item .ant-upload-wrapper {
+          display: block;
+          min-height: 76px;
+          max-height: 76px;
+          overflow: hidden;
+        }
+        .idea-attachment-form-item .ant-upload-list {
+          max-height: 42px;
+          overflow-y: auto;
+          scrollbar-width: thin;
+          scrollbar-color: ${token.colorBorder} ${token.colorBgContainer};
+        }
+        .idea-attachment-form-item .ant-upload-list::-webkit-scrollbar {
+          width: 8px;
+        }
+        .idea-attachment-form-item .ant-upload-list::-webkit-scrollbar-track {
+          background: ${token.colorBgContainer};
+        }
+        .idea-attachment-form-item .ant-upload-list::-webkit-scrollbar-thumb {
+          background: ${token.colorBorder};
+          border: 2px solid ${token.colorBgContainer};
+          border-radius: 999px;
+        }
+        .idea-attachment-form-item .ant-upload-list::-webkit-scrollbar-thumb:hover {
+          background: ${token.colorTextTertiary};
+        }
+        .idea-calculation-grid {
+          display: grid;
+          grid-template-columns: repeat(4, minmax(0, 1fr));
+          gap: 4px;
+        }
+        .idea-calculation-grid .v-project-tag {
+          display: inline-flex;
+          align-items: center;
+          min-height: 24px;
+          justify-content: center;
+          margin: 0;
+          padding: 2px 6px;
+          font-size: 10px;
+          line-height: 1;
+          text-align: center;
+          white-space: normal;
+        }
+        .idea-compound-modal .ant-modal-body {
+          scrollbar-width: thin;
+          scrollbar-color: ${token.colorBorder} ${token.colorBgContainer};
+        }
+        .idea-compound-modal .ant-modal-body::-webkit-scrollbar {
+          width: 10px;
+          height: 10px;
+        }
+        .idea-compound-modal .ant-modal-body::-webkit-scrollbar-track {
+          background: ${token.colorBgContainer};
+        }
+        .idea-compound-modal .ant-modal-body::-webkit-scrollbar-thumb {
+          background: ${token.colorBorder};
+          border: 2px solid ${token.colorBgContainer};
+          border-radius: 999px;
+        }
+        .idea-compound-modal .ant-modal-body::-webkit-scrollbar-thumb:hover {
+          background: ${token.colorTextTertiary};
+        }
+        .idea-compound-popup-scroll,
+        .idea-compound-popup-scroll .ant-select-item,
+        .idea-compound-popup-scroll .ant-cascader-menu {
+          background: ${token.colorBgElevated};
+          color: ${token.colorText};
+        }
+        .idea-compound-popup-scroll .ant-select-item-option-active:not(.ant-select-item-option-disabled),
+        .idea-compound-popup-scroll .ant-cascader-menu-item-active:not(.ant-cascader-menu-item-disabled),
+        .idea-compound-popup-scroll .ant-cascader-menu-item:hover {
+          background: ${token.colorFillSecondary};
+        }
+        .idea-compound-popup-scroll .ant-select-item-option-selected:not(.ant-select-item-option-disabled),
+        .idea-compound-popup-scroll .ant-cascader-menu-item-active {
+          background: ${token.colorPrimaryBg};
+          color: ${token.colorText};
+        }
+        .idea-compound-popup-scroll .rc-virtual-list-holder,
+        .idea-compound-popup-scroll .ant-cascader-menu {
+          scrollbar-width: thin;
+          scrollbar-color: ${token.colorBorder} ${token.colorBgElevated};
+        }
+        .idea-compound-popup-scroll .rc-virtual-list-holder::-webkit-scrollbar,
+        .idea-compound-popup-scroll .ant-cascader-menu::-webkit-scrollbar {
+          width: 10px;
+          height: 10px;
+        }
+        .idea-compound-popup-scroll .rc-virtual-list-holder::-webkit-scrollbar-track,
+        .idea-compound-popup-scroll .ant-cascader-menu::-webkit-scrollbar-track {
+          background: ${token.colorBgElevated};
+        }
+        .idea-compound-popup-scroll .rc-virtual-list-holder::-webkit-scrollbar-thumb,
+        .idea-compound-popup-scroll .ant-cascader-menu::-webkit-scrollbar-thumb {
+          background: ${token.colorBorder};
+          border: 2px solid ${token.colorBgElevated};
+          border-radius: 999px;
+        }
+        .idea-compound-popup-scroll .rc-virtual-list-holder::-webkit-scrollbar-thumb:hover,
+        .idea-compound-popup-scroll .ant-cascader-menu::-webkit-scrollbar-thumb:hover {
+          background: ${token.colorTextTertiary};
+        }
         .ant-table-tbody > tr:hover > td {
           background-color: var(--table-row-hover-bg) !important;
           cursor: pointer;
@@ -3737,7 +4285,13 @@ const MyBoard: React.FC = () => {
           background-color: var(--table-row-selected-hover-bg) !important;
         }
         .my-board-page {
+          --table-row-hover-bg: rgba(248, 124, 99, 0.06);
+          --table-row-selected-hover-bg: rgba(248, 124, 99, 0.16);
           min-height: 0;
+        }
+        [data-theme='dark'] .my-board-page {
+          --table-row-hover-bg: rgba(248, 124, 99, 0.10);
+          --table-row-selected-hover-bg: rgba(248, 124, 99, 0.24);
         }
         .my-board-workspace {
           min-height: 0;
@@ -3831,29 +4385,9 @@ const MyBoard: React.FC = () => {
           display: flex;
           width: 100%;
           min-width: 0;
-        }
-        .my-board-data-tags-split {
-          justify-content: center;
-          align-items: center;
-          gap: 4px;
-        }
-        .my-board-data-tags-centered {
-          justify-content: center;
-          align-items: center;
-        }
-        .my-board-data-tag-group {
-          display: flex;
-          flex-wrap: nowrap;
-          align-items: center;
-          gap: 4px;
-          min-width: 0;
-        }
-        .my-board-data-tag-group-left {
-          justify-content: flex-start;
-        }
-        .my-board-data-tag-group-right {
           flex-direction: column;
-          justify-content: flex-end;
+          justify-content: center;
+          align-items: center;
           gap: 3px;
         }
         .my-board-data-tag {
