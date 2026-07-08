@@ -1371,15 +1371,26 @@ const SarTable: React.FC = () => {
     );
   };
 
+  const getSarDisplayCode = React.useCallback((record: Pick<SarTableRow, 'compoundId' | 'designNo' | 'sarApiRow'>) => {
+    const apiCode = getFirstSarApiValue(record as SarTableRow, ['compound_code']);
+    const hasVnaCode = Boolean(apiCode ?? record.compoundId);
+    const displayCode = apiCode ?? (record.compoundId || record.designNo || '-');
+
+    return {
+      displayCode: String(displayCode),
+      color: hasVnaCode ? token.colorPrimary : token.colorTextTertiary,
+    };
+  }, [getFirstSarApiValue, token.colorPrimary, token.colorTextTertiary]);
+
   const allColumnsMap: Record<string, any> = {
     'Compound': {
       title: 'VNA Code',
       dataIndex: 'compoundId',
       key: 'compoundId',
       minWidth: 140,
-      render: (text: string, record: SarTableRow) => {
-        const apiCode = getFirstSarApiValue(record, ['compound_code']);
-        return <Text strong style={{ color: token.colorPrimary }}>{String(apiCode ?? text ?? '-')}</Text>;
+      render: (_text: string, record: SarTableRow) => {
+        const { displayCode, color } = getSarDisplayCode(record);
+        return <Text strong style={{ color }}>{displayCode}</Text>;
       }
     },
     'TSA': {
@@ -2149,6 +2160,7 @@ const SarTable: React.FC = () => {
                   const pinnedOrder = pinnedCompoundOrderMap[item.id] ?? 0;
                   const clusterSvg = clusterHighlightMode ? clusterSvgByCompoundId[item.id] : null;
                   const isClusterStructureLoading = Boolean(clusterHighlightMode && isClusterLoading && !clusterSvg);
+                  const { displayCode, color: displayCodeColor } = getSarDisplayCode(item as SarTableRow);
 
                   return (
                     <div
@@ -2274,8 +2286,8 @@ const SarTable: React.FC = () => {
                         </div>
                         {renderSarDataButtons(item)}
                       </div>
-                      <Text strong className="sar-compound-card-name" style={{ fontSize: 11, lineHeight: '16px', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', paddingBottom: 4, boxSizing: 'border-box' }} title={item.name}>
-                        {item.name}
+                      <Text strong className="sar-compound-card-name" style={{ color: displayCodeColor, fontSize: 11, lineHeight: '16px', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', paddingBottom: 4, boxSizing: 'border-box' }} title={displayCode}>
+                        {displayCode}
                       </Text>
                     </div>
                   );

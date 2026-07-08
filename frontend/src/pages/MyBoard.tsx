@@ -39,6 +39,7 @@ import CompoundStructureView from '../components/common/CompoundStructureView';
 import StructurePreviewModal from '../components/common/StructurePreviewModal';
 import ToggleTag from '../components/common/ToggleTag';
 import QuickViewerPanel from '../components/myboard/QuickViewerPanel';
+import PlainMemoEditor from '../components/common/PlainMemoEditor';
 import { compoundApi, type CompoundSearchResult } from '../services/compoundApi';
 import shareForwardIconRaw from '../assets/svg/share-forward-fill.svg?raw';
 import shareIconRaw from '../assets/svg/share.svg?raw';
@@ -473,6 +474,7 @@ const MyBoard: React.FC = () => {
   const [isSarDataLoading, setIsSarDataLoading] = useState(false);
   const [cdjsInstance, setCdjsInstance] = useState<any>(null);
   const [designSmiles, setDesignSmiles] = useState('');
+  const [designSmilesError, setDesignSmilesError] = useState('');
   const [selectedDesignPurposes, setSelectedDesignPurposes] = useState<DesignPurposeValue[]>([]);
   const [selectedDesignExpansions, setSelectedDesignExpansions] = useState<DesignExpansionValue[]>([]);
   const [searchedSvg, setSearchedSvg] = useState<string | null>(null);
@@ -630,6 +632,7 @@ const MyBoard: React.FC = () => {
   const isGroupListHidden = groupListMode === 'hidden';
   const [splitRatio, setSplitRatio] = useState<number>(MYBOARD_SPLIT_DEFAULT_PERCENT);
   const [splitLeftWidth, setSplitLeftWidth] = useState<number | null>(null);
+  const [initialSplitLeftMinWidth, setInitialSplitLeftMinWidth] = useState<number | null>(null);
   const [isResizingSplit, setIsResizingSplit] = useState(false);
   const splitContainerRef = React.useRef<HTMLDivElement | null>(null);
   const groupListTableCardRef = React.useRef<HTMLDivElement | null>(null);
@@ -683,11 +686,12 @@ const MyBoard: React.FC = () => {
     return Math.max((containerWidth * clampSplitRatio(ratio)) / 100 - 6, 0);
   }, [clampSplitRatio]);
   const clampSplitLeftWidth = React.useCallback((width: number, containerWidth: number) => {
-    const minWidth = getSplitWidthFromRatio(MYBOARD_SPLIT_MIN_PERCENT, containerWidth);
     const maxWidth = getSplitWidthFromRatio(MYBOARD_SPLIT_MAX_PERCENT, containerWidth);
+    const defaultMinWidth = getSplitWidthFromRatio(MYBOARD_SPLIT_MIN_PERCENT, containerWidth);
+    const minWidth = Math.min(Math.max(defaultMinWidth, initialSplitLeftMinWidth ?? 0), maxWidth);
 
     return Math.min(Math.max(width, minWidth), maxWidth);
-  }, [getSplitWidthFromRatio]);
+  }, [getSplitWidthFromRatio, initialSplitLeftMinWidth]);
   const applySplitRatio = React.useCallback((ratio: number) => {
     const nextRatio = clampSplitRatio(ratio);
     const container = splitContainerRef.current;
@@ -702,8 +706,12 @@ const MyBoard: React.FC = () => {
     const containerWidth = container.getBoundingClientRect().width;
     if (containerWidth <= 0) return;
 
-    setSplitLeftWidth(getSplitWidthFromRatio(nextRatio, containerWidth));
-  }, [clampSplitRatio, getSplitWidthFromRatio]);
+    const nextWidth = clampSplitLeftWidth(getSplitWidthFromRatio(nextRatio, containerWidth), containerWidth);
+    const ratioFromWidth = ((nextWidth + 6) / containerWidth) * 100;
+
+    setSplitLeftWidth(nextWidth);
+    setSplitRatio(clampSplitRatio(ratioFromWidth));
+  }, [clampSplitLeftWidth, clampSplitRatio, getSplitWidthFromRatio]);
   const detailTableEstimatedWidth = React.useMemo(() => {
     if (isStackedSplitLayout || isGroupListHidden) {
       return Math.max(viewportWidth - layoutPreset.sidePadding * 2 - 24, 320);
@@ -726,7 +734,13 @@ const MyBoard: React.FC = () => {
   const autoFitGroupTableWidth = React.useMemo(() => {
     return MYBOARD_GROUP_FIXED_COLUMN_WIDTH + contentFitGroupTitleWidth + 24;
   }, [contentFitGroupTitleWidth]);
-  const applyDefaultGroupListSplit = React.useCallback((options?: { fallbackToPercent?: boolean }) => {
+  const splitMinRatio = React.useMemo(() => {
+    const containerWidth = splitContainerRef.current?.getBoundingClientRect().width ?? 0;
+    if (containerWidth <= 0 || initialSplitLeftMinWidth === null) return MYBOARD_SPLIT_MIN_PERCENT;
+
+    return clampSplitRatio(((initialSplitLeftMinWidth + 6) / containerWidth) * 100);
+  }, [clampSplitRatio, groupListTableWidth, initialSplitLeftMinWidth, viewportWidth]);
+  const applyDefaultGroupListSplit = React.useCallback((options?: { fallbackToPercent?: boolean; lockAsInitialMin?: boolean }) => {
     const fallbackToPercent = options?.fallbackToPercent ?? true;
     const container = splitContainerRef.current;
     if (!container || isStackedSplitLayout || !isGroupListFull) {
@@ -747,6 +761,9 @@ const MyBoard: React.FC = () => {
     const nextWidth = clampSplitLeftWidth(autoFitGroupTableWidth, containerWidth);
     const nextRatio = ((nextWidth + 6) / containerWidth) * 100;
     setSplitLeftWidth(nextWidth);
+    if (options?.lockAsInitialMin) {
+      setInitialSplitLeftMinWidth((current) => current ?? nextWidth);
+    }
     setSplitRatio(clampSplitRatio(nextRatio));
     return true;
   }, [applySplitRatio, autoFitGroupTableWidth, clampSplitLeftWidth, clampSplitRatio, isGroupListFull, isStackedSplitLayout]);
@@ -764,11 +781,6 @@ const MyBoard: React.FC = () => {
       boxShadow: isActive ? '0 0 0 1px rgba(248, 124, 99, 0.15)' : 'none'
     };
   };
-
-  React.useEffect(() => {
-    if (!isDesignModalOpen && !isCompoundEditModalOpen) return;
-    designForm.setFieldValue('smiles', designSmiles);
-  }, [designForm, designSmiles, isCompoundEditModalOpen, isDesignModalOpen]);
 
   useEffect(() => {
     setHeaderContent(
@@ -793,7 +805,7 @@ const MyBoard: React.FC = () => {
     let attemptCount = 0;
 
     const applyInitialSplit = () => {
-      const didApply = applyDefaultGroupListSplit({ fallbackToPercent: false });
+      const didApply = applyDefaultGroupListSplit({ fallbackToPercent: false, lockAsInitialMin: true });
       if (didApply) {
         hasAppliedInitialSplitRef.current = true;
         return;
@@ -1116,7 +1128,7 @@ const MyBoard: React.FC = () => {
       label: '레퍼런스',
       children: [{ value: '레퍼런스 이름 입력', label: '레퍼런스 이름 입력' }],
     },
-    { value: '필요량', label: '필요량' },
+    { value: 'in vivo', label: 'in vivo' },
     { value: '특허 대응', label: '특허 대응' },
   ];
   const designExpansionOptions = [
@@ -1478,6 +1490,92 @@ const MyBoard: React.FC = () => {
     );
   };
 
+  const getDesignMemoPlainText = React.useCallback((value: unknown) => {
+    const html = String(value ?? '').trim();
+    if (!html || html === '-') return '-';
+
+    if (typeof window === 'undefined') {
+      const text = html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+      return text || (/<img\b/i.test(html) ? '이미지 첨부' : '-');
+    }
+
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    const text = (doc.body.textContent || '').replace(/\s+/g, ' ').trim();
+    return text || (doc.body.querySelector('img') ? '이미지 첨부' : '-');
+  }, []);
+
+  const getDesignMemoPreviewBlocks = React.useCallback((value: unknown) => {
+    const html = String(value ?? '').trim();
+    if (!html || html === '-') return [{ type: 'text' as const, text: '-' }];
+
+    if (typeof window === 'undefined') {
+      const text = html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+      const imageSources = Array.from(html.matchAll(/<img[^>]+src=["']([^"']+)["']/gi))
+        .map((match) => match[1])
+        .filter(Boolean);
+      return [
+        ...(text ? [{ type: 'text' as const, text }] : []),
+        ...imageSources.map((src) => ({ type: 'image' as const, src })),
+      ];
+    }
+
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    const blocks: Array<{ type: 'text'; text: string } | { type: 'image'; src: string }> = [];
+
+    Array.from(doc.body.childNodes).forEach((node) => {
+      if (node.nodeType === Node.TEXT_NODE) {
+        const text = (node.textContent || '').replace(/\s+/g, ' ').trim();
+        if (text) blocks.push({ type: 'text', text });
+        return;
+      }
+
+      if (!(node instanceof HTMLElement)) return;
+
+      const imageSources = Array.from(node.querySelectorAll('img'))
+        .map((image) => image.getAttribute('src') || '')
+        .filter(Boolean);
+      const text = (node.textContent || '').replace(/\s+/g, ' ').trim();
+
+      if (text) blocks.push({ type: 'text', text });
+      imageSources.forEach((src) => blocks.push({ type: 'image', src }));
+    });
+
+    return blocks.length > 0 ? blocks : [{ type: 'text', text: '-' }];
+  }, []);
+
+  const normalizeDesignMemoValue = React.useCallback((value: unknown) => {
+    const html = String(value ?? '').trim();
+    if (!html || html === '<p><br></p>') return '-';
+    return getDesignMemoPlainText(html) === '-' ? '-' : html;
+  }, [getDesignMemoPlainText]);
+
+  const renderDesignMemoPreview = React.useCallback((value: unknown) => {
+    const blocks = getDesignMemoPreviewBlocks(value);
+    const title = blocks
+      .map((block) => (block.type === 'text' ? block.text : '이미지 첨부'))
+      .join('\n');
+
+    return (
+      <div className="my-board-design-memo-preview" title={title}>
+        {blocks.map((block, index) => (
+          block.type === 'text' ? (
+            <span key={`text-${index}`} className="my-board-design-memo-text">
+              {block.text}
+            </span>
+          ) : (
+            <img
+              key={`${block.src.slice(0, 48)}-${index}`}
+              className="my-board-design-memo-image"
+              src={block.src}
+              alt={`디자인 비고 이미지 ${index + 1}`}
+              loading="lazy"
+            />
+          )
+        ))}
+      </div>
+    );
+  }, [getDesignMemoPreviewBlocks]);
+
   const groupColumns = [
     {
       title: '순번',
@@ -1649,6 +1747,13 @@ const MyBoard: React.FC = () => {
       ? parentOption.children.map((child) => [path[0], child.value])
       : [path];
   }, [designPurposeOptions]);
+  const expandDesignExpansionParentPath = React.useCallback((path: DesignExpansionValue): DesignExpansionValue[] => {
+    if (path.length !== 1) return [path];
+    const parentOption = designExpansionOptions.find((option) => option.value === path[0]);
+    return parentOption?.children?.length
+      ? parentOption.children.map((child) => [path[0], child.value])
+      : [path];
+  }, [designExpansionOptions]);
   const handleDesignPurposeChange = React.useCallback((value: DesignPurposeValue[]) => {
     const nextPaths = value.filter((path) => path.length > 0);
     if (nextPaths.length <= 1) {
@@ -1663,14 +1768,14 @@ const MyBoard: React.FC = () => {
     const sameRootPaths = nextPaths.filter((path) => String(path[0]) === activeRoot);
     const normalizedPaths = sameRootPaths.some((path) => path.length === 1)
       ? expandDesignPurposeParentPath(sameRootPaths.find((path) => path.length === 1) ?? sameRootPaths[sameRootPaths.length - 1])
-      : sameRootPaths;
+      : sameRootPaths.flatMap(expandDesignPurposeParentPath);
 
     setSelectedDesignPurposes(normalizedPaths);
   }, [expandDesignPurposeParentPath, selectedDesignPurposes]);
   const handleDesignExpansionChange = React.useCallback((value: DesignExpansionValue[]) => {
     const nextPaths = value.filter((path) => path.length > 0);
     if (nextPaths.length <= 1) {
-      setSelectedDesignExpansions(nextPaths);
+      setSelectedDesignExpansions(nextPaths.flatMap(expandDesignExpansionParentPath));
       return;
     }
 
@@ -1678,13 +1783,18 @@ const MyBoard: React.FC = () => {
     const previousKeys = new Set(selectedDesignExpansions.map(pathKey));
     const addedPath = nextPaths.find((path) => !previousKeys.has(pathKey(path)));
     if (addedPath && String(addedPath[0]) !== '기타') {
-      setSelectedDesignExpansions([addedPath]);
+      setSelectedDesignExpansions(expandDesignExpansionParentPath(addedPath));
       return;
     }
 
     const otherPaths = nextPaths.filter((path) => String(path[0]) === '기타' && path.length > 1);
-    setSelectedDesignExpansions(otherPaths.length > 0 ? otherPaths : [nextPaths[nextPaths.length - 1]]);
-  }, [selectedDesignExpansions]);
+    const parentOtherPath = nextPaths.find((path) => String(path[0]) === '기타' && path.length === 1);
+    setSelectedDesignExpansions(
+      parentOtherPath
+        ? expandDesignExpansionParentPath(parentOtherPath)
+        : otherPaths.length > 0 ? otherPaths : expandDesignExpansionParentPath(nextPaths[nextPaths.length - 1])
+    );
+  }, [expandDesignExpansionParentPath, selectedDesignExpansions]);
 
   const getCompoundActionButtonStyle = React.useCallback((enabled: boolean): React.CSSProperties => ({
     background: enabled ? token.colorPrimary : token.colorBgLayout,
@@ -1695,10 +1805,16 @@ const MyBoard: React.FC = () => {
   const resetDesignModalState = React.useCallback(() => {
     setDesignFormInitialValues({});
     setDesignSmiles('');
+    setDesignSmilesError('');
     setSelectedCalculations([]);
     setSelectedDesignPurposes([]);
     setSelectedDesignExpansions([]);
     setCdjsInstance(null);
+  }, []);
+
+  const handleDesignSmilesChange = React.useCallback((value: string) => {
+    setDesignSmiles(value);
+    setDesignSmilesError('');
   }, []);
 
   const handleOpenDesignModal = React.useCallback(() => {
@@ -1723,15 +1839,33 @@ const MyBoard: React.FC = () => {
     resetDesignModalState();
   }, [resetDesignModalState]);
 
-  const parseCascaderText = React.useCallback((value?: string) => (
-    String(value || '')
+  const parseCascaderText = React.useCallback((
+    value: string | undefined,
+    options: Array<{ value: string | number; children?: Array<{ value: string | number }> }>
+  ) => {
+    const resolvePath = (parts: string[]): (string | number)[] => {
+      if (parts.length > 1) return parts;
+      const label = parts[0];
+      const rootOption = options.find((option) => String(option.value) === label);
+      if (rootOption) return [rootOption.value];
+
+      for (const option of options) {
+        const childOption = option.children?.find((child) => String(child.value) === label);
+        if (childOption) return [option.value, childOption.value];
+      }
+
+      return parts;
+    };
+
+    return String(value || '')
       .split(',')
       .map((item) => item.trim())
       .filter((item) => item && item !== '-')
       .filter((item) => !item.startsWith('레퍼런스:'))
       .map((item) => item.split(' > ').map((part) => part.trim()).filter(Boolean))
       .filter((path) => path.length > 0)
-  ), []);
+      .map(resolvePath);
+  }, []);
 
   const getCascaderLeafLabel = React.useCallback((path: (string | number)[]) => (
     String(path[path.length - 1] ?? '')
@@ -1741,11 +1875,18 @@ const MyBoard: React.FC = () => {
     ...(selectedDesignPurposes.length > 0 ? selectedDesignPurposes.map(getCascaderLeafLabel).filter(Boolean) : []),
     referenceName ? `레퍼런스: ${referenceName}` : '',
   ].filter(Boolean).join(', '), [getCascaderLeafLabel, selectedDesignPurposes]);
+  const getDesignExpansionText = React.useCallback(() => (
+    selectedDesignExpansions.map(getCascaderLeafLabel).filter(Boolean).join(', ')
+  ), [getCascaderLeafLabel, selectedDesignExpansions]);
 
   const handleRegisterDesignIdea = React.useCallback(async () => {
     if (!selectedGroupIds[0]) return;
     await cdjsInstance?.__flushPendingInput?.();
     const values = await designForm.validateFields();
+    if (!designSmiles.trim()) {
+      setDesignSmilesError('SMILES 또는 구조 정보를 입력해주세요');
+      return;
+    }
     const ideaNumber = reserveNextIdeaNumber();
     const reservedSynthesisRequestNumber = reserveNextSynthesisRequestNumber();
     const synthesisRequestNumber = String(values.synthesisRequestNo || '').trim() || reservedSynthesisRequestNumber;
@@ -1753,7 +1894,7 @@ const MyBoard: React.FC = () => {
     const targetGroup = groups.find((group) => group.id === targetGroupId);
     const timestamp = Date.now();
     const purposeText = getDesignPurposeText(values.referenceName);
-    const expansionText = selectedDesignExpansions.map((path) => path.join(' > ')).join(', ');
+    const expansionText = getDesignExpansionText();
     const newCompound: Compound = {
       id: `idea-${targetGroupId}-${ideaNumber}-${timestamp}`,
       groupId: targetGroupId,
@@ -1771,7 +1912,7 @@ const MyBoard: React.FC = () => {
       properties2: [50, 50, 50, 50],
       requiredCalcs: selectedCalculations,
       designNo: ideaNumber,
-      designMemo: values.designMemo || '-',
+      designMemo: normalizeDesignMemoValue(values.designMemo),
       requiredAmountMg: Number(values.requiredAmountMg) || 0,
       assayPurpose: purposeText || '-',
       expectedEffect: values.expectedEffect || '-',
@@ -1802,10 +1943,11 @@ const MyBoard: React.FC = () => {
     designForm,
     designSmiles,
     getDesignPurposeText,
+    getDesignExpansionText,
     groups,
+    normalizeDesignMemoValue,
     resetDesignModalState,
     selectedCalculations,
-    selectedDesignExpansions,
     selectedGroupIds,
   ]);
 
@@ -1813,8 +1955,12 @@ const MyBoard: React.FC = () => {
     if (!selectedEditableCompound) return;
     await cdjsInstance?.__flushPendingInput?.();
     const values = await designForm.validateFields();
+    if (!designSmiles.trim()) {
+      setDesignSmilesError('SMILES 또는 구조 정보를 입력해주세요');
+      return;
+    }
     const purposeText = getDesignPurposeText(values.referenceName);
-    const expansionText = selectedDesignExpansions.map((path) => path.join(' > ')).join(', ');
+    const expansionText = getDesignExpansionText();
     const nextSource = values.source || '-';
     const updateCompound = (compound: Compound): Compound => (
       compound.id === selectedEditableCompound.id
@@ -1826,7 +1972,7 @@ const MyBoard: React.FC = () => {
           requiredCalcs: selectedCalculations,
           designNo: values.ideaNumber || compound.designNo,
           name: values.ideaNumber || compound.name,
-          designMemo: values.designMemo || '-',
+          designMemo: normalizeDesignMemoValue(values.designMemo),
           requiredAmountMg: Number(values.requiredAmountMg) || 0,
           assayPurpose: purposeText || '-',
           expectedEffect: values.expectedEffect || '-',
@@ -1847,10 +1993,11 @@ const MyBoard: React.FC = () => {
     designForm,
     designSmiles,
     externalCompoundRows,
+    getDesignExpansionText,
     getDesignPurposeText,
+    normalizeDesignMemoValue,
     resetDesignModalState,
     selectedCalculations,
-    selectedDesignExpansions,
     selectedEditableCompound,
     setExternalCompoundRows,
   ]);
@@ -2034,18 +2181,18 @@ const MyBoard: React.FC = () => {
     if (!canEditCompound || !selectedEditableCompound) return;
     const targetGroup = groups.find((group) => group.id === selectedEditableCompound.groupId);
     const referenceName = String(selectedEditableCompound.assayPurpose || '').match(/레퍼런스:\s*([^,]+)/)?.[1]?.trim();
-    const purposePaths = parseCascaderText(selectedEditableCompound.assayPurpose);
+    const purposePaths = parseCascaderText(selectedEditableCompound.assayPurpose, designPurposeOptions);
 
     resetDesignModalState();
     setDesignSmiles(selectedEditableCompound.smiles || '');
     setSelectedCalculations(selectedEditableCompound.requiredCalcs ?? []);
     setSelectedDesignPurposes(referenceName ? [...purposePaths, ['레퍼런스', '레퍼런스 이름 입력']] : purposePaths);
-    setSelectedDesignExpansions(parseCascaderText(selectedEditableCompound.synthesisExpansionLevel));
+    setSelectedDesignExpansions(parseCascaderText(selectedEditableCompound.synthesisExpansionLevel, designExpansionOptions));
     setDesignFormInitialValues({
       target: targetGroup?.target && targetGroup.target !== '-' ? targetGroup.target : '-',
       group: targetGroup?.name || '-',
       ideaNumber: selectedEditableCompound.designNo || selectedEditableCompound.name || selectedEditableCompound.compoundId,
-      smiles: selectedEditableCompound.smiles || '',
+      smilesPreview: selectedEditableCompound.smiles || '',
       designMemo: selectedEditableCompound.designMemo === '-' ? '' : selectedEditableCompound.designMemo,
       synthesisRequestNo: selectedEditableCompound.progressMemo === '-' ? '' : selectedEditableCompound.progressMemo,
       requiredAmountMg: selectedEditableCompound.requiredAmountMg ?? 0,
@@ -2057,7 +2204,7 @@ const MyBoard: React.FC = () => {
     setIsDesignModalOpen(false);
     setIsCompoundEditModalOpen(true);
     setCompoundContextMenu(null);
-  }, [canEditCompound, groups, parseCascaderText, resetDesignModalState, selectedEditableCompound]);
+  }, [canEditCompound, designExpansionOptions, designPurposeOptions, groups, parseCascaderText, resetDesignModalState, selectedEditableCompound]);
 
   const handleGroupRowSelection = React.useCallback((groupId: string, event: React.MouseEvent) => {
     setDetailPagination((prev) => (
@@ -2410,7 +2557,7 @@ const MyBoard: React.FC = () => {
       )
     },
     '출처': { title: '출처', dataIndex: 'designSource', key: 'designSource', width: 64 },
-    '디자인 비고': { title: '디자인 비고', dataIndex: 'designMemo', key: 'designMemo', width: 220, render: renderMultilineText },
+    '디자인 비고': { title: '디자인 비고', dataIndex: 'designMemo', key: 'designMemo', width: 220, render: renderDesignMemoPreview },
     'MolProp1': {
       title: 'MolProp1',
       dataIndex: 'properties1',
@@ -3242,7 +3389,7 @@ const MyBoard: React.FC = () => {
           role="separator"
           aria-orientation="vertical"
           aria-label="MyBoard 패널 너비 조절"
-          aria-valuemin={MYBOARD_SPLIT_MIN_PERCENT}
+          aria-valuemin={Math.round(splitMinRatio)}
           aria-valuemax={MYBOARD_SPLIT_MAX_PERCENT}
           aria-valuenow={Math.round(splitRatio)}
           tabIndex={0}
@@ -3792,7 +3939,7 @@ const MyBoard: React.FC = () => {
                   height={300}
                   flipControlsPlacement="left"
                   smilesValue={designSmiles}
-                  onSmilesChange={setDesignSmiles}
+                  onSmilesChange={handleDesignSmilesChange}
                   onReady={setCdjsInstance}
                 />
               </Form.Item>
@@ -3800,9 +3947,10 @@ const MyBoard: React.FC = () => {
 
             <Col span={24}>
               <Form.Item
-                name="smiles"
+                name="smilesPreview"
                 required
-                rules={[{ required: true, message: 'SMILES 또는 구조 정보를 입력해주세요' }]}
+                validateStatus={designSmilesError ? 'error' : undefined}
+                help={designSmilesError || undefined}
                 style={{ marginBottom: 8 }}
               >
                 <Input.TextArea
@@ -3810,16 +3958,23 @@ const MyBoard: React.FC = () => {
                   placeholder="SMILES"
                   value={designSmiles}
                   onChange={(event) => {
-                    setDesignSmiles(event.target.value);
-                    designForm.setFieldValue('smiles', event.target.value);
+                    handleDesignSmilesChange(event.target.value);
                   }}
                 />
               </Form.Item>
             </Col>
 
             <Col span={24}>
-              <Form.Item name="designMemo" label="디자인 비고" className="idea-inline-form-item">
-                <Input placeholder="디자인 의도나 참고 사항을 입력하세요" />
+              <Form.Item
+                name="designMemo"
+                label="디자인 비고"
+                className="idea-inline-form-item"
+                getValueFromEvent={(value) => (typeof value === 'string' ? value : '')}
+              >
+                <PlainMemoEditor
+                  className="idea-design-memo-editor"
+                  placeholder="디자인 의도나 참고 사항을 입력하세요"
+                />
               </Form.Item>
             </Col>
 
@@ -3849,9 +4004,9 @@ const MyBoard: React.FC = () => {
               <Form.Item label="합성 목적" className="idea-inline-form-item">
                 <Cascader
                   multiple
-                  maxTagCount="responsive"
                   options={designPurposeOptions}
                   classNames={{ popup: { root: 'idea-compound-popup-scroll' } }}
+                  showCheckedStrategy={Cascader.SHOW_CHILD}
                   value={selectedDesignPurposes}
                   onChange={(value) => handleDesignPurposeChange(value as DesignPurposeValue[])}
                   displayRender={(labels) => labels[labels.length - 1]}
@@ -3868,11 +4023,12 @@ const MyBoard: React.FC = () => {
               <Form.Item label="합성 확장필요 정도" className="idea-inline-form-item">
                 <Cascader
                   multiple
-                  maxTagCount="responsive"
                   options={designExpansionOptions}
                   classNames={{ popup: { root: 'idea-compound-popup-scroll' } }}
+                  showCheckedStrategy={Cascader.SHOW_CHILD}
                   value={selectedDesignExpansions}
                   onChange={(value) => handleDesignExpansionChange(value as DesignExpansionValue[])}
+                  displayRender={(labels) => labels[labels.length - 1]}
                   placeholder="확장 필요 정도 선택"
                 />
               </Form.Item>
@@ -4136,6 +4292,64 @@ const MyBoard: React.FC = () => {
         .idea-inline-form-item .ant-btn {
           min-height: 28px;
         }
+        .idea-design-memo-editor {
+          width: 100%;
+        }
+        .idea-design-memo-editor .ql-toolbar {
+          display: none;
+        }
+        .idea-design-memo-editor .ql-container {
+          min-height: 86px;
+          border: 1px solid ${token.colorBorder};
+          border-radius: 6px;
+          background: ${token.colorBgContainer};
+          color: ${token.colorText};
+          font-family: inherit;
+          font-size: 12px;
+        }
+        .idea-design-memo-editor .ql-editor {
+          min-height: 84px;
+          max-height: 132px;
+          padding: 6px 10px;
+          line-height: 1.45;
+          overflow-y: auto;
+        }
+        .idea-design-memo-editor .ql-editor.ql-blank::before {
+          left: 10px;
+          right: 10px;
+          color: ${token.colorTextTertiary};
+          font-style: normal;
+        }
+        .idea-design-memo-editor .ql-editor img {
+          display: block;
+          max-width: 100%;
+          max-height: 96px;
+          margin: 4px 0;
+          object-fit: contain;
+        }
+        .my-board-design-memo-preview {
+          display: flex;
+          flex-direction: column;
+          align-items: flex-start;
+          gap: 6px;
+          min-width: 0;
+          width: 100%;
+        }
+        .my-board-design-memo-text {
+          display: block;
+          width: 100%;
+          white-space: pre-wrap;
+          overflow-wrap: anywhere;
+        }
+        .my-board-design-memo-image {
+          display: block;
+          width: 105px;
+          height: 105px;
+          border: 1px solid ${token.colorBorderSecondary};
+          border-radius: 4px;
+          background: ${token.colorBgContainer};
+          object-fit: contain;
+        }
         .idea-source-stack {
           display: grid;
           grid-template-rows: 32px 78px;
@@ -4154,10 +4368,20 @@ const MyBoard: React.FC = () => {
           overflow: hidden;
         }
         .idea-attachment-form-item .ant-upload-list {
-          max-height: 42px;
-          overflow-y: auto;
+          max-height: 34px;
+          overflow-y: hidden;
           scrollbar-width: thin;
           scrollbar-color: ${token.colorBorder} ${token.colorBgContainer};
+        }
+        .idea-attachment-form-item .ant-upload-list:has(.ant-upload-list-item + .ant-upload-list-item) {
+          max-height: 50px;
+          overflow-y: auto;
+        }
+        .idea-attachment-form-item .ant-upload-list-item {
+          margin-top: 4px;
+        }
+        .idea-attachment-form-item .ant-upload-list-item-name {
+          line-height: 22px;
         }
         .idea-attachment-form-item .ant-upload-list::-webkit-scrollbar {
           width: 8px;
