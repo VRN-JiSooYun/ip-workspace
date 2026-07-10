@@ -813,12 +813,19 @@ span.ant-typography {
 .my-board-multiline-text {
   display: -webkit-box;
   max-width: 100%;
+  margin: 0 auto;
   overflow: hidden;
+  text-align: center;
   white-space: normal;
   word-break: break-word;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
   line-clamp: 2;
+}
+
+.my-board-group-title-column .my-board-multiline-text {
+  -webkit-line-clamp: 4;
+  line-clamp: 4;
 }
 
 .table-center-column {

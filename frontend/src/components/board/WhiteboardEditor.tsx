@@ -837,7 +837,7 @@ const WhiteboardEditor: React.FC<WhiteboardEditorProps> = ({
       <div
         ref={canvasContainerRef}
         tabIndex={0}
-        onMouseDown={() => canvasContainerRef.current?.focus()}
+        onMouseDown={() => canvasContainerRef.current?.focus({ preventScroll: true })}
         style={{ position: 'relative', width: '100%', height: height, outline: 'none' }}
       >
         <input

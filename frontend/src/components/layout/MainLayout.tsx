@@ -213,7 +213,8 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
     const path = location.pathname;
     if (path === '/dashboard') return 'dashboard';
     if (path === '/design' || path === '/myboard') return 'design';
-    if (path === '/synthesis' || path === '/myboard/synthesis-board' || path === '/synthesis-board') return 'synthesis';
+    if (path === '/myboard/synthesis-board' || path === '/synthesis-board') return 'design';
+    if (path === '/synthesis') return 'synthesis';
     if (path === '/myboard/sar-table' || path === '/sar-table') return 'design';
     if (path === '/compounds/search' || path === '/my-tree') return 'compound-search';
     if (path === '/chem-space') return 'chem-space';

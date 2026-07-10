@@ -5,8 +5,8 @@ import { useTheme } from './contexts/ThemeContext';
 import MainLayout from './components/layout/MainLayout';
 import Dashboard from './pages/Dashboard';
 import MyBoard from './pages/MyBoard';
+import MyBoardSynthesisBoard from './pages/MyBoardSynthesisBoard';
 import SarTable from './pages/SarTable';
-import SynthesisBoard from './pages/SynthesisBoard';
 import ChemSpace from './pages/ChemSpace';
 import ChemSpace3D from './pages/ChemSpace3D';
 import ReactionPredictor from './pages/ReactionPredictor';
@@ -82,7 +82,7 @@ const App: React.FC = () => {
               <Route path="/" element={<Navigate to="/dashboard" replace />} />
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/design" element={<MyBoard />} />
-              <Route path="/synthesis" element={<SynthesisBoard />} />
+              <Route path="/synthesis" element={<EmptyPage title="Synthesis" breadcrumb={[{ label: 'Synthesis' }]} />} />
               <Route path="/myboard" element={<MyBoard />} />
               <Route path="/compounds/search" element={<EmptyPage title="Search" breadcrumb={[{ label: 'Compounds' }, { label: 'Search' }]} />} />
               <Route path="/my-tree" element={<EmptyPage title="My tree" breadcrumb={[{ label: 'Compounds' }, { label: 'My tree' }]} />} />
@@ -91,7 +91,7 @@ const App: React.FC = () => {
               <Route path="/clustering" element={<EmptyPage title="Clustering" breadcrumb={[{ label: 'Compounds' }, { label: 'Clustering' }]} />} />
               <Route path="/reaction-predictor" element={<ReactionPredictor />} />
               <Route path="/myboard/sar-table" element={<SarTable />} />
-              <Route path="/myboard/synthesis-board" element={<SynthesisBoard />} />
+              <Route path="/myboard/synthesis-board" element={<MyBoardSynthesisBoard />} />
               <Route path="/sar-table" element={<Navigate to="/myboard/sar-table" replace />} />
               <Route path="/synthesis-board" element={<Navigate to="/myboard/synthesis-board" replace />} />
               <Route path="/patents/write" element={<EmptyPage title="My 특허 쓰기" breadcrumb={[{ label: 'Documents' }, { label: 'Patents' }, { label: 'My 특허 쓰기' }]} />} />

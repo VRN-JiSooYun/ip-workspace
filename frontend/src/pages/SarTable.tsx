@@ -1379,6 +1379,7 @@ const SarTable: React.FC = () => {
     return {
       displayCode: String(displayCode),
       color: hasVnaCode ? token.colorPrimary : token.colorTextTertiary,
+      fontWeight: hasVnaCode ? 600 : 400,
     };
   }, [getFirstSarApiValue, token.colorPrimary, token.colorTextTertiary]);
 
@@ -1389,8 +1390,8 @@ const SarTable: React.FC = () => {
       key: 'compoundId',
       minWidth: 140,
       render: (_text: string, record: SarTableRow) => {
-        const { displayCode, color } = getSarDisplayCode(record);
-        return <Text strong style={{ color }}>{displayCode}</Text>;
+        const { displayCode, color, fontWeight } = getSarDisplayCode(record);
+        return <Text style={{ color, fontWeight }}>{displayCode}</Text>;
       }
     },
     'TSA': {
@@ -2160,7 +2161,7 @@ const SarTable: React.FC = () => {
                   const pinnedOrder = pinnedCompoundOrderMap[item.id] ?? 0;
                   const clusterSvg = clusterHighlightMode ? clusterSvgByCompoundId[item.id] : null;
                   const isClusterStructureLoading = Boolean(clusterHighlightMode && isClusterLoading && !clusterSvg);
-                  const { displayCode, color: displayCodeColor } = getSarDisplayCode(item as SarTableRow);
+                  const { displayCode, color: displayCodeColor, fontWeight: displayCodeFontWeight } = getSarDisplayCode(item as SarTableRow);
 
                   return (
                     <div
@@ -2286,7 +2287,7 @@ const SarTable: React.FC = () => {
                         </div>
                         {renderSarDataButtons(item)}
                       </div>
-                      <Text strong className="sar-compound-card-name" style={{ color: displayCodeColor, fontSize: 11, lineHeight: '16px', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', paddingBottom: 4, boxSizing: 'border-box' }} title={displayCode}>
+                      <Text className="sar-compound-card-name" style={{ color: displayCodeColor, fontSize: 12, fontWeight: displayCodeFontWeight, lineHeight: '16px', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', paddingBottom: 4, boxSizing: 'border-box' }} title={displayCode}>
                         {displayCode}
                       </Text>
                     </div>

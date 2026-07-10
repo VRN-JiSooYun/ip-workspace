@@ -13,14 +13,15 @@ import {
 } from '@xyflow/react';
 import {
   Row, Col, Card, Table, Button, Input,
-  Space, Typography, Modal, Form, Tag, List, Select, DatePicker, Avatar, Divider, Upload, Segmented, theme, Tooltip, Dropdown, App as AntApp, Cascader, InputNumber
+  Space, Typography, Modal, Form, Tag, List, Select, DatePicker, Avatar, Divider, Upload, Segmented, theme, Tooltip, Dropdown, Popover, App as AntApp, Cascader, InputNumber
 } from 'antd';
 import type { MenuProps } from 'antd';
 import {
-  Search, Plus, Filter, Settings, List as ListIcon,
-  Image as ImageIcon, GitBranch, Info, ChevronDown, ChevronUp, Beaker,
+  Search, Plus, Filter, Settings,
+  Info, ChevronDown, ChevronUp, Beaker,
   Activity, GripVertical, Upload as UploadIcon, FileText,
-  PanelLeftClose, PanelLeftOpen, Copy, Trash2, Combine, Edit3, MoveRight, Minus, ArrowRight,
+  UserPlus,
+  PanelLeftClose, PanelLeftOpen, Copy, Trash2, Combine, Edit3, MoveRight, ArrowRight, ArrowLeft,
   Bookmark, MoreHorizontal, ZoomIn, ZoomOut, Maximize2, Crosshair, Map as MapIcon
 } from 'lucide-react';
 import { DEFAULT_GROUP_STRUCTURE_VIEW_SETTINGS, useBoardStore } from '../store/useBoardStore';
@@ -53,6 +54,7 @@ const { RangePicker } = DatePicker;
 const MYBOARD_SPLIT_MIN_PERCENT = 20;
 const MYBOARD_SPLIT_MAX_PERCENT = 80;
 const MYBOARD_SPLIT_DEFAULT_PERCENT = 30;
+const MYBOARD_SYNTHESIS_STACKED_BREAKPOINT = 1500;
 const MYBOARD_QUICK_VIEWER_MIN_WIDTH = 360;
 const MYBOARD_QUICK_VIEWER_MAX_WIDTH = 868;
 const MYBOARD_QUICK_VIEWER_DEFAULT_WIDTH = 460;
@@ -87,6 +89,9 @@ const MYBOARD_GROUP_COLUMN_WIDTHS = {
   target: 80,
   representativeStructure: 135,
   count: 48,
+  synthesisIng: 58,
+  synthesisDone: 66,
+  synthesisUnassigned: 58,
   groupOrder: 46,
   shareStatus: 46,
 } as const;
@@ -114,11 +119,16 @@ const MYBOARD_GROUP_STRUCTURE_WIDTH = 130;
 const MYBOARD_GROUP_STRUCTURE_HEIGHT = 97.5;
 const MYBOARD_GROUP_STRUCTURE_ONLY_COLUMN_WIDTH = 138;
 const MYBOARD_GROUP_STRUCTURE_ONLY_PANEL_WIDTH = 146;
-const MYBOARD_STRUCTURE_IMAGE_SCALE_MIN = 70;
-const MYBOARD_STRUCTURE_IMAGE_SCALE_MAX = 160;
-const MYBOARD_STRUCTURE_IMAGE_SCALE_STEP = 5;
 type SvgIntrinsicSize = { width: number; height: number };
 type MyBoardGroupPinFilter = 'all' | 'pinned';
+type SynthesisManagerStatus = { name: string; count: number; ing: number; done: number };
+type SynthesisGroupStatus = {
+  title: string;
+  ing: number;
+  done: number;
+  unassigned: number;
+  managers: SynthesisManagerStatus[];
+};
 type DesignPurposeValue = (string | number)[];
 type DesignExpansionValue = (string | number)[];
 type DesignFormInitialValues = Record<string, unknown>;
@@ -446,7 +456,49 @@ const myBoardTreeNodeTypes = {
   myBoardTree: MyBoardTreeFlowNode,
 };
 
-const MyBoard: React.FC = () => {
+const ManagerComparisonPopup = ({ record, currentMgrName }: { record: SynthesisGroupStatus; currentMgrName?: string }) => {
+  const { token } = theme.useToken();
+  return (
+    <div style={{ minWidth: 300 }}>
+      <div style={{ marginBottom: 12, borderBottom: `1px solid ${token.colorBorderSecondary}`, paddingBottom: 8 }}>
+        <div style={{ marginBottom: 4 }}>
+          <Text strong style={{ fontSize: 12, color: token.colorPrimary }}>{record.title}</Text>
+        </div>
+        <Text style={{ fontSize: 11, color: token.colorTextSecondary }}>담당자별 합성 현황 비교</Text>
+      </div>
+      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+        <thead>
+          <tr style={{ borderBottom: `1px solid ${token.colorBorderSecondary}` }}>
+            <th style={{ textAlign: 'left', padding: '4px 0', fontSize: 10, color: token.colorTextSecondary }}>담당자</th>
+            <th style={{ textAlign: 'center', padding: '4px 0', fontSize: 10, color: token.colorTextSecondary }}>합성중</th>
+            <th style={{ textAlign: 'center', padding: '4px 0', fontSize: 10, color: token.colorTextSecondary }}>완료</th>
+            <th style={{ textAlign: 'center', padding: '4px 0', fontSize: 10, color: token.colorTextSecondary }}>합계</th>
+          </tr>
+        </thead>
+        <tbody>
+          {record.managers.length > 0 ? record.managers.map((manager) => (
+            <tr key={manager.name} style={{ background: manager.name === currentMgrName ? token.colorPrimaryBg : 'transparent' }}>
+              <td style={{ padding: '6px 0', fontSize: 11 }}>
+                <Text strong={manager.name === currentMgrName}>{manager.name}</Text>
+              </td>
+              <td style={{ textAlign: 'center', fontSize: 10, color: '#1890ff' }}>{manager.ing}</td>
+              <td style={{ textAlign: 'center', fontSize: 10, color: '#52c41a' }}>{manager.done}</td>
+              <td style={{ textAlign: 'center', fontSize: 10, fontWeight: 600 }}>{manager.count}</td>
+            </tr>
+          )) : (
+            <tr>
+              <td colSpan={4} style={{ padding: '10px 0', textAlign: 'center', fontSize: 11, color: token.colorTextTertiary }}>
+                배정된 합성 담당자가 없습니다.
+              </td>
+            </tr>
+          )}
+        </tbody>
+      </table>
+    </div>
+  );
+};
+
+const MyBoardSynthesisBoard: React.FC = () => {
   const navigate = useNavigate();
   const { token } = theme.useToken();
   const { modal } = AntApp.useApp();
@@ -467,7 +519,6 @@ const MyBoard: React.FC = () => {
     setCompoundSarData,
     groups,
     groupStructureViewSettings,
-    updateGroupStructureViewSettings,
     mergeGroups,
     copyGroup,
     deleteGroups,
@@ -486,6 +537,7 @@ const MyBoard: React.FC = () => {
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [isStructureModalOpen, setIsStructureModalOpen] = useState(false);
   const [isQuickAddModalOpen, setIsQuickAddModalOpen] = useState(false);
+  const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
   const [isMergeGroupModalOpen, setIsMergeGroupModalOpen] = useState(false);
   const [isCompoundGroupSelectModalOpen, setIsCompoundGroupSelectModalOpen] = useState(false);
   const [isCompoundEditModalOpen, setIsCompoundEditModalOpen] = useState(false);
@@ -517,7 +569,7 @@ const MyBoard: React.FC = () => {
     activeType: CompoundQuickViewerAssetType;
   } | null>(null);
   const [showFilters, setShowFilters] = useState(false);
-  const [viewMode, setViewMode] = useState<'table' | 'draw' | 'tree'>('table');
+  const [viewMode] = useState<'table' | 'draw' | 'tree'>('table');
   const [treeZoom, setTreeZoom] = useState(1);
   const [treeFlowInstance, setTreeFlowInstance] = useState<ReactFlowInstance<MyBoardTreeFlowNode, MyBoardTreeFlowEdge> | null>(null);
   const [isTreeMiniMapVisible, setIsTreeMiniMapVisible] = useState(true);
@@ -533,6 +585,7 @@ const MyBoard: React.FC = () => {
   const [detailPagination, setDetailPagination] = useState({ current: 1, pageSize: 10 });
   const [compoundGroupAction, setCompoundGroupAction] = useState<'move' | 'copy'>('move');
   const [selectedCompoundTargetGroupId, setSelectedCompoundTargetGroupId] = useState<string>();
+  const [selectedSynthesisItem, setSelectedSynthesisItem] = useState<Compound | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [groupContextMenu, setGroupContextMenu] = useState<{
     open: boolean;
@@ -658,7 +711,7 @@ const MyBoard: React.FC = () => {
     }
   }, []);
   const layoutPreset = React.useMemo(() => getPatentAnalysisLayoutPreset(viewportWidth), [viewportWidth]);
-  const isStackedSplitLayout = viewportWidth <= 1100;
+  const isStackedSplitLayout = viewportWidth <= MYBOARD_SYNTHESIS_STACKED_BREAKPOINT;
   const isGroupListFull = groupListMode === 'full';
   const isGroupListStructureOnly = groupListMode === 'structure';
   const isGroupListHidden = groupListMode === 'hidden';
@@ -807,30 +860,17 @@ const MyBoard: React.FC = () => {
     return true;
   }, [applySplitRatio, autoFitGroupTableWidth, clampSplitLeftWidth, clampSplitRatio, isGroupListFull, isStackedSplitLayout]);
 
-  const getViewToggleButtonStyle = (mode: 'table' | 'draw' | 'tree'): React.CSSProperties => {
-    const isActive = viewMode === mode;
-
-    return {
-      background: isActive ? token.colorPrimaryBg : 'transparent',
-      border: `1px solid ${isActive ? token.colorPrimary : 'transparent'}`,
-      color: isActive ? token.colorPrimary : token.colorTextSecondary,
-      borderRadius: 6,
-      fontSize: 10,
-      fontWeight: isActive ? 600 : 500,
-      boxShadow: isActive ? '0 0 0 1px rgba(248, 124, 99, 0.15)' : 'none'
-    };
-  };
-
   useEffect(() => {
     setHeaderContent(
       <PageHeaderBreadcrumb
         items={[
-          { label: 'Design' }
+          { label: 'Design', onClick: () => navigate('/myboard') },
+          { label: '합성 관리' },
         ]}
       />
     );
     return () => setHeaderContent(null);
-  }, [setHeaderContent]);
+  }, [navigate, setHeaderContent]);
 
   React.useEffect(() => {
     const onResize = () => setViewportWidth(window.innerWidth);
@@ -1077,18 +1117,26 @@ const MyBoard: React.FC = () => {
   }, [applyDefaultGroupListSplit, stopSplitResize]);
 
   const alwaysColumnKeys = React.useMemo(() => [
-    '순번', '그룹 번호', '프로젝트', '물질 번호 (VRN)', '화합물 구조', '데이터', '단계', '출처', '디자인 비고', 'MolProp1', 'MolProp2'
+    '순번', '그룹 번호', '프로젝트', '물질 번호 (VRN)', '화합물 구조', '데이터', '단계', '출처', '디자인 비고'
   ], []);
-  const designColumnKeys = React.useMemo(() => [
-    '디자인 번호', '필요량 (mg)', '목적 (개선하고자 하는 assay)', '기대 개선 효과', '의뢰일자', '합성 확장 필요 정도', '의뢰 비고'
+  const synthesisDetailColumnKeys = React.useMemo(() => [
+    '합성 담당자',
+    '합성 스터디 그룹 수락일자',
+    '합성 목표일',
+    '진행사항 비고',
+    '완료 여부',
+    '등록일',
+    '연구노트',
+    '리포트 자료',
+    '합성 종료 이유',
   ], []);
   const defaultOrder = React.useMemo(
-    () => [...alwaysColumnKeys, ...designColumnKeys],
-    [alwaysColumnKeys, designColumnKeys]
+    () => [...alwaysColumnKeys, ...synthesisDetailColumnKeys],
+    [alwaysColumnKeys, synthesisDetailColumnKeys]
   );
   const defaultActive = React.useMemo(
-    () => [...alwaysColumnKeys, ...designColumnKeys],
-    [alwaysColumnKeys, designColumnKeys]
+    () => [...alwaysColumnKeys, ...synthesisDetailColumnKeys],
+    [alwaysColumnKeys, synthesisDetailColumnKeys]
   );
 
   // COLUMN STATES (Order & Visibility)
@@ -1208,28 +1256,6 @@ const MyBoard: React.FC = () => {
       return acc;
     }, {});
   }, [selectedGroupIds]);
-  const activeStructureSettingsGroupId = selectedGroupIds.length === 1 ? selectedGroupIds[0] : null;
-  const activeStructureSettings = activeStructureSettingsGroupId
-    ? {
-        ...DEFAULT_GROUP_STRUCTURE_VIEW_SETTINGS,
-        ...groupStructureViewSettings[activeStructureSettingsGroupId],
-      }
-    : null;
-  const isStructureSettingsDisabled = !activeStructureSettingsGroupId;
-  const updateActiveStructureSettings = (settings: Partial<typeof DEFAULT_GROUP_STRUCTURE_VIEW_SETTINGS>) => {
-    if (!activeStructureSettingsGroupId) return;
-    updateGroupStructureViewSettings(activeStructureSettingsGroupId, settings);
-  };
-  const clampMyBoardStructureScale = (value: number) => {
-    const steppedValue = Math.round(value / MYBOARD_STRUCTURE_IMAGE_SCALE_STEP) * MYBOARD_STRUCTURE_IMAGE_SCALE_STEP;
-    return Math.min(MYBOARD_STRUCTURE_IMAGE_SCALE_MAX, Math.max(MYBOARD_STRUCTURE_IMAGE_SCALE_MIN, steppedValue));
-  };
-  const changeMyBoardStructureScale = (delta: number) => {
-    const currentValue = activeStructureSettings?.myBoardImageScalePercent ?? DEFAULT_GROUP_STRUCTURE_VIEW_SETTINGS.myBoardImageScalePercent;
-    updateActiveStructureSettings({
-      myBoardImageScalePercent: clampMyBoardStructureScale(currentValue + delta),
-    });
-  };
   const getGroupStructureSettings = React.useCallback((groupId: string) => ({
     ...DEFAULT_GROUP_STRUCTURE_VIEW_SETTINGS,
     ...groupStructureViewSettings[groupId],
@@ -1615,6 +1641,100 @@ const MyBoard: React.FC = () => {
     );
   }, [getDesignMemoPreviewBlocks]);
 
+  const synthesisGroupStatusMap = React.useMemo(() => {
+    const statusMap = new Map<string, SynthesisGroupStatus>();
+
+    groups.forEach((group) => {
+      const groupCompounds = compoundRows.filter((compound) => compound.groupId === group.id);
+      const managerMap = new Map<string, SynthesisManagerStatus>();
+      let ing = 0;
+      let done = 0;
+      let unassigned = 0;
+
+      groupCompounds.forEach((compound) => {
+        const isDone = compound.isCompleted || compound.synthesisRequestStatus === 'vnaIssued' || compound.status === '합성완료';
+        const isUnassigned = !isDone && (
+          !compound.synthesisOwner ||
+          compound.progressMemo === '미배정' ||
+          compound.synthesisRequestStatus === 'requested'
+        );
+        const isIng = !isDone && !isUnassigned && (
+          compound.synthesisRequestStatus === 'accepted' ||
+          compound.synthesisRequestStatus === 'synthesizing' ||
+          compound.status === '합성중' ||
+          Boolean(compound.synthesisOwner)
+        );
+        const ownerName = String(compound.synthesisOwner || '').trim();
+        const manager = ownerName
+          ? managerMap.get(ownerName) ?? { name: ownerName, count: 0, ing: 0, done: 0 }
+          : null;
+
+        if (isDone) {
+          done += 1;
+          if (manager) {
+            manager.done += 1;
+            manager.count += 1;
+            managerMap.set(manager.name, manager);
+          }
+          return;
+        }
+
+        if (isIng) {
+          ing += 1;
+          if (manager) {
+            manager.ing += 1;
+            manager.count += 1;
+            managerMap.set(manager.name, manager);
+          }
+          return;
+        }
+
+        if (isUnassigned || !compound.compoundId.trim()) {
+          unassigned += 1;
+        }
+      });
+
+      statusMap.set(group.id, {
+        title: group.name,
+        ing,
+        done,
+        unassigned,
+        managers: Array.from(managerMap.values()).sort((first, second) => second.count - first.count || first.name.localeCompare(second.name)),
+      });
+    });
+
+    return statusMap;
+  }, [compoundRows, groups]);
+
+  const renderSynthesisStatusTag = React.useCallback((
+    groupId: string,
+    statusKey: 'ing' | 'done' | 'unassigned',
+    color: string,
+    dangerWhenPositive = false
+  ) => {
+    const status = synthesisGroupStatusMap.get(groupId) ?? {
+      title: '-',
+      ing: 0,
+      done: 0,
+      unassigned: 0,
+      managers: [],
+    };
+    const value = status[statusKey];
+
+    return (
+      <Popover content={<ManagerComparisonPopup record={status} />} title={null} trigger="hover" placement="top">
+        <div className="my-board-synthesis-summary-cell">
+          <Tag
+            color={dangerWhenPositive && value > 0 ? 'error' : color}
+            className="my-board-synthesis-summary-tag"
+          >
+            {formatNumberWithComma(value)}
+          </Tag>
+        </div>
+      </Popover>
+    );
+  }, [synthesisGroupStatusMap]);
+
   const groupColumns = [
     {
       title: '순번',
@@ -1679,6 +1799,42 @@ const MyBoard: React.FC = () => {
       className: 'my-board-group-fixed-column',
       onCell: () => createFixedGroupColumnProps(MYBOARD_GROUP_COLUMN_WIDTHS.count),
       onHeaderCell: () => createFixedGroupColumnProps(MYBOARD_GROUP_COLUMN_WIDTHS.count),
+    },
+    {
+      title: '합성중',
+      dataIndex: 'id',
+      key: 'synthesisIng',
+      width: MYBOARD_GROUP_COLUMN_WIDTHS.synthesisIng,
+      minWidth: MYBOARD_GROUP_COLUMN_WIDTHS.synthesisIng,
+      align: 'center' as const,
+      className: 'my-board-group-fixed-column',
+      onCell: () => createFixedGroupColumnProps(MYBOARD_GROUP_COLUMN_WIDTHS.synthesisIng),
+      onHeaderCell: () => createFixedGroupColumnProps(MYBOARD_GROUP_COLUMN_WIDTHS.synthesisIng),
+      render: (groupId: string) => renderSynthesisStatusTag(groupId, 'ing', 'blue'),
+    },
+    {
+      title: '합성완료',
+      dataIndex: 'id',
+      key: 'synthesisDone',
+      width: MYBOARD_GROUP_COLUMN_WIDTHS.synthesisDone,
+      minWidth: MYBOARD_GROUP_COLUMN_WIDTHS.synthesisDone,
+      align: 'center' as const,
+      className: 'my-board-group-fixed-column',
+      onCell: () => createFixedGroupColumnProps(MYBOARD_GROUP_COLUMN_WIDTHS.synthesisDone),
+      onHeaderCell: () => createFixedGroupColumnProps(MYBOARD_GROUP_COLUMN_WIDTHS.synthesisDone),
+      render: (groupId: string) => renderSynthesisStatusTag(groupId, 'done', 'success'),
+    },
+    {
+      title: '미배정',
+      dataIndex: 'id',
+      key: 'synthesisUnassigned',
+      width: MYBOARD_GROUP_COLUMN_WIDTHS.synthesisUnassigned,
+      minWidth: MYBOARD_GROUP_COLUMN_WIDTHS.synthesisUnassigned,
+      align: 'center' as const,
+      className: 'my-board-group-fixed-column',
+      onCell: () => createFixedGroupColumnProps(MYBOARD_GROUP_COLUMN_WIDTHS.synthesisUnassigned),
+      onHeaderCell: () => createFixedGroupColumnProps(MYBOARD_GROUP_COLUMN_WIDTHS.synthesisUnassigned),
+      render: (groupId: string) => renderSynthesisStatusTag(groupId, 'unassigned', 'default', true),
     },
     {
       title: '그룹',
@@ -2031,28 +2187,6 @@ const MyBoard: React.FC = () => {
     setCompoundRows((prev) => prev.map(updateRow));
     setExternalCompoundRows(externalCompoundRows.map(updateRow));
   }, [externalCompoundRows, setExternalCompoundRows]);
-
-  const handleOpenSynthesisRequest = React.useCallback((compound: Compound) => {
-    if (compound.compoundId.trim()) return;
-    const synthesisRequestNo = isSynthesisRequestNumber(compound.progressMemo)
-      ? compound.progressMemo
-      : peekNextSynthesisRequestNumber();
-    const referenceName = String(compound.assayPurpose || '').match(/레퍼런스:\s*([^,]+)/)?.[1]?.trim();
-    const purposePaths = parseCascaderText(compound.assayPurpose, designPurposeOptions) as DesignPurposeValue[];
-
-    setSynthesisRequestTarget(compound);
-    setSelectedSynthesisRequestPurposes(referenceName ? [...purposePaths, ['레퍼런스']] : purposePaths);
-    setSelectedSynthesisRequestSteps(parseCascaderText(compound.synthesisStep || compound.synthesisExpansionLevel, designExpansionOptions) as DesignExpansionValue[]);
-    synthesisRequestForm.setFieldsValue({
-      synthesisRequestNo,
-      requiredAmountMg: compound.requiredAmountMg && compound.requiredAmountMg > 0 ? compound.requiredAmountMg : undefined,
-      synthesisReferenceName: referenceName,
-      expectedEffect: compound.expectedEffect === '-' ? '' : compound.expectedEffect,
-      requestMemo: compound.requestMemo === '-' ? '' : compound.requestMemo,
-      synthesisRequestType: compound.synthesisRequestType,
-    });
-    setIsSynthesisRequestModalOpen(true);
-  }, [designExpansionOptions, designPurposeOptions, parseCascaderText, synthesisRequestForm]);
 
   const handleCloseSynthesisRequest = React.useCallback(() => {
     setIsSynthesisRequestModalOpen(false);
@@ -2644,34 +2778,15 @@ const MyBoard: React.FC = () => {
 
     const status = record.synthesisRequestStatus;
     if (!status) {
-      return (
-        <Button
-          size="small"
-          type="primary"
-          className="my-board-synthesis-request-button"
-          onClick={(event) => {
-            event.stopPropagation();
-            handleOpenSynthesisRequest(record);
-          }}
-        >
-          합성 요청
-        </Button>
-      );
+      return <Text type="secondary">-</Text>;
     }
 
     const statusMeta = SYNTHESIS_REQUEST_STATUS_META[status];
     if (status === 'requested') {
       return (
-        <Button
-          size="small"
-          className="my-board-synthesis-status-button"
-          onClick={(event) => {
-            event.stopPropagation();
-            handleOpenSynthesisRequest(record);
-          }}
-        >
+        <Tag color={statusMeta.color} className="my-board-synthesis-status-tag">
           {statusMeta.label}
-        </Button>
+        </Tag>
       );
     }
 
@@ -2682,7 +2797,7 @@ const MyBoard: React.FC = () => {
         </Tag>
       </div>
     );
-  }, [handleOpenSynthesisRequest, token.colorPrimary]);
+  }, [token.colorPrimary]);
   const synthesisRequestTargetGroup = React.useMemo(
     () => groups.find((group) => group.id === synthesisRequestTarget?.groupId),
     [groups, synthesisRequestTarget?.groupId]
@@ -2878,21 +2993,104 @@ const MyBoard: React.FC = () => {
     '의뢰일자': { title: '의뢰일자', dataIndex: 'requestDate', key: 'requestDate', width: 96, render: formatDisplayDate },
     '합성 확장 필요 정도': { title: '합성 확장 필요 정도', dataIndex: 'synthesisExpansionLevel', key: 'synthesisExpansionLevel', width: 144 },
     '의뢰 비고': { title: '의뢰 비고', dataIndex: 'requestMemo', key: 'requestMemo', width: 180, render: renderDesignMemoPreview },
-    '합성 담당자': { title: '합성 담당자', dataIndex: 'synthesisOwner', key: 'synthesisOwner', width: 104 },
-    '합성 스터디 그룹 수락일자': { title: '합성 스터디 그룹 수락일자', dataIndex: 'synthesisAcceptedDate', key: 'synthesisAcceptedDate', width: 172, render: formatDisplayDate },
-    '합성 목표일': { title: '합성 목표일', dataIndex: 'synthesisTargetDate', key: 'synthesisTargetDate', width: 104, render: formatDisplayDate },
-    '진행사항 비고': { title: '진행사항 비고', dataIndex: 'progressMemo', key: 'progressMemo', width: 180, render: renderMultilineText },
+    '합성 담당자': {
+      title: '합성 담당자',
+      dataIndex: 'synthesisOwner',
+      key: 'synthesisOwner',
+      width: 112,
+      align: 'center' as const,
+      className: 'table-center-column',
+      render: (owner: string | null | undefined, record: Compound) => (
+        owner ? (
+          <div
+            style={{
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              padding: '4px 10px',
+              background: token.colorBgContainer,
+              border: `1px solid ${token.colorBorderSecondary}`,
+              borderRadius: 6,
+              transition: 'all 0.2s',
+            }}
+            className="assignee-button"
+            onClick={(event) => {
+              event.stopPropagation();
+              setSelectedSynthesisItem(record);
+              setIsAssignModalOpen(true);
+            }}
+          >
+            <UserPlus size={14} color={token.colorPrimary} />
+            <Text style={{ fontSize: 11, fontWeight: 500, color: token.colorText }}>{owner}</Text>
+          </div>
+        ) : (
+          <Button
+            size="small"
+            icon={<UserPlus size={14} />}
+            onClick={(event) => {
+              event.stopPropagation();
+              setSelectedSynthesisItem(record);
+              setIsAssignModalOpen(true);
+            }}
+            style={{ borderRadius: 6, fontSize: 10 }}
+          >
+            배정
+          </Button>
+        )
+      ),
+    },
+    '합성 스터디 그룹 수락일자': {
+      title: '합성 스터디 그룹 수락일자',
+      dataIndex: 'synthesisAcceptedDate',
+      key: 'synthesisAcceptedDate',
+      width: 172,
+      align: 'center' as const,
+      className: 'table-center-column',
+      render: formatDisplayDate,
+    },
+    '합성 목표일': {
+      title: '합성 목표일',
+      dataIndex: 'synthesisTargetDate',
+      key: 'synthesisTargetDate',
+      width: 104,
+      align: 'center' as const,
+      className: 'table-center-column',
+      render: formatDisplayDate,
+    },
+    '진행사항 비고': { title: '진행사항 비고', dataIndex: 'progressMemo', key: 'progressMemo', width: 180, ellipsis: true },
     '완료 여부': {
       title: '완료 여부',
       dataIndex: 'isCompleted',
       key: 'isCompleted',
-      width: 88,
-      render: (isCompleted: boolean) => <Tag color={isCompleted ? 'green' : 'gold'}>{isCompleted ? '완료' : '진행중'}</Tag>
+      width: 86,
+      align: 'center' as const,
+      className: 'table-center-column',
+      render: (isCompleted: boolean) => (
+        <Tag color={isCompleted ? 'green' : 'gold'} style={{ margin: 0 }}>
+          {isCompleted ? '완료' : '진행중'}
+        </Tag>
+      ),
     },
-    '등록일': { title: '등록일', dataIndex: 'registeredDate', key: 'registeredDate', width: 96, render: formatDisplayDate },
-    '연구노트': { title: '연구노트', dataIndex: 'researchNote', key: 'researchNote', width: 108 },
-    '리포트 자료': { title: '리포트 자료', dataIndex: 'reportData', key: 'reportData', width: 156, render: renderMultilineText },
-    '합성 종료 이유': { title: '합성 종료 이유', dataIndex: 'synthesisEndReason', key: 'synthesisEndReason', width: 164, render: renderMultilineText }
+    '등록일': {
+      title: '등록일',
+      dataIndex: 'registeredDate',
+      key: 'registeredDate',
+      width: 96,
+      align: 'center' as const,
+      className: 'table-center-column',
+      render: formatDisplayDate,
+    },
+    '연구노트': {
+      title: '연구노트',
+      dataIndex: 'researchNote',
+      key: 'researchNote',
+      width: 108,
+      align: 'center' as const,
+      className: 'table-center-column',
+    },
+    '리포트 자료': { title: '리포트 자료', dataIndex: 'reportData', key: 'reportData', width: 156, ellipsis: true },
+    '합성 종료 이유': { title: '합성 종료 이유', dataIndex: 'synthesisEndReason', key: 'synthesisEndReason', width: 164, ellipsis: true },
   };
 
   const responsiveTextColumnWidth = React.useMemo(() => {
@@ -3602,18 +3800,6 @@ const MyBoard: React.FC = () => {
                 >
                   그룹 리스트
                 </Text>
-                <Button
-                  type="primary"
-                  size="small"
-                  icon={<Plus size={14} />}
-                  onClick={() => setIsGroupModalOpen(true)}
-                  style={{
-                    background: token.colorPrimary,
-                    borderColor: token.colorPrimary,
-                  }}
-                >
-                  Add Group
-                </Button>
                 <Space size={8} className="my-board-group-pin-filter">
                   <Button
                     type={groupPinFilter === 'pinned' ? 'primary' : 'default'}
@@ -3625,20 +3811,19 @@ const MyBoard: React.FC = () => {
                     <span className="my-board-group-pin-filter-count">{formatNumberWithComma(pinnedGroupCount)}</span>
                   </Button>
                 </Space>
-	              </div>
-	              <Space size={8}>
-	                <Button
-	                  size="middle"
-	                  icon={<ArrowRight size={15} />}
-	                  iconPosition="end"
-	                  style={{ height: 30, paddingInline: 12, fontWeight: 700 }}
-	                  onClick={() => {
-	                    navigate('/myboard/synthesis-board');
-	                  }}
-	                >
-	                  합성 관리
-	                </Button>
-	              </Space>
+              </div>
+              <Space size={8}>
+                <Button
+                  size="middle"
+                  icon={<ArrowLeft size={15} />}
+                  style={{ height: 30, paddingInline: 12, fontWeight: 700 }}
+                  onClick={() => {
+                    navigate('/myboard');
+                  }}
+                >
+                  돌아가기
+                </Button>
+              </Space>
               </>
               )}
             </div>
@@ -3779,174 +3964,40 @@ const MyBoard: React.FC = () => {
                 >
                   그룹 상세 목록
                 </Text>
-                <Space wrap size={8}>
-                  <Button
-                    type="primary"
-                    size="small"
-                    icon={<Plus size={14} />}
-                    disabled={!canAddCompound}
-                    style={getCompoundActionButtonStyle(canAddCompound)}
-                    onClick={() => setIsQuickAddModalOpen(true)}
-                  >
-                    Quick add
-                  </Button>
-                  <Button
-                    type="primary"
-                    size="small"
-                    icon={<Plus size={14} />}
-                    disabled={!canAddCompound}
-                    style={getCompoundActionButtonStyle(canAddCompound)}
-                    onClick={handleOpenDesignModal}
-                  >
-                    Add
-                  </Button>
-                  <Button
-                    type={detailCompoundTypeFilter === 'design' ? 'primary' : 'default'}
-                    size="small"
-                    onClick={() => setDetailCompoundTypeFilter((value) => value === 'design' ? 'all' : 'design')}
-                  >
-                    Design
-                  </Button>
-                  <Button
-                    type={detailCompoundTypeFilter === 'compound' ? 'primary' : 'default'}
-                    size="small"
-                    onClick={() => setDetailCompoundTypeFilter((value) => value === 'compound' ? 'all' : 'compound')}
-                  >
-                    Compound
-                  </Button>
-                  <Button
-                    type="primary"
-                    size="small"
-                    icon={<span className="my-board-action-icon my-board-action-icon-eye-off" aria-hidden="true" />}
-                    disabled={!canHideCompound}
-                    style={getCompoundActionButtonStyle(canHideCompound)}
-                    onClick={handleHideSelectedCompounds}
-                  >
-                    숨기기
-                  </Button>
-                  <Button
-                    type="primary"
-                    size="small"
-                    icon={<Trash2 size={14} />}
-                    disabled={!canDeleteCompound}
-                    style={getCompoundActionButtonStyle(canDeleteCompound)}
-                    onClick={handleDeleteSelectedCompounds}
-                  >
-                    Del
-                  </Button>
-                  <Button
-                    type="primary"
-                    size="small"
-                    icon={<Edit3 size={14} />}
-                    disabled={!canEditCompound}
-                    style={getCompoundActionButtonStyle(canEditCompound)}
-                    onClick={handleOpenCompoundEdit}
-                  >
-                    Edit
-                  </Button>
-                </Space>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', flex: '1 1 auto' }}>
-                <Space>
-                  {viewMode === 'table' && (
-                  <>
-                    <div className="my-board-structure-setting-group" aria-label="화합물 구조 크기 설정">
-                      <span className="my-board-structure-setting-label">Scale</span>
-                      <div className="my-board-structure-setting-row">
-                        <Tooltip title="구조 이미지 축소">
-                          <Button
-                            size="small"
-                            icon={<Minus size={12} />}
-                            disabled={isStructureSettingsDisabled}
-                            onClick={() => changeMyBoardStructureScale(-MYBOARD_STRUCTURE_IMAGE_SCALE_STEP)}
-                          />
-                        </Tooltip>
-                        <div className="my-board-structure-setting-value">
-                          {activeStructureSettings ? `${activeStructureSettings.myBoardImageScalePercent}%` : ''}
-                        </div>
-                        <Tooltip title="구조 이미지 확대">
-                          <Button
-                            size="small"
-                            icon={<Plus size={12} />}
-                            disabled={isStructureSettingsDisabled}
-                            onClick={() => changeMyBoardStructureScale(MYBOARD_STRUCTURE_IMAGE_SCALE_STEP)}
-                          />
-                        </Tooltip>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <div style={{ display: 'flex', gap: 4 }}>
+                    {[1, 2, 3, 4, 5].map(n => (
+                      <div
+                        key={n}
+                        onClick={() => applyPreset(n)}
+                        style={{
+                          width: 24,
+                          height: 24,
+                          background: activePreset === n ? token.colorPrimary : token.colorBorderSecondary,
+                          borderRadius: 4,
+                          fontSize: 10,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          color: activePreset === n ? token.colorBgContainer : token.colorTextSecondary,
+                          cursor: 'pointer',
+                          fontWeight: activePreset === n ? 'bold' : 'normal',
+                          transition: 'all 0.2s'
+                        }}
+                      >
+                        {n}
                       </div>
-                    </div>
-                    <Divider type="vertical" />
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <div style={{ display: 'flex', gap: 4 }}>
-                        {[1, 2, 3, 4, 5].map(n => (
-                          <div
-                            key={n}
-                            onClick={() => applyPreset(n)}
-                            style={{
-                              width: 24, height: 24,
-                              background: activePreset === n ? token.colorPrimary : token.colorBorderSecondary,
-                              borderRadius: 4,
-                              fontSize: 10,
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              color: activePreset === n ? token.colorBgContainer : token.colorTextSecondary,
-                              cursor: 'pointer',
-                              fontWeight: activePreset === n ? 'bold' : 'normal',
-                              transition: 'all 0.2s'
-                            }}
-                          >
-                            {n}
-                          </div>
-                        ))}
-                      </div>
-                      <Settings
-                        size={18}
-                        color={token.colorTextTertiary}
-                        style={{ cursor: 'pointer' }}
-                        onClick={() => setIsSettingsModalOpen(true)}
-                      />
-                    </div>
-                    <Divider type="vertical" />
-                  </>
-                )}
-                <div
-                  style={{
-                    background: token.colorBgLayout,
-                    padding: '2px',
-                    borderRadius: 8,
-                    display: 'flex',
-                    border: `1px solid ${token.colorBorderSecondary}`
-                  }}
-                >
-                  <Button
-                    type="text"
-                    size="small"
-                    icon={<ListIcon size={14} />}
-                    style={getViewToggleButtonStyle('table')}
-                    onClick={() => setViewMode('table')}
-                  >
-                    Table
-                  </Button>
-                  <Button
-                    type="text"
-                    size="small"
-                    icon={<ImageIcon size={14} />}
-                    style={getViewToggleButtonStyle('draw')}
-                    onClick={() => setViewMode('draw')}
-                  >
-                    Canvas
-                  </Button>
-                  <Button
-                    type="text"
-                    size="small"
-                    icon={<GitBranch size={14} />}
-                    style={getViewToggleButtonStyle('tree')}
-                    onClick={() => setViewMode('tree')}
-                  >
-                    Tree
-                  </Button>
+                    ))}
                   </div>
-                </Space>
+                  <Settings
+                    size={18}
+                    color={token.colorTextTertiary}
+                    style={{ cursor: 'pointer' }}
+                    onClick={() => setIsSettingsModalOpen(true)}
+                  />
+                </div>
               </div>
             </div>
             {viewMode === 'table' ? (
@@ -4162,6 +4213,58 @@ const MyBoard: React.FC = () => {
             선택된 {selectedDetailCompoundIds.length}개의 화합물을 {compoundGroupAction === 'move' ? '선택한 그룹으로 이동합니다.' : '선택한 그룹에 복제합니다.'}
           </Text>
         </Form>
+      </Modal>
+
+      <Modal
+        title="합성 요청"
+        open={isAssignModalOpen}
+        onCancel={() => setIsAssignModalOpen(false)}
+        footer={[
+          <Button key="cancel" onClick={() => setIsAssignModalOpen(false)}>닫기</Button>,
+          selectedSynthesisItem?.synthesisOwner ? (
+            <Button
+              key="remove"
+              danger
+              onClick={() => setIsAssignModalOpen(false)}
+            >
+              담당자 취소
+            </Button>
+          ) : null,
+          <Button
+            key="ok"
+            type="primary"
+            onClick={() => setIsAssignModalOpen(false)}
+            style={{ background: token.colorPrimary, borderColor: token.colorPrimary }}
+          >
+            {selectedSynthesisItem?.synthesisOwner ? '담당자 수정' : '배정 완료'}
+          </Button>
+        ]}
+        width={450}
+      >
+        <div style={{ padding: '10px 0' }}>
+          <div style={{ marginBottom: 20, padding: 16, background: token.colorPrimaryBg, borderRadius: 8, display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{ width: 60, height: 40, background: token.colorBgContainer, borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', border: `1px solid ${token.colorBorderSecondary}` }}>
+              <Beaker size={20} color={token.colorPrimary} />
+            </div>
+            <div>
+              <Text type="secondary" style={{ fontSize: 11 }}>Selected Compound</Text><br />
+              <Text strong>{selectedSynthesisItem?.compoundId || selectedSynthesisItem?.designNo || '-'} ({selectedSynthesisItem?.name})</Text>
+            </div>
+          </div>
+          <Text strong>연구원 선택</Text>
+          <Select
+            showSearch
+            style={{ width: '100%', marginTop: 8 }}
+            placeholder="담당자 선택"
+            defaultValue={selectedSynthesisItem?.synthesisOwner || undefined}
+            options={[
+              { value: '담당자1', label: '담당자1' },
+              { value: '담당자2', label: '담당자2' },
+              { value: '담당자3', label: '담당자3' },
+              { value: '담당자4', label: '담당자4' },
+            ]}
+          />
+        </div>
       </Modal>
 
       <Modal
@@ -5850,7 +5953,7 @@ const MyBoard: React.FC = () => {
           text-align: right;
           overflow-wrap: anywhere;
         }
-        @media (max-width: 1100px) {
+        @media (max-width: ${MYBOARD_SYNTHESIS_STACKED_BREAKPOINT}px) {
           .my-board-workspace {
             display: block;
           }
@@ -6139,4 +6242,4 @@ const MyBoard: React.FC = () => {
   );
 };
 
-export default MyBoard;
+export default MyBoardSynthesisBoard;

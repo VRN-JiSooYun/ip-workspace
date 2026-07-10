@@ -128,6 +128,9 @@ export interface Compound {
   researchNote?: string;
   reportData?: string;
   synthesisEndReason?: string;
+  synthesisRequestStatus?: 'requested' | 'accepted' | 'synthesizing' | 'vnaIssued';
+  synthesisRequestType?: string;
+  synthesisStep?: string;
   experimentStage?: number;
   quickViewerAssets?: CompoundQuickViewerAsset[];
   sar?: SARData;
@@ -637,14 +640,29 @@ export const mockCompounds: Compound[] = exampleCompoundRows.map((row, rowIndex)
   const seed = rowIndex + 1;
   const project = getExampleGroupProject(row.group);
   const compoundId = seed % 6 === 0 ? getExampleCompoundId(row) : '';
+  const requestStatusBySeed: Record<number, Compound['synthesisRequestStatus']> = {
+    2: 'requested',
+    3: 'accepted',
+    4: 'synthesizing',
+  };
+  const synthesisRequestStatus = compoundId ? undefined : requestStatusBySeed[seed % 12];
 
-  return createMockCompound(
-    seed,
-    getExampleGroupId(row.group),
-    project,
-    `D-${row.group}`,
-    `${row.group} ${project} SAR`,
-    compoundId,
-    row.smiles
-  );
+  return {
+    ...createMockCompound(
+      seed,
+      getExampleGroupId(row.group),
+      project,
+      `D-${row.group}`,
+      `${row.group} ${project} SAR`,
+      compoundId,
+      row.smiles
+    ),
+    ...(synthesisRequestStatus
+      ? {
+        synthesisRequestStatus,
+        synthesisRequestType: seed % 2 === 0 ? '신규 합성' : '재합성',
+        synthesisStep: `${(seed % 4) + 1}단계`,
+      }
+      : {}),
+  };
 });

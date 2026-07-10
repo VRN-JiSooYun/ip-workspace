@@ -3,6 +3,7 @@ import { App, Button, Skeleton, Tooltip, theme } from 'antd';
 import type { ButtonProps } from 'antd';
 import { Copy, Image as ImageIcon, Search, Share2 } from 'lucide-react';
 import BenzeneIcon from './BenzeneIcon';
+import ChemDrawModal from './ChemDrawModal';
 import { CHEMDRAW_CONFIG } from '../../config/chemdraw';
 import { createRdkitSvgCacheKey, getRdkitStructureSourceKey, renderRdkitSvg } from '../../services/structureRendering';
 import { subscribeRdkitDrawOptionsChange } from '../../services/rdkitDrawOptions';
@@ -52,6 +53,7 @@ export interface CompoundStructureViewProps {
   showCopyAction?: boolean;
   showCopyImageAction?: boolean;
   showLinkedImageCopyAction?: boolean;
+  showChemDrawAction?: boolean;
   linkedImageCopy?: CompoundStructureLinkedImageCopy;
   onPreview?: (svg?: string) => void;
   actionPlacement?: 'rail' | 'overlay';
@@ -487,6 +489,7 @@ const CompoundStructureView: React.FC<CompoundStructureViewProps> = ({
   showCopyAction = true,
   showCopyImageAction,
   showLinkedImageCopyAction = true,
+  showChemDrawAction = true,
   linkedImageCopy,
   onPreview,
   actionPlacement = 'rail',
@@ -510,6 +513,7 @@ const CompoundStructureView: React.FC<CompoundStructureViewProps> = ({
   const { token } = theme.useToken();
   const { message } = App.useApp();
   const structureImageCopyFilter = getStructureImageCopyFilter(token);
+  const [isChemDrawOpen, setIsChemDrawOpen] = useState(false);
   const [generatedStructure, setGeneratedStructure] = useState<{ molBlock: string; svg: string; cacheKey: string } | null>(null);
   const [isRdkitLoading, setIsRdkitLoading] = useState(false);
   const [hasRdkitRenderFailed, setHasRdkitRenderFailed] = useState(false);
@@ -538,6 +542,7 @@ const CompoundStructureView: React.FC<CompoundStructureViewProps> = ({
     : generatedStructure?.svg || cachedRdkitSvg || rdkitSvg || svg);
   const copyText = getCompoundStructureCopyText({ smiles, molBlock: displayMolBlock, cdxml, svg: displaySvg });
   const shouldShowCopyImageAction = showCopyImageAction ?? showCopyAction;
+  const canOpenChemDraw = Boolean(cdxml || displayMolBlock || smiles);
   const hasRenderableChemData = preferRdkitSvg ? false : !!(cdxml || displayMolBlock || smiles);
   const shouldShowRdkitSkeleton = preferRdkitSvg && isRdkitLoading && !displaySvg;
   const shouldFitRotatedBounds = fitRotatedBounds && typeof width === 'number' && typeof height === 'number';
@@ -713,7 +718,31 @@ const CompoundStructureView: React.FC<CompoundStructureViewProps> = ({
           });
       },
     }] : [];
-  const allActions = [...previewAction, ...copyImageAction, ...linkedImageCopyAction, ...copyAction, ...actions];
+  const chemDrawActions = actions.filter((action) => action.key === 'chemdraw');
+  const otherActions = actions.filter((action) => action.key !== 'chemdraw');
+  const builtInChemDrawAction: CompoundStructureAction[] = showChemDrawAction
+    && chemDrawActions.length === 0
+    && linkedImageCopyAction.length > 0
+    && canOpenChemDraw
+    ? [{
+      key: 'chemdraw',
+      title: 'ChemDraw 열기',
+      icon: <BenzeneIcon size={13} />,
+      onClick: (event: React.MouseEvent<HTMLElement>) => {
+        event.stopPropagation();
+        setIsChemDrawOpen(true);
+      },
+    }]
+    : [];
+  const allActions = [
+    ...previewAction,
+    ...copyImageAction,
+    ...linkedImageCopyAction,
+    ...chemDrawActions,
+    ...builtInChemDrawAction,
+    ...copyAction,
+    ...otherActions,
+  ];
   const overlayActions = actionPlacement === 'overlay' && allActions.length > 0 ? (
     <div className={`compound-structure-actions-overlay compound-structure-actions-overlay-${actionOverlayPlacement}`}>
       {allActions.map((action) => (
@@ -742,110 +771,124 @@ const CompoundStructureView: React.FC<CompoundStructureViewProps> = ({
   ) : null;
 
   return (
-    <div
-      className={`compound-structure-view${className ? ` ${className}` : ''}`}
-      onClick={onClick}
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap,
-        ...(actionOverlayAnchor === 'container' ? { position: 'relative' } : {}),
-        width: fullWidth ? '100%' : 'fit-content',
-        margin: fullWidth ? undefined : '0 auto',
-        ...(rotatedBounds ? { width: rotatedBounds.width, minHeight: rotatedBounds.height } : {}),
-        ...containerStyle,
-      }}
-    >
+    <>
       <div
-        className={`compound-structure-frame${frameClassName ? ` ${frameClassName}` : ''}`}
-        aria-label={title}
+        className={`compound-structure-view${className ? ` ${className}` : ''}`}
+        onClick={onClick}
         style={{
-          width,
-          height,
-          background: token.colorBgLayout,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          borderRadius: 4,
-          border: `1px solid ${token.colorBorderSecondary}`,
-          overflow: 'hidden',
-          position: 'relative',
-          ...mergedFrameStyle,
+          gap,
+          ...(actionOverlayAnchor === 'container' ? { position: 'relative' } : {}),
+          width: fullWidth ? '100%' : 'fit-content',
+          margin: fullWidth ? undefined : '0 auto',
+          ...(rotatedBounds ? { width: rotatedBounds.width, minHeight: rotatedBounds.height } : {}),
+          ...containerStyle,
         }}
+      >
+        <div
+          className={`compound-structure-frame${frameClassName ? ` ${frameClassName}` : ''}`}
+          aria-label={title}
+          style={{
+            width,
+            height,
+            background: token.colorBgLayout,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            borderRadius: 4,
+            border: `1px solid ${token.colorBorderSecondary}`,
+            overflow: 'hidden',
+            position: 'relative',
+            ...mergedFrameStyle,
+          }}
         >
-        {displaySvg ? (
-          <div
-            className={structureSvgClassName}
-            style={{
-              width: '100%',
-              height: '100%',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              transformOrigin: 'center',
-              ...mergedStructureStyle,
-            }}
-            dangerouslySetInnerHTML={{ __html: displaySvg }}
-          />
-        ) : shouldShowRdkitSkeleton ? (
-          <div
-            className="compound-structure-skeleton"
-            style={{
-              width: '100%',
-              height: '100%',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              padding: 8,
-              boxSizing: 'border-box',
-            }}
-          >
-            <Skeleton.Node
-              active
+          {displaySvg ? (
+            <div
+              className={structureSvgClassName}
               style={{
                 width: '100%',
                 height: '100%',
-                minWidth: 0,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                transformOrigin: 'center',
+                ...mergedStructureStyle,
               }}
+              dangerouslySetInnerHTML={{ __html: displaySvg }}
             />
-          </div>
-        ) : hasRenderableChemData ? (
-          <div style={{ width: '100%', height: '100%', transformOrigin: 'center', ...mergedStructureStyle }}>
-            <ChemDrawStructurePreview cdxml={cdxml} molBlock={molBlock} smiles={smiles} />
-          </div>
-        ) : preferRdkitSvg && hasRdkitRenderFailed ? (
-          <BenzeneIcon
-            size={iconSize ?? (typeof width === 'number' && typeof height === 'number' ? Math.min(width, height) * 0.34 : 24)}
-            color={token.colorTextQuaternary}
-          />
-        ) : (
-          <BenzeneIcon
-            size={iconSize ?? (typeof width === 'number' && typeof height === 'number' ? Math.min(width, height) * 0.42 : 28)}
-            color={token.colorTextTertiary}
-          />
-        )}
-        {actionOverlayAnchor === 'frame' ? overlayActions : null}
-      </div>
-      {actionOverlayAnchor === 'container' ? overlayActions : null}
-      {actionPlacement === 'rail' && allActions.length > 0 ? (
-        <div className="compound-structure-actions" style={{ height: actionRailHeight ?? height }}>
-          {allActions.map((action) => (
-            <Tooltip key={action.key} title={action.title}>
-              <Button
-                {...action.buttonProps}
-                className={`svg-action-btn compound-structure-action-button${action.buttonProps?.className ? ` ${action.buttonProps.className}` : ''}`}
-                size="small"
-                type="text"
-                icon={action.icon}
-                disabled={action.disabled}
-                onClick={action.onClick}
+          ) : shouldShowRdkitSkeleton ? (
+            <div
+              className="compound-structure-skeleton"
+              style={{
+                width: '100%',
+                height: '100%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: 8,
+                boxSizing: 'border-box',
+              }}
+            >
+              <Skeleton.Node
+                active
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  minWidth: 0,
+                }}
               />
-            </Tooltip>
-          ))}
+            </div>
+          ) : hasRenderableChemData ? (
+            <div style={{ width: '100%', height: '100%', transformOrigin: 'center', ...mergedStructureStyle }}>
+              <ChemDrawStructurePreview cdxml={cdxml} molBlock={molBlock} smiles={smiles} />
+            </div>
+          ) : preferRdkitSvg && hasRdkitRenderFailed ? (
+            <BenzeneIcon
+              size={iconSize ?? (typeof width === 'number' && typeof height === 'number' ? Math.min(width, height) * 0.34 : 24)}
+              color={token.colorTextQuaternary}
+            />
+          ) : (
+            <BenzeneIcon
+              size={iconSize ?? (typeof width === 'number' && typeof height === 'number' ? Math.min(width, height) * 0.42 : 28)}
+              color={token.colorTextTertiary}
+            />
+          )}
+          {actionOverlayAnchor === 'frame' ? overlayActions : null}
         </div>
+        {actionOverlayAnchor === 'container' ? overlayActions : null}
+        {actionPlacement === 'rail' && allActions.length > 0 ? (
+          <div className="compound-structure-actions" style={{ height: actionRailHeight ?? height }}>
+            {allActions.map((action) => (
+              <Tooltip key={action.key} title={action.title}>
+                <Button
+                  {...action.buttonProps}
+                  className={`svg-action-btn compound-structure-action-button${action.buttonProps?.className ? ` ${action.buttonProps.className}` : ''}`}
+                  size="small"
+                  type="text"
+                  icon={action.icon}
+                  disabled={action.disabled}
+                  onClick={action.onClick}
+                />
+              </Tooltip>
+            ))}
+          </div>
+        ) : null}
+      </div>
+      {builtInChemDrawAction.length > 0 ? (
+        <ChemDrawModal
+          open={isChemDrawOpen}
+          title={title ? `${title} - ChemDraw` : 'ChemDraw'}
+          confirmText="닫기"
+          initialCdxml={cdxml || undefined}
+          initialMolblock={displayMolBlock || undefined}
+          initialSmiles={smiles || undefined}
+          onCancel={() => setIsChemDrawOpen(false)}
+          onConfirm={() => setIsChemDrawOpen(false)}
+        />
       ) : null}
-    </div>
+    </>
   );
 };
 
