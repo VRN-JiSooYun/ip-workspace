@@ -80,6 +80,9 @@ const MYBOARD_MULTILINE_TEXT_COLUMN_KEYS = new Set([
   'name',
   ...MYBOARD_RESPONSIVE_TEXT_COLUMN_KEYS,
 ]);
+const isChemDrawModalEventTarget = (target: EventTarget | null) => (
+  target instanceof HTMLElement && Boolean(target.closest('.chemdraw-modal'))
+);
 const MYBOARD_RESPONSIVE_TEXT_COLUMN_MIN_WIDTH = 220;
 const MYBOARD_RESPONSIVE_TEXT_COLUMN_MAX_WIDTH = 420;
 const MYBOARD_GROUP_TITLE_MIN_WIDTH = 200;
@@ -2588,6 +2591,8 @@ const MyBoardSynthesisBoard: React.FC = () => {
   }, [canEditCompound, designExpansionOptions, designPurposeOptions, getGroupDisplayText, groups, parseCascaderText, resetDesignModalState, selectedEditableCompound]);
 
   const handleGroupRowSelection = React.useCallback((groupId: string, event: React.MouseEvent) => {
+    if (isChemDrawModalEventTarget(event.target)) return;
+
     setDetailPagination((prev) => (
       prev.current === 1 ? prev : { ...prev, current: 1 }
     ));
@@ -2623,6 +2628,8 @@ const MyBoardSynthesisBoard: React.FC = () => {
   }, []);
 
   const handleDetailCompoundRowSelection = React.useCallback((compoundId: string, event: React.MouseEvent) => {
+    if (isChemDrawModalEventTarget(event.target)) return;
+
     if (event.shiftKey) {
       event.preventDefault();
       const rangeIds = getRangeSelectionIds(filteredCompounds, detailSelectionAnchorRef.current, compoundId);

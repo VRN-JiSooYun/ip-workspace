@@ -530,6 +530,40 @@ const styles = `
   .cdd-clipboard-icon-row-container {
     display: none !important;
   }
+
+  [id^="chemdraw-"],
+  [id^="chemdraw-"] * {
+    scrollbar-width: thin !important;
+    scrollbar-color: var(--patent-scrollbar-thumb) var(--patent-scrollbar-track) !important;
+  }
+
+  [id^="chemdraw-"]::-webkit-scrollbar,
+  [id^="chemdraw-"] *::-webkit-scrollbar {
+    width: 10px !important;
+    height: 10px !important;
+  }
+
+  [id^="chemdraw-"]::-webkit-scrollbar-track,
+  [id^="chemdraw-"] *::-webkit-scrollbar-track {
+    background: var(--patent-scrollbar-track) !important;
+  }
+
+  [id^="chemdraw-"]::-webkit-scrollbar-thumb,
+  [id^="chemdraw-"] *::-webkit-scrollbar-thumb {
+    background: var(--patent-scrollbar-thumb) !important;
+    border: 2px solid var(--card-bg) !important;
+    border-radius: 999px !important;
+  }
+
+  [id^="chemdraw-"]::-webkit-scrollbar-thumb:hover,
+  [id^="chemdraw-"] *::-webkit-scrollbar-thumb:hover {
+    background: var(--patent-scrollbar-thumb-hover) !important;
+  }
+
+  [id^="chemdraw-"]::-webkit-scrollbar-corner,
+  [id^="chemdraw-"] *::-webkit-scrollbar-corner {
+    background: transparent !important;
+  }
 `;
 
 if (typeof document !== 'undefined' && !document.getElementById('chemdraw-common-hide-styles')) {

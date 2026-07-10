@@ -68,6 +68,9 @@ const SAR_TABLE_SCROLLBAR_GUTTER_HEIGHT = 18;
 const SAR_TABLE_BODY_MIN_HEIGHT =
   SAR_TABLE_ROW_HEIGHT * SAR_TABLE_MIN_VISIBLE_ROWS + SAR_TABLE_SCROLLBAR_GUTTER_HEIGHT;
 const SAR_DATA_LEFT_ASSET_TYPES = new Set<CompoundQuickViewerAssetType>(['kp']);
+const isChemDrawModalEventTarget = (target: EventTarget | null) => (
+  target instanceof HTMLElement && Boolean(target.closest('.chemdraw-modal'))
+);
 const SAR_DATA_RIGHT_ASSET_ORDER: CompoundQuickViewerAssetType[] = ['pdb', 'docking', 'md'];
 const SAR_DATA_RIGHT_ASSET_ORDER_INDEX = new Map(
   SAR_DATA_RIGHT_ASSET_ORDER.map((assetType, index) => [assetType, index])
@@ -525,6 +528,8 @@ const SarTable: React.FC = () => {
   }, [displaySarCompounds, sarCompounds.length, selectedRowKey]);
 
   const handleCompoundSelection = React.useCallback((compoundId: string, event?: React.MouseEvent) => {
+    if (isChemDrawModalEventTarget(event?.target ?? null)) return;
+
     if (event?.shiftKey) {
       event.preventDefault();
       const rangeIds = getRangeSelectionIds(displaySarCompounds, compoundSelectionAnchorRef.current, compoundId);
@@ -980,6 +985,8 @@ const SarTable: React.FC = () => {
   };
 
   const handleGroupStructureSelection = (groupId: string, event: React.MouseEvent) => {
+    if (isChemDrawModalEventTarget(event.target)) return;
+
     const isToggleModifier = event.altKey || event.ctrlKey || event.metaKey;
     let nextSelectedGroupIds: string[];
 

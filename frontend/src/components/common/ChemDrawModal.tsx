@@ -16,6 +16,7 @@ interface ChemDrawModalProps {
   extraContent?: React.ReactNode;
   title?: string;
   confirmText?: string;
+  showCancelButton?: boolean;
   initialCdxml?: string;
   initialSmiles?: string;
   initialMolblock?: string;
@@ -29,6 +30,7 @@ const ChemDrawModal: React.FC<ChemDrawModalProps> = ({
   extraContent,
   title = '구조 검색',
   confirmText = '확인',
+  showCancelButton = true,
   initialCdxml,
   initialSmiles,
   initialMolblock,
@@ -65,10 +67,11 @@ const ChemDrawModal: React.FC<ChemDrawModalProps> = ({
       onCancel={handleCancel}
       width={900}
       destroyOnHidden
+      className="chemdraw-modal"
       footer={
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 12 }}>
           <Space>
-            <Button onClick={handleCancel}>취소</Button>
+            {showCancelButton ? <Button onClick={handleCancel}>취소</Button> : null}
             <Button
               type="primary"
               onMouseDown={handleConfirmMouseDown}

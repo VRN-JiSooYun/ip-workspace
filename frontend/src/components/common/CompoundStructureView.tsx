@@ -881,6 +881,7 @@ const CompoundStructureView: React.FC<CompoundStructureViewProps> = ({
           open={isChemDrawOpen}
           title={title ? `${title} - ChemDraw` : 'ChemDraw'}
           confirmText="닫기"
+          showCancelButton={false}
           initialCdxml={cdxml || undefined}
           initialMolblock={displayMolBlock || undefined}
           initialSmiles={smiles || undefined}
