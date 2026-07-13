@@ -34,6 +34,7 @@ import {
   getRdkitStructureSourceKey,
   renderRdkitClusterSvgs,
   type RdkitAbbrevOption,
+  type RdkitClusterRGroup,
   type RdkitClusterHighlightMode,
   type RdkitHighlightColor,
   type RdkitSubstructureColorInfo,
@@ -207,6 +208,7 @@ const SarTable: React.FC = () => {
   } | null>(null);
   const [structureRenderVersion, setStructureRenderVersion] = useState(0);
   const [compoundStructureSvgSizes, setCompoundStructureSvgSizes] = useState<Record<string, SvgIntrinsicSize>>({});
+  const [compoundStructureBaselineSvgSizes, setCompoundStructureBaselineSvgSizes] = useState<Record<string, SvgIntrinsicSize>>({});
   const allCompoundRows = useMemo(() => {
     return insertCompoundsAfterGroupTail(
       mockCompounds.filter((compound) => !externalCompoundRows.some((external) => external.id === compound.id)),
@@ -249,7 +251,8 @@ const SarTable: React.FC = () => {
   }, [allCompoundRows, hiddenCompoundIds]);
   const handleCompoundStructureGenerated = React.useCallback((
     compoundId: string,
-    data: { molBlock: string; svg: string; cacheKey: string }
+    data: { molBlock: string; svg: string; cacheKey: string },
+    displayBaselineKey?: string,
   ) => {
     const svgSize = getSvgIntrinsicSize(data.svg);
     if (svgSize) {
@@ -269,6 +272,13 @@ const SarTable: React.FC = () => {
           [cacheSizeKey]: svgSize,
         };
       });
+      if (displayBaselineKey) {
+        setCompoundStructureBaselineSvgSizes((prev) => (
+          prev[displayBaselineKey]
+            ? prev
+            : { ...prev, [displayBaselineKey]: svgSize }
+        ));
+      }
     }
 
     const mockCompound = mockCompounds.find((compound) => compound.id === compoundId);
@@ -343,6 +353,7 @@ const SarTable: React.FC = () => {
   const [searchedSvg, setSearchedSvg] = useState<string | null>(null);
   const [activePreset, setActivePreset] = useState<number>(1);
   const [compoundCardViewMode, setCompoundCardViewMode] = useState<'single' | 'twoRows'>('single');
+  const [sarCompoundTypeFilter, setSarCompoundTypeFilter] = useState<'all' | 'compound' | 'design'>('all');
   const [isCompoundStructureCollapsed, setIsCompoundStructureCollapsed] = useState(false);
   const [isGroupStructureCollapsed, setIsGroupStructureCollapsed] = useState(false);
   const [viewportWidth, setViewportWidth] = useState<number>(() => {
@@ -351,6 +362,7 @@ const SarTable: React.FC = () => {
   });
   const [sarTableBodyHeight, setSarTableBodyHeight] = useState(SAR_TABLE_BODY_MIN_HEIGHT);
   const [clusterSvgByCompoundId, setClusterSvgByCompoundId] = useState<Record<string, string>>({});
+  const [clusterRGroupsByCompoundId, setClusterRGroupsByCompoundId] = useState<Record<string, Record<string, RdkitClusterRGroup>>>({});
   const [isClusterLoading, setIsClusterLoading] = useState(false);
   const [clusterError, setClusterError] = useState<string | null>(null);
   const [quickViewer, setQuickViewer] = useState<{
@@ -391,13 +403,20 @@ const SarTable: React.FC = () => {
     }
   }, [sortedGroupStructureRows]);
   const displaySarCompounds = useMemo(() => {
-    return [...sarCompounds].sort((a, b) => {
+    const filteredCompounds = sarCompounds.filter((compound) => {
+      const hasCompoundId = compound.compoundId.trim().length > 0;
+      if (sarCompoundTypeFilter === 'compound') return hasCompoundId;
+      if (sarCompoundTypeFilter === 'design') return !hasCompoundId;
+      return true;
+    });
+
+    return filteredCompounds.sort((a, b) => {
       const aPinned = pinnedCompoundIdSet.has(a.id);
       const bPinned = pinnedCompoundIdSet.has(b.id);
       if (aPinned !== bPinned) return aPinned ? -1 : 1;
       return sarCompounds.indexOf(a) - sarCompounds.indexOf(b);
     });
-  }, [pinnedCompoundIdSet, sarCompounds]);
+  }, [pinnedCompoundIdSet, sarCompoundTypeFilter, sarCompounds]);
   const sarTableRows = useMemo<SarTableRow[]>(() => (
     displaySarCompounds.map((compound) => {
       const sarApiRows = compound.sarApiRows ?? [];
@@ -503,14 +522,14 @@ const SarTable: React.FC = () => {
       return;
     }
 
-    const hasSelectedRow = selectedRowKey
-      ? displaySarCompounds.some((compound) => compound.id === selectedRowKey)
-      : true;
-    if (!hasSelectedRow) {
+    const visibleCompoundIds = new Set(displaySarCompounds.map((compound) => compound.id));
+    setSelectedCompoundIds((current) => {
+      const next = current.filter((compoundId) => visibleCompoundIds.has(compoundId));
+      return next.length === current.length ? current : next;
+    });
+
+    if (selectedRowKey && !visibleCompoundIds.has(selectedRowKey)) {
       setSelectedRowKey(null);
-      setSelectedCompoundIds((current) => current.filter((compoundId) => (
-        displaySarCompounds.some((compound) => compound.id === compoundId)
-      )));
       compoundSelectionAnchorRef.current = null;
     }
   }, [displaySarCompounds, sarCompounds.length, selectedRowKey]);
@@ -1512,7 +1531,7 @@ const SarTable: React.FC = () => {
   const compoundCardStructureHeight = Math.round(SAR_COMPOUND_CARD_EXPANDED_STRUCTURE_HEIGHT * compoundCardImageScale);
   const compoundCardStructureFrameSize = Math.max(compoundCardWidth, compoundCardStructureHeight);
   const selectedCompoundIdSet = useMemo(() => new Set(selectedCompoundIds), [selectedCompoundIds]);
-  const getCompoundCardNoMinSizeCacheKey = React.useCallback((compound: Compound) => {
+  const getCompoundCardNoMinSizeCacheKey = React.useCallback((compound: Compound, angleDeg?: number) => {
     const smiles = compound.smiles?.trim();
     const molBlock = ((compound as any).molBlock ?? (compound as any).mol_block ?? (compound as any).molblock)?.trim();
     const sourceKey = getRdkitStructureSourceKey({ molBlock, smiles });
@@ -1521,7 +1540,7 @@ const SarTable: React.FC = () => {
     const settings = getGroupStructureSettings(compound.groupId);
     return createRdkitSvgCacheKey({
       molBlock: sourceKey,
-      angleDeg: settings.sarRotationDeg,
+      angleDeg: angleDeg ?? settings.sarRotationDeg,
       scalePercent: DEFAULT_GROUP_STRUCTURE_VIEW_SETTINGS.sarImageScalePercent,
       atomLabelBlock: settings.sarAtomColorMode === 'black',
       abbrevOption: getSarAbbrevOption(settings.sarAbbreviationMode),
@@ -1533,41 +1552,75 @@ const SarTable: React.FC = () => {
     if (!cacheKey) return null;
     return (compound as any).rdkitSvgCache?.[cacheKey] ?? null;
   }, [getCompoundCardNoMinSizeCacheKey]);
-  const getCompoundCardSourceSvgSize = React.useCallback((compound: Compound): SvgIntrinsicSize => (
+  const getCompoundCardBaselineSizeKey = React.useCallback((compound: Compound) => (
+    `${compound.id}:${getCompoundCardNoMinSizeCacheKey(compound, 0)}`
+  ), [getCompoundCardNoMinSizeCacheKey]);
+  const getCompoundCardBaselineSvgSize = React.useCallback((compound: Compound): SvgIntrinsicSize | null => {
+    const zeroDegreeCacheKey = getCompoundCardNoMinSizeCacheKey(compound, 0);
+    const zeroDegreeSvg = zeroDegreeCacheKey
+      ? (compound as any).rdkitSvgCache?.[zeroDegreeCacheKey]
+      : null;
+
+    return compoundStructureSvgSizes[`${compound.id}:${zeroDegreeCacheKey}`]
+      ?? getSvgIntrinsicSize(zeroDegreeSvg)
+      ?? compoundStructureBaselineSvgSizes[getCompoundCardBaselineSizeKey(compound)]
+      ?? null;
+  }, [
+    compoundStructureBaselineSvgSizes,
+    compoundStructureSvgSizes,
+    getCompoundCardBaselineSizeKey,
+    getCompoundCardNoMinSizeCacheKey,
+  ]);
+  const getCompoundCardCurrentRdkitSvgSize = React.useCallback((compound: Compound): SvgIntrinsicSize | null => (
     getSvgIntrinsicSize(clusterSvgByCompoundId[compound.id])
       ?? compoundStructureSvgSizes[`${compound.id}:${getCompoundCardNoMinSizeCacheKey(compound)}`]
       ?? getSvgIntrinsicSize(getCompoundCardNoMinSizeSvg(compound))
+      ?? null
+  ), [
+    clusterSvgByCompoundId,
+    compoundStructureSvgSizes,
+    getCompoundCardNoMinSizeCacheKey,
+    getCompoundCardNoMinSizeSvg,
+  ]);
+  useEffect(() => {
+    setCompoundStructureBaselineSvgSizes((prev) => {
+      let next = prev;
+
+      displaySarCompounds.forEach((compound) => {
+        const baselineSizeKey = getCompoundCardBaselineSizeKey(compound);
+        if (next[baselineSizeKey]) return;
+        const svgSize = getCompoundCardCurrentRdkitSvgSize(compound);
+        if (!svgSize) return;
+        if (next === prev) next = { ...prev };
+        next[baselineSizeKey] = svgSize;
+      });
+
+      return next;
+    });
+  }, [displaySarCompounds, getCompoundCardBaselineSizeKey, getCompoundCardCurrentRdkitSvgSize]);
+  const getCompoundCardSourceSvgSize = React.useCallback((compound: Compound): SvgIntrinsicSize => (
+    getCompoundCardCurrentRdkitSvgSize(compound)
       ?? getSvgIntrinsicSize(compound.structureSvg)
       ?? {
         width: compoundCardStructureFrameSize,
         height: compoundCardStructureFrameSize,
       }
   ), [
-    clusterSvgByCompoundId,
     compoundCardStructureFrameSize,
-    compoundStructureSvgSizes,
-    getCompoundCardNoMinSizeCacheKey,
-    getCompoundCardNoMinSizeSvg,
+    getCompoundCardCurrentRdkitSvgSize,
   ]);
   const compoundStructureDisplayScale = useMemo(() => {
-    const maxSize = displaySarCompounds
-      .reduce<SvgIntrinsicSize>((maxSize, compound) => {
-        const svgSize = getCompoundCardSourceSvgSize(compound);
-
-        return {
-          width: Math.max(maxSize.width, svgSize.width),
-          height: Math.max(maxSize.height, svgSize.height),
-        };
-      }, {
-        width: 0,
-        height: 0,
-      });
-    const maxWidth = maxSize.width || compoundCardStructureFrameSize;
-    const maxHeight = maxSize.height || compoundCardStructureFrameSize;
-    const fitScale = Math.min(
-      SAR_COMPOUND_MULTI_SELECT_MAX_HEIGHT / maxWidth,
-      SAR_COMPOUND_MULTI_SELECT_MAX_HEIGHT / maxHeight
+    const maxBaselineDiagonal = displaySarCompounds.reduce((maxDiagonal, compound) => {
+      const svgSize = getCompoundCardBaselineSvgSize(compound) ?? getCompoundCardSourceSvgSize(compound);
+      return Math.max(maxDiagonal, Math.hypot(svgSize.width, svgSize.height));
+    }, 0);
+    const availableFrameSize = Math.min(
+      SAR_COMPOUND_MULTI_SELECT_MAX_HEIGHT,
+      compoundCardStructureFrameSize,
     );
+    const fitScale = maxBaselineDiagonal > 0
+      ? availableFrameSize / maxBaselineDiagonal
+      : 1;
     const activeScale = (activeStructureSettings?.sarImageScalePercent ?? DEFAULT_GROUP_STRUCTURE_VIEW_SETTINGS.sarImageScalePercent) / 100;
 
     return fitScale * activeScale;
@@ -1575,6 +1628,7 @@ const SarTable: React.FC = () => {
     activeStructureSettings?.sarImageScalePercent,
     compoundCardStructureFrameSize,
     displaySarCompounds,
+    getCompoundCardBaselineSvgSize,
     getCompoundCardSourceSvgSize,
   ]);
   const getCompoundCardStructureDisplaySize = React.useCallback((compound: Compound): SvgIntrinsicSize => {
@@ -1609,17 +1663,19 @@ const SarTable: React.FC = () => {
   const scaffoldSubstructureMolBlock = activeSarScaffold.source === 'custom'
     ? activeSarScaffold.molBlock?.trim() || ''
     : '';
-  const scaffoldSubstructureKey = activeSarScaffold.source === 'custom' ? 'custom-scaffold' : '';
+  const scaffoldSubstructureSmiles = activeSarScaffold.source === 'custom'
+    ? activeSarScaffold.smiles?.trim() || ''
+    : '';
   const scaffoldSubstructureColorDict = useMemo<Record<string, RdkitSubstructureColorInfo> | undefined>(() => (
-    scaffoldSubstructureMolBlock
+    scaffoldSubstructureSmiles && scaffoldSubstructureMolBlock
       ? {
-          [scaffoldSubstructureKey]: {
+          [scaffoldSubstructureSmiles]: {
             color: activeScaffoldColorOption.key,
             molblock: scaffoldSubstructureMolBlock,
           },
         }
       : undefined
-  ), [activeScaffoldColorOption.key, scaffoldSubstructureKey, scaffoldSubstructureMolBlock]);
+  ), [activeScaffoldColorOption.key, scaffoldSubstructureMolBlock, scaffoldSubstructureSmiles]);
 
   useEffect(() => {
     const requestSeq = clusterRequestSeqRef.current + 1;
@@ -1627,6 +1683,7 @@ const SarTable: React.FC = () => {
 
     if (!clusterHighlightMode || isStructureSettingsDisabled || displaySarCompounds.length === 0) {
       setClusterSvgByCompoundId({});
+      setClusterRGroupsByCompoundId({});
       setIsClusterLoading(false);
       setClusterError(null);
       return;
@@ -1635,6 +1692,7 @@ const SarTable: React.FC = () => {
     setIsClusterLoading(true);
     setClusterError(null);
     setClusterSvgByCompoundId({});
+    setClusterRGroupsByCompoundId({});
 
     void renderRdkitClusterSvgs({
       compounds: displaySarCompounds.map((compound) => ({
@@ -1662,6 +1720,12 @@ const SarTable: React.FC = () => {
             return acc;
           }, {})
         );
+        setClusterRGroupsByCompoundId(
+          result.compounds.reduce<Record<string, Record<string, RdkitClusterRGroup>>>((acc, compound) => {
+            if (compound.rGroups) acc[compound.id] = compound.rGroups;
+            return acc;
+          }, {})
+        );
         setIsClusterLoading(false);
         setClusterError(null);
       })
@@ -1669,6 +1733,7 @@ const SarTable: React.FC = () => {
         if (clusterRequestSeqRef.current !== requestSeq) return;
 
         setClusterSvgByCompoundId({});
+        setClusterRGroupsByCompoundId({});
         setIsClusterLoading(false);
         setClusterError(error instanceof Error ? error.message : 'RDKit cluster 요청에 실패했습니다.');
       });
@@ -1877,7 +1942,7 @@ const SarTable: React.FC = () => {
             overflow: 'hidden',
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginBottom: 14, flexWrap: 'wrap' }}>
-              <Space size={8} className="sar-compound-panel-title">
+              <Space wrap size={8} className="sar-compound-panel-title">
                 {isGroupStructureCollapsed && (
                   <Tooltip title="그룹 영역 펼치기">
                     <Button
@@ -1891,7 +1956,7 @@ const SarTable: React.FC = () => {
                 )}
                 <BenzeneIcon size={16} color={token.colorPrimary} className="sar-compound-panel-title-icon" />
                 <Text strong className="sar-compound-panel-title-text">화합물</Text>
-                <Text type="secondary" style={{ fontSize: 11 }}>{sarCompounds.length} compounds</Text>
+                <Text type="secondary" style={{ fontSize: 11 }}>{displaySarCompounds.length} compounds</Text>
                 <div className="sar-compound-setting-group sar-rdkit-control-group">
                   <span className="sar-compound-setting-label sar-rdkit-control-label">Atom</span>
                   <Segmented
@@ -2012,13 +2077,26 @@ const SarTable: React.FC = () => {
                     </Tooltip>
                   )}
                 </div>
-                {isClusterLoading ? (
-                  <Spin size="small" />
-                ) : clusterError ? (
+                {clusterError ? (
                   <Tooltip title={clusterError}>
                     <Text type="danger" style={{ fontSize: 11 }}>Cluster error</Text>
                   </Tooltip>
                 ) : null}
+                <div className="sar-compound-setting-group sar-rdkit-control-group sar-compound-show-filter">
+                  <span className="sar-compound-setting-label sar-rdkit-control-label">Show</span>
+                  <Segmented
+                    className="sar-compound-highlight-toggle"
+                    size="small"
+                    value={sarCompoundTypeFilter}
+                    onChange={(value) => setSarCompoundTypeFilter(value as 'all' | 'compound' | 'design')}
+                    options={[
+                      { label: 'All', value: 'all' },
+                      { label: 'Compound', value: 'compound' },
+                      { label: 'Design', value: 'design' },
+                    ]}
+                  />
+                </div>
+                {isClusterLoading ? <Spin size="small" /> : null}
               </Space>
               <Space size={8}>
                 {!isCompoundStructureCollapsed && (
@@ -2155,6 +2233,7 @@ const SarTable: React.FC = () => {
                   const compoundStructureDisplaySize = getCompoundCardStructureDisplaySize(item);
                   const pinnedOrder = pinnedCompoundOrderMap[item.id] ?? 0;
                   const clusterSvg = clusterHighlightMode ? clusterSvgByCompoundId[item.id] : null;
+                  const clusterRGroups = clusterHighlightMode ? clusterRGroupsByCompoundId[item.id] : undefined;
                   const isClusterStructureLoading = Boolean(clusterHighlightMode && isClusterLoading && !clusterSvg);
                   const { displayCode, color: displayCodeColor, fontWeight: displayCodeFontWeight } = getSarDisplayCode(item as SarTableRow);
 
@@ -2274,7 +2353,11 @@ const SarTable: React.FC = () => {
                               rdkitAtomLabelBlock={itemStructureSettings.sarAtomColorMode === 'black'}
                               rdkitAbbrevOption={getSarAbbrevOption(itemStructureSettings.sarAbbreviationMode)}
                               rdkitUseGlobalDrawOptions={false}
-                              onStructureGenerated={(data) => handleCompoundStructureGenerated(item.id, data)}
+                              onStructureGenerated={(data) => handleCompoundStructureGenerated(
+                                item.id,
+                                data,
+                                getCompoundCardBaselineSizeKey(item),
+                              )}
                               structureStyle={{ transformOrigin: 'center center' }}
                               frameStyle={{ border: 0, background: !isCompoundCardOverlapped ? token.colorBgContainer : 'transparent', boxShadow: 'none', overflow: 'visible' }}
                             />
@@ -2285,6 +2368,36 @@ const SarTable: React.FC = () => {
                       <Text className="sar-compound-card-name" style={{ color: displayCodeColor, fontSize: 12, fontWeight: displayCodeFontWeight, lineHeight: '16px', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', paddingBottom: 4, boxSizing: 'border-box' }} title={displayCode}>
                         {displayCode}
                       </Text>
+                      {clusterRGroups ? (
+                        <div className="sar-compound-rgroup-list" aria-label={`${displayCode} R-group 결과`}>
+                          {Object.entries(clusterRGroups).map(([key, rGroup]) => (
+                            <button
+                              key={key}
+                              type="button"
+                              className="sar-compound-rgroup-item"
+                              title={`${key}${rGroup.smiles ? `: ${rGroup.smiles}` : ''}`}
+                              disabled={!rGroup.svg}
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                if (!rGroup.svg) return;
+                                setStructurePreview({
+                                  title: `${displayCode} ${key}`,
+                                  svg: rGroup.svg,
+                                  smiles: rGroup.smiles,
+                                });
+                              }}
+                            >
+                              <span className="sar-compound-rgroup-label">{key}</span>
+                              {rGroup.svg ? (
+                                <span
+                                  className="sar-compound-rgroup-svg"
+                                  dangerouslySetInnerHTML={{ __html: rGroup.svg }}
+                                />
+                              ) : null}
+                            </button>
+                          ))}
+                        </div>
+                      ) : null}
                     </div>
                   );
                 })}
@@ -2996,6 +3109,49 @@ const SarTable: React.FC = () => {
           justify-content: center;
           overflow: visible;
         }
+        .sar-compound-rgroup-list {
+          display: grid;
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+          gap: 4px;
+          width: 100%;
+          min-height: 0;
+          padding: 2px 4px 4px;
+          overflow: visible;
+          box-sizing: border-box;
+        }
+        .sar-compound-rgroup-item {
+          position: relative;
+          width: 100%;
+          min-width: 0;
+          height: 44px;
+          padding: 12px 2px 2px;
+          border: 1px solid ${token.colorBorderSecondary};
+          border-radius: 4px;
+          background: ${token.colorBgContainer};
+          cursor: pointer;
+          overflow: hidden;
+        }
+        .sar-compound-rgroup-item:disabled {
+          cursor: default;
+          opacity: 0.55;
+        }
+        .sar-compound-rgroup-label {
+          position: absolute;
+          top: 2px;
+          left: 0;
+          right: 0;
+          color: ${token.colorTextSecondary};
+          font-size: 9px;
+          font-weight: 700;
+          line-height: 10px;
+          text-align: center;
+        }
+        .sar-compound-rgroup-svg,
+        .sar-compound-rgroup-svg svg {
+          display: block;
+          width: 100%;
+          height: 100%;
+        }
         .sar-compound-data-tags {
           position: absolute;
           left: 0;
@@ -3438,6 +3594,21 @@ const SarTable: React.FC = () => {
           padding-inline: 8px;
           font-size: 11px;
           line-height: 20px;
+        }
+        .sar-compound-show-filter {
+          position: relative;
+          margin-left: 12px;
+        }
+        .sar-compound-show-filter::before {
+          content: '';
+          position: absolute;
+          top: 50%;
+          left: -11px;
+          width: 1px;
+          height: 18px;
+          background: ${token.colorBorderSecondary};
+          transform: translateY(-50%);
+          pointer-events: none;
         }
         .sar-scaffold-color-trigger-wrap {
           display: inline-flex;

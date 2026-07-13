@@ -15,11 +15,11 @@ import {
   Row, Col, Card, Table, Button, Input,
   Space, Typography, Modal, Form, Tag, List, Select, DatePicker, Avatar, Divider, Upload, Segmented, theme, Tooltip, Dropdown, App as AntApp, Cascader, InputNumber
 } from 'antd';
-import type { MenuProps } from 'antd';
+import type { MenuProps, UploadFile } from 'antd';
 import {
   Search, Plus, Filter, Settings, List as ListIcon,
   Image as ImageIcon, GitBranch, Info, ChevronDown, ChevronUp, Beaker,
-  Activity, GripVertical, Upload as UploadIcon, FileText,
+  Activity, GripVertical, FileText,
   PanelLeftClose, PanelLeftOpen, Copy, Trash2, Combine, Edit3, MoveRight, Minus, ArrowRight,
   Bookmark, MoreHorizontal, ZoomIn, ZoomOut, Maximize2, Crosshair, Map as MapIcon
 } from 'lucide-react';
@@ -81,6 +81,13 @@ const MYBOARD_MULTILINE_TEXT_COLUMN_KEYS = new Set([
 const isChemDrawModalEventTarget = (target: EventTarget | null) => (
   target instanceof HTMLElement && Boolean(target.closest('.chemdraw-modal'))
 );
+const isCompoundEditLocked = (compound?: Compound | null) => {
+  if (!compound) return false;
+
+  // Mock fallback: remove the VNA prefix check when API source metadata is authoritative.
+  const hasMockVnaCode = /^VNA/i.test(String(compound.compoundId || '').trim());
+  return compound.externalSource === 'compound_api' || hasMockVnaCode;
+};
 const MYBOARD_RESPONSIVE_TEXT_COLUMN_MIN_WIDTH = 220;
 const MYBOARD_RESPONSIVE_TEXT_COLUMN_MAX_WIDTH = 420;
 const MYBOARD_GROUP_TITLE_MIN_WIDTH = 200;
@@ -134,6 +141,7 @@ type SynthesisRequestFormValues = {
   expectedEffect?: string;
   requestMemo?: string;
   synthesisRequestType?: string;
+  synthesisSite?: 'In-house' | 'Wuxi';
 };
 type DesignMemoPreviewBlock =
   | { type: 'text'; text: string }
@@ -144,10 +152,11 @@ const IDEA_COMPOUND_PREFIX = 'LYH';
 const SYNTHESIS_REQUEST_COUNTER_STORAGE_PREFIX = 'my-board:synthesis-request-counter';
 const SYNTHESIS_REQUEST_PREFIX = 'LYH';
 const SYNTHESIS_REQUEST_TYPE_OPTIONS = ['신규 합성', '재합성', '스케일업', 'Salt formation/charge', '기타'];
+const SYNTHESIS_SITE_OPTIONS = ['In-house', 'Wuxi'] as const;
 const SYNTHESIS_REQUEST_STATUS_META = {
   requested: { label: '요청 완료', color: 'processing' },
   accepted: { label: '접수 완료', color: 'blue' },
-  synthesizing: { label: '합성중', color: 'gold' },
+  synthesizing: { label: '합성 중', color: 'gold' },
   vnaIssued: { label: 'VNA코드', color: 'green' },
 } as const;
 
@@ -503,6 +512,7 @@ const MyBoard: React.FC = () => {
   const [cdjsInstance, setCdjsInstance] = useState<any>(null);
   const [designSmiles, setDesignSmiles] = useState('');
   const [designSmilesError, setDesignSmilesError] = useState('');
+  const [designAttachmentFiles, setDesignAttachmentFiles] = useState<UploadFile[]>([]);
   const [selectedDesignPurposes, setSelectedDesignPurposes] = useState<DesignPurposeValue[]>([]);
   const [selectedDesignExpansions, setSelectedDesignExpansions] = useState<DesignExpansionValue[]>([]);
   const [selectedSynthesisRequestPurposes, setSelectedSynthesisRequestPurposes] = useState<DesignPurposeValue[]>([]);
@@ -1772,7 +1782,9 @@ const MyBoard: React.FC = () => {
   const hasSelectedDetailCompounds = selectedDetailCompoundIds.length > 0;
   const canAddCompound = selectedGroupIds.length > 0;
   const canDeleteCompound = hasSelectedDetailCompounds;
-  const canEditCompound = selectedDetailCompoundIds.length === 1;
+  const canEditCompound = Boolean(
+    selectedEditableCompound && !isCompoundEditLocked(selectedEditableCompound)
+  );
   const canHideCompound = hasSelectedDetailCompounds;
   const selectedDesignGroups = React.useMemo(
     () => groups.filter((group) => selectedGroupIds.includes(group.id)),
@@ -1926,14 +1938,16 @@ const MyBoard: React.FC = () => {
   }), [token]);
 
   const resetDesignModalState = React.useCallback(() => {
+    designForm.resetFields();
     setDesignFormInitialValues({});
     setDesignSmiles('');
     setDesignSmilesError('');
+    setDesignAttachmentFiles([]);
     setSelectedCalculations([]);
     setSelectedDesignPurposes([]);
     setSelectedDesignExpansions([]);
     setCdjsInstance(null);
-  }, []);
+  }, [designForm]);
 
   const handleDesignSmilesChange = React.useCallback((value: string) => {
     setDesignSmiles(value);
@@ -1943,14 +1957,12 @@ const MyBoard: React.FC = () => {
   const handleOpenDesignModal = React.useCallback(() => {
     if (!canAddCompound) return;
     const nextIdeaNumber = peekNextIdeaNumber();
-    const nextSynthesisRequestNumber = peekNextSynthesisRequestNumber();
     resetDesignModalState();
     setIsCompoundEditModalOpen(false);
     setDesignFormInitialValues({
       target: selectedDesignTargetText,
       group: selectedDesignGroupDisplayText,
       ideaNumber: nextIdeaNumber,
-      synthesisRequestNo: nextSynthesisRequestNumber,
       requiredAmountMg: 10,
     });
     setIsDesignModalOpen(true);
@@ -2019,9 +2031,10 @@ const MyBoard: React.FC = () => {
       && Number(values.requiredAmountMg) > 0
       && selectedSynthesisRequestPurposes.length > 0
       && selectedSynthesisRequestSteps.length > 0
+      && normalizeDesignMemoValue(values.expectedEffect) !== '-'
       && String(values.synthesisRequestType ?? '').trim()
     );
-  }, [selectedSynthesisRequestPurposes.length, selectedSynthesisRequestSteps.length, synthesisRequestFormValues]);
+  }, [normalizeDesignMemoValue, selectedSynthesisRequestPurposes.length, selectedSynthesisRequestSteps.length, synthesisRequestFormValues]);
   const isSynthesisRequestReadOnly = synthesisRequestTarget?.synthesisRequestStatus === 'requested';
 
   const updateCompoundRowsById = React.useCallback((
@@ -2053,6 +2066,7 @@ const MyBoard: React.FC = () => {
       expectedEffect: compound.expectedEffect === '-' ? '' : compound.expectedEffect,
       requestMemo: compound.requestMemo === '-' ? '' : compound.requestMemo,
       synthesisRequestType: compound.synthesisRequestType,
+      synthesisSite: compound.synthesisSite,
     });
     setIsSynthesisRequestModalOpen(true);
   }, [designExpansionOptions, designPurposeOptions, parseCascaderText, synthesisRequestForm]);
@@ -2094,6 +2108,7 @@ const MyBoard: React.FC = () => {
       synthesisOwner: currentUser?.name ?? compound.synthesisOwner ?? '문태훈',
       synthesisRequestStatus: 'requested',
       synthesisRequestType: String(values.synthesisRequestType || '').trim(),
+      synthesisSite: values.synthesisSite,
       synthesisStep: stepText || '-',
     }));
     handleCloseSynthesisRequest();
@@ -2138,8 +2153,6 @@ const MyBoard: React.FC = () => {
       return;
     }
     const ideaNumber = reserveNextIdeaNumber();
-    const reservedSynthesisRequestNumber = reserveNextSynthesisRequestNumber();
-    const synthesisRequestNumber = String(values.synthesisRequestNo || '').trim() || reservedSynthesisRequestNumber;
     const targetGroupId = selectedGroupIds[0];
     const targetGroup = groups.find((group) => group.id === targetGroupId);
     const timestamp = Date.now();
@@ -2172,7 +2185,7 @@ const MyBoard: React.FC = () => {
       synthesisOwner: currentUser?.name ?? '문태훈',
       synthesisAcceptedDate: '-',
       synthesisTargetDate: '-',
-      progressMemo: synthesisRequestNumber,
+      progressMemo: '-',
       isCompleted: false,
       registeredDate: formatDisplayDate(new Date().toISOString()),
       researchNote: '-',
@@ -2667,29 +2680,44 @@ const MyBoard: React.FC = () => {
     }
 
     const statusMeta = SYNTHESIS_REQUEST_STATUS_META[status];
+    const statusColor = {
+      requested: token.colorPrimary,
+      accepted: token.colorInfo,
+      synthesizing: token.colorWarning,
+      vnaIssued: token.colorSuccess,
+    }[status];
     if (status === 'requested') {
       return (
-        <Button
-          size="small"
-          className="my-board-synthesis-status-button"
-          onClick={(event) => {
-            event.stopPropagation();
-            handleOpenSynthesisRequest(record);
-          }}
-        >
-          {statusMeta.label}
-        </Button>
+        <div className="my-board-synthesis-status-cell">
+          <button
+            type="button"
+            className="my-board-synthesis-status-text-button"
+            style={{ color: statusColor }}
+            onClick={(event) => {
+              event.stopPropagation();
+              handleOpenSynthesisRequest(record);
+            }}
+          >
+            {statusMeta.label}
+          </button>
+        </div>
       );
     }
 
     return (
       <div className="my-board-synthesis-status-cell">
-        <Tag color={statusMeta.color} className="my-board-synthesis-status-tag">
+        <Text className="my-board-synthesis-status-text" style={{ color: statusColor }}>
           {statusMeta.label}
-        </Tag>
+        </Text>
       </div>
     );
-  }, [handleOpenSynthesisRequest, token.colorPrimary]);
+  }, [
+    handleOpenSynthesisRequest,
+    token.colorInfo,
+    token.colorPrimary,
+    token.colorSuccess,
+    token.colorWarning,
+  ]);
   const synthesisRequestTargetGroup = React.useMemo(
     () => groups.find((group) => group.id === synthesisRequestTarget?.groupId),
     [groups, synthesisRequestTarget?.groupId]
@@ -3786,72 +3814,74 @@ const MyBoard: React.FC = () => {
                 >
                   그룹 상세 목록
                 </Text>
-                <Space wrap size={8}>
-                  <Button
-                    type="primary"
-                    size="small"
-                    icon={<Plus size={14} />}
-                    disabled={!canAddCompound}
-                    style={getCompoundActionButtonStyle(canAddCompound)}
-                    onClick={() => setIsQuickAddModalOpen(true)}
-                  >
-                    Quick add
-                  </Button>
-                  <Button
-                    type="primary"
-                    size="small"
-                    icon={<Plus size={14} />}
-                    disabled={!canAddCompound}
-                    style={getCompoundActionButtonStyle(canAddCompound)}
-                    onClick={handleOpenDesignModal}
-                  >
-                    Add
-                  </Button>
-                  <Button
-                    type={detailCompoundTypeFilter === 'design' ? 'primary' : 'default'}
-                    size="small"
-                    onClick={() => setDetailCompoundTypeFilter((value) => value === 'design' ? 'all' : 'design')}
-                  >
-                    Design
-                  </Button>
-                  <Button
-                    type={detailCompoundTypeFilter === 'compound' ? 'primary' : 'default'}
-                    size="small"
-                    onClick={() => setDetailCompoundTypeFilter((value) => value === 'compound' ? 'all' : 'compound')}
-                  >
-                    Compound
-                  </Button>
-                  <Button
-                    type="primary"
-                    size="small"
-                    icon={<span className="my-board-action-icon my-board-action-icon-eye-off" aria-hidden="true" />}
-                    disabled={!canHideCompound}
-                    style={getCompoundActionButtonStyle(canHideCompound)}
-                    onClick={handleHideSelectedCompounds}
-                  >
-                    숨기기
-                  </Button>
-                  <Button
-                    type="primary"
-                    size="small"
-                    icon={<Trash2 size={14} />}
-                    disabled={!canDeleteCompound}
-                    style={getCompoundActionButtonStyle(canDeleteCompound)}
-                    onClick={handleDeleteSelectedCompounds}
-                  >
-                    Del
-                  </Button>
-                  <Button
-                    type="primary"
-                    size="small"
-                    icon={<Edit3 size={14} />}
-                    disabled={!canEditCompound}
-                    style={getCompoundActionButtonStyle(canEditCompound)}
-                    onClick={handleOpenCompoundEdit}
-                  >
-                    Edit
-                  </Button>
-                </Space>
+                <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 16 }}>
+                  <Space wrap size={8}>
+                    <Button
+                      type="primary"
+                      size="small"
+                      icon={<Plus size={14} />}
+                      disabled={!canAddCompound}
+                      style={getCompoundActionButtonStyle(canAddCompound)}
+                      onClick={() => setIsQuickAddModalOpen(true)}
+                    >
+                      Quick add
+                    </Button>
+                    <Button
+                      type="primary"
+                      size="small"
+                      icon={<Plus size={14} />}
+                      disabled={!canAddCompound}
+                      style={getCompoundActionButtonStyle(canAddCompound)}
+                      onClick={handleOpenDesignModal}
+                    >
+                      Add
+                    </Button>
+                    <Button
+                      type="primary"
+                      size="small"
+                      icon={<Edit3 size={14} />}
+                      disabled={!canEditCompound}
+                      style={getCompoundActionButtonStyle(canEditCompound)}
+                      onClick={handleOpenCompoundEdit}
+                    >
+                      Edit
+                    </Button>
+                    <Button
+                      type="primary"
+                      size="small"
+                      icon={<Trash2 size={14} />}
+                      disabled={!canDeleteCompound}
+                      style={getCompoundActionButtonStyle(canDeleteCompound)}
+                      onClick={handleDeleteSelectedCompounds}
+                    >
+                      Del
+                    </Button>
+                    <Button
+                      type="primary"
+                      size="small"
+                      icon={<span className="my-board-action-icon my-board-action-icon-eye-off" aria-hidden="true" />}
+                      disabled={!canHideCompound}
+                      style={getCompoundActionButtonStyle(canHideCompound)}
+                      onClick={handleHideSelectedCompounds}
+                    >
+                      숨기기
+                    </Button>
+                  </Space>
+                  <div className="my-board-detail-show-filter">
+                    <span className="my-board-detail-show-filter-label">Show</span>
+                    <Segmented
+                      className="my-board-detail-show-filter-options"
+                      size="small"
+                      value={detailCompoundTypeFilter}
+                      onChange={(value) => setDetailCompoundTypeFilter(value as 'all' | 'compound' | 'design')}
+                      options={[
+                        { label: 'All', value: 'all' },
+                        { label: 'Compound', value: 'compound' },
+                        { label: 'Design', value: 'design' },
+                      ]}
+                    />
+                  </div>
+                </div>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', flex: '1 1 auto' }}>
                 <Space>
@@ -4351,6 +4381,16 @@ const MyBoard: React.FC = () => {
                 label="기대 개선 효과"
                 className="synthesis-request-inline-item"
                 getValueFromEvent={(value) => (typeof value === 'string' ? value : '')}
+                required
+                rules={[
+                  {
+                    validator: (_, value) => (
+                      normalizeDesignMemoValue(value) !== '-'
+                        ? Promise.resolve()
+                        : Promise.reject(new Error('기대 개선 효과를 입력하세요.'))
+                    ),
+                  },
+                ]}
               >
                 {isSynthesisRequestReadOnly ? (
                   <div className="synthesis-request-readonly-memo-preview">
@@ -4397,6 +4437,19 @@ const MyBoard: React.FC = () => {
               >
                 <Select placeholder="요청 구분 선택" disabled={isSynthesisRequestReadOnly}>
                   {SYNTHESIS_REQUEST_TYPE_OPTIONS.map((item) => (
+                    <Option key={item} value={item}>{item}</Option>
+                  ))}
+                </Select>
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item
+                name="synthesisSite"
+                label="선택 항목"
+                className="synthesis-request-inline-item"
+              >
+                <Select placeholder="선택 항목 선택" disabled={isSynthesisRequestReadOnly}>
+                  {SYNTHESIS_SITE_OPTIONS.map((item) => (
                     <Option key={item} value={item}>{item}</Option>
                   ))}
                 </Select>
@@ -4527,15 +4580,17 @@ const MyBoard: React.FC = () => {
 
             <Col span={24}>
               <Form.Item label="화합물 구조" required className="idea-structure-form-item">
-                <ChemDrawEditor
-                  active={isDesignModalOpen || isCompoundEditModalOpen}
-                  height={300}
-                  flipControlsPlacement="left"
-                  smilesValue={designSmiles}
-                  onSmilesChange={handleDesignSmilesChange}
-                  onReady={setCdjsInstance}
-                  showHelperText={false}
-                />
+                <div className="idea-chemdraw-editor-box">
+                  <ChemDrawEditor
+                    active={isDesignModalOpen || isCompoundEditModalOpen}
+                    height={360}
+                    flipControlsPlacement="left"
+                    smilesValue={designSmiles}
+                    onSmilesChange={handleDesignSmilesChange}
+                    onReady={setCdjsInstance}
+                    showHelperText={false}
+                  />
+                </div>
               </Form.Item>
             </Col>
 
@@ -4579,7 +4634,7 @@ const MyBoard: React.FC = () => {
                 <Row gutter={[24, 12]}>
                   <Col span={6}>
                     <Form.Item name="synthesisRequestNo" label="합성 의뢰 번호" className="idea-inline-form-item">
-                      <Input disabled placeholder="LYH-26-0001" />
+                      <Input disabled />
                     </Form.Item>
                   </Col>
                   <Col span={6}>
@@ -4698,9 +4753,48 @@ const MyBoard: React.FC = () => {
                   </Select>
                 </Form.Item>
                 <Form.Item label="첨부파일" className="idea-inline-form-item idea-attachment-form-item">
-                  <Upload multiple showUploadList={true} beforeUpload={() => false}>
-                    <Button icon={<UploadIcon size={14} />}>파일 첨부</Button>
-                  </Upload>
+                  <Upload.Dragger
+                    className="idea-attachment-dragger"
+                    multiple
+                    fileList={designAttachmentFiles}
+                    showUploadList={false}
+                    beforeUpload={() => false}
+                    onChange={({ fileList }) => setDesignAttachmentFiles(fileList)}
+                  >
+                    <div className="idea-attachment-drop-content">
+                      {designAttachmentFiles.length === 0 ? (
+                        <div className="idea-attachment-drop-prompt">
+                          <span className="idea-attachment-drop-label">Drag and Drop으로 파일 추가</span>
+                          <span className="idea-attachment-drop-sub-label">또는 직접 선택</span>
+                          <Button type="primary" size="small">파일 선택</Button>
+                        </div>
+                      ) : null}
+                      {designAttachmentFiles.length > 0 ? (
+                        <div className="idea-attachment-file-list">
+                          {designAttachmentFiles.map((file) => (
+                            <div className="idea-attachment-file-item" key={file.uid}>
+                              <FileText size={14} aria-hidden="true" />
+                              <span className="idea-attachment-file-name" title={file.name}>{file.name}</span>
+                              <Button
+                                type="text"
+                                size="small"
+                                danger
+                                icon={<Trash2 size={13} />}
+                                aria-label={`${file.name} 삭제`}
+                                onMouseDown={(event) => event.stopPropagation()}
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  setDesignAttachmentFiles((currentFiles) => (
+                                    currentFiles.filter((currentFile) => currentFile.uid !== file.uid)
+                                  ));
+                                }}
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      ) : null}
+                    </div>
+                  </Upload.Dragger>
                 </Form.Item>
               </div>
             </Col>
@@ -4868,20 +4962,62 @@ const MyBoard: React.FC = () => {
           width: 100%;
           min-width: 0;
         }
-        .my-board-synthesis-status-tag {
-          margin-inline-end: 0;
+        .my-board-synthesis-status-text,
+        .my-board-synthesis-status-text-button {
           font-size: 11px;
           line-height: 20px;
+          font-weight: 500;
         }
-        .my-board-synthesis-status-button.ant-btn {
-          height: 24px;
-          padding: 0 9px;
-          border-radius: 990px;
+        .my-board-synthesis-status-text-button {
+          appearance: none;
+          padding: 0;
+          border: 0;
+          background: transparent;
+          font-family: inherit;
+          cursor: pointer;
+        }
+        .my-board-synthesis-status-text-button:hover,
+        .my-board-synthesis-status-text-button:focus-visible {
+          text-decoration: underline;
+        }
+        .my-board-detail-show-filter {
+          position: relative;
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          height: 28px;
+          padding: 3px 6px;
+          border: 1px solid ${token.colorBorderSecondary};
+          border-radius: 6px;
+          background: ${token.colorBgLayout};
+          box-sizing: border-box;
+        }
+        .my-board-detail-show-filter::before {
+          content: '';
+          position: absolute;
+          top: 50%;
+          left: -9px;
+          width: 1px;
+          height: 18px;
+          background: ${token.colorBorderSecondary};
+          transform: translateY(-50%);
+          pointer-events: none;
+        }
+        .my-board-detail-show-filter-label {
+          color: ${token.colorTextSecondary};
+          font-size: 10px;
+          font-weight: 600;
+          line-height: 18px;
+          user-select: none;
+        }
+        .my-board-detail-show-filter-options .ant-segmented-item-label {
+          min-height: 22px;
+          padding-inline: 8px;
           font-size: 11px;
           line-height: 22px;
-          color: ${token.colorPrimary};
-          border-color: ${token.colorPrimaryBorder};
-          background: ${token.colorPrimaryBg};
+        }
+        .synthesis-request-modal {
+          --synthesis-request-control-radius: ${token.borderRadius}px;
         }
         .synthesis-request-form {
           padding-top: 4px;
@@ -4905,7 +5041,7 @@ const MyBoard: React.FC = () => {
           width: 348px;
           height: 327px;
           border: 1px solid ${token.colorBorder};
-          border-radius: 8px;
+          border-radius: var(--synthesis-request-control-radius);
           background: ${token.colorBgContainer};
           overflow: hidden;
         }
@@ -4958,6 +5094,13 @@ const MyBoard: React.FC = () => {
         .synthesis-request-inline-item .ant-select-selector {
           min-height: 28px;
         }
+        .synthesis-request-form .ant-input,
+        .synthesis-request-form .ant-input-affix-wrapper,
+        .synthesis-request-form .ant-input-number,
+        .synthesis-request-form .ant-select-selector,
+        .synthesis-request-form .synthesis-request-memo-editor .ql-container {
+          border-radius: var(--synthesis-request-control-radius) !important;
+        }
         .synthesis-request-design-memo-item .ant-form-item-row,
         .synthesis-request-inline-item:has(.synthesis-request-memo-editor) .ant-form-item-row,
         .synthesis-request-inline-item:has(.synthesis-request-readonly-memo-preview) .ant-form-item-row {
@@ -4971,7 +5114,7 @@ const MyBoard: React.FC = () => {
           box-sizing: border-box;
           padding: 6px 8px;
           border: 1px solid ${token.colorBorder};
-          border-radius: 6px;
+          border-radius: var(--synthesis-request-control-radius);
           background: ${token.colorBgContainerDisabled};
           overflow: auto;
         }
@@ -4988,7 +5131,7 @@ const MyBoard: React.FC = () => {
           min-height: 54px;
           padding: 6px 8px;
           border: 1px solid ${token.colorBorder};
-          border-radius: 6px;
+          border-radius: var(--synthesis-request-control-radius);
           background: ${token.colorBgContainerDisabled};
           overflow: auto;
         }
@@ -5022,6 +5165,7 @@ const MyBoard: React.FC = () => {
         }
         .idea-compound-modal {
           --idea-label-width: 132px;
+          --idea-control-radius: ${token.borderRadius}px;
         }
         .idea-inline-form-item,
         .idea-structure-form-item,
@@ -5090,6 +5234,10 @@ const MyBoard: React.FC = () => {
           display: block;
           padding-right: 2px;
         }
+        .idea-chemdraw-editor-box {
+          width: 80%;
+          min-width: 0;
+        }
         .idea-inline-form-item .ant-form-item-control,
         .idea-structure-form-item .ant-form-item-control,
         .idea-calculation-form-item .ant-form-item-control {
@@ -5105,6 +5253,14 @@ const MyBoard: React.FC = () => {
         .idea-inline-form-item .ant-btn {
           min-height: 28px;
         }
+        .idea-compound-form .ant-input,
+        .idea-compound-form .ant-input-affix-wrapper,
+        .idea-compound-form .ant-input-number,
+        .idea-compound-form .ant-select-selector,
+        .idea-compound-form .idea-design-memo-editor .ql-container,
+        .idea-compound-form [id^="chemdraw-"] {
+          border-radius: var(--idea-control-radius) !important;
+        }
         .idea-compound-form .ant-input[disabled],
         .idea-compound-form .ant-input-disabled,
         .idea-compound-form .ant-input-number-disabled input,
@@ -5117,6 +5273,7 @@ const MyBoard: React.FC = () => {
         }
         .idea-smiles-form-item .ant-form-item-control {
           padding-left: 45px;
+          padding-right: 20%;
         }
         .idea-synthesis-section {
           margin: 12px 0 16px;
@@ -5133,7 +5290,7 @@ const MyBoard: React.FC = () => {
         .idea-design-memo-editor .ql-container {
           min-height: 86px;
           border: 1px solid ${token.colorBorder};
-          border-radius: 6px;
+          border-radius: var(--idea-control-radius);
           background: ${token.colorBgContainer};
           color: ${token.colorText};
           font-family: inherit;
@@ -5187,7 +5344,7 @@ const MyBoard: React.FC = () => {
         }
         .idea-source-stack {
           display: grid;
-          grid-template-rows: 32px 78px;
+          grid-template-rows: 32px minmax(190px, auto);
           row-gap: 12px;
         }
         .idea-source-stack .ant-form-item {
@@ -5198,39 +5355,110 @@ const MyBoard: React.FC = () => {
         }
         .idea-attachment-form-item .ant-upload-wrapper {
           display: block;
-          min-height: 76px;
-          max-height: 76px;
-          overflow: hidden;
+          width: 100%;
         }
-        .idea-attachment-form-item .ant-upload-list {
-          max-height: 34px;
-          overflow-y: hidden;
-          scrollbar-width: thin;
-          scrollbar-color: ${token.colorBorder} ${token.colorBgContainer};
-        }
-        .idea-attachment-form-item .ant-upload-list:has(.ant-upload-list-item + .ant-upload-list-item) {
-          max-height: 50px;
-          overflow-y: auto;
-        }
-        .idea-attachment-form-item .ant-upload-list-item {
-          margin-top: 4px;
-        }
-        .idea-attachment-form-item .ant-upload-list-item-name {
-          line-height: 22px;
-        }
-        .idea-attachment-form-item .ant-upload-list::-webkit-scrollbar {
-          width: 8px;
-        }
-        .idea-attachment-form-item .ant-upload-list::-webkit-scrollbar-track {
+        .idea-attachment-form-item .ant-upload-drag {
+          width: 100%;
+          min-height: 188px;
+          border-color: ${token.colorBorder};
+          border-radius: var(--idea-control-radius);
           background: ${token.colorBgContainer};
         }
-        .idea-attachment-form-item .ant-upload-list::-webkit-scrollbar-thumb {
+        .idea-attachment-form-item .ant-upload-drag:hover,
+        .idea-attachment-form-item .ant-upload-drag-hover {
+          border-color: ${token.colorPrimary};
+        }
+        .idea-attachment-form-item .ant-upload-drag .ant-upload {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          width: 100% !important;
+          min-height: 186px;
+          padding: 20px 16px;
+          box-sizing: border-box;
+        }
+        .idea-attachment-form-item .ant-upload-drag-container {
+          display: block;
+          flex: 1 1 100%;
+          width: 100% !important;
+          min-width: 0;
+        }
+        .idea-attachment-drop-content {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          gap: 8px;
+          width: 100%;
+          min-height: 144px;
+        }
+        .idea-attachment-drop-prompt {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          gap: 6px;
+          width: 100%;
+          margin-inline: auto;
+          text-align: center;
+        }
+        .idea-attachment-drop-prompt .ant-btn {
+          min-height: 24px;
+          padding-inline: 12px;
+          border-radius: var(--idea-control-radius);
+          font-size: 11px;
+        }
+        .idea-attachment-drop-label {
+          color: ${token.colorTextTertiary};
+          font-size: 18px;
+          font-weight: 400;
+          line-height: 26px;
+          text-align: center;
+        }
+        .idea-attachment-drop-sub-label {
+          color: ${token.colorTextTertiary};
+          font-size: 11px;
+          line-height: 16px;
+          text-align: center;
+        }
+        .idea-attachment-file-list {
+          width: 100%;
+          max-height: 84px;
+          overflow-y: auto;
+          scrollbar-width: thin;
+          scrollbar-color: ${token.colorBorder} transparent;
+        }
+        .idea-attachment-file-item {
+          display: grid;
+          grid-template-columns: 14px minmax(0, 1fr) 24px;
+          align-items: center;
+          gap: 6px;
+          min-height: 28px;
+          padding: 0 4px 0 8px;
+          color: ${token.colorText};
+          text-align: left;
+        }
+        .idea-attachment-file-name {
+          min-width: 0;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+        .idea-attachment-file-list::-webkit-scrollbar {
+          width: 8px;
+        }
+        .idea-attachment-file-list::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        .idea-attachment-file-list::-webkit-scrollbar-thumb {
           background: ${token.colorBorder};
-          border: 2px solid ${token.colorBgContainer};
+          border: 2px solid transparent;
+          background-clip: padding-box;
           border-radius: 999px;
         }
-        .idea-attachment-form-item .ant-upload-list::-webkit-scrollbar-thumb:hover {
+        .idea-attachment-file-list::-webkit-scrollbar-thumb:hover {
           background: ${token.colorTextTertiary};
+          background-clip: padding-box;
         }
         .idea-calculation-grid {
           display: grid;
@@ -5250,6 +5478,9 @@ const MyBoard: React.FC = () => {
           line-height: 1;
           text-align: center;
           white-space: normal;
+        }
+        .idea-calculation-form-item .v-project-tag {
+          border-radius: var(--idea-control-radius) !important;
         }
         .idea-compound-modal .ant-modal-body {
           scrollbar-width: thin;

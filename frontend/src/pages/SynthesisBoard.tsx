@@ -82,7 +82,7 @@ const ManagerComparisonPopup = ({ record, currentMgrName }: { record: any, curre
       <thead>
         <tr style={{ borderBottom: `1px solid ${token.colorBorderSecondary}` }}>
           <th style={{ textAlign: 'left', padding: '4px 0', fontSize: 10, color: token.colorTextSecondary }}>담당자</th>
-          <th style={{ textAlign: 'center', padding: '4px 0', fontSize: 10, color: token.colorTextSecondary }}>합성중</th>
+          <th style={{ textAlign: 'center', padding: '4px 0', fontSize: 10, color: token.colorTextSecondary }}>합성 중</th>
           <th style={{ textAlign: 'center', padding: '4px 0', fontSize: 10, color: token.colorTextSecondary }}>완료</th>
           <th style={{ textAlign: 'center', padding: '4px 0', fontSize: 10, color: token.colorTextSecondary }}>합계</th>
         </tr>
@@ -468,7 +468,7 @@ const SynthesisBoard: React.FC = () => {
     { title: 'Title', dataIndex: 'title', key: 'title', ellipsis: true, render: (text: string) => <Text strong style={{ fontSize: 12 }}>{text}</Text> },
     { title: '공유', dataIndex: 'share', key: 'share', width: 70, align: 'center' as const, className: 'table-center-column', render: (text: string) => <Text type="secondary" style={{ fontSize: 10 }}>{text}</Text> },
     {
-      title: '합성중',
+      title: '합성 중',
       dataIndex: 'ing',
       key: 'ing',
       width: 60,
@@ -482,7 +482,7 @@ const SynthesisBoard: React.FC = () => {
       )
     },
     {
-      title: '합성완료',
+      title: '합성 완료',
       dataIndex: 'done',
       key: 'done',
       width: 70,

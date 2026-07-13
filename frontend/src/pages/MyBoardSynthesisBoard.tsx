@@ -157,7 +157,7 @@ const SYNTHESIS_REQUEST_TYPE_OPTIONS = ['신규 합성', '재합성', '스케일
 const SYNTHESIS_REQUEST_STATUS_META = {
   requested: { label: '요청 완료', color: 'processing' },
   accepted: { label: '접수 완료', color: 'blue' },
-  synthesizing: { label: '합성중', color: 'gold' },
+  synthesizing: { label: '합성 중', color: 'gold' },
   vnaIssued: { label: 'VNA코드', color: 'green' },
 } as const;
 
@@ -473,7 +473,7 @@ const ManagerComparisonPopup = ({ record, currentMgrName }: { record: SynthesisG
         <thead>
           <tr style={{ borderBottom: `1px solid ${token.colorBorderSecondary}` }}>
             <th style={{ textAlign: 'left', padding: '4px 0', fontSize: 10, color: token.colorTextSecondary }}>담당자</th>
-            <th style={{ textAlign: 'center', padding: '4px 0', fontSize: 10, color: token.colorTextSecondary }}>합성중</th>
+            <th style={{ textAlign: 'center', padding: '4px 0', fontSize: 10, color: token.colorTextSecondary }}>합성 중</th>
             <th style={{ textAlign: 'center', padding: '4px 0', fontSize: 10, color: token.colorTextSecondary }}>완료</th>
             <th style={{ textAlign: 'center', padding: '4px 0', fontSize: 10, color: token.colorTextSecondary }}>합계</th>
           </tr>
@@ -1655,7 +1655,7 @@ const MyBoardSynthesisBoard: React.FC = () => {
       let unassigned = 0;
 
       groupCompounds.forEach((compound) => {
-        const isDone = compound.isCompleted || compound.synthesisRequestStatus === 'vnaIssued' || compound.status === '합성완료';
+        const isDone = compound.isCompleted || compound.synthesisRequestStatus === 'vnaIssued' || compound.status === '합성 완료';
         const isUnassigned = !isDone && (
           !compound.synthesisOwner ||
           compound.progressMemo === '미배정' ||
@@ -1664,7 +1664,7 @@ const MyBoardSynthesisBoard: React.FC = () => {
         const isIng = !isDone && !isUnassigned && (
           compound.synthesisRequestStatus === 'accepted' ||
           compound.synthesisRequestStatus === 'synthesizing' ||
-          compound.status === '합성중' ||
+          compound.status === '합성 중' ||
           Boolean(compound.synthesisOwner)
         );
         const ownerName = String(compound.synthesisOwner || '').trim();
@@ -1709,11 +1709,23 @@ const MyBoardSynthesisBoard: React.FC = () => {
     return statusMap;
   }, [compoundRows, groups]);
 
+  const renderSynthesisSummaryBadge = React.useCallback((
+    value: number,
+    colors: { background: string; border: string; text: string }
+  ) => (
+    <Tag
+      className="my-board-synthesis-summary-tag"
+      style={{ backgroundColor: colors.background, borderColor: colors.border, color: colors.text }}
+      title={formatNumberWithComma(value)}
+    >
+      {formatNumberWithComma(value)}
+    </Tag>
+  ), []);
+
   const renderSynthesisStatusTag = React.useCallback((
     groupId: string,
     statusKey: 'ing' | 'done' | 'unassigned',
-    color: string,
-    dangerWhenPositive = false
+    colors: { background: string; border: string; text: string }
   ) => {
     const status = synthesisGroupStatusMap.get(groupId) ?? {
       title: '-',
@@ -1727,16 +1739,11 @@ const MyBoardSynthesisBoard: React.FC = () => {
     return (
       <Popover content={<ManagerComparisonPopup record={status} />} title={null} trigger="hover" placement="top">
         <div className="my-board-synthesis-summary-cell">
-          <Tag
-            color={dangerWhenPositive && value > 0 ? 'error' : color}
-            className="my-board-synthesis-summary-tag"
-          >
-            {formatNumberWithComma(value)}
-          </Tag>
+          {renderSynthesisSummaryBadge(value, colors)}
         </div>
       </Popover>
     );
-  }, [synthesisGroupStatusMap]);
+  }, [renderSynthesisSummaryBadge, synthesisGroupStatusMap]);
 
   const groupColumns = [
     {
@@ -1796,27 +1803,24 @@ const MyBoardSynthesisBoard: React.FC = () => {
       title: '개수',
       dataIndex: 'count',
       key: 'count',
-      align: 'right' as const,
+      align: 'center' as const,
       width: MYBOARD_GROUP_COLUMN_WIDTHS.count,
       minWidth: MYBOARD_GROUP_COLUMN_WIDTHS.count,
       className: 'my-board-group-fixed-column',
       onCell: () => createFixedGroupColumnProps(MYBOARD_GROUP_COLUMN_WIDTHS.count),
       onHeaderCell: () => createFixedGroupColumnProps(MYBOARD_GROUP_COLUMN_WIDTHS.count),
+      render: (value: number) => (
+        <div className="my-board-synthesis-summary-cell">
+          {renderSynthesisSummaryBadge(Number(value) || 0, {
+            background: '#FFFFFF',
+            border: token.colorBorder,
+            text: '#000000',
+          })}
+        </div>
+      ),
     },
     {
-      title: '합성중',
-      dataIndex: 'id',
-      key: 'synthesisIng',
-      width: MYBOARD_GROUP_COLUMN_WIDTHS.synthesisIng,
-      minWidth: MYBOARD_GROUP_COLUMN_WIDTHS.synthesisIng,
-      align: 'center' as const,
-      className: 'my-board-group-fixed-column',
-      onCell: () => createFixedGroupColumnProps(MYBOARD_GROUP_COLUMN_WIDTHS.synthesisIng),
-      onHeaderCell: () => createFixedGroupColumnProps(MYBOARD_GROUP_COLUMN_WIDTHS.synthesisIng),
-      render: (groupId: string) => renderSynthesisStatusTag(groupId, 'ing', 'blue'),
-    },
-    {
-      title: '합성완료',
+      title: '합성 완료',
       dataIndex: 'id',
       key: 'synthesisDone',
       width: MYBOARD_GROUP_COLUMN_WIDTHS.synthesisDone,
@@ -1825,7 +1829,27 @@ const MyBoardSynthesisBoard: React.FC = () => {
       className: 'my-board-group-fixed-column',
       onCell: () => createFixedGroupColumnProps(MYBOARD_GROUP_COLUMN_WIDTHS.synthesisDone),
       onHeaderCell: () => createFixedGroupColumnProps(MYBOARD_GROUP_COLUMN_WIDTHS.synthesisDone),
-      render: (groupId: string) => renderSynthesisStatusTag(groupId, 'done', 'success'),
+      render: (groupId: string) => renderSynthesisStatusTag(groupId, 'done', {
+        background: token.colorPrimaryBg,
+        border: token.colorPrimaryBorder,
+        text: token.colorPrimaryText,
+      }),
+    },
+    {
+      title: '합성 중',
+      dataIndex: 'id',
+      key: 'synthesisIng',
+      width: MYBOARD_GROUP_COLUMN_WIDTHS.synthesisIng,
+      minWidth: MYBOARD_GROUP_COLUMN_WIDTHS.synthesisIng,
+      align: 'center' as const,
+      className: 'my-board-group-fixed-column',
+      onCell: () => createFixedGroupColumnProps(MYBOARD_GROUP_COLUMN_WIDTHS.synthesisIng),
+      onHeaderCell: () => createFixedGroupColumnProps(MYBOARD_GROUP_COLUMN_WIDTHS.synthesisIng),
+      render: (groupId: string) => renderSynthesisStatusTag(groupId, 'ing', {
+        background: token.colorInfoBg,
+        border: token.colorInfoBorder,
+        text: token.colorInfoText,
+      }),
     },
     {
       title: '미배정',
@@ -1837,7 +1861,11 @@ const MyBoardSynthesisBoard: React.FC = () => {
       className: 'my-board-group-fixed-column',
       onCell: () => createFixedGroupColumnProps(MYBOARD_GROUP_COLUMN_WIDTHS.synthesisUnassigned),
       onHeaderCell: () => createFixedGroupColumnProps(MYBOARD_GROUP_COLUMN_WIDTHS.synthesisUnassigned),
-      render: (groupId: string) => renderSynthesisStatusTag(groupId, 'unassigned', 'default', true),
+      render: (groupId: string) => renderSynthesisStatusTag(groupId, 'unassigned', {
+        background: token.colorFillTertiary,
+        border: token.colorBorder,
+        text: token.colorTextSecondary,
+      }),
     },
     {
       title: '그룹',
@@ -2789,22 +2817,26 @@ const MyBoardSynthesisBoard: React.FC = () => {
     }
 
     const statusMeta = SYNTHESIS_REQUEST_STATUS_META[status];
-    if (status === 'requested') {
-      return (
-        <Tag color={statusMeta.color} className="my-board-synthesis-status-tag">
-          {statusMeta.label}
-        </Tag>
-      );
-    }
+    const statusColor = {
+      requested: token.colorPrimary,
+      accepted: token.colorInfo,
+      synthesizing: token.colorWarning,
+      vnaIssued: token.colorSuccess,
+    }[status];
 
     return (
       <div className="my-board-synthesis-status-cell">
-        <Tag color={statusMeta.color} className="my-board-synthesis-status-tag">
+        <Text className="my-board-synthesis-status-text" style={{ color: statusColor }}>
           {statusMeta.label}
-        </Tag>
+        </Text>
       </div>
     );
-  }, [token.colorPrimary]);
+  }, [
+    token.colorInfo,
+    token.colorPrimary,
+    token.colorSuccess,
+    token.colorWarning,
+  ]);
   const synthesisRequestTargetGroup = React.useMemo(
     () => groups.find((group) => group.id === synthesisRequestTarget?.groupId),
     [groups, synthesisRequestTarget?.groupId]
@@ -4955,6 +4987,26 @@ const MyBoardSynthesisBoard: React.FC = () => {
         className="my-board-structure-preview"
       />
       <style>{`
+        .my-board-synthesis-summary-cell {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          width: 100%;
+        }
+        .my-board-synthesis-summary-tag.ant-tag {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          min-width: 28px;
+          height: 22px;
+          margin-inline-end: 0;
+          padding-inline: 7px;
+          font-size: 10px;
+          font-weight: 700;
+          line-height: 20px;
+          white-space: nowrap;
+          box-sizing: border-box;
+        }
         .my-board-synthesis-request-button.ant-btn {
           min-width: 78px;
           height: 24px;
@@ -4971,20 +5023,10 @@ const MyBoardSynthesisBoard: React.FC = () => {
           width: 100%;
           min-width: 0;
         }
-        .my-board-synthesis-status-tag {
-          margin-inline-end: 0;
+        .my-board-synthesis-status-text {
           font-size: 11px;
           line-height: 20px;
-        }
-        .my-board-synthesis-status-button.ant-btn {
-          height: 24px;
-          padding: 0 9px;
-          border-radius: 990px;
-          font-size: 11px;
-          line-height: 22px;
-          color: ${token.colorPrimary};
-          border-color: ${token.colorPrimaryBorder};
-          background: ${token.colorPrimaryBg};
+          font-weight: 500;
         }
         .synthesis-request-form {
           padding-top: 4px;

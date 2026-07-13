@@ -130,6 +130,7 @@ export interface Compound {
   synthesisEndReason?: string;
   synthesisRequestStatus?: 'requested' | 'accepted' | 'synthesizing' | 'vnaIssued';
   synthesisRequestType?: string;
+  synthesisSite?: 'In-house' | 'Wuxi';
   synthesisStep?: string;
   experimentStage?: number;
   quickViewerAssets?: CompoundQuickViewerAsset[];
@@ -376,7 +377,7 @@ const createMockCompound = (
     structureSvg: structureSvgs[seed % structureSvgs.length],
     creDate: `2026.04.${dateDay}`,
     manager: synthesisOwners[seed % synthesisOwners.length],
-    status: isCompleted ? '합성완료' : seed % 3 === 0 ? '합성중' : '디자인',
+    status: isCompleted ? '합성 완료' : seed % 3 === 0 ? '합성 중' : '디자인',
     project,
     shareStatus: seed % 4 === 0 ? '공유받음' : seed % 3 === 0 ? '공유함' : '내 물질',
     designSource: source,

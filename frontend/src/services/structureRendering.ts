@@ -223,6 +223,12 @@ export interface RdkitClusterRenderedCompound {
   highlightAtoms?: number[];
   substructure?: string | null;
   highlightColor?: string | null;
+  rGroups?: Record<string, RdkitClusterRGroup>;
+}
+
+export interface RdkitClusterRGroup {
+  smiles: string | null;
+  svg: string | null;
 }
 
 export interface RdkitClusterResult {
@@ -572,6 +578,20 @@ export const renderRdkitClusterSvgs = async ({
           const svg = typeof item.svg === 'string' ? item.svg : '';
           if (!id || !svg) return null;
 
+          const rGroupKeys = Object.keys(item)
+            .filter((key) => key === 'Core' || /^R\d+$/.test(key))
+            .sort((first, second) => {
+              if (first === 'Core') return -1;
+              if (second === 'Core') return 1;
+              return Number(first.slice(1)) - Number(second.slice(1));
+            });
+          const rGroups = rGroupKeys.reduce<Record<string, RdkitClusterRGroup>>((acc, key) => {
+            const smiles = typeof item[key] === 'string' ? item[key] : null;
+            const rGroupSvg = typeof item[`${key}_svg`] === 'string' ? item[`${key}_svg`] : null;
+            if (smiles || rGroupSvg) acc[key] = { smiles, svg: rGroupSvg };
+            return acc;
+          }, {});
+
           return {
             id,
             svg,
@@ -579,6 +599,7 @@ export const renderRdkitClusterSvgs = async ({
             highlightAtoms: Array.isArray(item.highlight_atoms) ? item.highlight_atoms : undefined,
             substructure: typeof item.substructure === 'string' ? item.substructure : null,
             highlightColor: typeof item.highlight_color === 'string' ? item.highlight_color : null,
+            rGroups: Object.keys(rGroups).length > 0 ? rGroups : undefined,
           };
         })
         .filter((item): item is RdkitClusterRenderedCompound => item !== null);
