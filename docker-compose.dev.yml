@@ -12,6 +12,7 @@ services:
       - VITE_RDKIT_API_URL=/rdkit-api
       - VITE_COMPOUND_SEARCH_API_URL=/compound-search-api
       - VITE_MONITORING_URL=/monitoring/
+      - VITE_CHEMDRAW_CLIPBOARD_FIXER_URL=http://localhost:47823
       - MONITORING_PROXY_TARGET=http://172.16.1.212:2026
     depends_on:
       - dev-myworkspace-backend

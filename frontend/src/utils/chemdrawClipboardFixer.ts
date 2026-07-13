@@ -1,5 +1,19 @@
-const CHEMDRAW_CLIPBOARD_FIXER_API_URL = 'http://localhost:47823/svg';
-const CHEMDRAW_CLIPBOARD_FIXER_HEALTH_URL = 'http://localhost:47823/health';
+type RuntimeWindow = Window & {
+  _env_?: {
+    VITE_CHEMDRAW_CLIPBOARD_FIXER_URL?: string;
+  };
+};
+
+const runtimeBaseUrl = typeof window !== 'undefined'
+  ? (window as RuntimeWindow)._env_?.VITE_CHEMDRAW_CLIPBOARD_FIXER_URL
+  : undefined;
+const CHEMDRAW_CLIPBOARD_FIXER_BASE_URL = (
+  runtimeBaseUrl
+  || import.meta.env.VITE_CHEMDRAW_CLIPBOARD_FIXER_URL
+  || 'http://localhost:47823'
+).replace(/\/+$/, '');
+const CHEMDRAW_CLIPBOARD_FIXER_API_URL = `${CHEMDRAW_CLIPBOARD_FIXER_BASE_URL}/svg`;
+const CHEMDRAW_CLIPBOARD_FIXER_HEALTH_URL = `${CHEMDRAW_CLIPBOARD_FIXER_BASE_URL}/health`;
 const CHEMDRAW_CLIPBOARD_FIXER_TIMEOUT_MS = 1500;
 const CHEMDRAW_CLIPBOARD_FIXER_HEALTH_TIMEOUT_MS = 1000;
 

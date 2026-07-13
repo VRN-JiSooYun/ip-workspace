@@ -25,7 +25,7 @@ import { installCanvasReadbackPatch } from '../../utils/canvasReadback';
 import { installPassiveWheelListenerPatch } from '../../utils/passiveWheelListenerPatch';
 
 const { Text } = Typography;
-const CHEMDRAW_CLIPBOARD_FIXER_URL = `${import.meta.env.BASE_URL}chemdrawClipboardFixer/chemdraw-clipboard-fixer.zip`;
+const CHEMDRAW_CLIPBOARD_FIXER_DOWNLOAD_URL = `${import.meta.env.BASE_URL}chemdrawClipboardFixer/chemdraw-clipboard-fixer.zip`;
 
 export interface ChemDrawStructureData {
   smiles: string;
@@ -531,7 +531,7 @@ const ChemDrawCanvasCore = forwardRef<ChemDrawCanvasCoreHandle, ChemDrawCanvasCo
         >
           <Button
             type={isClipboardFixerAvailable ? 'primary' : 'default'}
-            href={CHEMDRAW_CLIPBOARD_FIXER_URL}
+            href={CHEMDRAW_CLIPBOARD_FIXER_DOWNLOAD_URL}
             download="chemdraw-clipboard-fixer.zip"
             icon={<Download size={16} />}
             aria-label={isClipboardFixerAvailable

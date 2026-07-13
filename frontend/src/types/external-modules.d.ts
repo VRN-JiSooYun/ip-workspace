@@ -63,10 +63,12 @@ declare module '*.png' {
 
 interface ImportMetaEnv {
   readonly PROD: boolean;
+  readonly BASE_URL: string;
   readonly VITE_API_URL?: string;
   readonly VITE_RDKIT_API_URL?: string;
   readonly VITE_COMPOUND_SEARCH_API_URL?: string;
   readonly VITE_MONITORING_URL?: string;
+  readonly VITE_CHEMDRAW_CLIPBOARD_FIXER_URL?: string;
 }
 
 interface ImportMeta {
