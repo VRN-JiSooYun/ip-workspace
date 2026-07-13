@@ -35,6 +35,7 @@ import {
   renderRdkitClusterSvgs,
   type RdkitAbbrevOption,
   type RdkitClusterHighlightMode,
+  type RdkitHighlightColor,
   type RdkitSubstructureColorInfo,
 } from '../services/structureRendering';
 import arrowDivideIcon from '../assets/svg/arrow-divide.svg';
@@ -79,27 +80,14 @@ const SAR_QUICK_VIEWER_MIN_WIDTH = 360;
 const SAR_QUICK_VIEWER_MAX_WIDTH = 868;
 const SAR_QUICK_VIEWER_DEFAULT_WIDTH = 460;
 const SAR_SCAFFOLD_HIGHLIGHT_COLOR = 'red';
-const SAR_SCAFFOLD_COLOR_OPTIONS = [
-  { key: 'blue', color: '#0000ff' },
-  { key: 'red', color: '#ff6666' },
-  { key: 'green', color: '#00cc00' },
-  { key: 'yellow', color: '#e6c800' },
-  { key: 'gray', color: '#808080' },
-  { key: 'orange', color: '#ff8000' },
-  { key: 'purple', color: '#9900cc' },
-  { key: 'cyan', color: '#00cccc' },
-  { key: 'pink', color: '#ff6699' },
-  { key: 'lime', color: '#80ff00' },
-  { key: 'teal', color: '#008080' },
-  { key: 'magenta', color: '#ff00ff' },
-  { key: 'sky', color: '#4db3ff' },
-  { key: 'salmon', color: '#ff8066' },
-  { key: 'mint', color: '#66ffb3' },
-  { key: 'lavender', color: '#b380ff' },
-  { key: 'gold', color: '#ffcc00' },
-  { key: 'brown', color: '#99501a' },
-  { key: 'navy', color: '#000080' },
-  { key: 'olive', color: '#808000' },
+const SAR_SCAFFOLD_COLOR_OPTIONS: Array<{ key: RdkitHighlightColor; color: string }> = [
+  { key: 'red', color: '#ffa6a6' },
+  { key: 'orange', color: '#ed9164' },
+  { key: 'yellow', color: '#ebeb0a' },
+  { key: 'green', color: '#a6ffa6' },
+  { key: 'blue', color: '#a6a6ff' },
+  { key: 'naby', color: '#a6a6d3' },
+  { key: 'purple', color: '#dba6ed' },
 ];
 type SvgIntrinsicSize = { width: number; height: number };
 type SarApiCellValue = string | number | null | undefined;
@@ -1626,12 +1614,12 @@ const SarTable: React.FC = () => {
     scaffoldSubstructureMolBlock
       ? {
           [scaffoldSubstructureKey]: {
-            color: activeSarScaffold.color || SAR_SCAFFOLD_HIGHLIGHT_COLOR,
+            color: activeScaffoldColorOption.key,
             molblock: scaffoldSubstructureMolBlock,
           },
         }
       : undefined
-  ), [activeSarScaffold.color, scaffoldSubstructureKey, scaffoldSubstructureMolBlock]);
+  ), [activeScaffoldColorOption.key, scaffoldSubstructureKey, scaffoldSubstructureMolBlock]);
 
   useEffect(() => {
     const requestSeq = clusterRequestSeqRef.current + 1;

@@ -6,10 +6,15 @@ import React, {
   useState,
 } from 'react';
 import { Button, Space, Tooltip, Typography, theme } from 'antd';
-import { ArrowLeftRight, ArrowUpDown, Clipboard, Info } from 'lucide-react';
+import { ArrowLeftRight, ArrowUpDown, Clipboard, Download, Info } from 'lucide-react';
 import { CHEMDRAW_CONFIG } from '../../config/chemdraw';
 import { installChemDrawKoreanKeyboardBridge } from '../../utils/chemdrawKeyboard';
 import { commitChemDrawActiveInput, waitForChemDrawEditorReady } from '../../utils/chemdrawCommit';
+import {
+  isChemDrawClipboardFixerAvailable,
+  isChemDrawClipboardFixerSupportedPlatform,
+  notifyChemDrawClipboardFixer,
+} from '../../utils/chemdrawClipboardFixer';
 import {
   applyChemDrawRotate180,
   dispatchChemDrawRotate180Shortcut,
@@ -20,6 +25,7 @@ import { installCanvasReadbackPatch } from '../../utils/canvasReadback';
 import { installPassiveWheelListenerPatch } from '../../utils/passiveWheelListenerPatch';
 
 const { Text } = Typography;
+const CHEMDRAW_CLIPBOARD_FIXER_URL = `${import.meta.env.BASE_URL}chemdrawClipboardFixer/chemdraw-clipboard-fixer.zip`;
 
 export interface ChemDrawStructureData {
   smiles: string;
@@ -245,11 +251,13 @@ const ChemDrawCanvasCore = forwardRef<ChemDrawCanvasCoreHandle, ChemDrawCanvasCo
   const { token } = theme.useToken();
   const rotateHorizontalShortcutLabel = getChemDrawRotate180ShortcutLabel('horizontal');
   const rotateVerticalShortcutLabel = getChemDrawRotate180ShortcutLabel('vertical');
+  const isClipboardFixerSupported = isChemDrawClipboardFixerSupportedPlatform();
   const [containerId] = useState(`chemdraw-${Math.random().toString(36).slice(2, 11)}`);
   const [editorInstance, setEditorInstance] = useState<any>(null);
   const [hasClipboardAction, setHasClipboardAction] = useState(false);
   const [isClipboardEnabled, setIsClipboardEnabled] = useState(false);
   const [clipboardTitle, setClipboardTitle] = useState('ChemDraw clipboard');
+  const [isClipboardFixerAvailable, setIsClipboardFixerAvailable] = useState(false);
   const lastEmittedSmilesRef = useRef('');
   const lastLoadedSmilesRef = useRef('');
 
@@ -396,6 +404,27 @@ const ChemDrawCanvasCore = forwardRef<ChemDrawCanvasCoreHandle, ChemDrawCanvasCo
   }, [active, editorInstance, containerId]);
 
   useEffect(() => {
+    if (!active || controlsPlacement !== 'left' || !isClipboardFixerSupported) {
+      setIsClipboardFixerAvailable(false);
+      return;
+    }
+
+    let isDisposed = false;
+    const updateClipboardFixerAvailability = async () => {
+      const isAvailable = await isChemDrawClipboardFixerAvailable();
+      if (!isDisposed) setIsClipboardFixerAvailable(isAvailable);
+    };
+
+    void updateClipboardFixerAvailability();
+    const intervalId = window.setInterval(updateClipboardFixerAvailability, 5000);
+
+    return () => {
+      isDisposed = true;
+      window.clearInterval(intervalId);
+    };
+  }, [active, controlsPlacement, isClipboardFixerSupported]);
+
+  useEffect(() => {
     if (!active || !editorInstance || !onEditorInteraction) return;
 
     const container = document.getElementById(containerId);
@@ -412,6 +441,20 @@ const ChemDrawCanvasCore = forwardRef<ChemDrawCanvasCoreHandle, ChemDrawCanvasCo
       container.removeEventListener('paste', handleInteraction);
     };
   }, [active, editorInstance, containerId, onEditorInteraction]);
+
+  useEffect(() => {
+    if (!active || !editorInstance || !isClipboardFixerSupported) return;
+
+    const container = document.getElementById(containerId);
+    if (!container) return;
+
+    const handleCopy = () => {
+      void notifyChemDrawClipboardFixer(editorInstance);
+    };
+    container.addEventListener('copy', handleCopy, true);
+
+    return () => container.removeEventListener('copy', handleCopy, true);
+  }, [active, editorInstance, containerId, isClipboardFixerSupported]);
 
   useEffect(() => {
     if (!active || !editorInstance) return;
@@ -479,6 +522,24 @@ const ChemDrawCanvasCore = forwardRef<ChemDrawCanvasCoreHandle, ChemDrawCanvasCo
           disabled={!editorInstance || !hasClipboardAction}
         />
       </Tooltip>
+      {controlsPlacement === 'left' && isClipboardFixerSupported ? (
+        <Tooltip
+          title={isClipboardFixerAvailable
+            ? 'ChemDraw Clipboard Fixer 연결됨'
+            : 'ChemDraw Clipboard Fixer 연결 안 됨 - 설치 파일 다운로드'}
+          placement="left"
+        >
+          <Button
+            type={isClipboardFixerAvailable ? 'primary' : 'default'}
+            href={CHEMDRAW_CLIPBOARD_FIXER_URL}
+            download="chemdraw-clipboard-fixer.zip"
+            icon={<Download size={16} />}
+            aria-label={isClipboardFixerAvailable
+              ? 'ChemDraw Clipboard Fixer 연결됨, 설치 파일 다운로드'
+              : 'ChemDraw Clipboard Fixer 연결 안 됨, 설치 파일 다운로드'}
+          />
+        </Tooltip>
+      ) : null}
     </Space>
   );
 

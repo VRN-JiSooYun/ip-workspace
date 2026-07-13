@@ -202,8 +202,9 @@ export interface RdkitDrawOptions {
 
 export type RdkitClusterHighlightMode = 'com' | 'diff';
 export type RdkitAbbrevOption = 0 | 1 | 2;
+export type RdkitHighlightColor = 'red' | 'orange' | 'yellow' | 'green' | 'blue' | 'naby' | 'purple';
 export interface RdkitSubstructureColorInfo {
-  color: string;
+  color: RdkitHighlightColor;
   molblock: string;
 }
 

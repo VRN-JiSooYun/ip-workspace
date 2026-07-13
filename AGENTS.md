@@ -63,6 +63,7 @@
 
 ## Agent Instructions
 - **현재 프로젝트 상태**: 프론트엔드만 구현됨 (Mock 데이터 기반). 백엔드 미구현.
+- **외부 API 소유권**: `rdkit/`, `compound_search/` API는 별도 담당자가 관리하므로 에이전트가 해당 디렉토리의 파일을 생성, 수정, 삭제하거나 포맷팅하지 않습니다. 연동 작업 시 API 코드는 읽기 전용으로 확인하고 프론트엔드만 수정합니다.
 - **의존성 관리**: 로컬에는 npm, Bun 등이 설치되어 있지 않음. 모든 install, build 등의 작업은 Docker 컨테이너 내에서 수행.
   - 컨테이너 내에서 `bun add <package>`, `bun run build` 등 실행 가능.
   - 로컬에서는 `docker-compose.yml`을 통해 컨테이너 실행.
