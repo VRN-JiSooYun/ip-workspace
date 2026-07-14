@@ -1,0 +1,131 @@
+<mxfile host="app.diagrams.net" agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36" version="29.3.6">
+  <diagram id="8O8G1nW0k8LugXT0hkc-" name="CI/CD 아키텍처 (Full Flow)">
+    <mxGraphModel dx="2946" dy="1120" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="LJ97txLSSdwg5JwT4DiM-326" parent="1" style="swimlane;whiteSpace=wrap;html=1;startSize=23;" value="Developer" vertex="1">
+          <mxGeometry height="180" width="180" x="-200" y="40" as="geometry" />
+        </mxCell>
+        <mxCell id="LJ97txLSSdwg5JwT4DiM-327" parent="LJ97txLSSdwg5JwT4DiM-326" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" value="Code changes" vertex="1">
+          <mxGeometry height="40" width="120" x="30" y="50" as="geometry" />
+        </mxCell>
+        <mxCell id="LJ97txLSSdwg5JwT4DiM-328" parent="LJ97txLSSdwg5JwT4DiM-326" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;" value="git push" vertex="1">
+          <mxGeometry height="40" width="120" x="30" y="105" as="geometry" />
+        </mxCell>
+        <mxCell id="LJ97txLSSdwg5JwT4DiM-287" parent="1" style="swimlane;whiteSpace=wrap;html=1;startSize=23;" value="GitHub Repository" vertex="1">
+          <mxGeometry height="180" width="220" x="40" y="40" as="geometry" />
+        </mxCell>
+        <mxCell id="LJ97txLSSdwg5JwT4DiM-288" parent="LJ97txLSSdwg5JwT4DiM-287" style="shape=image;verticalLabelPosition=bottom;verticalAlign=top;helperText=;imageAspect=0;aspect=fixed;image=https://raw.githubusercontent.com/devicons/devicon/master/icons/github/github-original.svg;" value="" vertex="1">
+          <mxGeometry height="50" width="50" x="85" y="35" as="geometry" />
+        </mxCell>
+        <mxCell id="LJ97txLSSdwg5JwT4DiM-289" parent="LJ97txLSSdwg5JwT4DiM-287" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" value="branch: dev" vertex="1">
+          <mxGeometry height="30" width="80" x="20" y="100" as="geometry" />
+        </mxCell>
+        <mxCell id="LJ97txLSSdwg5JwT4DiM-291" parent="1" style="swimlane;whiteSpace=wrap;html=1;" value="CI/CD (GitHub Actions)" vertex="1">
+          <mxGeometry height="180" width="220" x="340" y="40" as="geometry" />
+        </mxCell>
+        <mxCell id="LJ97txLSSdwg5JwT4DiM-292" parent="LJ97txLSSdwg5JwT4DiM-291" style="shape=image;verticalLabelPosition=bottom;verticalAlign=top;imageAspect=0;aspect=fixed;image=https://raw.githubusercontent.com/devicons/devicon/master/icons/docker/docker-original.svg;" value="" vertex="1">
+          <mxGeometry height="50" width="50" x="85" y="40" as="geometry" />
+        </mxCell>
+        <mxCell id="LJ97txLSSdwg5JwT4DiM-293" parent="LJ97txLSSdwg5JwT4DiM-291" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontStyle=1" value="Docker Build &amp; Deploy" vertex="1">
+          <mxGeometry height="30" width="160" x="30" y="100" as="geometry" />
+        </mxCell>
+        <mxCell id="LJ97txLSSdwg5JwT4DiM-294" parent="1" style="swimlane;whiteSpace=wrap;html=1;fillColor=#f5f5f5;fontColor=#333333;strokeColor=#666666;" value="Development Server (Self-hosted)" vertex="1">
+          <mxGeometry height="320" width="340" x="40" y="300" as="geometry" />
+        </mxCell>
+        <mxCell id="LJ97txLSSdwg5JwT4DiM-295" parent="LJ97txLSSdwg5JwT4DiM-294" style="verticalLabelPosition=bottom;verticalAlign=top;html=1;shadow=0;dashed=0;strokeColor=none;fillColor=none;align=center;shape=image;image=https://raw.githubusercontent.com/devicons/devicon/master/icons/react/react-original.svg;" value="Frontend&#xa;(React/Nginx)" vertex="1">
+          <mxGeometry height="50" width="50" x="30" y="50" as="geometry" />
+        </mxCell>
+        <mxCell id="LJ97txLSSdwg5JwT4DiM-296" parent="LJ97txLSSdwg5JwT4DiM-294" style="verticalLabelPosition=bottom;verticalAlign=top;html=1;shadow=0;dashed=0;strokeColor=none;fillColor=none;align=center;shape=image;image=https://raw.githubusercontent.com/devicons/devicon/master/icons/nodejs/nodejs-original.svg;" value="Backend API&#xa;(Node.js/NestJS)" vertex="1">
+          <mxGeometry height="50" width="50" x="145" y="50" as="geometry" />
+        </mxCell>
+        <mxCell id="LJ97txLSSdwg5JwT4DiM-297" parent="LJ97txLSSdwg5JwT4DiM-294" style="verticalLabelPosition=bottom;verticalAlign=top;html=1;shadow=0;dashed=0;strokeColor=none;fillColor=none;align=center;shape=image;image=https://www.rdkit.org/docs/_static/logo.png;" value="RDKit API&#xa;(FastAPI)" vertex="1">
+          <mxGeometry height="50" width="50" x="260" y="50" as="geometry" />
+        </mxCell>
+        <mxCell id="LJ97txLSSdwg5JwT4DiM-298" parent="LJ97txLSSdwg5JwT4DiM-294" style="verticalLabelPosition=bottom;verticalAlign=top;html=1;shadow=0;dashed=0;strokeColor=none;fillColor=none;align=center;shape=image;image=https://raw.githubusercontent.com/devicons/devicon/master/icons/elasticsearch/elasticsearch-original.svg;" value="Compound Search API" vertex="1">
+          <mxGeometry height="50" width="50" x="145" y="160" as="geometry" />
+        </mxCell>
+        <mxCell id="LJ97txLSSdwg5JwT4DiM-323" parent="LJ97txLSSdwg5JwT4DiM-294" style="verticalLabelPosition=bottom;verticalAlign=top;html=1;shadow=0;dashed=0;strokeColor=none;fillColor=none;align=center;shape=image;image=https://raw.githubusercontent.com/devicons/devicon/master/icons/postgresql/postgresql-original.svg;" value="Local DB&lt;br&gt;(not used)" vertex="1">
+          <mxGeometry height="50" width="50" x="30" y="160" as="geometry" />
+        </mxCell>
+        <mxCell id="LJ97txLSSdwg5JwT4DiM-324" edge="1" parent="LJ97txLSSdwg5JwT4DiM-294" source="LJ97txLSSdwg5JwT4DiM-297" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;exitX=1;exitY=0.5;entryX=0.5;entryY=1;strokeColor=#007FFF;entryDx=0;entryDy=0;exitDx=0;exitDy=0;" target="LJ97txLSSdwg5JwT4DiM-323">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="330" y="75" />
+              <mxPoint x="330" y="280" />
+              <mxPoint x="55" y="280" />
+            </Array>
+            <mxPoint x="374" y="150" as="sourcePoint" />
+            <mxPoint x="589" y="500" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="LJ97txLSSdwg5JwT4DiM-304" parent="1" style="swimlane;whiteSpace=wrap;html=1;" value="External APIs" vertex="1">
+          <mxGeometry height="320" width="340" x="440" y="300" as="geometry" />
+        </mxCell>
+        <mxCell id="LJ97txLSSdwg5JwT4DiM-305" parent="LJ97txLSSdwg5JwT4DiM-304" style="verticalLabelPosition=bottom;verticalAlign=top;html=1;shadow=0;dashed=0;strokeColor=none;fillColor=none;align=center;shape=image;image=https://raw.githubusercontent.com/devicons/devicon/master/icons/postgresql/postgresql-original.svg;" value="Patent Helper API" vertex="1">
+          <mxGeometry height="50" width="50" x="145" y="50" as="geometry" />
+        </mxCell>
+        <mxCell id="LJ97txLSSdwg5JwT4DiM-306" parent="LJ97txLSSdwg5JwT4DiM-304" style="verticalLabelPosition=bottom;verticalAlign=top;html=1;shadow=0;dashed=0;strokeColor=none;fillColor=none;align=center;shape=image;image=https://img.icons8.com/color/96/artificial-intelligence.png;" value="Patent Upload / Insight API" vertex="1">
+          <mxGeometry height="50" width="50" x="145" y="145" as="geometry" />
+        </mxCell>
+        <mxCell id="LJ97txLSSdwg5JwT4DiM-307" parent="LJ97txLSSdwg5JwT4DiM-304" style="verticalLabelPosition=bottom;verticalAlign=top;html=1;shadow=0;dashed=0;strokeColor=none;fillColor=none;align=center;shape=image;image=https://img.icons8.com/color/96/artificial-intelligence.png;" value="Conformer API" vertex="1">
+          <mxGeometry height="50" width="50" x="145" y="240" as="geometry" />
+        </mxCell>
+        <mxCell id="LJ97txLSSdwg5JwT4DiM-308" edge="1" parent="1" source="LJ97txLSSdwg5JwT4DiM-289" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" target="LJ97txLSSdwg5JwT4DiM-292">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="100" y="250" />
+              <mxPoint x="300" y="250" />
+              <mxPoint x="300" y="105" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="LJ97txLSSdwg5JwT4DiM-329" edge="1" parent="1" source="LJ97txLSSdwg5JwT4DiM-328" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;exitX=1;exitY=0.5;entryX=0;entryY=0.5;exitDx=0;exitDy=0;entryDx=0;entryDy=0;" target="LJ97txLSSdwg5JwT4DiM-287" value="push code">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="LJ97txLSSdwg5JwT4DiM-310" edge="1" parent="1" source="LJ97txLSSdwg5JwT4DiM-291" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="LJ97txLSSdwg5JwT4DiM-294">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="450" y="260" />
+              <mxPoint x="210" y="260" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="LJ97txLSSdwg5JwT4DiM-312" edge="1" parent="1" source="LJ97txLSSdwg5JwT4DiM-295" style="edgeStyle=none;rounded=0;html=1;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" target="LJ97txLSSdwg5JwT4DiM-296" value="/api">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="LJ97txLSSdwg5JwT4DiM-313" edge="1" parent="1" source="LJ97txLSSdwg5JwT4DiM-296" style="edgeStyle=none;rounded=0;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;strokeColor=#4D9900;dashed=1;" target="LJ97txLSSdwg5JwT4DiM-298" value="/compound-search-api">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="LJ97txLSSdwg5JwT4DiM-314" edge="1" parent="1" source="LJ97txLSSdwg5JwT4DiM-295" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;exitX=0.5;exitY=0;entryX=0.5;entryY=0;strokeColor=#4D9900;dashed=1;exitDx=0;exitDy=0;entryDx=0;entryDy=0;" target="LJ97txLSSdwg5JwT4DiM-297" value="/rdkit-api">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="95" y="330" />
+              <mxPoint x="325" y="330" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="LJ97txLSSdwg5JwT4DiM-318" edge="1" parent="1" source="LJ97txLSSdwg5JwT4DiM-296" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;exitX=1;exitY=0.5;entryX=0;entryY=0.5;strokeColor=#007FFF;exitDx=0;exitDy=0;entryDx=0;entryDy=0;" target="LJ97txLSSdwg5JwT4DiM-306" value="PATENT_ANALYSIS_UPLOAD_API_URL&#xa;PATENT_INSIGHT_API_URL">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="410" y="375" />
+              <mxPoint x="410" y="470" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="LJ97txLSSdwg5JwT4DiM-319" edge="1" parent="1" source="LJ97txLSSdwg5JwT4DiM-296" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;exitX=1;exitY=0.5;entryX=0;entryY=0.5;strokeColor=#007FFF;entryDx=0;entryDy=0;exitDx=0;exitDy=0;" target="LJ97txLSSdwg5JwT4DiM-307" value="CONFORMER_API_URL">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="420" y="375" />
+              <mxPoint x="420" y="565" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="LJ97txLSSdwg5JwT4DiM-325" edge="1" parent="1" source="LJ97txLSSdwg5JwT4DiM-296" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;exitX=1;exitY=0.5;entryX=0;entryY=0.5;strokeColor=#007FFF;exitDx=0;exitDy=0;entryDx=0;entryDy=0;" target="LJ97txLSSdwg5JwT4DiM-305" value="PATENT_ANALYSIS_HELPER_API_URL">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

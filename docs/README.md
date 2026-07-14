@@ -1,104 +1,60 @@
-# docs 정리본
+# 문서 안내
 
-이 문서는 `docs/` 디렉토리의 문서를 목적별로 분류한 인덱스입니다.
+이 파일은 `docs/`의 진입점이다. 에이전트와 개발자는 전체 파일을 순서대로 읽지 않고, 아래 분류와 검색 명령으로 필요한 문서만 찾는다.
 
-## 1) 프로젝트 기준 문서 (우선 참조)
+## 먼저 읽을 문서
 
-- `frontend_spec.md`
-  - 프론트엔드 기술 스택/디자인 방향의 기준 문서
-- `task.md`
-  - 초기~중기 구현 체크리스트 및 단계별 완료 현황
-- `walkthrough.md`
-  - 프로토타입 결과 요약
+- `frontend_spec.md`: 프론트엔드 기술 스택과 기본 설계 방향
+- `UI_STANDARD_GUIDE.md`: 공통 UI 기준
+- `task.md`: 초기~중기 구현 체크리스트와 완료 현황
+- `walkthrough.md`: 주요 구현 결과 요약
 
-## 2) 특허 분석 도메인 문서
+## 디렉토리 구조
 
-- `patent_analysis_ui_ux_plan.md`
-  - 특허 분석 List/Detail UI 설계 및 탭 구조 계획
-- `patent_analysis_api_docs.md`
-  - 샘플 API 구조/operation 정리
-- `patent_analysis_swagger.yaml`
-  - API 스키마 정의(Swagger)
-- `patent_data_structure_analysis.md`
-  - `portal.html` + 샘플 JSON 구조 분석
-- `patent_data_mapping.md`
-  - JSON 필드와 UI 컴포넌트 매핑 상세
+```text
+docs/
+├── README.md
+├── reports/YYYY/MM/report_YYYYMMDD_<topic>.md
+├── plans/YYYY/MM/plan_YYYYMMDD_<topic>.md
+├── *_plan.md, *_guide.md, *_analysis.md
+└── API 스키마·다이어그램·기타 장기 참고 문서
+```
 
-## 3) 최근 구현/변경 보고서
+- `reports/`: 완료된 작업과 검증 결과. 연/월까지만 폴더로 나누고 정확한 날짜와 주제는 파일명에 둔다.
+- `plans/`: 날짜 기반 실행 계획. 완료 후에도 당시 판단 근거로 보존한다.
+- 루트의 `*_plan.md`, `*_guide.md`, `*_analysis.md`: 날짜에 종속되지 않는 장기 기준·설계 문서다.
+- 요일별 또는 일자별 폴더는 만들지 않는다. 폴더가 지나치게 깊어지고 주제 검색이 어려워진다.
 
-- 작업 보고서는 날짜별로 `report_YYYYMMDD.md` 파일 하나에 누적 기록합니다.
-- `report_20260611.md`
-  - 2026-06-11 작업 보고서: PDF highlight click, 구조 확대 modal action, 투명 배경 이미지 복사, 향후 작업 예정
-- `report_20260610.md`
-  - 2026-06-10 작업 보고서
-- `report_20260609.md`
-  - 2026-06-09 작업 보고서
-- `report_20260608.md`
-  - 2026-06-08 작업 보고서
-- `report_20260605.md`
-  - 2026-06-05 작업 보고서
-- `report_20260604.md`
-  - 2026-06-04 작업 보고서
-- `report_20260602.md`
-  - 2026-06-02 작업 보고서
-- `report_20260601.md`
-  - 2026-06-01 작업 보고서
-- `report_pdf_highlight_implementation.md`
-  - PDF 하이라이트 연동 구현 내용
-- `report_20260521.md`
-  - 2026-05-21 작업 보고서
-- `report_20260520.md`
-  - 2026-05-20 작업 보고서
-- `report_20260519.md`
-  - 2026-05-19 작업 보고서
-- `report_20260518.md`
-  - 2026-05-18 작업 보고서
-- `report_20260512.md`
-  - 2026-05-12 작업 보고서
-- `report_20260508.md`
-  - 2026-05-08 작업 보고서
-- `report_20260507.md`
-  - 2026-05-07 작업 보고서
-- `report_20260422.md`
-  - 다크 테마 구현 결과 보고
-- `report_20260421.md`
-  - MyBoard/SAR 고도화 보고
+## 에이전트 탐색 순서
 
-## 4) 테마/디자인 계획 문서
+1. 현재 작업의 코드와 `AGENTS.md`를 확인한다.
+2. 장기 기준이 필요하면 이 문서의 “먼저 읽을 문서”와 루트의 관련 설계 문서를 확인한다.
+3. 과거 구현 근거는 `reports/`에서 기능명, 페이지명, 컴포넌트명으로 검색한다.
+4. 진행 전 계획이나 보류된 판단은 `plans/`에서 검색한다.
+5. 날짜만 알고 있다면 해당 `YYYY/MM` 폴더만 조회한다.
 
-- `dark_theme_plan.md`
-- `dark_theme_task.md`
-- `dark_theme_walkthrough.md`
-- `implementation_plan.md` (대시보드 리뉴얼 계획)
-- `synthesis_board_plan.md`
-- `wieldy_review.md`
+권장 검색 예시:
 
-## 5) 카드뷰 리팩토링 문서
+```bash
+rg -n "CompoundStructureView|parent overlay" docs/reports docs/plans
+rg --files docs/reports/2026/07 | sort
+rg -n "MyBoard|SynthesisBoard" docs
+```
 
-- `card_view_refactoring_analysis.md`
-  - 리팩토링 분석 문서
-- `card_view_implementation_guide.md`
-  - 단계별 적용 가이드
-- `card_view_final_integration.md`
-  - 최종 통합 결과 문서
+## 새 문서 작성 규칙
 
-## 6) 프로토타입 참고 자산
+- 작업 보고서: `docs/reports/YYYY/MM/report_YYYYMMDD_<topic>.md`
+- 날짜 기반 계획: `docs/plans/YYYY/MM/plan_YYYYMMDD_<topic>.md`
+- 장기 기준 문서: `docs/<domain>_<purpose>.md`
+- `<topic>`은 영문 소문자 `snake_case`로 작성한다.
+- 한 작업은 가능한 한 하나의 보고서로 작성한다. 서로 독립적인 변경만 파일을 분리한다.
+- 제목, 작업 목적, 변경 내용, 검증 결과, 미실행 항목을 포함한다.
+- 문서 경로를 링크할 때는 이동에 취약한 절대 경로보다 현재 문서 기준 상대 링크를 우선한다.
 
-- `prototype/`
-  - 화면 레퍼런스 PNG 모음
-- `sample/Dashboard.html`
-  - 초기 샘플 HTML
+## 보관 원칙
 
-## 7) 정리 필요 항목
-
-- 빈 파일
-  - `card_view_completion.md`
-  - `report_card_view_refactoring_20250507.md`
-- macOS 메타 파일
-  - `.DS_Store`
-
-## 8) 권장 유지 기준
-
-- 계획 문서: 최신 1개 유지, 이전 계획은 아카이브
-- 보고서: 날짜별 유지하되, 월 단위 요약 문서 추가 권장
-- 리팩토링 문서: `analysis`/`guide`/`final` 중 실제 기준이 되는 1개를 대표 문서로 지정
+- 같은 날의 보고서를 강제로 합치지 않는다. 독립적인 작업 단위와 검색 가능한 주제를 보존한다.
+- 월이 바뀌면 새 월 폴더만 추가한다.
+- 오래된 보고서는 삭제하지 않고 연/월 경로에 유지한다.
+- 월별 요약은 실제로 회고가 필요할 때만 `summary_YYYYMM.md`로 추가한다.
+- `.DS_Store` 같은 운영체제 메타 파일은 문서로 취급하지 않는다.

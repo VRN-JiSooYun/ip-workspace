@@ -421,7 +421,7 @@ Charts:
 11. Add responsive stacked layout.
 12. Add loading/error/empty states.
 13. Add dark/light chart theme handling.
-14. Document implementation details in `docs/report_20260601.md`.
+14. Document implementation details in `docs/reports/2026/06/report_20260601.md`.
 
 ## Open Questions
 

@@ -67,7 +67,7 @@
 - **의존성 관리**: 로컬에는 npm, Bun 등이 설치되어 있지 않음. 모든 install, build 등의 작업은 Docker 컨테이너 내에서 수행.
   - 컨테이너 내에서 `bun add <package>`, `bun run build` 등 실행 가능.
   - 로컬에서는 `docker-compose.yml`을 통해 컨테이너 실행.
-- **문서화**: 모든 작업내용은 `docs/` 디렉토리에 문서화하여 저장 (작업 계획, 구현 내용, 보고서 등).
+- **문서화**: 모든 작업내용을 문서화합니다. 작업 보고서는 `docs/reports/YYYY/MM/report_YYYYMMDD_<topic>.md`, 날짜 기반 작업 계획은 `docs/plans/YYYY/MM/plan_YYYYMMDD_<topic>.md`에 저장하고, 장기 기준 문서는 `docs/` 루트에 유지합니다. 상세 탐색 및 명명 규칙은 `docs/README.md`를 따릅니다.
 - **라이브러리/프레임워크 질의**: Context7 MCP 문서를 먼저 조회하고, sequential thinking을 사용하여 답변 구성.
 - **현재 인프라 구성**:
   - Frontend: Vite + React + TypeScript + Ant Design + Zustand + React Context (ThemeContext)
