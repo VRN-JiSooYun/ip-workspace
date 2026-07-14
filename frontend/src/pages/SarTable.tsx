@@ -3616,6 +3616,16 @@ const SarTable: React.FC = () => {
           transform: translateY(-50%);
           pointer-events: none;
         }
+        .sar-compound-highlight-toggle .ant-segmented-item-selected,
+        .sar-compound-highlight-toggle .ant-segmented-thumb {
+          background: ${token.colorInfoBg};
+          box-shadow: 0 0 0 1px ${token.colorInfoBorder};
+        }
+        .sar-compound-highlight-toggle .ant-segmented-item-selected,
+        .sar-compound-highlight-toggle .ant-segmented-item-selected:hover,
+        .sar-compound-highlight-toggle .ant-segmented-item-selected .ant-segmented-item-label {
+          color: ${token.colorInfoText};
+        }
         .sar-scaffold-color-trigger-wrap {
           display: inline-flex;
           align-items: center;

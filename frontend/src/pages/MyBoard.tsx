@@ -4625,7 +4625,7 @@ const MyBoard: React.FC = () => {
                     <Form.Item name="referenceName" hidden>
                       <Input />
                     </Form.Item>
-                    <Form.Item label="합성 목적" className="idea-inline-form-item">
+                    <Form.Item label="합성 목적" className="idea-inline-form-item idea-compact-label-form-item">
                       <Cascader
                         multiple
                         options={designPurposeOptions}
@@ -4669,7 +4669,7 @@ const MyBoard: React.FC = () => {
                       />
                     </Form.Item>
                   </Col>
-                  <Col span={6}>
+                  <Col span={6} className="idea-expansion-field-col">
                     <Form.Item label="합성 확장필요 정도" className="idea-inline-form-item">
                       <Cascader
                         multiple
@@ -4683,8 +4683,8 @@ const MyBoard: React.FC = () => {
                       />
                     </Form.Item>
                   </Col>
-                  <Col span={6}>
-                    <Form.Item name="requiredAmountMg" label="필요량" className="idea-inline-form-item">
+                  <Col span={6} className="idea-required-amount-field-col">
+                    <Form.Item name="requiredAmountMg" label="필요량" className="idea-inline-form-item idea-compact-label-form-item">
                       <InputNumber
                         className="patent-insight-filter-number-input"
                         min={0}
@@ -4786,13 +4786,13 @@ const MyBoard: React.FC = () => {
               <Form.Item
                 label={(
                   <div className="idea-calculation-label">
-                    <Text strong style={{ fontSize: 12 }}><Activity size={13} style={{ marginRight: 4 }} />Calculations</Text>
+                    <Text strong style={{ fontSize: 13 }}><Activity size={13} style={{ marginRight: 4 }} />Calculations</Text>
                     <ToggleTag
                       checked={areAllCalculationsSelected}
                       onChange={(checked) => {
                         setSelectedCalculations(checked ? [...calculationOptions] : []);
                       }}
-                      style={{ minHeight: 22, padding: '1px 8px', fontSize: 10, marginInlineEnd: 0 }}
+                      style={{ minHeight: 22, padding: '1px 8px', fontSize: 13, marginInlineEnd: 0 }}
                     >
                       All
                     </ToggleTag>
@@ -5001,6 +5001,16 @@ const MyBoard: React.FC = () => {
           font-size: 11px;
           line-height: 22px;
         }
+        .my-board-detail-show-filter-options .ant-segmented-item-selected,
+        .my-board-detail-show-filter-options .ant-segmented-thumb {
+          background: ${token.colorInfoBg};
+          box-shadow: 0 0 0 1px ${token.colorInfoBorder};
+        }
+        .my-board-detail-show-filter-options .ant-segmented-item-selected,
+        .my-board-detail-show-filter-options .ant-segmented-item-selected:hover,
+        .my-board-detail-show-filter-options .ant-segmented-item-selected .ant-segmented-item-label {
+          color: ${token.colorInfoText};
+        }
         .synthesis-request-modal {
           --synthesis-request-control-radius: ${token.borderRadius}px;
         }
@@ -5149,8 +5159,19 @@ const MyBoard: React.FC = () => {
           margin-bottom: 8px;
         }
         .idea-compound-modal {
-          --idea-label-width: 132px;
+          --idea-label-width: 112px;
           --idea-control-radius: ${token.borderRadius}px;
+          --idea-font-size: 13px;
+        }
+        .idea-compound-modal .ant-modal-body,
+        .idea-compound-modal .ant-modal-footer .ant-btn,
+        .idea-compound-form,
+        .idea-compound-form .ant-input,
+        .idea-compound-form .ant-input-number-input,
+        .idea-compound-form .ant-select-selection-item,
+        .idea-compound-form .ant-select-selection-placeholder,
+        .idea-compound-form .ant-btn {
+          font-size: var(--idea-font-size);
         }
         .idea-inline-form-item,
         .idea-structure-form-item,
@@ -5166,6 +5187,24 @@ const MyBoard: React.FC = () => {
         }
         .idea-inline-form-item .ant-form-item-row {
           align-items: center;
+        }
+        .idea-inline-form-item.idea-compact-label-form-item .ant-form-item-row {
+          grid-template-columns: 72px minmax(0, 1fr);
+        }
+        .idea-inline-form-item.idea-compact-label-form-item .ant-form-item-label,
+        .idea-inline-form-item.idea-compact-label-form-item .ant-form-item-label > label {
+          height: auto;
+          min-height: 28px;
+          line-height: 16px;
+          white-space: normal;
+        }
+        .idea-synthesis-section .idea-expansion-field-col {
+          flex: 0 0 calc(25% + 40px);
+          max-width: calc(25% + 40px);
+        }
+        .idea-synthesis-section .idea-required-amount-field-col {
+          flex: 0 0 calc(25% - 40px);
+          max-width: calc(25% - 40px);
         }
         .idea-rich-text-form-item .ant-form-item-row,
         .idea-structure-form-item .ant-form-item-row,
@@ -5187,7 +5226,7 @@ const MyBoard: React.FC = () => {
         .idea-calculation-form-item .ant-form-item-label > label {
           height: 28px;
           color: ${token.colorTextSecondary};
-          font-size: 12px;
+          font-size: var(--idea-font-size);
           font-weight: 700;
         }
         .idea-structure-form-item .ant-form-item-label > label,
@@ -5279,7 +5318,7 @@ const MyBoard: React.FC = () => {
           background: ${token.colorBgContainer};
           color: ${token.colorText};
           font-family: inherit;
-          font-size: 12px;
+          font-size: var(--idea-font-size);
         }
         .idea-design-memo-editor .ql-editor {
           min-height: 84px;
@@ -5393,19 +5432,19 @@ const MyBoard: React.FC = () => {
           min-height: 24px;
           padding-inline: 12px;
           border-radius: var(--idea-control-radius);
-          font-size: 11px;
+          font-size: var(--idea-font-size);
         }
         .idea-attachment-drop-label {
           color: ${token.colorTextTertiary};
-          font-size: 18px;
+          font-size: var(--idea-font-size);
           font-weight: 400;
-          line-height: 26px;
+          line-height: 20px;
           text-align: center;
         }
         .idea-attachment-drop-sub-label {
           color: ${token.colorTextTertiary};
-          font-size: 11px;
-          line-height: 16px;
+          font-size: var(--idea-font-size);
+          line-height: 20px;
           text-align: center;
         }
         .idea-attachment-file-list {
@@ -5461,7 +5500,7 @@ const MyBoard: React.FC = () => {
           justify-content: center;
           margin: 0;
           padding: 2px 6px;
-          font-size: 10px;
+          font-size: var(--idea-font-size);
           line-height: 1;
           text-align: center;
           white-space: normal;
@@ -5490,9 +5529,11 @@ const MyBoard: React.FC = () => {
         }
         .idea-compound-popup-scroll,
         .idea-compound-popup-scroll .ant-select-item,
-        .idea-compound-popup-scroll .ant-cascader-menu {
+        .idea-compound-popup-scroll .ant-cascader-menu,
+        .idea-compound-popup-scroll .ant-input {
           background: ${token.colorBgElevated};
           color: ${token.colorText};
+          font-size: 13px;
         }
         .idea-compound-popup-scroll .ant-select-item-option-active:not(.ant-select-item-option-disabled),
         .idea-compound-popup-scroll .ant-cascader-menu-item-active:not(.ant-cascader-menu-item-disabled),
