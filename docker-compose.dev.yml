@@ -6,7 +6,10 @@ services:
       dockerfile: Dockerfile.dev
     restart: always
     ports:
-      - "18080:80"
+      - "18080:443"
+    volumes:
+      - "${DEV_TLS_CERT_PATH:?DEV_TLS_CERT_PATH is required}:/etc/nginx/certs/fullchain.pem:ro"
+      - "${DEV_TLS_KEY_PATH:?DEV_TLS_KEY_PATH is required}:/etc/nginx/certs/private.key:ro"
     environment:
       - VITE_API_URL=/api
       - VITE_RDKIT_API_URL=/rdkit-api
@@ -32,7 +35,7 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=3000
-      - CORS_ORIGINS=http://localhost:18080,http://172.16.1.183:18080
+      - CORS_ORIGINS=${DEV_PUBLIC_ORIGIN:-https://voronoi.app:28000},http://localhost:18080,http://172.16.1.183:18080
       - PATENT_ANALYSIS_HELPER_API_URL=http://172.16.1.210:10130
       - PATENT_ANALYSIS_UPLOAD_API_URL=http://172.16.1.210:8000
       - PATENT_INSIGHT_API_URL=http://172.16.1.210:8000

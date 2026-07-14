@@ -20,6 +20,9 @@ jobs:
       - name: Build and Run Docker Containers
         env:
           COMPOUND_API_AUTH_TOKEN: ${{ secrets.COMPOUND_API_AUTH_TOKEN }}
+          DEV_TLS_CERT_PATH: ${{ vars.DEV_TLS_CERT_PATH }}
+          DEV_TLS_KEY_PATH: ${{ vars.DEV_TLS_KEY_PATH }}
+          DEV_PUBLIC_ORIGIN: ${{ vars.DEV_PUBLIC_ORIGIN }}
         run: |
           # self-hosted runner는 checkout한 디렉토리에서 직접 실행됩니다.
           docker compose -f docker-compose.dev.yml up --build -d --force-recreate

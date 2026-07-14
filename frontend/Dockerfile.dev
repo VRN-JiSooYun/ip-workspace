@@ -23,5 +23,5 @@ COPY env.template.js /usr/share/nginx/html/env.template.js
 COPY docker-entrypoint.d/20-envsubst.sh /docker-entrypoint.d/20-envsubst.sh
 RUN chmod +x /docker-entrypoint.d/20-envsubst.sh
 
-EXPOSE 80
+EXPOSE 443
 CMD ["nginx", "-g", "daemon off;"]
