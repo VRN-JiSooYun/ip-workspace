@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Typography, Row, Col, Card, Table, Button, Input,
-  Space, Modal, Form, Select, DatePicker, Avatar, Divider, Segmented, Tooltip, theme, Spin, Popover
+  Space, Modal, Form, Select, DatePicker, Avatar, Divider, Segmented, Tooltip, theme, Spin, Popover, App as AntApp
 } from 'antd';
 import {
   Search, ChevronDown, ChevronUp,
@@ -58,6 +58,7 @@ const SAR_COMPOUND_CARD_SETTING_STEP = 5;
 const SAR_COMPOUND_CARD_SCALE_BASE_RATIO = 0.95;
 const SAR_COMPOUND_MULTI_SELECT_MAX_HEIGHT = 380;
 const SAR_COMPOUND_CARD_ROTATION_STEP = 30;
+const SAR_RDKIT_CLUSTER_ERROR_NOTIFICATION_KEY = 'sar-rdkit-cluster-error';
 const SAR_COMPOUND_CARD_OVERLAP_MIN = 0;
 const SAR_COMPOUND_CARD_OVERLAP_MAX = 50;
 const SAR_GROUP_STRUCTURE_WIDTH = 130;
@@ -169,6 +170,7 @@ function getRangeSelectionIds<T extends { id: string }>(rows: T[], anchorId: str
 const SarTable: React.FC = () => {
   const navigate = useNavigate();
   const { token } = theme.useToken();
+  const { notification } = AntApp.useApp();
   const { isDarkMode } = useTheme();
   const {
     selectedGroupIds,
@@ -364,7 +366,6 @@ const SarTable: React.FC = () => {
   const [clusterSvgByCompoundId, setClusterSvgByCompoundId] = useState<Record<string, string>>({});
   const [clusterRGroupsByCompoundId, setClusterRGroupsByCompoundId] = useState<Record<string, Record<string, RdkitClusterRGroup>>>({});
   const [isClusterLoading, setIsClusterLoading] = useState(false);
-  const [clusterError, setClusterError] = useState<string | null>(null);
   const [quickViewer, setQuickViewer] = useState<{
     compound: Compound;
     activeType: CompoundQuickViewerAssetType;
@@ -405,8 +406,12 @@ const SarTable: React.FC = () => {
   const displaySarCompounds = useMemo(() => {
     const filteredCompounds = sarCompounds.filter((compound) => {
       const hasCompoundId = compound.compoundId.trim().length > 0;
-      if (sarCompoundTypeFilter === 'compound') return hasCompoundId;
-      if (sarCompoundTypeFilter === 'design') return !hasCompoundId;
+      const isAcceptedOrLater = compound.synthesisRequestStatus === 'accepted'
+        || compound.synthesisRequestStatus === 'synthesizing'
+        || compound.synthesisRequestStatus === 'vnaIssued';
+      const isCompoundType = hasCompoundId || isAcceptedOrLater;
+      if (sarCompoundTypeFilter === 'compound') return isCompoundType;
+      if (sarCompoundTypeFilter === 'design') return !isCompoundType;
       return true;
     });
 
@@ -1685,12 +1690,12 @@ const SarTable: React.FC = () => {
       setClusterSvgByCompoundId({});
       setClusterRGroupsByCompoundId({});
       setIsClusterLoading(false);
-      setClusterError(null);
+      notification.destroy(SAR_RDKIT_CLUSTER_ERROR_NOTIFICATION_KEY);
       return;
     }
 
     setIsClusterLoading(true);
-    setClusterError(null);
+    notification.destroy(SAR_RDKIT_CLUSTER_ERROR_NOTIFICATION_KEY);
     setClusterSvgByCompoundId({});
     setClusterRGroupsByCompoundId({});
 
@@ -1727,7 +1732,6 @@ const SarTable: React.FC = () => {
           }, {})
         );
         setIsClusterLoading(false);
-        setClusterError(null);
       })
       .catch((error) => {
         if (clusterRequestSeqRef.current !== requestSeq) return;
@@ -1735,7 +1739,13 @@ const SarTable: React.FC = () => {
         setClusterSvgByCompoundId({});
         setClusterRGroupsByCompoundId({});
         setIsClusterLoading(false);
-        setClusterError(error instanceof Error ? error.message : 'RDKit cluster 요청에 실패했습니다.');
+        notification.error({
+          key: SAR_RDKIT_CLUSTER_ERROR_NOTIFICATION_KEY,
+          message: 'RDKit API 호출 실패',
+          description: error instanceof Error ? error.message : 'RDKit cluster 요청에 실패했습니다.',
+          duration: 10,
+          placement: 'topRight',
+        });
       });
   }, [
     activeStructureSettings?.sarRotationDeg,
@@ -1744,6 +1754,7 @@ const SarTable: React.FC = () => {
     clusterHighlightMode,
     displaySarCompounds,
     isStructureSettingsDisabled,
+    notification,
     scaffoldSubstructureColorDict,
   ]);
 
@@ -2077,11 +2088,6 @@ const SarTable: React.FC = () => {
                     </Tooltip>
                   )}
                 </div>
-                {clusterError ? (
-                  <Tooltip title={clusterError}>
-                    <Text type="danger" style={{ fontSize: 11 }}>Cluster error</Text>
-                  </Tooltip>
-                ) : null}
                 <div className="sar-compound-setting-group sar-rdkit-control-group sar-compound-show-filter">
                   <span className="sar-compound-setting-label sar-rdkit-control-label">Show</span>
                   <Segmented

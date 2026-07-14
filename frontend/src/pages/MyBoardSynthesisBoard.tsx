@@ -2813,30 +2813,19 @@ const MyBoardSynthesisBoard: React.FC = () => {
 
     const status = record.synthesisRequestStatus;
     if (!status) {
-      return <Text type="secondary">-</Text>;
+      return <Text>-</Text>;
     }
 
     const statusMeta = SYNTHESIS_REQUEST_STATUS_META[status];
-    const statusColor = {
-      requested: token.colorPrimary,
-      accepted: token.colorInfo,
-      synthesizing: token.colorWarning,
-      vnaIssued: token.colorSuccess,
-    }[status];
 
     return (
       <div className="my-board-synthesis-status-cell">
-        <Text className="my-board-synthesis-status-text" style={{ color: statusColor }}>
+        <Text className="my-board-synthesis-status-text">
           {statusMeta.label}
         </Text>
       </div>
     );
-  }, [
-    token.colorInfo,
-    token.colorPrimary,
-    token.colorSuccess,
-    token.colorWarning,
-  ]);
+  }, [token.colorPrimary]);
   const synthesisRequestTargetGroup = React.useMemo(
     () => groups.find((group) => group.id === synthesisRequestTarget?.groupId),
     [groups, synthesisRequestTarget?.groupId]
@@ -4997,13 +4986,15 @@ const MyBoardSynthesisBoard: React.FC = () => {
           display: inline-flex;
           align-items: center;
           justify-content: center;
+          width: 28px;
           min-width: 28px;
-          height: 22px;
+          height: 28px;
           margin-inline-end: 0;
-          padding-inline: 7px;
-          font-size: 10px;
+          padding: 0;
+          border-radius: 50%;
+          font-size: 12px;
           font-weight: 700;
-          line-height: 20px;
+          line-height: 26px;
           white-space: nowrap;
           box-sizing: border-box;
         }
@@ -5026,7 +5017,7 @@ const MyBoardSynthesisBoard: React.FC = () => {
         .my-board-synthesis-status-text {
           font-size: 11px;
           line-height: 20px;
-          font-weight: 500;
+          font-weight: 400;
         }
         .synthesis-request-form {
           padding-top: 4px;

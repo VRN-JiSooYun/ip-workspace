@@ -590,6 +590,8 @@ const SynthesisBoard: React.FC = () => {
             iconSize={40}
             gap={0}
             actionPlacement="overlay"
+            actionOverlayAnchor="parent"
+            fullWidth
             fitRotatedBounds
             frameless
             rotationDeg={structureSettings.sarRotationDeg}
@@ -1074,6 +1076,7 @@ const SynthesisBoard: React.FC = () => {
         }
         .synthesis-detail-table .ant-table-tbody > tr > td.synthesis-structure-column {
           padding: 4px !important;
+          position: relative;
         }
         .synthesis-detail-table .ant-table-thead > tr > th.synthesis-structure-column {
           padding-left: 4px !important;
@@ -1083,6 +1086,12 @@ const SynthesisBoard: React.FC = () => {
           top: auto;
           right: 4px;
           bottom: 4px;
+        }
+        .synthesis-detail-table .ant-table-tbody > tr > td.synthesis-structure-column:hover .compound-structure-actions-overlay,
+        .synthesis-detail-table .ant-table-tbody > tr > td.synthesis-structure-column:focus-within .compound-structure-actions-overlay,
+        .synthesis-detail-table .ant-table-tbody > tr > td.synthesis-structure-column .compound-structure-actions-overlay:hover {
+          opacity: 1;
+          pointer-events: auto;
         }
         .synthesis-detail-table .synthesis-structure-column .compound-structure-frame,
         .canvas-card .compound-structure-frame {

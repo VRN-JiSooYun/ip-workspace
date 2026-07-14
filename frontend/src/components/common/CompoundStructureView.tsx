@@ -57,7 +57,7 @@ export interface CompoundStructureViewProps {
   linkedImageCopy?: CompoundStructureLinkedImageCopy;
   onPreview?: (svg?: string) => void;
   actionPlacement?: 'rail' | 'overlay';
-  actionOverlayAnchor?: 'frame' | 'container';
+  actionOverlayAnchor?: 'frame' | 'container' | 'parent';
   actionOverlayPlacement?: 'top-right' | 'bottom-right';
   actions?: CompoundStructureAction[];
   onClick?: React.MouseEventHandler<HTMLDivElement>;
@@ -857,7 +857,7 @@ const CompoundStructureView: React.FC<CompoundStructureViewProps> = ({
           )}
           {actionOverlayAnchor === 'frame' ? overlayActions : null}
         </div>
-        {actionOverlayAnchor === 'container' ? overlayActions : null}
+        {actionOverlayAnchor !== 'frame' ? overlayActions : null}
         {actionPlacement === 'rail' && allActions.length > 0 ? (
           <div className="compound-structure-actions" style={{ height: actionRailHeight ?? height }}>
             {allActions.map((action) => (

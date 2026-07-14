@@ -141,7 +141,6 @@ type SynthesisRequestFormValues = {
   expectedEffect?: string;
   requestMemo?: string;
   synthesisRequestType?: string;
-  synthesisSite?: 'In-house' | 'Wuxi';
 };
 type DesignMemoPreviewBlock =
   | { type: 'text'; text: string }
@@ -151,7 +150,6 @@ const IDEA_COMPOUND_COUNTER_STORAGE_PREFIX = 'my-board:idea-compound-counter';
 const IDEA_COMPOUND_PREFIX = 'LYH';
 const SYNTHESIS_REQUEST_COUNTER_STORAGE_PREFIX = 'my-board:synthesis-request-counter';
 const SYNTHESIS_REQUEST_PREFIX = 'LYH';
-const SYNTHESIS_REQUEST_TYPE_OPTIONS = ['신규 합성', '재합성', '스케일업', 'Salt formation/charge', '기타'];
 const SYNTHESIS_SITE_OPTIONS = ['In-house', 'Wuxi'] as const;
 const SYNTHESIS_REQUEST_STATUS_META = {
   requested: { label: '요청 완료', color: 'processing' },
@@ -1252,6 +1250,10 @@ const MyBoard: React.FC = () => {
     return compoundRows
       .filter((compound) => {
         const hasCompoundId = compound.compoundId.trim().length > 0;
+        const isAcceptedOrLater = compound.synthesisRequestStatus === 'accepted'
+          || compound.synthesisRequestStatus === 'synthesizing'
+          || compound.synthesisRequestStatus === 'vnaIssued';
+        const isCompoundType = hasCompoundId || isAcceptedOrLater;
         // If it's a structure search results mode, don't filter out by the keyword string
         const matchesKeyword = keyword === 'Structure Search Result' ||
           compound.name.toLowerCase().includes(keyword.toLowerCase()) ||
@@ -1259,8 +1261,8 @@ const MyBoard: React.FC = () => {
           compound.smiles.toLowerCase().includes(keyword.toLowerCase());
 
         if (hiddenCompoundIds.includes(compound.id)) return false;
-        if (detailCompoundTypeFilter === 'design' && hasCompoundId) return false;
-        if (detailCompoundTypeFilter === 'compound' && !hasCompoundId) return false;
+        if (detailCompoundTypeFilter === 'design' && isCompoundType) return false;
+        if (detailCompoundTypeFilter === 'compound' && !isCompoundType) return false;
         if (selectedGroupIds.length > 0 && !selectedGroupIds.includes(compound.groupId)) return false;
         if (!selectedProjects.includes('ALL') && compound.project && !selectedProjects.includes(compound.project)) return false;
         if (!selectedShares.includes('ALL') && compound.shareStatus && !selectedShares.includes(compound.shareStatus)) return false;
@@ -1780,7 +1782,7 @@ const MyBoard: React.FC = () => {
   ), [compoundRows]);
 
   const hasSelectedDetailCompounds = selectedDetailCompoundIds.length > 0;
-  const canAddCompound = selectedGroupIds.length > 0;
+  const canAddCompound = selectedGroupIds.length === 1;
   const canDeleteCompound = hasSelectedDetailCompounds;
   const canEditCompound = Boolean(
     selectedEditableCompound && !isCompoundEditLocked(selectedEditableCompound)
@@ -2065,8 +2067,7 @@ const MyBoard: React.FC = () => {
       synthesisReferenceName: referenceName,
       expectedEffect: compound.expectedEffect === '-' ? '' : compound.expectedEffect,
       requestMemo: compound.requestMemo === '-' ? '' : compound.requestMemo,
-      synthesisRequestType: compound.synthesisRequestType,
-      synthesisSite: compound.synthesisSite,
+      synthesisRequestType: compound.synthesisSite || compound.synthesisRequestType,
     });
     setIsSynthesisRequestModalOpen(true);
   }, [designExpansionOptions, designPurposeOptions, parseCascaderText, synthesisRequestForm]);
@@ -2096,6 +2097,7 @@ const MyBoard: React.FC = () => {
       !normalizedReferenceName && isSynthesisRequestReferencePurposeSelected ? '레퍼런스' : '',
     ].filter(Boolean).join(', ');
     const stepText = selectedSynthesisRequestSteps.map(getCascaderLeafLabel).filter(Boolean).join(', ');
+    const synthesisRequestType = String(values.synthesisRequestType || '').trim();
 
     updateCompoundRowsById(synthesisRequestTarget.id, (compound) => ({
       ...compound,
@@ -2107,8 +2109,8 @@ const MyBoard: React.FC = () => {
       requestDate: formatDisplayDate(new Date().toISOString()),
       synthesisOwner: currentUser?.name ?? compound.synthesisOwner ?? '문태훈',
       synthesisRequestStatus: 'requested',
-      synthesisRequestType: String(values.synthesisRequestType || '').trim(),
-      synthesisSite: values.synthesisSite,
+      synthesisRequestType,
+      synthesisSite: synthesisRequestType as Compound['synthesisSite'],
       synthesisStep: stepText || '-',
     }));
     handleCloseSynthesisRequest();
@@ -2145,7 +2147,7 @@ const MyBoard: React.FC = () => {
   }, [handleCloseSynthesisRequest, modal, updateCompoundRowsById]);
 
   const handleRegisterDesignIdea = React.useCallback(async () => {
-    if (!selectedGroupIds[0]) return;
+    if (!canAddCompound) return;
     await cdjsInstance?.__flushPendingInput?.();
     const values = await designForm.validateFields();
     if (!designSmiles.trim()) {
@@ -2202,6 +2204,7 @@ const MyBoard: React.FC = () => {
     resetDesignModalState();
   }, [
     cdjsInstance,
+    canAddCompound,
     currentUser?.name,
     designForm,
     designSmiles,
@@ -2300,7 +2303,7 @@ const MyBoard: React.FC = () => {
   const handleQuickAddCompound = React.useCallback(async () => {
     const compoundCode = (selectedQuickAddCode || quickAddCode).trim();
     const targetGroupId = selectedGroupIds[0];
-    if (!compoundCode || !targetGroupId) return;
+    if (!canAddCompound || !compoundCode || !targetGroupId) return;
     if (!compoundLoginToken.trim()) {
       modal.error({
         title: 'Login token 필요',
@@ -2385,6 +2388,7 @@ const MyBoard: React.FC = () => {
     }
   }, [
     addExternalCompoundRow,
+    canAddCompound,
     compoundLoginToken,
     currentUser?.name,
     groups,
@@ -2680,19 +2684,13 @@ const MyBoard: React.FC = () => {
     }
 
     const statusMeta = SYNTHESIS_REQUEST_STATUS_META[status];
-    const statusColor = {
-      requested: token.colorPrimary,
-      accepted: token.colorInfo,
-      synthesizing: token.colorWarning,
-      vnaIssued: token.colorSuccess,
-    }[status];
     if (status === 'requested') {
       return (
         <div className="my-board-synthesis-status-cell">
           <button
             type="button"
             className="my-board-synthesis-status-text-button"
-            style={{ color: statusColor }}
+            style={{ color: token.colorText }}
             onClick={(event) => {
               event.stopPropagation();
               handleOpenSynthesisRequest(record);
@@ -2706,17 +2704,15 @@ const MyBoard: React.FC = () => {
 
     return (
       <div className="my-board-synthesis-status-cell">
-        <Text className="my-board-synthesis-status-text" style={{ color: statusColor }}>
+        <Text className="my-board-synthesis-status-text">
           {statusMeta.label}
         </Text>
       </div>
     );
   }, [
     handleOpenSynthesisRequest,
-    token.colorInfo,
     token.colorPrimary,
-    token.colorSuccess,
-    token.colorWarning,
+    token.colorText,
   ]);
   const synthesisRequestTargetGroup = React.useMemo(
     () => groups.find((group) => group.id === synthesisRequestTarget?.groupId),
@@ -2815,7 +2811,8 @@ const MyBoard: React.FC = () => {
             iconSize={40}
             gap={0}
             actionPlacement="overlay"
-            actionOverlayAnchor="container"
+            actionOverlayAnchor="parent"
+            fullWidth
             frameless
             preferRdkitSvg
             rdkitAngleDeg={structureSettings.sarRotationDeg}
@@ -3790,7 +3787,7 @@ const MyBoard: React.FC = () => {
         <div className="my-board-detail-panel" style={{ flex: isStackedSplitLayout ? '0 0 auto' : 1, minWidth: 0, width: isStackedSplitLayout || isGroupListHidden ? '100%' : undefined }}>
           <div className={`v-table-card my-board-list-card ${viewMode === 'table' ? '' : 'my-board-detail-visual-card'}`}>
             <div className="v-table-header" style={{ flexWrap: 'wrap', gap: '12px', alignItems: 'center' }}>
-              <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
                 {isGroupListHidden && (
                   <Tooltip title="그룹 리스트 펼치기">
                     <Button
@@ -3814,7 +3811,7 @@ const MyBoard: React.FC = () => {
                 >
                   그룹 상세 목록
                 </Text>
-                <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 16 }}>
+                <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
                   <Space wrap size={8}>
                     <Button
                       type="primary"
@@ -3884,7 +3881,7 @@ const MyBoard: React.FC = () => {
                 </div>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', flex: '1 1 auto' }}>
-                <Space>
+                <div className="my-board-detail-toolbar-controls">
                   {viewMode === 'table' && (
                   <>
                     <div className="my-board-structure-setting-group" aria-label="화합물 구조 크기 설정">
@@ -3911,7 +3908,7 @@ const MyBoard: React.FC = () => {
                         </Tooltip>
                       </div>
                     </div>
-                    <Divider type="vertical" />
+                    <Divider type="vertical" className="my-board-detail-toolbar-divider" />
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       <div style={{ display: 'flex', gap: 4 }}>
                         {[1, 2, 3, 4, 5].map(n => (
@@ -3943,7 +3940,7 @@ const MyBoard: React.FC = () => {
                         onClick={() => setIsSettingsModalOpen(true)}
                       />
                     </div>
-                    <Divider type="vertical" />
+                    <Divider type="vertical" className="my-board-detail-toolbar-divider" />
                   </>
                 )}
                 <div
@@ -3983,7 +3980,7 @@ const MyBoard: React.FC = () => {
                     Tree
                   </Button>
                   </div>
-                </Space>
+                </div>
               </div>
             </div>
             {viewMode === 'table' ? (
@@ -4214,7 +4211,7 @@ const MyBoard: React.FC = () => {
         }}
         okText={isSynthesisRequestReadOnly ? '요청 취소' : '요청'}
         cancelText="닫기"
-        width={760}
+        width={880}
         className="synthesis-request-modal"
         okButtonProps={{
           danger: isSynthesisRequestReadOnly,
@@ -4275,7 +4272,7 @@ const MyBoard: React.FC = () => {
           <Divider />
 
           <Row gutter={[20, 8]}>
-            <Col span={12}>
+            <Col span={8}>
               <Form.Item
                 name="synthesisRequestNo"
                 label="합성 의뢰 번호"
@@ -4285,7 +4282,7 @@ const MyBoard: React.FC = () => {
                 <Input disabled />
               </Form.Item>
             </Col>
-            <Col span={12}>
+            <Col span={16}>
               <Form.Item
                 label="합성 목적"
                 className="synthesis-request-inline-item"
@@ -4339,7 +4336,7 @@ const MyBoard: React.FC = () => {
                 />
               </Form.Item>
             </Col>
-            <Col span={12}>
+            <Col span={8}>
               <Form.Item
                 name="requiredAmountMg"
                 label="필요량(mg)"
@@ -4356,7 +4353,7 @@ const MyBoard: React.FC = () => {
                 />
               </Form.Item>
             </Col>
-            <Col span={12}>
+            <Col span={16}>
               <Form.Item
                 label="단계"
                 className="synthesis-request-inline-item"
@@ -4428,27 +4425,14 @@ const MyBoard: React.FC = () => {
           <Divider />
 
           <Row gutter={[20, 8]}>
-            <Col span={12}>
+            <Col span={8}>
               <Form.Item
                 name="synthesisRequestType"
                 label="합성 요청 구분"
                 className="synthesis-request-inline-item"
                 rules={[{ required: true, message: '합성 요청 구분을 선택하세요.' }]}
               >
-                <Select placeholder="요청 구분 선택" disabled={isSynthesisRequestReadOnly}>
-                  {SYNTHESIS_REQUEST_TYPE_OPTIONS.map((item) => (
-                    <Option key={item} value={item}>{item}</Option>
-                  ))}
-                </Select>
-              </Form.Item>
-            </Col>
-            <Col span={12}>
-              <Form.Item
-                name="synthesisSite"
-                label="선택 항목"
-                className="synthesis-request-inline-item"
-              >
-                <Select placeholder="선택 항목 선택" disabled={isSynthesisRequestReadOnly}>
+                <Select placeholder="합성 요청 구분 선택" disabled={isSynthesisRequestReadOnly}>
                   {SYNTHESIS_SITE_OPTIONS.map((item) => (
                     <Option key={item} value={item}>{item}</Option>
                   ))}
@@ -4473,7 +4457,7 @@ const MyBoard: React.FC = () => {
         okText="추가"
         cancelText="취소"
         okButtonProps={{
-          disabled: !(selectedQuickAddCode || quickAddCode).trim() || selectedGroupIds.length === 0 || !compoundLoginToken.trim(),
+          disabled: !(selectedQuickAddCode || quickAddCode).trim() || !canAddCompound || !compoundLoginToken.trim(),
           loading: isQuickAddAdding,
         }}
       >
@@ -4488,7 +4472,7 @@ const MyBoard: React.FC = () => {
                 setSelectedQuickAddCode('');
               }}
               onPressEnter={() => {
-                if ((selectedQuickAddCode || quickAddCode).trim() && selectedGroupIds.length > 0) {
+                if ((selectedQuickAddCode || quickAddCode).trim() && canAddCompound) {
                   void handleQuickAddCompound();
                 }
               }}
@@ -4550,7 +4534,7 @@ const MyBoard: React.FC = () => {
         }}
         okText={isCompoundEditModalOpen ? '수정' : '등록'}
         cancelText="취소"
-        width="min(1440px, calc(100vw - 24px))"
+        width="min(1200px, calc(100vw - 24px))"
         style={{ top: 18 }}
         styles={{ body: { maxHeight: 'calc(100vh - 132px)', overflowX: 'hidden', overflowY: 'auto', paddingTop: 12 } }}
         destroyOnHidden
@@ -4966,7 +4950,7 @@ const MyBoard: React.FC = () => {
         .my-board-synthesis-status-text-button {
           font-size: 11px;
           line-height: 20px;
-          font-weight: 500;
+          font-weight: 400;
         }
         .my-board-synthesis-status-text-button {
           appearance: none;
@@ -4974,6 +4958,7 @@ const MyBoard: React.FC = () => {
           border: 0;
           background: transparent;
           font-family: inherit;
+          font-size: 12px;
           cursor: pointer;
         }
         .my-board-synthesis-status-text-button:hover,
@@ -5235,7 +5220,7 @@ const MyBoard: React.FC = () => {
           padding-right: 2px;
         }
         .idea-chemdraw-editor-box {
-          width: 80%;
+          width: 100%;
           min-width: 0;
         }
         .idea-inline-form-item .ant-form-item-control,
@@ -5273,7 +5258,7 @@ const MyBoard: React.FC = () => {
         }
         .idea-smiles-form-item .ant-form-item-control {
           padding-left: 45px;
-          padding-right: 20%;
+          padding-right: 0;
         }
         .idea-synthesis-section {
           margin: 12px 0 16px;
@@ -5344,8 +5329,9 @@ const MyBoard: React.FC = () => {
         }
         .idea-source-stack {
           display: grid;
-          grid-template-rows: 32px minmax(190px, auto);
+          grid-template-rows: 32px auto;
           row-gap: 12px;
+          align-content: start;
         }
         .idea-source-stack .ant-form-item {
           margin-bottom: 0;
@@ -5359,22 +5345,23 @@ const MyBoard: React.FC = () => {
         }
         .idea-attachment-form-item .ant-upload-drag {
           width: 100%;
-          min-height: 188px;
-          border-color: ${token.colorBorder};
+          min-height: 112px;
+          border-color: ${token.colorPrimaryActive};
           border-radius: var(--idea-control-radius);
-          background: ${token.colorBgContainer};
+          background: ${token.colorFillTertiary};
         }
         .idea-attachment-form-item .ant-upload-drag:hover,
         .idea-attachment-form-item .ant-upload-drag-hover {
-          border-color: ${token.colorPrimary};
+          border-color: ${token.colorPrimaryActive};
+          background: ${token.colorFillSecondary};
         }
         .idea-attachment-form-item .ant-upload-drag .ant-upload {
           display: flex;
           align-items: center;
           justify-content: center;
           width: 100% !important;
-          min-height: 186px;
-          padding: 20px 16px;
+          min-height: 110px;
+          padding: 8px 12px;
           box-sizing: border-box;
         }
         .idea-attachment-form-item .ant-upload-drag-container {
@@ -5390,7 +5377,7 @@ const MyBoard: React.FC = () => {
           justify-content: center;
           gap: 8px;
           width: 100%;
-          min-height: 144px;
+          min-height: 86px;
         }
         .idea-attachment-drop-prompt {
           display: flex;
@@ -6148,6 +6135,15 @@ const MyBoard: React.FC = () => {
           right: 4px;
           bottom: 4px;
         }
+        .my-board-detail-table .ant-table-tbody > tr > td.my-board-structure-column {
+          position: relative;
+        }
+        .my-board-detail-table .ant-table-tbody > tr > td.my-board-structure-column:hover .compound-structure-actions-overlay,
+        .my-board-detail-table .ant-table-tbody > tr > td.my-board-structure-column:focus-within .compound-structure-actions-overlay,
+        .my-board-detail-table .ant-table-tbody > tr > td.my-board-structure-column .compound-structure-actions-overlay:hover {
+          opacity: 1;
+          pointer-events: auto;
+        }
         .my-board-table .my-board-structure-column .compound-structure-frame {
           border: 0 !important;
           outline: 0 !important;
@@ -6159,6 +6155,18 @@ const MyBoard: React.FC = () => {
           grid-template-columns: 24px 42px 24px;
           align-items: center;
           gap: 4px;
+        }
+        .my-board-detail-toolbar-controls {
+          display: inline-flex;
+          align-items: center;
+          gap: 10px;
+          min-width: 0;
+        }
+        .my-board-detail-toolbar-divider.ant-divider-vertical {
+          width: 1px;
+          height: 18px;
+          margin: 0;
+          border-inline-start-color: ${token.colorBorder};
         }
         .my-board-structure-setting-group {
           display: inline-flex;
