@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Typography, Row, Col, Card, Table, Button, Input,
-  Space, Modal, Form, Select, DatePicker, Avatar, Divider, Segmented, Tooltip, theme, Spin, Popover, App as AntApp
+  Space, Modal, Form, Select, DatePicker, Avatar, Divider, Dropdown, Segmented, Tooltip, theme, Spin, Popover, App as AntApp
 } from 'antd';
 import {
   Search, ChevronDown, ChevronUp,
@@ -91,13 +91,36 @@ const SAR_SCAFFOLD_COLOR_OPTIONS: Array<{ key: RdkitHighlightColor; color: strin
   { key: 'naby', color: '#a6a6d3' },
   { key: 'purple', color: '#dba6ed' },
 ];
+const normalizeScaffoldMolBlock = (value?: string) => (
+  value?.replace(/\r\n?/g, '\n').trimEnd() || ''
+);
 type SvgIntrinsicSize = { width: number; height: number };
 type SarApiCellValue = string | number | null | undefined;
 type SarApiRow = Record<string, string | number | null>;
 type SarTableRow = Compound & {
   sarTableRowKey: string;
   sarApiRow?: SarApiRow;
+  isRGroupDetail?: boolean;
+  rGroupGroupStart?: boolean;
+  rGroupGroupSize?: number;
+  rGroupGroupMissing?: boolean;
   children?: SarTableRow[];
+};
+const compareRGroupKeys = (first: string, second: string) => {
+  if (first === 'Core' || second === 'Core') {
+    return first === second ? 0 : first === 'Core' ? -1 : 1;
+  }
+
+  const firstRGroupNumber = /^R(\d+)$/i.exec(first)?.[1];
+  const secondRGroupNumber = /^R(\d+)$/i.exec(second)?.[1];
+  if (firstRGroupNumber && secondRGroupNumber) {
+    return Number(firstRGroupNumber) - Number(secondRGroupNumber);
+  }
+  if (firstRGroupNumber || secondRGroupNumber) {
+    return firstRGroupNumber ? -1 : 1;
+  }
+
+  return first.localeCompare(second, undefined, { numeric: true, sensitivity: 'base' });
 };
 const isSarCompoundSelectionSurface = (target: Element) => (
   Boolean(target.closest('.sar-table-card, .sar-compound-card-list, .quick-viewer-panel'))
@@ -365,6 +388,9 @@ const SarTable: React.FC = () => {
   const [sarTableBodyHeight, setSarTableBodyHeight] = useState(SAR_TABLE_BODY_MIN_HEIGHT);
   const [clusterSvgByCompoundId, setClusterSvgByCompoundId] = useState<Record<string, string>>({});
   const [clusterRGroupsByCompoundId, setClusterRGroupsByCompoundId] = useState<Record<string, Record<string, RdkitClusterRGroup>>>({});
+  const [clusterCommonSubstructureSmiles, setClusterCommonSubstructureSmiles] = useState('');
+  const [selectedRGroupKeys, setSelectedRGroupKeys] = useState<string[]>([]);
+  const [groupedRGroupKey, setGroupedRGroupKey] = useState<string | null>(null);
   const [isClusterLoading, setIsClusterLoading] = useState(false);
   const [quickViewer, setQuickViewer] = useState<{
     compound: Compound;
@@ -383,6 +409,11 @@ const SarTable: React.FC = () => {
   const quickViewerStorageKey = 'sar-table-split:quick-viewer';
   const layoutPreset = useMemo(() => getPatentAnalysisLayoutPreset(viewportWidth), [viewportWidth]);
   const isResponsiveToolbar = viewportWidth <= 1100;
+  const availableRGroupKeys = useMemo(() => (
+    Array.from(new Set(
+      Object.values(clusterRGroupsByCompoundId).flatMap((rGroups) => Object.keys(rGroups))
+    )).sort(compareRGroupKeys)
+  ), [clusterRGroupsByCompoundId]);
   const bookmarkedGroupIdSet = useMemo(() => new Set(bookmarkedGroupIds), [bookmarkedGroupIds]);
   const pinnedCompoundIdSet = useMemo(() => new Set(pinnedCompoundIds), [pinnedCompoundIds]);
   const sortedGroupStructureRows = useMemo(
@@ -440,6 +471,60 @@ const SarTable: React.FC = () => {
       };
     })
   ), [displaySarCompounds]);
+  const groupedSarTableRows = useMemo<SarTableRow[]>(() => {
+    if (!groupedRGroupKey) return sarTableRows;
+
+    const groupRows = (rows: SarTableRow[]) => {
+      const rowsByValue = new Map<string, SarTableRow[]>();
+      const valueOrder: string[] = [];
+
+      rows.forEach((row) => {
+        const rGroup = clusterRGroupsByCompoundId[row.id]?.[groupedRGroupKey];
+        const valueKey = rGroup?.smiles?.trim() || rGroup?.svg?.trim() || '__NO_MATCH__';
+        if (!rowsByValue.has(valueKey)) {
+          rowsByValue.set(valueKey, []);
+          valueOrder.push(valueKey);
+        }
+        rowsByValue.get(valueKey)?.push(row);
+      });
+
+      return valueOrder
+        .sort((first, second) => {
+          if (first === '__NO_MATCH__' || second === '__NO_MATCH__') {
+            return first === second ? 0 : first === '__NO_MATCH__' ? 1 : -1;
+          }
+          return 0;
+        })
+        .flatMap((valueKey) => {
+          const groupedRows = rowsByValue.get(valueKey) ?? [];
+          return groupedRows.map((row, index) => ({
+            ...row,
+            rGroupGroupStart: index === 0,
+            rGroupGroupSize: groupedRows.length,
+            rGroupGroupMissing: valueKey === '__NO_MATCH__',
+          }));
+        });
+    };
+
+    const pinnedRows = sarTableRows.filter((row) => pinnedCompoundIdSet.has(row.id));
+    const unpinnedRows = sarTableRows.filter((row) => !pinnedCompoundIdSet.has(row.id));
+    return [...groupRows(pinnedRows), ...groupRows(unpinnedRows)];
+  }, [clusterRGroupsByCompoundId, groupedRGroupKey, pinnedCompoundIdSet, sarTableRows]);
+  const sarTableDisplayRows = useMemo<SarTableRow[]>(() => {
+    if (selectedRGroupKeys.length === 0 || isClusterLoading) return groupedSarTableRows;
+
+    return groupedSarTableRows.flatMap((row) => [
+      row,
+      {
+        ...row,
+        sarTableRowKey: `${row.sarTableRowKey}-rgroups`,
+        sarApiRow: undefined,
+        sarApiRows: undefined,
+        isRGroupDetail: true,
+        children: undefined,
+      },
+    ]);
+  }, [groupedSarTableRows, isClusterLoading, selectedRGroupKeys]);
   useEffect(() => {
     const visibleIds = new Set(displaySarCompounds.map((compound) => compound.id));
     if (compoundSelectionAnchorRef.current && !visibleIds.has(compoundSelectionAnchorRef.current)) {
@@ -946,14 +1031,14 @@ const SarTable: React.FC = () => {
     scaffoldEditBaselineRef.current = activeSarScaffold.source === 'custom'
       ? {
           smiles: activeSarScaffold.smiles?.trim() || undefined,
-          molBlock: activeSarScaffold.molBlock?.trim() || undefined,
+          molBlock: normalizeScaffoldMolBlock(activeSarScaffold.molBlock) || undefined,
         }
       : null;
     setIsScaffoldModalOpen(true);
   };
 
   const handleScaffoldConfirm = (data: ChemDrawStructureData) => {
-    const exportedMolBlock = (data.molV2000 || data.molfile || data.molV3000 || '').trim();
+    const exportedMolBlock = normalizeScaffoldMolBlock(data.molV2000 || data.molfile || data.molV3000);
     const smiles = data.smiles.trim();
     const baseline = scaffoldEditBaselineRef.current;
     const shouldKeepBaselineMolBlock = Boolean(baseline?.molBlock && !scaffoldEditDirtyRef.current);
@@ -1402,6 +1487,60 @@ const SarTable: React.FC = () => {
     };
   }, [getFirstSarApiValue, token.colorPrimary, token.colorTextTertiary]);
 
+  const renderRGroupDetail = React.useCallback((record: SarTableRow) => {
+    const rGroups = clusterRGroupsByCompoundId[record.id];
+    const { displayCode } = getSarDisplayCode(record);
+
+    return (
+      <div
+        className={`sar-table-rgroup-strip${record.rGroupGroupStart ? ' has-group-badge' : ''}`}
+        aria-label={`${displayCode} R-group 상세`}
+        onClick={(event) => event.stopPropagation()}
+      >
+        {record.rGroupGroupStart && groupedRGroupKey ? (
+          <span className="sar-rgroup-group-badge">
+            {record.rGroupGroupMissing
+              ? `${groupedRGroupKey}: No match · ${formatNumberWithComma(record.rGroupGroupSize ?? 0)}`
+              : `${groupedRGroupKey} · ${formatNumberWithComma(record.rGroupGroupSize ?? 0)} ${(record.rGroupGroupSize ?? 0) === 1 ? 'compound' : 'compounds'}`}
+          </span>
+        ) : null}
+        {selectedRGroupKeys.map((key) => {
+          const rGroup = rGroups?.[key];
+          const hasStructure = Boolean(rGroup?.svg);
+
+          return (
+            <button
+              key={key}
+              type="button"
+              className={`sar-table-rgroup-item${hasStructure ? '' : ' is-empty'}`}
+              title={rGroup?.smiles ? `${key}: ${rGroup.smiles}` : `${key}: No match`}
+              disabled={!hasStructure}
+              onClick={(event) => {
+                event.stopPropagation();
+                if (!rGroup?.svg) return;
+                setStructurePreview({
+                  title: `${displayCode} ${key}`,
+                  svg: rGroup.svg,
+                  smiles: rGroup.smiles,
+                });
+              }}
+            >
+              <span className="sar-table-rgroup-label">{key}</span>
+              {rGroup?.svg ? (
+                <span
+                  className="sar-table-rgroup-svg"
+                  dangerouslySetInnerHTML={{ __html: rGroup.svg }}
+                />
+              ) : (
+                <span className="sar-table-rgroup-empty">-</span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+    );
+  }, [clusterRGroupsByCompoundId, getSarDisplayCode, groupedRGroupKey, selectedRGroupKeys]);
+
   const allColumnsMap: Record<string, any> = {
     'Compound': {
       title: 'VNA Code',
@@ -1495,7 +1634,7 @@ const SarTable: React.FC = () => {
       .filter(key => activeColumns.includes(key))
       .filter(key => allColumnsMap[key]);
 
-    return visibleColumnKeys
+    const visibleColumns = visibleColumnKeys
       .map((key, index) => {
         const col = centerColumn({ ...allColumnsMap[key] });
         // If it has children, filter and reorder them based on subColumnConfig
@@ -1525,7 +1664,47 @@ const SarTable: React.FC = () => {
         }
         return index === visibleColumnKeys.length - 1 ? col : markGroupBoundaryPath(col);
       });
-  }, [columnOrder, activeColumns, subColumnConfig, isColorActive, isDarkMode, token]);
+
+    const leafColumnCount = visibleColumns.reduce((count, column) => {
+      const countLeaves = (current: any): number => (
+        current.children?.length
+          ? current.children.reduce((total: number, child: any) => total + countLeaves(child), 0)
+          : 1
+      );
+      return count + countLeaves(column);
+    }, 0);
+    let isFirstLeaf = true;
+    const addRGroupDetailCells = (column: any): any => {
+      if (column.children?.length) {
+        return {
+          ...column,
+          children: column.children.map(addRGroupDetailCells),
+        };
+      }
+
+      const rendersRGroupDetail = isFirstLeaf;
+      isFirstLeaf = false;
+      const originalRender = column.render;
+      const originalOnCell = column.onCell;
+
+      return {
+        ...column,
+        render: (value: unknown, record: SarTableRow, index: number) => {
+          if (record.isRGroupDetail) {
+            return rendersRGroupDetail ? renderRGroupDetail(record) : null;
+          }
+          return originalRender ? originalRender(value, record, index) : value;
+        },
+        onCell: (record: SarTableRow, index?: number) => (
+          record.isRGroupDetail
+            ? { colSpan: rendersRGroupDetail ? leafColumnCount : 0 }
+            : originalOnCell?.(record, index) ?? {}
+        ),
+      };
+    };
+
+    return visibleColumns.map(addRGroupDetailCells);
+  }, [columnOrder, activeColumns, subColumnConfig, isColorActive, isDarkMode, renderRGroupDetail, token]);
 
   const compoundCardImageScale = ((activeStructureSettings?.sarImageScalePercent ?? DEFAULT_GROUP_STRUCTURE_VIEW_SETTINGS.sarImageScalePercent) / 100) * SAR_COMPOUND_CARD_SCALE_BASE_RATIO;
   const compoundCardOverlapPercent = compoundCardViewMode === 'single'
@@ -1664,9 +1843,38 @@ const SarTable: React.FC = () => {
   const clusterHighlightMode = activeSarHighlightMode === 'com' || activeSarHighlightMode === 'diff'
     ? activeSarHighlightMode
     : null;
+  const toggleRGroupKey = (key: string) => {
+    if (selectedRGroupKeys.includes(key) && groupedRGroupKey === key) {
+      setGroupedRGroupKey(null);
+    }
+    setSelectedRGroupKeys((current) => (
+      current.includes(key)
+        ? current.filter((selectedKey) => selectedKey !== key)
+        : availableRGroupKeys.filter((availableKey) => current.includes(availableKey) || availableKey === key)
+    ));
+  };
+  const changeRGroupGrouping = (key: string | null) => {
+    setGroupedRGroupKey(key);
+    if (!key) return;
+    setSelectedRGroupKeys((current) => (
+      availableRGroupKeys.filter((availableKey) => current.includes(availableKey) || availableKey === key)
+    ));
+  };
+  const rGroupGroupingMenuItems = [
+    {
+      key: '__NONE__',
+      label: '그룹 해제',
+      disabled: !groupedRGroupKey,
+    },
+    { type: 'divider' as const },
+    ...availableRGroupKeys.map((key) => ({
+      key,
+      label: key,
+    })),
+  ];
   const clusterAbbrevOption = getSarAbbrevOption(activeSarAbbreviationMode);
   const scaffoldSubstructureMolBlock = activeSarScaffold.source === 'custom'
-    ? activeSarScaffold.molBlock?.trim() || ''
+    ? normalizeScaffoldMolBlock(activeSarScaffold.molBlock)
     : '';
   const scaffoldSubstructureSmiles = activeSarScaffold.source === 'custom'
     ? activeSarScaffold.smiles?.trim() || ''
@@ -1683,12 +1891,34 @@ const SarTable: React.FC = () => {
   ), [activeScaffoldColorOption.key, scaffoldSubstructureMolBlock, scaffoldSubstructureSmiles]);
 
   useEffect(() => {
+    setSelectedRGroupKeys((current) => (current.length > 0 ? [] : current));
+    setGroupedRGroupKey(null);
+  }, [activeSarHighlightMode, activeStructureSettingsGroupId]);
+
+  useEffect(() => {
+    setSelectedRGroupKeys((current) => {
+      if (!clusterHighlightMode || isStructureSettingsDisabled) {
+        return current.length > 0 ? [] : current;
+      }
+      if (isClusterLoading) return current;
+
+      const availableKeySet = new Set(availableRGroupKeys);
+      const next = current.filter((key) => availableKeySet.has(key));
+      return next.length === current.length ? current : next;
+    });
+    setGroupedRGroupKey((current) => (
+      current && !isClusterLoading && !availableRGroupKeys.includes(current) ? null : current
+    ));
+  }, [availableRGroupKeys, clusterHighlightMode, isClusterLoading, isStructureSettingsDisabled]);
+
+  useEffect(() => {
     const requestSeq = clusterRequestSeqRef.current + 1;
     clusterRequestSeqRef.current = requestSeq;
 
     if (!clusterHighlightMode || isStructureSettingsDisabled || displaySarCompounds.length === 0) {
       setClusterSvgByCompoundId({});
       setClusterRGroupsByCompoundId({});
+      setClusterCommonSubstructureSmiles('');
       setIsClusterLoading(false);
       notification.destroy(SAR_RDKIT_CLUSTER_ERROR_NOTIFICATION_KEY);
       return;
@@ -1697,7 +1927,7 @@ const SarTable: React.FC = () => {
     setIsClusterLoading(true);
     notification.destroy(SAR_RDKIT_CLUSTER_ERROR_NOTIFICATION_KEY);
     setClusterSvgByCompoundId({});
-    setClusterRGroupsByCompoundId({});
+    setClusterCommonSubstructureSmiles('');
 
     void renderRdkitClusterSvgs({
       compounds: displaySarCompounds.map((compound) => ({
@@ -1731,6 +1961,9 @@ const SarTable: React.FC = () => {
             return acc;
           }, {})
         );
+        setClusterCommonSubstructureSmiles(
+          result.compounds.find((compound) => compound.substructure?.trim())?.substructure?.trim() || ''
+        );
         setIsClusterLoading(false);
       })
       .catch((error) => {
@@ -1738,6 +1971,7 @@ const SarTable: React.FC = () => {
 
         setClusterSvgByCompoundId({});
         setClusterRGroupsByCompoundId({});
+        setClusterCommonSubstructureSmiles('');
         setIsClusterLoading(false);
         notification.error({
           key: SAR_RDKIT_CLUSTER_ERROR_NOTIFICATION_KEY,
@@ -2015,6 +2249,8 @@ const SarTable: React.FC = () => {
                     title={
                       activeSarScaffold.source === 'custom'
                         ? '사용자 지정 scaffold 적용 중'
+                        : activeSarHighlightMode === 'com' && clusterCommonSubstructureSmiles
+                          ? 'Comm 공통 scaffold를 ChemDraw에서 편집합니다'
                         : 'ChemDraw로 사용자 지정 scaffold를 그립니다'
                     }
                   >
@@ -2239,7 +2475,6 @@ const SarTable: React.FC = () => {
                   const compoundStructureDisplaySize = getCompoundCardStructureDisplaySize(item);
                   const pinnedOrder = pinnedCompoundOrderMap[item.id] ?? 0;
                   const clusterSvg = clusterHighlightMode ? clusterSvgByCompoundId[item.id] : null;
-                  const clusterRGroups = clusterHighlightMode ? clusterRGroupsByCompoundId[item.id] : undefined;
                   const isClusterStructureLoading = Boolean(clusterHighlightMode && isClusterLoading && !clusterSvg);
                   const { displayCode, color: displayCodeColor, fontWeight: displayCodeFontWeight } = getSarDisplayCode(item as SarTableRow);
 
@@ -2374,36 +2609,6 @@ const SarTable: React.FC = () => {
                       <Text className="sar-compound-card-name" style={{ color: displayCodeColor, fontSize: 12, fontWeight: displayCodeFontWeight, lineHeight: '16px', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', paddingBottom: 4, boxSizing: 'border-box' }} title={displayCode}>
                         {displayCode}
                       </Text>
-                      {clusterRGroups ? (
-                        <div className="sar-compound-rgroup-list" aria-label={`${displayCode} R-group 결과`}>
-                          {Object.entries(clusterRGroups).map(([key, rGroup]) => (
-                            <button
-                              key={key}
-                              type="button"
-                              className="sar-compound-rgroup-item"
-                              title={`${key}${rGroup.smiles ? `: ${rGroup.smiles}` : ''}`}
-                              disabled={!rGroup.svg}
-                              onClick={(event) => {
-                                event.stopPropagation();
-                                if (!rGroup.svg) return;
-                                setStructurePreview({
-                                  title: `${displayCode} ${key}`,
-                                  svg: rGroup.svg,
-                                  smiles: rGroup.smiles,
-                                });
-                              }}
-                            >
-                              <span className="sar-compound-rgroup-label">{key}</span>
-                              {rGroup.svg ? (
-                                <span
-                                  className="sar-compound-rgroup-svg"
-                                  dangerouslySetInnerHTML={{ __html: rGroup.svg }}
-                                />
-                              ) : null}
-                            </button>
-                          ))}
-                        </div>
-                      ) : null}
                     </div>
                   );
                 })}
@@ -2418,7 +2623,7 @@ const SarTable: React.FC = () => {
             className={`v-table-card sar-table-card ${isColorActive ? 'sar-table-card-color-active' : ''}`}
           >
             <div className="v-table-header">
-              <Space>
+              <div className="sar-table-display-controls">
                 <Tooltip title={isColorActive ? 'Color scale 끄기' : 'Color scale 켜기'}>
                   <Button
                     size="small"
@@ -2432,8 +2637,64 @@ const SarTable: React.FC = () => {
                     C
                   </Button>
                 </Tooltip>
-              </Space>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                {clusterHighlightMode && availableRGroupKeys.length > 0 ? (
+                  <div className="sar-rgroup-filter-list" aria-label="R-group 표시 필터">
+                    {availableRGroupKeys.map((key) => {
+                      const isSelected = selectedRGroupKeys.includes(key);
+                      return (
+                        <Button
+                          key={key}
+                          size="small"
+                          type={isSelected ? 'primary' : 'default'}
+                          className={`sar-rgroup-filter-button${isSelected ? ' is-active' : ''}`}
+                          aria-pressed={isSelected}
+                          disabled={isClusterLoading}
+                          onClick={() => toggleRGroupKey(key)}
+                        >
+                          {key}
+                        </Button>
+                      );
+                    })}
+                  </div>
+                ) : null}
+                {clusterHighlightMode && availableRGroupKeys.length > 0 ? (
+                  <div className={`sar-rgroup-group-control${groupedRGroupKey ? ' is-active' : ''}`}>
+                    <Dropdown
+                      trigger={['click']}
+                      disabled={isClusterLoading}
+                      menu={{
+                        items: rGroupGroupingMenuItems,
+                        selectable: true,
+                        selectedKeys: groupedRGroupKey ? [groupedRGroupKey] : [],
+                        onClick: ({ key }) => changeRGroupGrouping(key === '__NONE__' ? null : key),
+                      }}
+                    >
+                      <Button
+                        size="small"
+                        type={groupedRGroupKey ? 'primary' : 'default'}
+                        className="sar-rgroup-group-button"
+                        aria-label={groupedRGroupKey ? `${groupedRGroupKey} 기준 그룹화` : 'R-group 그룹화 기준 선택'}
+                      >
+                        <span>{groupedRGroupKey ? `Group by: ${groupedRGroupKey}` : 'Group by'}</span>
+                        <ChevronDown size={12} />
+                      </Button>
+                    </Dropdown>
+                    {groupedRGroupKey ? (
+                      <Button
+                        size="small"
+                        type="primary"
+                        className="sar-rgroup-group-clear"
+                        aria-label={`${groupedRGroupKey} 그룹화 해제`}
+                        onClick={() => changeRGroupGrouping(null)}
+                      >
+                        ×
+                      </Button>
+                    ) : null}
+                  </div>
+                ) : null}
+                {isClusterLoading && availableRGroupKeys.length > 0 ? <Spin size="small" /> : null}
+              </div>
+              <div className="sar-table-preset-controls">
                 <div style={{ display: 'flex', gap: 4 }}>
                   {[1, 2, 3, 4, 5].map(n => (
                     <div
@@ -2467,7 +2728,7 @@ const SarTable: React.FC = () => {
             </div>
             <Table
               className="sar-table"
-              dataSource={sarTableRows}
+              dataSource={sarTableDisplayRows}
               columns={dynamicColumns}
               rowKey="sarTableRowKey"
               size="small"
@@ -2477,20 +2738,22 @@ const SarTable: React.FC = () => {
               expandable={{
                 rowExpandable: (record) => Boolean(record.children?.length),
               }}
-              onRow={(record) => ({
-                id: `sar-table-row-${record.sarTableRowKey}`,
-                onMouseDown: (event) => {
-                  if (!event.shiftKey) return;
-                  const target = event.target as HTMLElement;
-                  if (target.closest('button, a, input, textarea, .ant-checkbox-wrapper, .ant-select, .ant-dropdown')) return;
-                  event.preventDefault();
-                },
-                onClick: (event) => handleCompoundSelection(record.id, event),
-                onMouseEnter: () => setHoveredRowKey(record.id),
-                onMouseLeave: () => setHoveredRowKey(null)
-              })}
+              onRow={(record) => record.isRGroupDetail ? {} : ({
+                  id: `sar-table-row-${record.sarTableRowKey}`,
+                  onMouseDown: (event) => {
+                    if (!event.shiftKey) return;
+                    const target = event.target as HTMLElement;
+                    if (target.closest('button, a, input, textarea, .ant-checkbox-wrapper, .ant-select, .ant-dropdown')) return;
+                    event.preventDefault();
+                  },
+                  onClick: (event) => handleCompoundSelection(record.id, event),
+                  onMouseEnter: () => setHoveredRowKey(record.id),
+                  onMouseLeave: () => setHoveredRowKey(null)
+                })}
               rowClassName={(record) => {
                 let classes = [];
+                if (record.isRGroupDetail) return 'sar-row-rgroup-detail';
+                if (record.rGroupGroupStart && groupedRGroupKey) classes.push('sar-row-rgroup-group-start');
                 if (record.sarApiRow) classes.push('sar-row-response');
                 if (pinnedCompoundIdSet.has(record.id)) classes.push('sar-row-pinned');
                 if (selectedCompoundIds.includes(record.id)) classes.push('sar-row-selected');
@@ -2711,7 +2974,13 @@ const SarTable: React.FC = () => {
         title="Scaffold 사용자 지정"
         confirmText="적용"
         initialCdxml={activeSarScaffold.source === 'custom' ? activeSarScaffold.cdxml : undefined}
-        initialSmiles={activeSarScaffold.source === 'custom' && !activeSarScaffold.cdxml ? activeSarScaffold.smiles : undefined}
+        initialSmiles={
+          activeSarScaffold.source === 'custom' && !activeSarScaffold.cdxml
+            ? activeSarScaffold.smiles
+            : activeSarHighlightMode === 'com'
+              ? clusterCommonSubstructureSmiles || undefined
+              : undefined
+        }
         onEditorInteraction={() => {
           scaffoldEditDirtyRef.current = true;
         }}
@@ -3115,48 +3384,97 @@ const SarTable: React.FC = () => {
           justify-content: center;
           overflow: visible;
         }
-        .sar-compound-rgroup-list {
-          display: grid;
-          grid-template-columns: repeat(3, minmax(0, 1fr));
-          gap: 4px;
-          width: 100%;
-          min-height: 0;
-          padding: 2px 4px 4px;
-          overflow: visible;
-          box-sizing: border-box;
+        .sar-table .ant-table-tbody > tr.sar-row-rgroup-detail > td {
+          padding: 0 !important;
+          background: ${token.colorBgLayout} !important;
+          border-top: 1px solid ${token.colorBorderSecondary} !important;
+          border-bottom: 1px solid ${token.colorBorderSecondary} !important;
+          cursor: default !important;
         }
-        .sar-compound-rgroup-item {
+        .sar-table .ant-table-tbody > tr.sar-row-rgroup-detail:hover > td {
+          background: ${token.colorBgLayout} !important;
+        }
+        .sar-table-rgroup-strip {
           position: relative;
-          width: 100%;
-          min-width: 0;
-          height: 44px;
-          padding: 12px 2px 2px;
+          display: flex;
+          align-items: stretch;
+          gap: 6px;
+          width: max-content;
+          min-width: 100%;
+          padding: 6px 10px;
+          box-sizing: border-box;
+          overflow: visible;
+        }
+        .sar-table-rgroup-strip.has-group-badge {
+          padding-top: 28px;
+        }
+        .sar-rgroup-group-badge {
+          position: absolute;
+          top: 6px;
+          left: 10px;
+          display: inline-flex;
+          align-items: center;
+          min-height: 17px;
+          padding: 0 7px;
+          border: 1px solid color-mix(in srgb, ${token.colorPrimary} 42%, ${token.colorBorderSecondary});
+          border-radius: 999px;
+          background: color-mix(in srgb, ${token.colorPrimary} ${isDarkMode ? 18 : 10}%, ${token.colorBgContainer});
+          color: ${token.colorTextSecondary};
+          font-size: 10px;
+          font-weight: 700;
+          line-height: 15px;
+          white-space: nowrap;
+        }
+        .sar-table-rgroup-item {
+          display: grid;
+          grid-template-rows: 16px 56px;
+          flex: 0 0 88px;
+          width: 88px;
+          min-height: 72px;
+          padding: 3px 5px 5px;
           border: 1px solid ${token.colorBorderSecondary};
-          border-radius: 4px;
+          border-radius: 6px;
           background: ${token.colorBgContainer};
+          color: ${token.colorText};
           cursor: pointer;
           overflow: hidden;
         }
-        .sar-compound-rgroup-item:disabled {
-          cursor: default;
-          opacity: 0.55;
+        .sar-table-rgroup-item:hover:not(:disabled),
+        .sar-table-rgroup-item:focus-visible:not(:disabled) {
+          border-color: ${token.colorPrimary};
+          box-shadow: 0 0 0 1px color-mix(in srgb, ${token.colorPrimary} 32%, transparent);
+          outline: 0;
         }
-        .sar-compound-rgroup-label {
-          position: absolute;
-          top: 2px;
-          left: 0;
-          right: 0;
+        .sar-table-rgroup-item.is-empty,
+        .sar-table-rgroup-item:disabled {
+          color: ${token.colorTextDisabled};
+          background: ${token.colorFillQuaternary};
+          cursor: default;
+        }
+        .sar-table-rgroup-label {
           color: ${token.colorTextSecondary};
-          font-size: 9px;
+          font-size: 10px;
           font-weight: 700;
-          line-height: 10px;
+          line-height: 16px;
           text-align: center;
         }
-        .sar-compound-rgroup-svg,
-        .sar-compound-rgroup-svg svg {
+        .sar-table-rgroup-svg,
+        .sar-table-rgroup-svg svg {
           display: block;
           width: 100%;
           height: 100%;
+        }
+        .sar-table-rgroup-svg svg {
+          object-fit: contain;
+          filter: ${isDarkMode ? 'invert(0.88) hue-rotate(180deg)' : 'none'};
+        }
+        .sar-table-rgroup-empty {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          height: 56px;
+          color: ${token.colorTextDisabled};
+          font-size: 14px;
         }
         .sar-compound-data-tags {
           position: absolute;
@@ -3524,20 +3842,104 @@ const SarTable: React.FC = () => {
           background-clip: padding-box !important;
           box-shadow: inset 3px 0 0 ${sarPinnedRowColor};
         }
-        .sar-color-toggle {
-          min-width: 46px;
+        .sar-table-card > .v-table-header {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+        }
+        .sar-table-display-controls {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          flex: 1 1 auto;
+          min-width: 0;
+          overflow-x: auto;
+          scrollbar-width: thin;
+        }
+        .sar-table-preset-controls {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          flex: 0 0 auto;
+        }
+        .sar-rgroup-filter-list {
+          display: flex;
+          align-items: center;
+          gap: 4px;
+          flex: 0 0 auto;
+        }
+        .sar-rgroup-group-control {
+          display: inline-flex;
+          align-items: center;
+          flex: 0 0 auto;
+        }
+        .sar-rgroup-group-button {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          gap: 4px;
           height: 26px;
           padding: 0 9px;
           border-radius: 999px;
           font-size: 11px;
-          font-weight: 800;
+          font-weight: 700;
           line-height: 24px;
           box-shadow: none;
-          transition: background-color 0.16s ease, border-color 0.16s ease, color 0.16s ease, box-shadow 0.16s ease;
+        }
+        .sar-rgroup-group-control.is-active .sar-rgroup-group-button {
+          border-start-end-radius: 0;
+          border-end-end-radius: 0;
+        }
+        .sar-rgroup-group-clear {
+          width: 25px;
+          min-width: 25px;
+          height: 26px;
+          margin-inline-start: -1px;
+          padding: 0;
+          border-start-start-radius: 0;
+          border-end-start-radius: 0;
+          border-start-end-radius: 999px;
+          border-end-end-radius: 999px;
+          font-size: 15px;
+          font-weight: 500;
+          line-height: 24px;
+          box-shadow: none;
+        }
+        .sar-rgroup-filter-button {
+          min-width: 34px;
+          height: 26px;
+          padding: 0 8px;
+          border-radius: 999px;
+          font-size: 11px;
+          font-weight: 700;
+          line-height: 24px;
+          box-shadow: none;
+        }
+        .sar-rgroup-filter-button:first-child {
+          min-width: 42px;
+        }
+        .sar-rgroup-filter-button.is-active,
+        .sar-rgroup-filter-button.is-active:hover,
+        .sar-rgroup-filter-button.is-active:focus-visible {
+          background: ${token.colorPrimary} !important;
+          border-color: ${token.colorPrimary} !important;
+          color: ${token.colorBgContainer} !important;
+        }
+        .sar-color-toggle {
+          width: 42px;
+          min-width: 42px;
+          height: 26px;
+          padding: 0 8px;
+          gap: 4px;
+          border-radius: 999px;
+          font-size: 11px;
+          font-weight: 700;
+          line-height: 24px;
+          box-shadow: none;
         }
         .sar-color-toggle:not(.sar-color-toggle-active) {
           background: ${token.colorBgContainer};
-          border-color: ${token.colorBorderSecondary};
+          border-color: ${token.colorBorder};
           color: ${token.colorTextSecondary};
         }
         .sar-color-toggle-active,
@@ -3546,7 +3948,7 @@ const SarTable: React.FC = () => {
           background: ${token.colorPrimary} !important;
           border-color: ${token.colorPrimary} !important;
           color: ${token.colorBgContainer} !important;
-          box-shadow: 0 0 0 2px ${isDarkMode ? 'rgba(248, 124, 99, 0.24)' : 'rgba(248, 124, 99, 0.18)'} !important;
+          box-shadow: none !important;
         }
         .sar-color-toggle .ant-btn-icon {
           display: inline-flex;
@@ -3555,6 +3957,9 @@ const SarTable: React.FC = () => {
         .sar-table-card-color-active {
           border-color: ${isDarkMode ? 'rgba(248, 124, 99, 0.42)' : 'rgba(248, 124, 99, 0.36)'};
           box-shadow: inset 0 2px 0 ${token.colorPrimary};
+        }
+        .sar-table .ant-table-tbody > tr.sar-row-rgroup-group-start > td {
+          border-top: 2px solid color-mix(in srgb, ${token.colorPrimary} ${isDarkMode ? 48 : 34}%, ${token.colorBorderSecondary}) !important;
         }
         .sar-compound-panel-title {
           display: inline-flex;
