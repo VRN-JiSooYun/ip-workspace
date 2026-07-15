@@ -95,6 +95,7 @@ const MYBOARD_GROUP_COLUMN_WIDTHS = {
   synthesisIng: 58,
   synthesisDone: 66,
   synthesisUnassigned: 58,
+  synthesisStopped: 66,
   groupOrder: 46,
   shareStatus: 46,
 } as const;
@@ -124,12 +125,13 @@ const MYBOARD_GROUP_STRUCTURE_ONLY_COLUMN_WIDTH = 138;
 const MYBOARD_GROUP_STRUCTURE_ONLY_PANEL_WIDTH = 146;
 type SvgIntrinsicSize = { width: number; height: number };
 type MyBoardGroupPinFilter = 'all' | 'pinned';
-type SynthesisManagerStatus = { name: string; count: number; ing: number; done: number };
+type SynthesisManagerStatus = { name: string; count: number; ing: number; done: number; stopped: number };
 type SynthesisGroupStatus = {
   title: string;
   ing: number;
   done: number;
   unassigned: number;
+  stopped: number;
   managers: SynthesisManagerStatus[];
 };
 type DesignPurposeValue = (string | number)[];
@@ -475,6 +477,7 @@ const ManagerComparisonPopup = ({ record, currentMgrName }: { record: SynthesisG
             <th style={{ textAlign: 'left', padding: '4px 0', fontSize: 10, color: token.colorTextSecondary }}>담당자</th>
             <th style={{ textAlign: 'center', padding: '4px 0', fontSize: 10, color: token.colorTextSecondary }}>합성 중</th>
             <th style={{ textAlign: 'center', padding: '4px 0', fontSize: 10, color: token.colorTextSecondary }}>완료</th>
+            <th style={{ textAlign: 'center', padding: '4px 0', fontSize: 10, color: token.colorTextSecondary }}>중단</th>
             <th style={{ textAlign: 'center', padding: '4px 0', fontSize: 10, color: token.colorTextSecondary }}>합계</th>
           </tr>
         </thead>
@@ -486,11 +489,12 @@ const ManagerComparisonPopup = ({ record, currentMgrName }: { record: SynthesisG
               </td>
               <td style={{ textAlign: 'center', fontSize: 10, color: '#1890ff' }}>{manager.ing}</td>
               <td style={{ textAlign: 'center', fontSize: 10, color: '#52c41a' }}>{manager.done}</td>
+              <td style={{ textAlign: 'center', fontSize: 10, color: token.colorError }}>{manager.stopped}</td>
               <td style={{ textAlign: 'center', fontSize: 10, fontWeight: 600 }}>{manager.count}</td>
             </tr>
           )) : (
             <tr>
-              <td colSpan={4} style={{ padding: '10px 0', textAlign: 'center', fontSize: 11, color: token.colorTextTertiary }}>
+              <td colSpan={5} style={{ padding: '10px 0', textAlign: 'center', fontSize: 11, color: token.colorTextTertiary }}>
                 배정된 합성 담당자가 없습니다.
               </td>
             </tr>
@@ -1653,15 +1657,22 @@ const MyBoardSynthesisBoard: React.FC = () => {
       let ing = 0;
       let done = 0;
       let unassigned = 0;
+      let stopped = 0;
 
       groupCompounds.forEach((compound) => {
-        const isDone = compound.isCompleted || compound.synthesisRequestStatus === 'vnaIssued' || compound.status === '합성 완료';
-        const isUnassigned = !isDone && (
+        const synthesisEndReason = String(compound.synthesisEndReason || '').trim();
+        const isStopped = compound.status === '합성 중단' || (
+          !compound.isCompleted && synthesisEndReason.length > 0 && synthesisEndReason !== '-'
+        );
+        const isDone = !isStopped && (
+          compound.isCompleted || compound.synthesisRequestStatus === 'vnaIssued' || compound.status === '합성 완료'
+        );
+        const isUnassigned = !isStopped && !isDone && (
           !compound.synthesisOwner ||
           compound.progressMemo === '미배정' ||
           compound.synthesisRequestStatus === 'requested'
         );
-        const isIng = !isDone && !isUnassigned && (
+        const isIng = !isStopped && !isDone && !isUnassigned && (
           compound.synthesisRequestStatus === 'accepted' ||
           compound.synthesisRequestStatus === 'synthesizing' ||
           compound.status === '합성 중' ||
@@ -1669,8 +1680,18 @@ const MyBoardSynthesisBoard: React.FC = () => {
         );
         const ownerName = String(compound.synthesisOwner || '').trim();
         const manager = ownerName
-          ? managerMap.get(ownerName) ?? { name: ownerName, count: 0, ing: 0, done: 0 }
+          ? managerMap.get(ownerName) ?? { name: ownerName, count: 0, ing: 0, done: 0, stopped: 0 }
           : null;
+
+        if (isStopped) {
+          stopped += 1;
+          if (manager) {
+            manager.stopped += 1;
+            manager.count += 1;
+            managerMap.set(manager.name, manager);
+          }
+          return;
+        }
 
         if (isDone) {
           done += 1;
@@ -1702,6 +1723,7 @@ const MyBoardSynthesisBoard: React.FC = () => {
         ing,
         done,
         unassigned,
+        stopped,
         managers: Array.from(managerMap.values()).sort((first, second) => second.count - first.count || first.name.localeCompare(second.name)),
       });
     });
@@ -1724,7 +1746,7 @@ const MyBoardSynthesisBoard: React.FC = () => {
 
   const renderSynthesisStatusTag = React.useCallback((
     groupId: string,
-    statusKey: 'ing' | 'done' | 'unassigned',
+    statusKey: 'ing' | 'done' | 'unassigned' | 'stopped',
     colors: { background: string; border: string; text: string }
   ) => {
     const status = synthesisGroupStatusMap.get(groupId) ?? {
@@ -1732,6 +1754,7 @@ const MyBoardSynthesisBoard: React.FC = () => {
       ing: 0,
       done: 0,
       unassigned: 0,
+      stopped: 0,
       managers: [],
     };
     const value = status[statusKey];
@@ -1865,6 +1888,22 @@ const MyBoardSynthesisBoard: React.FC = () => {
         background: token.colorFillTertiary,
         border: token.colorBorder,
         text: token.colorTextSecondary,
+      }),
+    },
+    {
+      title: '합성 중단',
+      dataIndex: 'id',
+      key: 'synthesisStopped',
+      width: MYBOARD_GROUP_COLUMN_WIDTHS.synthesisStopped,
+      minWidth: MYBOARD_GROUP_COLUMN_WIDTHS.synthesisStopped,
+      align: 'center' as const,
+      className: 'my-board-group-fixed-column',
+      onCell: () => createFixedGroupColumnProps(MYBOARD_GROUP_COLUMN_WIDTHS.synthesisStopped),
+      onHeaderCell: () => createFixedGroupColumnProps(MYBOARD_GROUP_COLUMN_WIDTHS.synthesisStopped),
+      render: (groupId: string) => renderSynthesisStatusTag(groupId, 'stopped', {
+        background: token.colorErrorBg,
+        border: token.colorErrorBorder,
+        text: token.colorErrorText,
       }),
     },
     {
@@ -5219,6 +5258,11 @@ const MyBoardSynthesisBoard: React.FC = () => {
         .synthesis-request-memo-editor {
           width: 100%;
           min-height: 54px;
+        }
+        .synthesis-request-modal .synthesis-request-memo-editor .ql-container {
+          border-color: ${token.colorBorder} !important;
+          border-radius: ${token.borderRadius}px !important;
+          overflow: hidden;
         }
         .idea-compound-form .ant-form-item {
           margin-bottom: 8px;
