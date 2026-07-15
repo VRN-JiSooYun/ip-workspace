@@ -640,13 +640,16 @@ const legacyMockCompounds: Compound[] = [
 export const mockCompounds: Compound[] = exampleCompoundRows.map((row, rowIndex) => {
   const seed = rowIndex + 1;
   const project = getExampleGroupProject(row.group);
-  const compoundId = seed % 6 === 0 ? getExampleCompoundId(row) : '';
   const requestStatusBySeed: Record<number, Compound['synthesisRequestStatus']> = {
     2: 'requested',
     3: 'accepted',
     4: 'synthesizing',
+    5: 'vnaIssued',
   };
-  const synthesisRequestStatus = compoundId ? undefined : requestStatusBySeed[seed % 12];
+  const synthesisRequestStatus = requestStatusBySeed[seed % 12];
+  const compoundId = seed % 6 === 0 || synthesisRequestStatus === 'vnaIssued'
+    ? getExampleCompoundId(row)
+    : '';
 
   return {
     ...createMockCompound(

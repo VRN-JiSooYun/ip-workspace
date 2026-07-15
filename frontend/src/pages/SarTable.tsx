@@ -437,10 +437,8 @@ const SarTable: React.FC = () => {
   const displaySarCompounds = useMemo(() => {
     const filteredCompounds = sarCompounds.filter((compound) => {
       const hasCompoundId = compound.compoundId.trim().length > 0;
-      const isAcceptedOrLater = compound.synthesisRequestStatus === 'accepted'
-        || compound.synthesisRequestStatus === 'synthesizing'
-        || compound.synthesisRequestStatus === 'vnaIssued';
-      const isCompoundType = hasCompoundId || isAcceptedOrLater;
+      const hasSynthesisRequestStatus = Boolean(compound.synthesisRequestStatus);
+      const isCompoundType = hasCompoundId || hasSynthesisRequestStatus;
       if (sarCompoundTypeFilter === 'compound') return isCompoundType;
       if (sarCompoundTypeFilter === 'design') return !isCompoundType;
       return true;
@@ -2324,6 +2322,7 @@ const SarTable: React.FC = () => {
                     </Tooltip>
                   )}
                 </div>
+                <Divider type="vertical" className="sar-compound-show-divider" />
                 <div className="sar-compound-setting-group sar-rdkit-control-group sar-compound-show-filter">
                   <span className="sar-compound-setting-label sar-rdkit-control-label">Show</span>
                   <Segmented
@@ -4007,19 +4006,13 @@ const SarTable: React.FC = () => {
           line-height: 20px;
         }
         .sar-compound-show-filter {
-          position: relative;
-          margin-left: 12px;
+          margin-left: 0;
         }
-        .sar-compound-show-filter::before {
-          content: '';
-          position: absolute;
-          top: 50%;
-          left: -11px;
+        .sar-compound-show-divider.ant-divider-vertical {
           width: 1px;
           height: 18px;
-          background: ${token.colorBorderSecondary};
-          transform: translateY(-50%);
-          pointer-events: none;
+          margin: 0;
+          border-inline-start-color: ${token.colorBorderSecondary};
         }
         .sar-compound-highlight-toggle .ant-segmented-item-selected,
         .sar-compound-highlight-toggle .ant-segmented-thumb {

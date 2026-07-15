@@ -60,6 +60,12 @@ const MYBOARD_SHARE_STATUS_COLORS = {
   '공유 하는중': '#F87C63',
   '공유 받는중': '#1677ff',
 } as const;
+const MYBOARD_SYNTHESIS_REQUEST_STATUS_LABELS: Record<NonNullable<Compound['synthesisRequestStatus']>, string> = {
+  requested: '접수 대기',
+  accepted: '합성 대기',
+  synthesizing: '합성 중',
+  vnaIssued: 'VNA 코드',
+};
 const createSvgMaskUrl = (svg: string) => `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
 const shareForwardIconMaskUrl = createSvgMaskUrl(shareForwardIconRaw);
 const shareIconMaskUrl = createSvgMaskUrl(shareIconRaw);
@@ -132,31 +138,12 @@ type MyBoardGroupPinFilter = 'all' | 'pinned';
 type DesignPurposeValue = (string | number)[];
 type DesignExpansionValue = (string | number)[];
 type DesignFormInitialValues = Record<string, unknown>;
-type SynthesisRequestFormValues = {
-  synthesisRequestNo?: string;
-  requiredAmountMg?: number;
-  assayPurpose?: string;
-  synthesisStep?: string;
-  synthesisReferenceName?: string;
-  expectedEffect?: string;
-  requestMemo?: string;
-  synthesisRequestType?: string;
-};
 type DesignMemoPreviewBlock =
   | { type: 'text'; text: string }
   | { type: 'image'; src: string };
 
 const IDEA_COMPOUND_COUNTER_STORAGE_PREFIX = 'my-board:idea-compound-counter';
 const IDEA_COMPOUND_PREFIX = 'LYH';
-const SYNTHESIS_REQUEST_COUNTER_STORAGE_PREFIX = 'my-board:synthesis-request-counter';
-const SYNTHESIS_REQUEST_PREFIX = 'LYH';
-const SYNTHESIS_SITE_OPTIONS = ['In-house', 'Wuxi'] as const;
-const SYNTHESIS_REQUEST_STATUS_META = {
-  requested: { label: '요청 완료', color: 'processing' },
-  accepted: { label: '접수 완료', color: 'blue' },
-  synthesizing: { label: '합성 중', color: 'gold' },
-  vnaIssued: { label: 'VNA코드', color: 'green' },
-} as const;
 
 const getIdeaYearMonth = () => {
   const now = new Date();
@@ -177,10 +164,6 @@ const formatIdeaNumber = (prefix: string, yearMonth: string, sequence: number) =
   `${prefix}-${yearMonth}-${String(sequence).padStart(4, '0')}`
 );
 
-const getCurrentYearSuffix = () => (
-  String(new Date().getFullYear()).slice(-2)
-);
-
 const peekNextIdeaNumber = () => {
   const prefix = IDEA_COMPOUND_PREFIX;
   const yearMonth = getIdeaYearMonth();
@@ -195,40 +178,6 @@ const reserveNextIdeaNumber = () => {
     window.localStorage.setItem(getIdeaCounterStorageKey(prefix, yearMonth), String(nextSequence));
   }
   return formatIdeaNumber(prefix, yearMonth, nextSequence);
-};
-
-const getSynthesisRequestCounterStorageKey = (prefix: string, year: string) => (
-  `${SYNTHESIS_REQUEST_COUNTER_STORAGE_PREFIX}:${prefix}:${year}`
-);
-
-const readSynthesisRequestCounter = (prefix: string, year: string) => {
-  if (typeof window === 'undefined') return 0;
-  const value = Number(window.localStorage.getItem(getSynthesisRequestCounterStorageKey(prefix, year)) || '0');
-  return Number.isFinite(value) ? value : 0;
-};
-
-const formatSynthesisRequestNumber = (prefix: string, year: string, sequence: number) => (
-  `${prefix}-${year}-${String(sequence).padStart(4, '0')}`
-);
-
-const isSynthesisRequestNumber = (value?: string) => (
-  new RegExp(`^${SYNTHESIS_REQUEST_PREFIX}-\\d{2}-\\d{4}$`).test(String(value || '').trim())
-);
-
-const peekNextSynthesisRequestNumber = () => {
-  const prefix = SYNTHESIS_REQUEST_PREFIX;
-  const year = getCurrentYearSuffix();
-  return formatSynthesisRequestNumber(prefix, year, readSynthesisRequestCounter(prefix, year) + 1);
-};
-
-const reserveNextSynthesisRequestNumber = () => {
-  const prefix = SYNTHESIS_REQUEST_PREFIX;
-  const year = getCurrentYearSuffix();
-  const nextSequence = readSynthesisRequestCounter(prefix, year) + 1;
-  if (typeof window !== 'undefined') {
-    window.localStorage.setItem(getSynthesisRequestCounterStorageKey(prefix, year), String(nextSequence));
-  }
-  return formatSynthesisRequestNumber(prefix, year, nextSequence);
 };
 
 const insertCompoundsAfterGroupTail = (rows: Compound[], compoundsToInsert: Compound[]) => (
@@ -484,15 +433,10 @@ const MyBoard: React.FC = () => {
   } = useBoardStore();
   const { currentUser } = useUserStore();
   const [designForm] = Form.useForm();
-  const [synthesisRequestForm] = Form.useForm<SynthesisRequestFormValues>();
   const designReferenceName = Form.useWatch('referenceName', designForm) as string | undefined;
-  const synthesisReferenceName = Form.useWatch('synthesisReferenceName', synthesisRequestForm) as string | undefined;
-  const synthesisRequestFormValues = Form.useWatch([], synthesisRequestForm) as SynthesisRequestFormValues | undefined;
   const [designFormInitialValues, setDesignFormInitialValues] = useState<DesignFormInitialValues>({});
-  const [synthesisRequestTarget, setSynthesisRequestTarget] = useState<Compound | null>(null);
   const [isGroupModalOpen, setIsGroupModalOpen] = useState(false);
   const [isDesignModalOpen, setIsDesignModalOpen] = useState(false);
-  const [isSynthesisRequestModalOpen, setIsSynthesisRequestModalOpen] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [isStructureModalOpen, setIsStructureModalOpen] = useState(false);
   const [isQuickAddModalOpen, setIsQuickAddModalOpen] = useState(false);
@@ -513,8 +457,6 @@ const MyBoard: React.FC = () => {
   const [designAttachmentFiles, setDesignAttachmentFiles] = useState<UploadFile[]>([]);
   const [selectedDesignPurposes, setSelectedDesignPurposes] = useState<DesignPurposeValue[]>([]);
   const [selectedDesignExpansions, setSelectedDesignExpansions] = useState<DesignExpansionValue[]>([]);
-  const [selectedSynthesisRequestPurposes, setSelectedSynthesisRequestPurposes] = useState<DesignPurposeValue[]>([]);
-  const [selectedSynthesisRequestSteps, setSelectedSynthesisRequestSteps] = useState<DesignExpansionValue[]>([]);
   const [searchedSvg, setSearchedSvg] = useState<string | null>(null);
   const [structurePreview, setStructurePreview] = useState<{
     title: string;
@@ -1250,10 +1192,8 @@ const MyBoard: React.FC = () => {
     return compoundRows
       .filter((compound) => {
         const hasCompoundId = compound.compoundId.trim().length > 0;
-        const isAcceptedOrLater = compound.synthesisRequestStatus === 'accepted'
-          || compound.synthesisRequestStatus === 'synthesizing'
-          || compound.synthesisRequestStatus === 'vnaIssued';
-        const isCompoundType = hasCompoundId || isAcceptedOrLater;
+        const hasSynthesisRequestStatus = Boolean(compound.synthesisRequestStatus);
+        const isCompoundType = hasCompoundId || hasSynthesisRequestStatus;
         // If it's a structure search results mode, don't filter out by the keyword string
         const matchesKeyword = keyword === 'Structure Search Result' ||
           compound.name.toLowerCase().includes(keyword.toLowerCase()) ||
@@ -1814,10 +1754,6 @@ const MyBoard: React.FC = () => {
     () => selectedDesignPurposes.some((path) => path.includes('레퍼런스')),
     [selectedDesignPurposes]
   );
-  const isSynthesisRequestReferencePurposeSelected = React.useMemo(
-    () => selectedSynthesisRequestPurposes.some((path) => path.includes('레퍼런스')),
-    [selectedSynthesisRequestPurposes]
-  );
   const expandDesignPurposeParentPath = React.useCallback((path: DesignPurposeValue): DesignPurposeValue[] => {
     if (path.length !== 1) return [path];
     const parentOption = designPurposeOptions.find((option) => option.value === path[0]);
@@ -1882,56 +1818,6 @@ const MyBoard: React.FC = () => {
         : otherPaths.length > 0 ? otherPaths : expandDesignExpansionParentPath(nextPaths[nextPaths.length - 1])
     );
   }, [expandDesignExpansionParentPath, selectedDesignExpansions]);
-  const handleSynthesisRequestPurposeChange = React.useCallback((value: DesignPurposeValue[]) => {
-    const nextPaths = value.filter((path) => path.length > 0);
-    let nextSelectedPurposes: DesignPurposeValue[];
-    if (nextPaths.length <= 1) {
-      nextSelectedPurposes = nextPaths.flatMap(expandDesignPurposeParentPath);
-      setSelectedSynthesisRequestPurposes(nextSelectedPurposes);
-      if (!nextSelectedPurposes.some((path) => path.includes('레퍼런스'))) {
-        synthesisRequestForm.setFieldValue('synthesisReferenceName', undefined);
-      }
-      return;
-    }
-
-    const pathKey = (path: DesignPurposeValue) => path.join('>');
-    const previousKeys = new Set(selectedSynthesisRequestPurposes.map(pathKey));
-    const addedPath = nextPaths.find((path) => !previousKeys.has(pathKey(path)));
-    const activeRoot = String((addedPath ?? nextPaths[0])[0]);
-    const sameRootPaths = nextPaths.filter((path) => String(path[0]) === activeRoot);
-    const normalizedPaths = sameRootPaths.some((path) => path.length === 1)
-      ? expandDesignPurposeParentPath(sameRootPaths.find((path) => path.length === 1) ?? sameRootPaths[sameRootPaths.length - 1])
-      : sameRootPaths.flatMap(expandDesignPurposeParentPath);
-
-    nextSelectedPurposes = normalizedPaths;
-    setSelectedSynthesisRequestPurposes(nextSelectedPurposes);
-    if (!nextSelectedPurposes.some((path) => path.includes('레퍼런스'))) {
-      synthesisRequestForm.setFieldValue('synthesisReferenceName', undefined);
-    }
-  }, [expandDesignPurposeParentPath, selectedSynthesisRequestPurposes, synthesisRequestForm]);
-  const handleSynthesisRequestStepChange = React.useCallback((value: DesignExpansionValue[]) => {
-    const nextPaths = value.filter((path) => path.length > 0);
-    if (nextPaths.length <= 1) {
-      setSelectedSynthesisRequestSteps(nextPaths.flatMap(expandDesignExpansionParentPath));
-      return;
-    }
-
-    const pathKey = (path: DesignExpansionValue) => path.join('>');
-    const previousKeys = new Set(selectedSynthesisRequestSteps.map(pathKey));
-    const addedPath = nextPaths.find((path) => !previousKeys.has(pathKey(path)));
-    if (addedPath && String(addedPath[0]) !== '기타') {
-      setSelectedSynthesisRequestSteps(expandDesignExpansionParentPath(addedPath));
-      return;
-    }
-
-    const otherPaths = nextPaths.filter((path) => String(path[0]) === '기타' && path.length > 1);
-    const parentOtherPath = nextPaths.find((path) => String(path[0]) === '기타' && path.length === 1);
-    setSelectedSynthesisRequestSteps(
-      parentOtherPath
-        ? expandDesignExpansionParentPath(parentOtherPath)
-        : otherPaths.length > 0 ? otherPaths : expandDesignExpansionParentPath(nextPaths[nextPaths.length - 1])
-    );
-  }, [expandDesignExpansionParentPath, selectedSynthesisRequestSteps]);
 
   const getCompoundActionButtonStyle = React.useCallback((enabled: boolean): React.CSSProperties => ({
     background: enabled ? token.colorPrimary : token.colorBgLayout,
@@ -2026,126 +1912,6 @@ const MyBoard: React.FC = () => {
   const getCascaderStringValue = React.useCallback((value: Array<Array<string | number>>) => (
     value.map((path) => path.map(String))
   ), []);
-  const isSynthesisRequestSubmitEnabled = React.useMemo(() => {
-    const values = synthesisRequestFormValues ?? {};
-    return Boolean(
-      String(values.synthesisRequestNo ?? '').trim()
-      && Number(values.requiredAmountMg) > 0
-      && selectedSynthesisRequestPurposes.length > 0
-      && selectedSynthesisRequestSteps.length > 0
-      && normalizeDesignMemoValue(values.expectedEffect) !== '-'
-      && String(values.synthesisRequestType ?? '').trim()
-    );
-  }, [normalizeDesignMemoValue, selectedSynthesisRequestPurposes.length, selectedSynthesisRequestSteps.length, synthesisRequestFormValues]);
-  const isSynthesisRequestReadOnly = synthesisRequestTarget?.synthesisRequestStatus === 'requested';
-
-  const updateCompoundRowsById = React.useCallback((
-    compoundId: string,
-    updater: (compound: Compound) => Compound
-  ) => {
-    const updateRow = (compound: Compound) => (
-      compound.id === compoundId ? updater(compound) : compound
-    );
-    setCompoundRows((prev) => prev.map(updateRow));
-    setExternalCompoundRows(externalCompoundRows.map(updateRow));
-  }, [externalCompoundRows, setExternalCompoundRows]);
-
-  const handleOpenSynthesisRequest = React.useCallback((compound: Compound) => {
-    if (compound.compoundId.trim()) return;
-    const synthesisRequestNo = isSynthesisRequestNumber(compound.progressMemo)
-      ? compound.progressMemo
-      : peekNextSynthesisRequestNumber();
-    const referenceName = String(compound.assayPurpose || '').match(/레퍼런스:\s*([^,]+)/)?.[1]?.trim();
-    const purposePaths = parseCascaderText(compound.assayPurpose, designPurposeOptions) as DesignPurposeValue[];
-
-    setSynthesisRequestTarget(compound);
-    setSelectedSynthesisRequestPurposes(referenceName ? [...purposePaths, ['레퍼런스']] : purposePaths);
-    setSelectedSynthesisRequestSteps(parseCascaderText(compound.synthesisStep || compound.synthesisExpansionLevel, designExpansionOptions) as DesignExpansionValue[]);
-    synthesisRequestForm.setFieldsValue({
-      synthesisRequestNo,
-      requiredAmountMg: compound.requiredAmountMg && compound.requiredAmountMg > 0 ? compound.requiredAmountMg : undefined,
-      synthesisReferenceName: referenceName,
-      expectedEffect: compound.expectedEffect === '-' ? '' : compound.expectedEffect,
-      requestMemo: compound.requestMemo === '-' ? '' : compound.requestMemo,
-      synthesisRequestType: compound.synthesisSite || compound.synthesisRequestType,
-    });
-    setIsSynthesisRequestModalOpen(true);
-  }, [designExpansionOptions, designPurposeOptions, parseCascaderText, synthesisRequestForm]);
-
-  const handleCloseSynthesisRequest = React.useCallback(() => {
-    setIsSynthesisRequestModalOpen(false);
-    setSynthesisRequestTarget(null);
-    setSelectedSynthesisRequestPurposes([]);
-    setSelectedSynthesisRequestSteps([]);
-    synthesisRequestForm.resetFields();
-  }, [synthesisRequestForm]);
-
-  const handleSubmitSynthesisRequest = React.useCallback(async () => {
-    if (!synthesisRequestTarget) return;
-    if (selectedSynthesisRequestPurposes.length === 0 || selectedSynthesisRequestSteps.length === 0) return;
-    const values = await synthesisRequestForm.validateFields();
-    const hasExistingRequestNumber = isSynthesisRequestNumber(synthesisRequestTarget.progressMemo);
-    const synthesisRequestNo = hasExistingRequestNumber
-      ? String(values.synthesisRequestNo || synthesisRequestTarget.progressMemo).trim()
-      : reserveNextSynthesisRequestNumber();
-    const normalizedReferenceName = values.synthesisReferenceName?.trim();
-    const purposeText = [
-      ...selectedSynthesisRequestPurposes
-        .map(getCascaderLeafLabel)
-        .filter((label) => label && label !== '레퍼런스'),
-      normalizedReferenceName ? `레퍼런스: ${normalizedReferenceName}` : '',
-      !normalizedReferenceName && isSynthesisRequestReferencePurposeSelected ? '레퍼런스' : '',
-    ].filter(Boolean).join(', ');
-    const stepText = selectedSynthesisRequestSteps.map(getCascaderLeafLabel).filter(Boolean).join(', ');
-    const synthesisRequestType = String(values.synthesisRequestType || '').trim();
-
-    updateCompoundRowsById(synthesisRequestTarget.id, (compound) => ({
-      ...compound,
-      requiredAmountMg: Number(values.requiredAmountMg) || 0,
-      assayPurpose: purposeText || '-',
-      expectedEffect: normalizeDesignMemoValue(values.expectedEffect),
-      requestMemo: normalizeDesignMemoValue(values.requestMemo),
-      progressMemo: synthesisRequestNo,
-      requestDate: formatDisplayDate(new Date().toISOString()),
-      synthesisOwner: currentUser?.name ?? compound.synthesisOwner ?? '문태훈',
-      synthesisRequestStatus: 'requested',
-      synthesisRequestType,
-      synthesisSite: synthesisRequestType as Compound['synthesisSite'],
-      synthesisStep: stepText || '-',
-    }));
-    handleCloseSynthesisRequest();
-  }, [
-    currentUser?.name,
-    handleCloseSynthesisRequest,
-    getCascaderLeafLabel,
-    isSynthesisRequestReferencePurposeSelected,
-    normalizeDesignMemoValue,
-    selectedSynthesisRequestPurposes,
-    selectedSynthesisRequestSteps,
-    synthesisRequestForm,
-    synthesisRequestTarget,
-    updateCompoundRowsById,
-  ]);
-
-  const handleCancelSynthesisRequest = React.useCallback((compound: Compound, closeAfterCancel = false) => {
-    modal.confirm({
-      title: '합성 요청을 취소할까요?',
-      content: `${compound.designNo || compound.name} 요청 완료 상태를 취소합니다.`,
-      okText: '요청 취소',
-      cancelText: '닫기',
-      okButtonProps: { danger: true },
-      onOk: () => {
-        updateCompoundRowsById(compound.id, (row) => ({
-          ...row,
-          synthesisRequestStatus: undefined,
-        }));
-        if (closeAfterCancel) {
-          handleCloseSynthesisRequest();
-        }
-      },
-    });
-  }, [handleCloseSynthesisRequest, modal, updateCompoundRowsById]);
-
   const handleRegisterDesignIdea = React.useCallback(async () => {
     if (!canAddCompound) return;
     await cdjsInstance?.__flushPendingInput?.();
@@ -2662,62 +2428,17 @@ const MyBoard: React.FC = () => {
 
   const renderCompoundIdStatusCell = React.useCallback((id: string, record: Compound) => {
     const compoundCode = String(id || '').trim();
-    if (compoundCode) {
+    if (compoundCode && compoundCode !== '-') {
       return <Text strong style={{ color: token.colorPrimary }}>{compoundCode}</Text>;
     }
-
-    const status = record.synthesisRequestStatus;
-    if (!status) {
-      return (
-        <Button
-          size="small"
-          type="primary"
-          className="my-board-synthesis-request-button"
-          onClick={(event) => {
-            event.stopPropagation();
-            handleOpenSynthesisRequest(record);
-          }}
-        >
-          합성 요청
-        </Button>
-      );
-    }
-
-    const statusMeta = SYNTHESIS_REQUEST_STATUS_META[status];
-    if (status === 'requested') {
-      return (
-        <div className="my-board-synthesis-status-cell">
-          <button
-            type="button"
-            className="my-board-synthesis-status-text-button"
-            style={{ color: token.colorText }}
-            onClick={(event) => {
-              event.stopPropagation();
-              handleOpenSynthesisRequest(record);
-            }}
-          >
-            {statusMeta.label}
-          </button>
-        </div>
-      );
-    }
+    if (!record.synthesisRequestStatus) return null;
 
     return (
-      <div className="my-board-synthesis-status-cell">
-        <Text className="my-board-synthesis-status-text">
-          {statusMeta.label}
-        </Text>
-      </div>
+      <Text style={{ fontSize: 12, lineHeight: '20px' }}>
+        {MYBOARD_SYNTHESIS_REQUEST_STATUS_LABELS[record.synthesisRequestStatus]}
+      </Text>
     );
-  }, [
-    handleOpenSynthesisRequest,
-    token.colorPrimary,
-    token.colorText,
-  ]);
-  const synthesisRequestTargetGroup = React.useMemo(
-    () => groups.find((group) => group.id === synthesisRequestTarget?.groupId),
-    [groups, synthesisRequestTarget?.groupId]
-  );
+  }, [token.colorPrimary]);
 
   const handleGroupContextMenuClick: MenuProps['onClick'] = ({ key }) => {
     const contextGroupIds = getContextGroupIds();
@@ -3853,17 +3574,8 @@ const MyBoard: React.FC = () => {
                     >
                       Del
                     </Button>
-                    <Button
-                      type="primary"
-                      size="small"
-                      icon={<span className="my-board-action-icon my-board-action-icon-eye-off" aria-hidden="true" />}
-                      disabled={!canHideCompound}
-                      style={getCompoundActionButtonStyle(canHideCompound)}
-                      onClick={handleHideSelectedCompounds}
-                    >
-                      숨기기
-                    </Button>
                   </Space>
+                  <Divider type="vertical" className="my-board-detail-toolbar-divider" />
                   <div className="my-board-detail-show-filter">
                     <span className="my-board-detail-show-filter-label">Show</span>
                     <Segmented
@@ -4199,251 +3911,6 @@ const MyBoard: React.FC = () => {
       </Modal>
 
       <Modal
-        title="화합물 합성 요청"
-        open={isSynthesisRequestModalOpen}
-        onCancel={handleCloseSynthesisRequest}
-        onOk={() => {
-          if (isSynthesisRequestReadOnly && synthesisRequestTarget) {
-            handleCancelSynthesisRequest(synthesisRequestTarget, true);
-            return;
-          }
-          void handleSubmitSynthesisRequest();
-        }}
-        okText={isSynthesisRequestReadOnly ? '요청 취소' : '요청'}
-        cancelText="닫기"
-        width={880}
-        className="synthesis-request-modal"
-        okButtonProps={{
-          danger: isSynthesisRequestReadOnly,
-          disabled: isSynthesisRequestReadOnly ? !synthesisRequestTarget : !isSynthesisRequestSubmitEnabled,
-        }}
-      >
-        <Form
-          form={synthesisRequestForm}
-          layout="vertical"
-          className="synthesis-request-form"
-        >
-          <div className="synthesis-request-summary">
-            <div className="synthesis-request-structure">
-              <Text strong className="synthesis-request-section-label">화합물 구조</Text>
-              <div className="synthesis-request-structure-frame">
-                {synthesisRequestTarget ? (
-                  <CompoundStructureView
-                    className="synthesis-request-structure-view"
-                    svg={synthesisRequestTarget.structureSvg}
-                    rdkitSvg={synthesisRequestTarget.rdkitSvg}
-                    rdkitSvgCache={synthesisRequestTarget.rdkitSvgCache}
-                    title={synthesisRequestTarget.designNo || synthesisRequestTarget.name || 'Structure'}
-                    smiles={synthesisRequestTarget.smiles}
-                    molBlock={synthesisRequestTarget.molBlock ?? synthesisRequestTarget.mol_block ?? synthesisRequestTarget.molblock}
-                    cdxml={synthesisRequestTarget.draw}
-                    width={332}
-                    height={236}
-                    iconSize={36}
-                    gap={0}
-                    actionPlacement="overlay"
-                    actionOverlayAnchor="frame"
-                    actionOverlayPlacement="bottom-right"
-                    frameless
-                    preferRdkitSvg
-                    onStructureGenerated={(data) => handleCompoundStructureGenerated(synthesisRequestTarget.id, data)}
-                  />
-                ) : null}
-              </div>
-            </div>
-            <div className="synthesis-request-readonly">
-              <Form.Item label="타겟" className="synthesis-request-inline-item">
-                <Input disabled value={synthesisRequestTargetGroup?.target || synthesisRequestTarget?.project || '-'} />
-              </Form.Item>
-              <Form.Item label="그룹" className="synthesis-request-inline-item">
-                <Input disabled value={getGroupDisplayText(synthesisRequestTargetGroup)} />
-              </Form.Item>
-              <Form.Item label="아이디어 번호" className="synthesis-request-inline-item">
-                <Input disabled value={synthesisRequestTarget?.designNo || synthesisRequestTarget?.name || '-'} />
-              </Form.Item>
-              <Form.Item label="디자인 비고" className="synthesis-request-inline-item synthesis-request-design-memo-item">
-                <div className="synthesis-request-design-memo-preview">
-                  {renderDesignMemoPreview(synthesisRequestTarget?.designMemo)}
-                </div>
-              </Form.Item>
-            </div>
-          </div>
-
-          <Divider />
-
-          <Row gutter={[20, 8]}>
-            <Col span={8}>
-              <Form.Item
-                name="synthesisRequestNo"
-                label="합성 의뢰 번호"
-                className="synthesis-request-inline-item"
-                rules={[{ required: true, message: '합성 의뢰 번호가 필요합니다.' }]}
-              >
-                <Input disabled />
-              </Form.Item>
-            </Col>
-            <Col span={16}>
-              <Form.Item
-                label="합성 목적"
-                className="synthesis-request-inline-item"
-                required
-              >
-                <Form.Item name="synthesisReferenceName" hidden noStyle>
-                  <Input />
-                </Form.Item>
-                <Cascader
-                  multiple
-                  disabled={isSynthesisRequestReadOnly}
-                  options={designPurposeOptions}
-                  classNames={{ popup: { root: 'idea-compound-popup-scroll idea-toggle-cascader-popup' } }}
-                  showCheckedStrategy={Cascader.SHOW_CHILD}
-                  value={getCascaderStringValue(selectedSynthesisRequestPurposes)}
-                  onChange={(value) => handleSynthesisRequestPurposeChange(value as DesignPurposeValue[])}
-                  displayRender={(labels) => {
-                    const leafLabel = String(labels[labels.length - 1] ?? '');
-                    const normalizedReferenceName = synthesisReferenceName?.trim();
-                    return leafLabel === '레퍼런스' && normalizedReferenceName
-                      ? `레퍼런스: ${normalizedReferenceName}`
-                      : leafLabel;
-                  }}
-                  placeholder="합성 목적 선택"
-                  popupRender={(menus) => (
-                    <div className="idea-reference-cascader-dropdown">
-                      {menus}
-                      {isSynthesisRequestReferencePurposeSelected ? (
-                        <div
-                          className="idea-reference-cascader-panel"
-                          onMouseDown={(event) => event.stopPropagation()}
-                          onClick={(event) => event.stopPropagation()}
-                        >
-                          <Text strong className="idea-reference-cascader-title">레퍼런스 이름</Text>
-                          <Input
-                            size="small"
-                            disabled={isSynthesisRequestReadOnly}
-                            placeholder="레퍼런스 이름 입력"
-                            value={synthesisReferenceName ?? ''}
-                            onKeyDown={(event) => {
-                              event.stopPropagation();
-                            }}
-                            onChange={(event) => {
-                              synthesisRequestForm.setFieldValue('synthesisReferenceName', event.target.value);
-                            }}
-                          />
-                        </div>
-                      ) : null}
-                    </div>
-                  )}
-                />
-              </Form.Item>
-            </Col>
-            <Col span={8}>
-              <Form.Item
-                name="requiredAmountMg"
-                label="필요량(mg)"
-                className="synthesis-request-inline-item"
-                rules={[{ required: true, message: '필요량을 입력하세요.' }]}
-              >
-                <InputNumber
-                  className="patent-insight-filter-number-input"
-                  disabled={isSynthesisRequestReadOnly}
-                  min={1}
-                  step={1}
-                  placeholder="10"
-                  style={{ width: '100%' }}
-                />
-              </Form.Item>
-            </Col>
-            <Col span={16}>
-              <Form.Item
-                label="단계"
-                className="synthesis-request-inline-item"
-                required
-              >
-                <Cascader
-                  multiple
-                  disabled={isSynthesisRequestReadOnly}
-                  options={designExpansionOptions}
-                  classNames={{ popup: { root: 'idea-compound-popup-scroll idea-toggle-cascader-popup' } }}
-                  showCheckedStrategy={Cascader.SHOW_CHILD}
-                  value={getCascaderStringValue(selectedSynthesisRequestSteps)}
-                  onChange={(value) => handleSynthesisRequestStepChange(value as DesignExpansionValue[])}
-                  displayRender={(labels) => labels[labels.length - 1]}
-                  placeholder="단계 선택"
-                />
-              </Form.Item>
-            </Col>
-            <Col span={24}>
-              <Form.Item
-                name="expectedEffect"
-                label="기대 개선 효과"
-                className="synthesis-request-inline-item"
-                getValueFromEvent={(value) => (typeof value === 'string' ? value : '')}
-                required
-                rules={[
-                  {
-                    validator: (_, value) => (
-                      normalizeDesignMemoValue(value) !== '-'
-                        ? Promise.resolve()
-                        : Promise.reject(new Error('기대 개선 효과를 입력하세요.'))
-                    ),
-                  },
-                ]}
-              >
-                {isSynthesisRequestReadOnly ? (
-                  <div className="synthesis-request-readonly-memo-preview">
-                    {renderDesignMemoPreview(synthesisRequestTarget?.expectedEffect)}
-                  </div>
-                ) : (
-                  <PlainMemoEditor
-                    className="synthesis-request-memo-editor"
-                    placeholder="기대 개선 효과"
-                  />
-                )}
-              </Form.Item>
-            </Col>
-            <Col span={24}>
-              <Form.Item
-                name="requestMemo"
-                label="비고"
-                className="synthesis-request-inline-item"
-                getValueFromEvent={(value) => (typeof value === 'string' ? value : '')}
-              >
-                {isSynthesisRequestReadOnly ? (
-                  <div className="synthesis-request-readonly-memo-preview">
-                    {renderDesignMemoPreview(synthesisRequestTarget?.requestMemo)}
-                  </div>
-                ) : (
-                  <PlainMemoEditor
-                    className="synthesis-request-memo-editor"
-                    placeholder="비고"
-                  />
-                )}
-              </Form.Item>
-            </Col>
-          </Row>
-
-          <Divider />
-
-          <Row gutter={[20, 8]}>
-            <Col span={8}>
-              <Form.Item
-                name="synthesisRequestType"
-                label="합성 요청 구분"
-                className="synthesis-request-inline-item"
-                rules={[{ required: true, message: '합성 요청 구분을 선택하세요.' }]}
-              >
-                <Select placeholder="합성 요청 구분 선택" disabled={isSynthesisRequestReadOnly}>
-                  {SYNTHESIS_SITE_OPTIONS.map((item) => (
-                    <Option key={item} value={item}>{item}</Option>
-                  ))}
-                </Select>
-              </Form.Item>
-            </Col>
-          </Row>
-        </Form>
-      </Modal>
-
-      <Modal
         title="Quick add"
         open={isQuickAddModalOpen}
         onCancel={() => {
@@ -4567,7 +4034,7 @@ const MyBoard: React.FC = () => {
                 <div className="idea-chemdraw-editor-box">
                   <ChemDrawEditor
                     active={isDesignModalOpen || isCompoundEditModalOpen}
-                    height={360}
+                    height={432}
                     flipControlsPlacement="left"
                     smilesValue={designSmiles}
                     onSmilesChange={handleDesignSmilesChange}
@@ -4608,7 +4075,7 @@ const MyBoard: React.FC = () => {
               >
                 <PlainMemoEditor
                   className="idea-design-memo-editor"
-                  placeholder="디자인 의도나 참고 사항을 입력하세요"
+                  placeholder="내용 입력 (이미지 첨부 가능)"
                 />
               </Form.Item>
             </Col>
@@ -4628,6 +4095,8 @@ const MyBoard: React.FC = () => {
                     <Form.Item label="합성 목적" className="idea-inline-form-item idea-compact-label-form-item">
                       <Cascader
                         multiple
+                        allowClear={false}
+                        removeIcon={null}
                         options={designPurposeOptions}
                         classNames={{ popup: { root: 'idea-compound-popup-scroll idea-toggle-cascader-popup' } }}
                         showCheckedStrategy={Cascader.SHOW_CHILD}
@@ -4673,6 +4142,8 @@ const MyBoard: React.FC = () => {
                     <Form.Item label="합성 확장필요 정도" className="idea-inline-form-item">
                       <Cascader
                         multiple
+                        allowClear={false}
+                        removeIcon={null}
                         options={designExpansionOptions}
                         classNames={{ popup: { root: 'idea-compound-popup-scroll idea-toggle-cascader-popup' } }}
                         showCheckedStrategy={Cascader.SHOW_CHILD}
@@ -4703,7 +4174,7 @@ const MyBoard: React.FC = () => {
                     >
                       <PlainMemoEditor
                         className="idea-design-memo-editor"
-                        placeholder="기대 개선 효과"
+                        placeholder="내용 입력 (이미지 첨부 가능)"
                       />
                     </Form.Item>
                   </Col>
@@ -4716,7 +4187,7 @@ const MyBoard: React.FC = () => {
                     >
                       <PlainMemoEditor
                         className="idea-design-memo-editor"
-                        placeholder="합성 의뢰 비고"
+                        placeholder="내용 입력 (이미지 첨부 가능)"
                       />
                     </Form.Item>
                   </Col>
@@ -4930,43 +4401,7 @@ const MyBoard: React.FC = () => {
         className="my-board-structure-preview"
       />
       <style>{`
-        .my-board-synthesis-request-button.ant-btn {
-          min-width: 78px;
-          height: 24px;
-          padding: 0 9px;
-          border-radius: 990px;
-          font-size: 11px;
-          line-height: 22px;
-        }
-        .my-board-synthesis-status-cell {
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          gap: 2px;
-          width: 100%;
-          min-width: 0;
-        }
-        .my-board-synthesis-status-text,
-        .my-board-synthesis-status-text-button {
-          font-size: 11px;
-          line-height: 20px;
-          font-weight: 400;
-        }
-        .my-board-synthesis-status-text-button {
-          appearance: none;
-          padding: 0;
-          border: 0;
-          background: transparent;
-          font-family: inherit;
-          font-size: 12px;
-          cursor: pointer;
-        }
-        .my-board-synthesis-status-text-button:hover,
-        .my-board-synthesis-status-text-button:focus-visible {
-          text-decoration: underline;
-        }
         .my-board-detail-show-filter {
-          position: relative;
           display: inline-flex;
           align-items: center;
           gap: 6px;
@@ -4977,23 +4412,18 @@ const MyBoard: React.FC = () => {
           background: ${token.colorBgLayout};
           box-sizing: border-box;
         }
-        .my-board-detail-show-filter::before {
-          content: '';
-          position: absolute;
-          top: 50%;
-          left: -9px;
-          width: 1px;
-          height: 18px;
-          background: ${token.colorBorderSecondary};
-          transform: translateY(-50%);
-          pointer-events: none;
-        }
         .my-board-detail-show-filter-label {
+          min-width: 42px;
           color: ${token.colorTextSecondary};
           font-size: 10px;
           font-weight: 600;
           line-height: 18px;
+          text-align: left;
+          white-space: nowrap;
           user-select: none;
+        }
+        .my-board-detail-show-filter-options {
+          margin-left: 2px;
         }
         .my-board-detail-show-filter-options .ant-segmented-item-label {
           min-height: 22px;
@@ -5010,150 +4440,6 @@ const MyBoard: React.FC = () => {
         .my-board-detail-show-filter-options .ant-segmented-item-selected:hover,
         .my-board-detail-show-filter-options .ant-segmented-item-selected .ant-segmented-item-label {
           color: ${token.colorInfoText};
-        }
-        .synthesis-request-modal {
-          --synthesis-request-control-radius: ${token.borderRadius}px;
-        }
-        .synthesis-request-form {
-          padding-top: 4px;
-        }
-        .synthesis-request-summary {
-          display: grid;
-          grid-template-columns: 348px minmax(0, 1fr);
-          gap: 28px;
-          align-items: start;
-        }
-        .synthesis-request-section-label {
-          display: block;
-          margin-bottom: 6px;
-          color: ${token.colorText};
-          font-size: 13px;
-        }
-        .synthesis-request-structure-frame {
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          width: 348px;
-          height: 327px;
-          border: 1px solid ${token.colorBorder};
-          border-radius: var(--synthesis-request-control-radius);
-          background: ${token.colorBgContainer};
-          overflow: hidden;
-        }
-        .synthesis-request-structure-view .compound-structure-actions-overlay-bottom-right {
-          right: 8px;
-          bottom: 8px;
-        }
-        .synthesis-request-structure-view .compound-structure-action-button.ant-btn {
-          width: 22px !important;
-          min-width: 22px !important;
-          height: 22px !important;
-        }
-        .synthesis-request-readonly {
-          display: flex;
-          flex-direction: column;
-          gap: 8px;
-          padding-top: 25px;
-        }
-        .synthesis-request-inline-item {
-          margin-bottom: 8px;
-        }
-        .synthesis-request-inline-item .ant-form-item-row {
-          display: grid !important;
-          grid-template-columns: 96px minmax(0, 1fr);
-          column-gap: 8px;
-          align-items: center;
-        }
-        .synthesis-request-inline-item .ant-form-item-label {
-          grid-column: 1;
-          max-width: none !important;
-          flex: none !important;
-          padding: 0;
-          text-align: right;
-          white-space: nowrap;
-        }
-        .synthesis-request-inline-item .ant-form-item-label > label {
-          height: 28px;
-          color: ${token.colorTextSecondary};
-          font-size: 12px;
-          font-weight: 700;
-        }
-        .synthesis-request-inline-item .ant-form-item-control {
-          grid-column: 2;
-          max-width: none !important;
-          flex: none !important;
-          min-width: 0;
-        }
-        .synthesis-request-inline-item .ant-input,
-        .synthesis-request-inline-item .ant-input-number,
-        .synthesis-request-inline-item .ant-select-selector {
-          min-height: 28px;
-        }
-        .synthesis-request-form .ant-input,
-        .synthesis-request-form .ant-input-affix-wrapper,
-        .synthesis-request-form .ant-input-number,
-        .synthesis-request-form .ant-select-selector,
-        .synthesis-request-form .synthesis-request-memo-editor .ql-container {
-          border-radius: var(--synthesis-request-control-radius) !important;
-        }
-        .synthesis-request-design-memo-item .ant-form-item-row,
-        .synthesis-request-inline-item:has(.synthesis-request-memo-editor) .ant-form-item-row,
-        .synthesis-request-inline-item:has(.synthesis-request-readonly-memo-preview) .ant-form-item-row {
-          align-items: start;
-        }
-        .synthesis-request-design-memo-preview {
-          display: flex;
-          align-items: flex-start;
-          justify-content: flex-start;
-          height: 161px;
-          box-sizing: border-box;
-          padding: 6px 8px;
-          border: 1px solid ${token.colorBorder};
-          border-radius: var(--synthesis-request-control-radius);
-          background: ${token.colorBgContainerDisabled};
-          overflow: auto;
-        }
-        .synthesis-request-design-memo-preview .my-board-design-memo-preview {
-          min-height: 0;
-          align-items: flex-start;
-          justify-content: flex-start;
-          text-align: left;
-        }
-        .synthesis-request-design-memo-preview .my-board-design-memo-text {
-          text-align: left;
-        }
-        .synthesis-request-readonly-memo-preview {
-          min-height: 54px;
-          padding: 6px 8px;
-          border: 1px solid ${token.colorBorder};
-          border-radius: var(--synthesis-request-control-radius);
-          background: ${token.colorBgContainerDisabled};
-          overflow: auto;
-        }
-        .synthesis-request-readonly-memo-preview .my-board-design-memo-preview {
-          min-height: 0;
-          align-items: flex-start;
-          justify-content: flex-start;
-          text-align: left;
-        }
-        .synthesis-request-readonly-memo-preview .my-board-design-memo-text {
-          text-align: left;
-        }
-        .synthesis-request-design-memo-item .ant-form-item-label > label,
-        .synthesis-request-inline-item:has(.synthesis-request-memo-editor) .ant-form-item-label > label,
-        .synthesis-request-inline-item:has(.synthesis-request-readonly-memo-preview) .ant-form-item-label > label {
-          padding-top: 4px;
-        }
-        .synthesis-request-form .ant-input[disabled],
-        .synthesis-request-form .ant-input-disabled,
-        .synthesis-request-form .ant-input-number-disabled input,
-        .synthesis-request-form .ant-select-disabled .ant-select-selection-item {
-          color: #000 !important;
-          -webkit-text-fill-color: #000 !important;
-        }
-        .synthesis-request-memo-editor {
-          width: 100%;
-          min-height: 54px;
         }
         .idea-compound-form .ant-form-item {
           margin-bottom: 8px;
@@ -5312,7 +4598,8 @@ const MyBoard: React.FC = () => {
           display: none;
         }
         .idea-design-memo-editor .ql-container {
-          min-height: 86px;
+          height: 64px;
+          min-height: 64px;
           border: 1px solid ${token.colorBorder};
           border-radius: var(--idea-control-radius);
           background: ${token.colorBgContainer};
@@ -5321,8 +4608,9 @@ const MyBoard: React.FC = () => {
           font-size: var(--idea-font-size);
         }
         .idea-design-memo-editor .ql-editor {
-          min-height: 84px;
-          max-height: 132px;
+          height: 62px;
+          min-height: 62px;
+          max-height: 62px;
           padding: 6px 10px;
           line-height: 1.45;
           overflow-y: auto;

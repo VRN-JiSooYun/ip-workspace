@@ -155,10 +155,10 @@ const SYNTHESIS_REQUEST_COUNTER_STORAGE_PREFIX = 'my-board:synthesis-request-cou
 const SYNTHESIS_REQUEST_PREFIX = 'LYH';
 const SYNTHESIS_REQUEST_TYPE_OPTIONS = ['신규 합성', '재합성', '스케일업', 'Salt formation/charge', '기타'];
 const SYNTHESIS_REQUEST_STATUS_META = {
-  requested: { label: '요청 완료', color: 'processing' },
-  accepted: { label: '접수 완료', color: 'blue' },
+  requested: { label: '접수 대기', color: 'processing' },
+  accepted: { label: '합성 대기', color: 'blue' },
   synthesizing: { label: '합성 중', color: 'gold' },
-  vnaIssued: { label: 'VNA코드', color: 'green' },
+  vnaIssued: { label: 'VNA 코드', color: 'green' },
 } as const;
 
 const getIdeaYearMonth = () => {
@@ -2219,6 +2219,30 @@ const MyBoardSynthesisBoard: React.FC = () => {
     setExternalCompoundRows(externalCompoundRows.map(updateRow));
   }, [externalCompoundRows, setExternalCompoundRows]);
 
+  const handleOpenSynthesisRequest = React.useCallback((compound: Compound) => {
+    const compoundCode = String(compound.compoundId || '').trim();
+    if (compoundCode && compoundCode !== '-') return;
+
+    const synthesisRequestNo = isSynthesisRequestNumber(compound.progressMemo)
+      ? compound.progressMemo
+      : peekNextSynthesisRequestNumber();
+    const referenceName = String(compound.assayPurpose || '').match(/레퍼런스:\s*([^,]+)/)?.[1]?.trim();
+    const purposePaths = parseCascaderText(compound.assayPurpose, designPurposeOptions) as DesignPurposeValue[];
+
+    setSynthesisRequestTarget(compound);
+    setSelectedSynthesisRequestPurposes(referenceName ? [...purposePaths, ['레퍼런스']] : purposePaths);
+    setSelectedSynthesisRequestSteps(parseCascaderText(compound.synthesisStep || compound.synthesisExpansionLevel, designExpansionOptions) as DesignExpansionValue[]);
+    synthesisRequestForm.setFieldsValue({
+      synthesisRequestNo,
+      requiredAmountMg: compound.requiredAmountMg && compound.requiredAmountMg > 0 ? compound.requiredAmountMg : undefined,
+      synthesisReferenceName: referenceName,
+      expectedEffect: compound.expectedEffect === '-' ? '' : compound.expectedEffect,
+      requestMemo: compound.requestMemo === '-' ? '' : compound.requestMemo,
+      synthesisRequestType: compound.synthesisSite || compound.synthesisRequestType,
+    });
+    setIsSynthesisRequestModalOpen(true);
+  }, [designExpansionOptions, designPurposeOptions, parseCascaderText, synthesisRequestForm]);
+
   const handleCloseSynthesisRequest = React.useCallback(() => {
     setIsSynthesisRequestModalOpen(false);
     setSynthesisRequestTarget(null);
@@ -2807,16 +2831,46 @@ const MyBoardSynthesisBoard: React.FC = () => {
 
   const renderCompoundIdStatusCell = React.useCallback((id: string, record: Compound) => {
     const compoundCode = String(id || '').trim();
-    if (compoundCode) {
+    if (compoundCode && compoundCode !== '-') {
       return <Text strong style={{ color: token.colorPrimary }}>{compoundCode}</Text>;
     }
 
     const status = record.synthesisRequestStatus;
     if (!status) {
-      return <Text>-</Text>;
+      return (
+        <Button
+          size="small"
+          type="primary"
+          className="my-board-synthesis-request-button"
+          onClick={(event) => {
+            event.stopPropagation();
+            handleOpenSynthesisRequest(record);
+          }}
+        >
+          합성 요청
+        </Button>
+      );
     }
 
     const statusMeta = SYNTHESIS_REQUEST_STATUS_META[status];
+
+    if (status === 'requested') {
+      return (
+        <div className="my-board-synthesis-status-cell">
+          <button
+            type="button"
+            className="my-board-synthesis-status-text-button"
+            style={{ color: token.colorText }}
+            onClick={(event) => {
+              event.stopPropagation();
+              handleOpenSynthesisRequest(record);
+            }}
+          >
+            {statusMeta.label}
+          </button>
+        </div>
+      );
+    }
 
     return (
       <div className="my-board-synthesis-status-cell">
@@ -2825,7 +2879,7 @@ const MyBoardSynthesisBoard: React.FC = () => {
         </Text>
       </div>
     );
-  }, [token.colorPrimary]);
+  }, [handleOpenSynthesisRequest, token.colorPrimary, token.colorText]);
   const synthesisRequestTargetGroup = React.useMemo(
     () => groups.find((group) => group.id === synthesisRequestTarget?.groupId),
     [groups, synthesisRequestTarget?.groupId]
@@ -5014,10 +5068,23 @@ const MyBoardSynthesisBoard: React.FC = () => {
           width: 100%;
           min-width: 0;
         }
-        .my-board-synthesis-status-text {
-          font-size: 11px;
+        .my-board-synthesis-status-text,
+        .my-board-synthesis-status-text-button {
+          font-size: 12px;
           line-height: 20px;
           font-weight: 400;
+        }
+        .my-board-synthesis-status-text-button {
+          appearance: none;
+          padding: 0;
+          border: 0;
+          background: transparent;
+          font-family: inherit;
+          cursor: pointer;
+        }
+        .my-board-synthesis-status-text-button:hover,
+        .my-board-synthesis-status-text-button:focus-visible {
+          text-decoration: underline;
         }
         .synthesis-request-form {
           padding-top: 4px;
