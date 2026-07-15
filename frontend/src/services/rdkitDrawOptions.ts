@@ -27,7 +27,7 @@ export const DEFAULT_RDKIT_DRAW_OPTIONS: RdkitDrawGlobalOptions = {
   fixedFontSize: 12,
   lineWidth: 5.5,
   padding: 0.05,
-  additionalAtomLabelPadding: 0.05,
+  additionalAtomLabelPadding: 0.09,
   multipleBondOffset: 0.25,
   maxAbbrevCoverage: 0.4,
   kekulize: true,
