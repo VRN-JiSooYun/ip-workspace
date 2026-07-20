@@ -155,7 +155,7 @@ const IDEA_COMPOUND_COUNTER_STORAGE_PREFIX = 'my-board:idea-compound-counter';
 const IDEA_COMPOUND_PREFIX = 'LYH';
 const SYNTHESIS_REQUEST_COUNTER_STORAGE_PREFIX = 'my-board:synthesis-request-counter';
 const SYNTHESIS_REQUEST_PREFIX = 'LYH';
-const SYNTHESIS_REQUEST_TYPE_OPTIONS = ['신규 합성', '재합성', '스케일업', 'Salt formation/charge', '기타'];
+const SYNTHESIS_REQUEST_TYPE_OPTIONS = ['In-house', 'Wuxi'];
 const SYNTHESIS_REQUEST_STATUS_META = {
   requested: { label: '접수 대기', color: 'processing' },
   accepted: { label: '합성 대기', color: 'blue' },
@@ -2047,6 +2047,7 @@ const MyBoardSynthesisBoard: React.FC = () => {
     if (nextPaths.length <= 1) {
       nextSelectedPurposes = nextPaths.flatMap(expandDesignPurposeParentPath);
       setSelectedDesignPurposes(nextSelectedPurposes);
+      designForm.setFieldValue('assayPurpose', nextSelectedPurposes.map((path) => path.map(String)));
       if (!nextSelectedPurposes.some((path) => path.includes('레퍼런스'))) {
         designForm.setFieldValue('referenceName', undefined);
       }
@@ -2064,6 +2065,7 @@ const MyBoardSynthesisBoard: React.FC = () => {
 
     nextSelectedPurposes = normalizedPaths;
     setSelectedDesignPurposes(nextSelectedPurposes);
+    designForm.setFieldValue('assayPurpose', nextSelectedPurposes.map((path) => path.map(String)));
     if (!nextSelectedPurposes.some((path) => path.includes('레퍼런스'))) {
       designForm.setFieldValue('referenceName', undefined);
     }
@@ -2071,7 +2073,9 @@ const MyBoardSynthesisBoard: React.FC = () => {
   const handleDesignExpansionChange = React.useCallback((value: DesignExpansionValue[]) => {
     const nextPaths = value.filter((path) => path.length > 0);
     if (nextPaths.length <= 1) {
-      setSelectedDesignExpansions(nextPaths.flatMap(expandDesignExpansionParentPath));
+      const nextSelectedExpansions = nextPaths.flatMap(expandDesignExpansionParentPath);
+      setSelectedDesignExpansions(nextSelectedExpansions);
+      designForm.setFieldValue('synthesisStep', nextSelectedExpansions.map((path) => path.map(String)));
       return;
     }
 
@@ -2079,18 +2083,22 @@ const MyBoardSynthesisBoard: React.FC = () => {
     const previousKeys = new Set(selectedDesignExpansions.map(pathKey));
     const addedPath = nextPaths.find((path) => !previousKeys.has(pathKey(path)));
     if (addedPath && String(addedPath[0]) !== '기타') {
-      setSelectedDesignExpansions(expandDesignExpansionParentPath(addedPath));
+      const nextSelectedExpansions = expandDesignExpansionParentPath(addedPath);
+      setSelectedDesignExpansions(nextSelectedExpansions);
+      designForm.setFieldValue('synthesisStep', nextSelectedExpansions.map((path) => path.map(String)));
       return;
     }
 
     const otherPaths = nextPaths.filter((path) => String(path[0]) === '기타' && path.length > 1);
     const parentOtherPath = nextPaths.find((path) => String(path[0]) === '기타' && path.length === 1);
-    setSelectedDesignExpansions(
+    const nextSelectedExpansions = (
       parentOtherPath
         ? expandDesignExpansionParentPath(parentOtherPath)
         : otherPaths.length > 0 ? otherPaths : expandDesignExpansionParentPath(nextPaths[nextPaths.length - 1])
     );
-  }, [expandDesignExpansionParentPath, selectedDesignExpansions]);
+    setSelectedDesignExpansions(nextSelectedExpansions);
+    designForm.setFieldValue('synthesisStep', nextSelectedExpansions.map((path) => path.map(String)));
+  }, [designForm, expandDesignExpansionParentPath, selectedDesignExpansions]);
   const handleSynthesisRequestPurposeChange = React.useCallback((value: DesignPurposeValue[]) => {
     const nextPaths = value.filter((path) => path.length > 0);
     let nextSelectedPurposes: DesignPurposeValue[];
@@ -2242,9 +2250,10 @@ const MyBoardSynthesisBoard: React.FC = () => {
       && Number(values.requiredAmountMg) > 0
       && selectedSynthesisRequestPurposes.length > 0
       && selectedSynthesisRequestSteps.length > 0
+      && normalizeDesignMemoValue(values.expectedEffect) !== '-'
       && String(values.synthesisRequestType ?? '').trim()
     );
-  }, [selectedSynthesisRequestPurposes.length, selectedSynthesisRequestSteps.length, synthesisRequestFormValues]);
+  }, [normalizeDesignMemoValue, selectedSynthesisRequestPurposes.length, selectedSynthesisRequestSteps.length, synthesisRequestFormValues]);
   const isSynthesisRequestReadOnly = synthesisRequestTarget?.synthesisRequestStatus === 'requested';
 
   const updateCompoundRowsById = React.useCallback((
@@ -2265,6 +2274,7 @@ const MyBoardSynthesisBoard: React.FC = () => {
     const synthesisRequestNo = isSynthesisRequestNumber(compound.progressMemo)
       ? compound.progressMemo
       : peekNextSynthesisRequestNumber();
+    const synthesisRequestType = compound.synthesisSite || compound.synthesisRequestType;
     const referenceName = String(compound.assayPurpose || '').match(/레퍼런스:\s*([^,]+)/)?.[1]?.trim();
     const purposePaths = parseCascaderText(compound.assayPurpose, designPurposeOptions) as DesignPurposeValue[];
 
@@ -2277,7 +2287,9 @@ const MyBoardSynthesisBoard: React.FC = () => {
       synthesisReferenceName: referenceName,
       expectedEffect: compound.expectedEffect === '-' ? '' : compound.expectedEffect,
       requestMemo: compound.requestMemo === '-' ? '' : compound.requestMemo,
-      synthesisRequestType: compound.synthesisSite || compound.synthesisRequestType,
+      synthesisRequestType: SYNTHESIS_REQUEST_TYPE_OPTIONS.includes(String(synthesisRequestType || ''))
+        ? synthesisRequestType
+        : undefined,
     });
     setIsSynthesisRequestModalOpen(true);
   }, [designExpansionOptions, designPurposeOptions, parseCascaderText, synthesisRequestForm]);
@@ -2437,6 +2449,9 @@ const MyBoardSynthesisBoard: React.FC = () => {
     const purposeText = getDesignPurposeText(values.referenceName);
     const expansionText = getDesignExpansionText();
     const nextSource = values.source || '-';
+    const synthesisRequestNumber = isSynthesisRequestNumber(selectedEditableCompound.progressMemo)
+      ? String(values.synthesisRequestNo || selectedEditableCompound.progressMemo).trim()
+      : reserveNextSynthesisRequestNumber();
     const updateCompound = (compound: Compound): Compound => (
       compound.id === selectedEditableCompound.id
         ? {
@@ -2453,7 +2468,7 @@ const MyBoardSynthesisBoard: React.FC = () => {
           expectedEffect: normalizeDesignMemoValue(values.expectedEffect),
           synthesisExpansionLevel: expansionText || '-',
           requestMemo: normalizeDesignMemoValue(values.requestMemo),
-          progressMemo: values.synthesisRequestNo || '-',
+          progressMemo: synthesisRequestNumber,
         }
         : compound
     );
@@ -2657,20 +2672,26 @@ const MyBoardSynthesisBoard: React.FC = () => {
     const targetGroup = groups.find((group) => group.id === selectedEditableCompound.groupId);
     const referenceName = String(selectedEditableCompound.assayPurpose || '').match(/레퍼런스:\s*([^,]+)/)?.[1]?.trim();
     const purposePaths = parseCascaderText(selectedEditableCompound.assayPurpose, designPurposeOptions);
+    const selectedPurposePaths = referenceName ? [...purposePaths, ['레퍼런스']] : purposePaths;
+    const expansionPaths = parseCascaderText(selectedEditableCompound.synthesisExpansionLevel, designExpansionOptions);
 
     resetDesignModalState();
     setDesignSmiles(selectedEditableCompound.smiles || '');
     setSelectedCalculations(selectedEditableCompound.requiredCalcs ?? []);
-    setSelectedDesignPurposes(referenceName ? [...purposePaths, ['레퍼런스']] : purposePaths);
-    setSelectedDesignExpansions(parseCascaderText(selectedEditableCompound.synthesisExpansionLevel, designExpansionOptions));
+    setSelectedDesignPurposes(selectedPurposePaths);
+    setSelectedDesignExpansions(expansionPaths);
     setDesignFormInitialValues({
       target: targetGroup?.target && targetGroup.target !== '-' ? targetGroup.target : '-',
       group: getGroupDisplayText(targetGroup),
       ideaNumber: selectedEditableCompound.designNo || selectedEditableCompound.name || selectedEditableCompound.compoundId,
       smilesPreview: selectedEditableCompound.smiles || '',
       designMemo: selectedEditableCompound.designMemo === '-' ? '' : selectedEditableCompound.designMemo,
-      synthesisRequestNo: selectedEditableCompound.progressMemo === '-' ? '' : selectedEditableCompound.progressMemo,
+      synthesisRequestNo: isSynthesisRequestNumber(selectedEditableCompound.progressMemo)
+        ? selectedEditableCompound.progressMemo
+        : peekNextSynthesisRequestNumber(),
+      assayPurpose: selectedPurposePaths.map((path) => path.map(String)),
       requiredAmountMg: selectedEditableCompound.requiredAmountMg ?? 0,
+      synthesisStep: expansionPaths.map((path) => path.map(String)),
       expectedEffect: selectedEditableCompound.expectedEffect === '-' ? '' : selectedEditableCompound.expectedEffect,
       referenceName,
       requestMemo: selectedEditableCompound.requestMemo === '-' ? '' : selectedEditableCompound.requestMemo,
@@ -3347,7 +3368,10 @@ const MyBoardSynthesisBoard: React.FC = () => {
 
     const detailWrapper = detailTableWrapperRef.current;
     const detailBody = detailWrapper?.querySelector<HTMLElement>('.my-board-detail-table .ant-table-body');
-    if (detailWrapper && detailBody) {
+    const detailTbody = detailWrapper?.querySelector<HTMLElement>('.my-board-detail-table .ant-table-tbody');
+    const detailContent = detailWrapper?.querySelector<HTMLElement>('.my-board-detail-table .ant-table-content');
+    const detailMeasureElement = detailBody ?? detailTbody ?? detailContent;
+    if (detailWrapper && detailMeasureElement) {
       const pagination = detailWrapper.querySelector<HTMLElement>('.ant-pagination');
       const paginationStyle = pagination ? window.getComputedStyle(pagination) : null;
       const paginationReserve = pagination
@@ -3359,7 +3383,7 @@ const MyBoardSynthesisBoard: React.FC = () => {
         : 48;
       const nextDetailScrollY = Math.max(
         minBodyHeight,
-        Math.floor(window.innerHeight - detailBody.getBoundingClientRect().top - paginationReserve - bottomGap - cardBottomInset)
+        Math.floor(window.innerHeight - detailMeasureElement.getBoundingClientRect().top - paginationReserve - bottomGap - cardBottomInset)
       );
 
       setDetailTableScrollY((current) => (
@@ -3852,6 +3876,7 @@ const MyBoardSynthesisBoard: React.FC = () => {
           flexDirection: isStackedSplitLayout ? 'column' : 'row',
           flex: viewMode === 'table' ? undefined : '1 1 auto',
           gap: isStackedSplitLayout ? 16 : isGroupListStructureOnly ? 12 : 0,
+          alignItems: 'stretch',
           minHeight: 0,
           paddingBottom: isStackedSplitLayout ? 24 : 0
         }}
@@ -4042,6 +4067,7 @@ const MyBoardSynthesisBoard: React.FC = () => {
             flexShrink: 0,
             cursor: 'col-resize',
             display: isStackedSplitLayout || !isGroupListFull ? 'none' : 'flex',
+            alignSelf: 'stretch',
             alignItems: 'center',
             justifyContent: 'center',
             outline: 'none'
@@ -4401,7 +4427,7 @@ const MyBoardSynthesisBoard: React.FC = () => {
         }}
         okText={isSynthesisRequestReadOnly ? '요청 취소' : '요청'}
         cancelText="닫기"
-        width={760}
+        width={960}
         className="synthesis-request-modal"
         okButtonProps={{
           danger: isSynthesisRequestReadOnly,
@@ -4442,11 +4468,11 @@ const MyBoardSynthesisBoard: React.FC = () => {
               </div>
             </div>
             <div className="synthesis-request-readonly">
-              <Form.Item label="타겟" className="synthesis-request-inline-item">
-                <Input disabled value={synthesisRequestTargetGroup?.target || synthesisRequestTarget?.project || '-'} />
-              </Form.Item>
               <Form.Item label="그룹" className="synthesis-request-inline-item">
                 <Input disabled value={getGroupDisplayText(synthesisRequestTargetGroup)} />
+              </Form.Item>
+              <Form.Item label="타겟" className="synthesis-request-inline-item">
+                <Input disabled value={synthesisRequestTargetGroup?.target || synthesisRequestTarget?.project || '-'} />
               </Form.Item>
               <Form.Item label="아이디어 번호" className="synthesis-request-inline-item">
                 <Input disabled value={synthesisRequestTarget?.designNo || synthesisRequestTarget?.name || '-'} />
@@ -4462,7 +4488,7 @@ const MyBoardSynthesisBoard: React.FC = () => {
           <Divider />
 
           <Row gutter={[20, 8]}>
-            <Col span={12}>
+            <Col flex="0 0 30%" style={{ maxWidth: '30%' }}>
               <Form.Item
                 name="synthesisRequestNo"
                 label="합성 의뢰 번호"
@@ -4472,7 +4498,7 @@ const MyBoardSynthesisBoard: React.FC = () => {
                 <Input disabled />
               </Form.Item>
             </Col>
-            <Col span={12}>
+            <Col flex="0 0 70%" style={{ maxWidth: '70%' }}>
               <Form.Item
                 label="합성 목적"
                 className="synthesis-request-inline-item"
@@ -4526,7 +4552,7 @@ const MyBoardSynthesisBoard: React.FC = () => {
                 />
               </Form.Item>
             </Col>
-            <Col span={12}>
+            <Col flex="0 0 30%" style={{ maxWidth: '30%' }}>
               <Form.Item
                 name="requiredAmountMg"
                 label="필요량(mg)"
@@ -4543,7 +4569,7 @@ const MyBoardSynthesisBoard: React.FC = () => {
                 />
               </Form.Item>
             </Col>
-            <Col span={12}>
+            <Col flex="0 0 70%" style={{ maxWidth: '70%' }}>
               <Form.Item
                 label="단계"
                 className="synthesis-request-inline-item"
@@ -4568,6 +4594,12 @@ const MyBoardSynthesisBoard: React.FC = () => {
                 label="기대 개선 효과"
                 className="synthesis-request-inline-item"
                 getValueFromEvent={(value) => (typeof value === 'string' ? value : '')}
+                required
+                rules={[{
+                  validator: (_, value) => normalizeDesignMemoValue(value) !== '-'
+                    ? Promise.resolve()
+                    : Promise.reject(new Error('기대 개선 효과를 입력하세요.')),
+                }]}
               >
                 {isSynthesisRequestReadOnly ? (
                   <div className="synthesis-request-readonly-memo-preview">
@@ -4584,7 +4616,7 @@ const MyBoardSynthesisBoard: React.FC = () => {
             <Col span={24}>
               <Form.Item
                 name="requestMemo"
-                label="비고"
+                label="합성 의뢰 비고"
                 className="synthesis-request-inline-item"
                 getValueFromEvent={(value) => (typeof value === 'string' ? value : '')}
               >
@@ -4595,7 +4627,7 @@ const MyBoardSynthesisBoard: React.FC = () => {
                 ) : (
                   <PlainMemoEditor
                     className="synthesis-request-memo-editor"
-                    placeholder="비고"
+                    placeholder="합성 의뢰 비고"
                   />
                 )}
               </Form.Item>
@@ -4605,7 +4637,7 @@ const MyBoardSynthesisBoard: React.FC = () => {
           <Divider />
 
           <Row gutter={[20, 8]}>
-            <Col span={12}>
+            <Col flex="0 0 30%" style={{ maxWidth: '30%' }}>
               <Form.Item
                 name="synthesisRequestType"
                 label="합성 요청 구분"
@@ -4726,13 +4758,13 @@ const MyBoardSynthesisBoard: React.FC = () => {
           initialValues={designFormInitialValues}
         >
           <Row gutter={[24, 10]}>
-            <Col span={6}>
-              <Form.Item name="target" label="타겟" className="idea-inline-form-item">
+            <Col span={12}>
+              <Form.Item name="group" label="그룹" className="idea-inline-form-item">
                 <Input disabled />
               </Form.Item>
             </Col>
-            <Col span={12}>
-              <Form.Item name="group" label="그룹" className="idea-inline-form-item">
+            <Col span={6}>
+              <Form.Item name="target" label="타겟" className="idea-inline-form-item">
                 <Input disabled />
               </Form.Item>
             </Col>
@@ -4794,16 +4826,26 @@ const MyBoardSynthesisBoard: React.FC = () => {
             <Col span={24}>
               <div className="idea-synthesis-section">
                 <Row gutter={[24, 12]}>
-                  <Col span={6}>
-                    <Form.Item name="synthesisRequestNo" label="합성 의뢰 번호" className="idea-inline-form-item">
+                  <Col span={8}>
+                    <Form.Item
+                      name="synthesisRequestNo"
+                      label="합성 의뢰 번호"
+                      className="idea-inline-form-item"
+                      rules={[{ required: true, message: '합성 의뢰 번호가 필요합니다.' }]}
+                    >
                       <Input disabled placeholder="LYH-26-0001" />
                     </Form.Item>
                   </Col>
-                  <Col span={6}>
+                  <Col span={16}>
                     <Form.Item name="referenceName" hidden>
                       <Input />
                     </Form.Item>
-                    <Form.Item label="합성 목적" className="idea-inline-form-item">
+                    <Form.Item
+                      name="assayPurpose"
+                      label="합성 목적"
+                      className="idea-inline-form-item"
+                      rules={[{ required: true, message: '합성 목적을 선택하세요.' }]}
+                    >
                       <Cascader
                         multiple
                         options={designPurposeOptions}
@@ -4847,22 +4889,13 @@ const MyBoardSynthesisBoard: React.FC = () => {
                       />
                     </Form.Item>
                   </Col>
-                  <Col span={6}>
-                    <Form.Item label="합성 확장필요 정도" className="idea-inline-form-item">
-                      <Cascader
-                        multiple
-                        options={designExpansionOptions}
-                        classNames={{ popup: { root: 'idea-compound-popup-scroll idea-toggle-cascader-popup' } }}
-                        showCheckedStrategy={Cascader.SHOW_CHILD}
-                        value={getCascaderStringValue(selectedDesignExpansions)}
-                        onChange={(value) => handleDesignExpansionChange(value as DesignExpansionValue[])}
-                        displayRender={(labels) => labels[labels.length - 1]}
-                        placeholder="확장 필요 정도 선택"
-                      />
-                    </Form.Item>
-                  </Col>
-                  <Col span={6}>
-                    <Form.Item name="requiredAmountMg" label="필요량" className="idea-inline-form-item">
+                  <Col span={8}>
+                    <Form.Item
+                      name="requiredAmountMg"
+                      label="필요량(mg)"
+                      className="idea-inline-form-item"
+                      rules={[{ required: true, message: '필요량을 입력하세요.' }]}
+                    >
                       <InputNumber
                         className="patent-insight-filter-number-input"
                         min={0}
@@ -4872,12 +4905,36 @@ const MyBoardSynthesisBoard: React.FC = () => {
                       />
                     </Form.Item>
                   </Col>
-                  <Col span={12}>
+                  <Col span={16}>
+                    <Form.Item
+                      name="synthesisStep"
+                      label="단계"
+                      className="idea-inline-form-item"
+                      rules={[{ required: true, message: '단계를 선택하세요.' }]}
+                    >
+                      <Cascader
+                        multiple
+                        options={designExpansionOptions}
+                        classNames={{ popup: { root: 'idea-compound-popup-scroll idea-toggle-cascader-popup' } }}
+                        showCheckedStrategy={Cascader.SHOW_CHILD}
+                        value={getCascaderStringValue(selectedDesignExpansions)}
+                        onChange={(value) => handleDesignExpansionChange(value as DesignExpansionValue[])}
+                        displayRender={(labels) => labels[labels.length - 1]}
+                        placeholder="단계 선택"
+                      />
+                    </Form.Item>
+                  </Col>
+                  <Col span={24}>
                     <Form.Item
                       name="expectedEffect"
                       label="기대 개선 효과"
                       className="idea-inline-form-item idea-rich-text-form-item"
                       getValueFromEvent={(value) => (typeof value === 'string' ? value : '')}
+                      rules={[{
+                        validator: (_, value) => normalizeDesignMemoValue(value) !== '-'
+                          ? Promise.resolve()
+                          : Promise.reject(new Error('기대 개선 효과를 입력하세요.')),
+                      }]}
                     >
                       <PlainMemoEditor
                         className="idea-design-memo-editor"
@@ -4885,7 +4942,7 @@ const MyBoardSynthesisBoard: React.FC = () => {
                       />
                     </Form.Item>
                   </Col>
-                  <Col span={12}>
+                  <Col span={24}>
                     <Form.Item
                       name="requestMemo"
                       label="합성 의뢰 비고"
@@ -5130,9 +5187,13 @@ const MyBoardSynthesisBoard: React.FC = () => {
         }
         .synthesis-request-summary {
           display: grid;
-          grid-template-columns: 348px minmax(0, 1fr);
+          grid-template-columns: repeat(2, minmax(0, 1fr));
           gap: 28px;
           align-items: start;
+        }
+        .synthesis-request-structure,
+        .synthesis-request-readonly {
+          min-width: 0;
         }
         .synthesis-request-section-label {
           display: block;
@@ -5144,8 +5205,9 @@ const MyBoardSynthesisBoard: React.FC = () => {
           display: flex;
           align-items: center;
           justify-content: center;
-          width: 348px;
+          width: 100%;
           height: 327px;
+          box-sizing: border-box;
           border: 1px solid ${token.colorBorder};
           border-radius: 8px;
           background: ${token.colorBgContainer};
@@ -5189,6 +5251,15 @@ const MyBoardSynthesisBoard: React.FC = () => {
           font-size: 12px;
           font-weight: 700;
         }
+        .synthesis-request-inline-item .ant-form-item-label > label.ant-form-item-required {
+          display: inline-flex;
+          align-items: center;
+        }
+        .synthesis-request-inline-item .ant-form-item-label > label.ant-form-item-required::before {
+          align-self: center;
+          margin-top: 0;
+          line-height: 1;
+        }
         .synthesis-request-inline-item .ant-form-item-control {
           grid-column: 2;
           max-width: none !important;
@@ -5216,6 +5287,8 @@ const MyBoardSynthesisBoard: React.FC = () => {
           border-radius: 6px;
           background: ${token.colorBgContainerDisabled};
           overflow: auto;
+          scrollbar-width: thin;
+          scrollbar-color: ${token.colorBorder} ${token.colorBgContainerDisabled};
         }
         .synthesis-request-design-memo-preview .my-board-design-memo-preview {
           min-height: 0;
@@ -5227,12 +5300,15 @@ const MyBoardSynthesisBoard: React.FC = () => {
           text-align: left;
         }
         .synthesis-request-readonly-memo-preview {
-          min-height: 54px;
+          height: 64px;
+          min-height: 64px;
           padding: 6px 8px;
           border: 1px solid ${token.colorBorder};
           border-radius: 6px;
           background: ${token.colorBgContainerDisabled};
           overflow: auto;
+          scrollbar-width: thin;
+          scrollbar-color: ${token.colorBorder} ${token.colorBgContainerDisabled};
         }
         .synthesis-request-readonly-memo-preview .my-board-design-memo-preview {
           min-height: 0;
@@ -5257,12 +5333,52 @@ const MyBoardSynthesisBoard: React.FC = () => {
         }
         .synthesis-request-memo-editor {
           width: 100%;
-          min-height: 54px;
+          min-height: 64px;
         }
         .synthesis-request-modal .synthesis-request-memo-editor .ql-container {
+          height: 64px;
+          min-height: 64px;
           border-color: ${token.colorBorder} !important;
           border-radius: ${token.borderRadius}px !important;
           overflow: hidden;
+        }
+        .synthesis-request-modal .synthesis-request-memo-editor .ql-editor {
+          height: 62px;
+          min-height: 62px;
+          max-height: 62px;
+          padding: 6px 10px;
+          line-height: 1.45;
+          overflow-y: auto;
+          scrollbar-width: thin;
+          scrollbar-color: ${token.colorBorder} ${token.colorBgContainer};
+        }
+        .synthesis-request-design-memo-preview::-webkit-scrollbar,
+        .synthesis-request-readonly-memo-preview::-webkit-scrollbar,
+        .synthesis-request-modal .synthesis-request-memo-editor .ql-editor::-webkit-scrollbar {
+          width: 8px;
+          height: 8px;
+        }
+        .synthesis-request-design-memo-preview::-webkit-scrollbar-track,
+        .synthesis-request-readonly-memo-preview::-webkit-scrollbar-track {
+          background: ${token.colorBgContainerDisabled};
+        }
+        .synthesis-request-modal .synthesis-request-memo-editor .ql-editor::-webkit-scrollbar-track {
+          background: ${token.colorBgContainer};
+        }
+        .synthesis-request-design-memo-preview::-webkit-scrollbar-thumb,
+        .synthesis-request-readonly-memo-preview::-webkit-scrollbar-thumb,
+        .synthesis-request-modal .synthesis-request-memo-editor .ql-editor::-webkit-scrollbar-thumb {
+          min-height: 24px;
+          border: 2px solid transparent;
+          border-radius: 999px;
+          background: ${token.colorBorder};
+          background-clip: padding-box;
+        }
+        .synthesis-request-design-memo-preview::-webkit-scrollbar-thumb:hover,
+        .synthesis-request-readonly-memo-preview::-webkit-scrollbar-thumb:hover,
+        .synthesis-request-modal .synthesis-request-memo-editor .ql-editor::-webkit-scrollbar-thumb:hover {
+          background: ${token.colorTextTertiary};
+          background-clip: padding-box;
         }
         .idea-compound-form .ant-form-item {
           margin-bottom: 8px;
@@ -5366,9 +5482,8 @@ const MyBoardSynthesisBoard: React.FC = () => {
           padding-left: 45px;
         }
         .idea-synthesis-section {
-          margin: 12px 0 16px;
-          padding: 12px 0 14px;
-          border-top: 1px solid ${token.colorBorderSecondary};
+          margin: 0 0 16px;
+          padding: 0 0 14px;
           border-bottom: 1px solid ${token.colorBorderSecondary};
         }
         .idea-design-memo-editor {
