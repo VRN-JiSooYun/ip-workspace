@@ -42,8 +42,11 @@ export default () => ({
   },
   threeDPsa: {
     apiUrl: process.env.THREE_D_PSA_API_URL ?? 'http://172.16.1.130:20010',
+    callbackUrl:
+      process.env.THREE_D_PSA_CALLBACK_URL
+      ?? 'http://172.16.1.183:18082/api/calculations/3d-psa/callback',
     submitTimeoutMs: parseNumber(process.env.THREE_D_PSA_SUBMIT_TIMEOUT_MS, 10000),
-    callbackSecret: process.env.THREE_D_PSA_CALLBACK_SECRET ?? '',
+    uniqueKeyPrefix: process.env.THREE_D_PSA_UNIQUE_KEY_PREFIX ?? 'workspace-',
     callbackMaxBodyMb: parseNumber(process.env.THREE_D_PSA_CALLBACK_MAX_BODY_MB, 25),
   },
   vprop: {

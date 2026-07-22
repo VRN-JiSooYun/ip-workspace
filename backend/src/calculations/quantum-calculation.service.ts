@@ -2,11 +2,8 @@ import {
   BadRequestException,
   Injectable,
   NotFoundException,
-  ServiceUnavailableException,
-  UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { randomUUID, timingSafeEqual } from 'node:crypto';
 import { PrismaService } from '../database/prisma.service';
 import {
   CreateQuantumCalculationDto,
@@ -14,6 +11,11 @@ import {
 } from './dto/create-quantum-calculation.dto';
 import { ThreeDPsaCallbackDto } from './dto/three-d-psa-callback.dto';
 import { ThreeDPsaClient } from './three-d-psa.client';
+import {
+  buildThreeDPsaUniqueKey,
+  isSupportedThreeDPsaUniqueKey,
+  THREE_D_PSA_UNIQUE_KEY_PREFIX,
+} from './three-d-psa-key';
 
 type CalculationJobRecord = {
   id: string;
@@ -29,14 +31,17 @@ type CalculationJobRecord = {
 
 @Injectable()
 export class QuantumCalculationService {
-  private readonly callbackSecret: string;
+  private readonly uniqueKeyPrefix: string;
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly client: ThreeDPsaClient,
     configService: ConfigService,
   ) {
-    this.callbackSecret = configService.get<string>('threeDPsa.callbackSecret', '');
+    this.uniqueKeyPrefix = configService.get<string>(
+      'threeDPsa.uniqueKeyPrefix',
+      THREE_D_PSA_UNIQUE_KEY_PREFIX,
+    );
   }
 
   async createJobs(userId: string, body: CreateQuantumCalculationDto) {
@@ -51,7 +56,7 @@ export class QuantumCalculationService {
           userId,
           compoundDraftKey,
           jobType,
-          externalKey: randomUUID(),
+          externalKey: buildThreeDPsaUniqueKey(this.uniqueKeyPrefix),
           smiles,
           status: 'SUBMITTING',
         },
@@ -111,31 +116,41 @@ export class QuantumCalculationService {
     return this.serializeJob(job as CalculationJobRecord);
   }
 
-  async receiveCallback(secret: string | undefined, body: ThreeDPsaCallbackDto) {
-    this.assertCallbackSecret(secret);
+  async receiveCallback(body: ThreeDPsaCallbackDto) {
+    const externalKey = body.unique_key.trim();
+    if (!isSupportedThreeDPsaUniqueKey(externalKey, this.uniqueKeyPrefix)) {
+      throw new BadRequestException('INVALID_CALCULATION_UNIQUE_KEY');
+    }
     const jobType = body.job_type.trim().toUpperCase();
-    if (jobType !== RequestedQuantumJobType.PSA && jobType !== RequestedQuantumJobType.ESOL) {
-      throw new NotFoundException('CALCULATION_JOB_NOT_FOUND');
+    if (
+      jobType !== RequestedQuantumJobType.PSA
+      && jobType !== RequestedQuantumJobType.ESOL
+    ) {
+      throw new BadRequestException('INVALID_CALCULATION_JOB_TYPE');
     }
     const job = await this.prisma.client.calculationJob.findFirst({
       where: {
-        externalKey: body.unique_key,
+        externalKey,
         jobType: jobType as RequestedQuantumJobType,
         deletedAt: null,
       },
     });
     if (!job) throw new NotFoundException('CALCULATION_JOB_NOT_FOUND');
-    if (job.status === 'COMPLETED') {
-      return { result_code: '0000', result: 'OK' };
-    }
 
     const callbackReceivedAt = new Date();
     const externalJobId = body.job_id?.trim() || null;
     const externalStatus = body.status.trim().toLowerCase();
+    if (
+      job.status === 'COMPLETED'
+      || (job.status === 'FAILED' && externalStatus !== 'completed')
+    ) {
+      return { result_code: '0000', result: 'OK' };
+    }
+
     if (externalStatus === 'completed') {
       const resultData = this.normalizeResultData(body.result_data);
-      await this.prisma.client.calculationJob.update({
-        where: { id: job.id },
+      await this.prisma.client.calculationJob.updateMany({
+        where: { id: job.id, status: { not: 'COMPLETED' } },
         data: resultData === null
           ? {
               status: 'FAILED',
@@ -154,30 +169,21 @@ export class QuantumCalculationService {
             },
       });
     } else {
-      await this.prisma.client.calculationJob.update({
-        where: { id: job.id },
+      await this.prisma.client.calculationJob.updateMany({
+        where: { id: job.id, status: { not: 'COMPLETED' } },
         data: {
           status: 'FAILED',
           externalJobId,
           callbackReceivedAt,
           completedAt: callbackReceivedAt,
-          errorMessage: body.error_message?.trim() || `UNKNOWN_STATUS_${externalStatus || 'EMPTY'}`,
+          errorMessage:
+            body.error_message?.trim()
+            || `UNKNOWN_STATUS_${externalStatus || 'EMPTY'}`,
         },
       });
     }
 
     return { result_code: '0000', result: 'OK' };
-  }
-
-  private assertCallbackSecret(receivedSecret: string | undefined): void {
-    if (!this.callbackSecret) {
-      throw new ServiceUnavailableException('THREE_D_PSA_CALLBACK_SECRET_NOT_CONFIGURED');
-    }
-    const expected = Buffer.from(this.callbackSecret);
-    const received = Buffer.from(receivedSecret ?? '');
-    if (expected.length !== received.length || !timingSafeEqual(expected, received)) {
-      throw new UnauthorizedException('INVALID_CALLBACK_SECRET');
-    }
   }
 
   private normalizeResultData(rawValue: string | undefined): unknown | null {

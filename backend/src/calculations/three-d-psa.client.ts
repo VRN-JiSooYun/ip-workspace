@@ -12,6 +12,7 @@ type ThreeDPsaSubmissionResponse = {
 @Injectable()
 export class ThreeDPsaClient {
   private readonly apiUrl: string;
+  private readonly callbackUrl: string;
   private readonly timeoutMs: number;
 
   constructor(
@@ -21,6 +22,10 @@ export class ThreeDPsaClient {
     this.apiUrl = this.configService.get<string>(
       'threeDPsa.apiUrl',
       'http://172.16.1.130:20010',
+    );
+    this.callbackUrl = this.configService.get<string>(
+      'threeDPsa.callbackUrl',
+      'http://172.16.1.183:18082/api/calculations/3d-psa/callback',
     );
     this.timeoutMs = this.configService.get<number>('threeDPsa.submitTimeoutMs', 10000);
   }
@@ -34,6 +39,7 @@ export class ThreeDPsaClient {
       unique_key: input.externalKey,
       smiles: input.smiles,
       job_type: input.jobType,
+      callback_url: this.callbackUrl,
     });
 
     try {

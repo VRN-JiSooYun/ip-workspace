@@ -32,10 +32,7 @@ export class QuantumCalculationController {
   @AllowAnonymous()
   @Post('callback')
   @HttpCode(200)
-  receiveCallback(
-    @Query('secret') secret: string | undefined,
-    @Body() body: ThreeDPsaCallbackDto,
-  ) {
-    return this.service.receiveCallback(secret, body);
+  receiveCallback(@Body() body: ThreeDPsaCallbackDto) {
+    return this.service.receiveCallback(body);
   }
 }

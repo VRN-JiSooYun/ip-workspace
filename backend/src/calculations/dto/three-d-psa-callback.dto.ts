@@ -1,4 +1,4 @@
-import { IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
+import { IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
 
 export class ThreeDPsaCallbackDto {
   @IsOptional()
@@ -7,7 +7,7 @@ export class ThreeDPsaCallbackDto {
   job_id?: string;
 
   @IsString()
-  @IsUUID('4')
+  @MinLength(36)
   @MaxLength(200)
   unique_key!: string;
 
