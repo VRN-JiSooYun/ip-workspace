@@ -17,6 +17,7 @@ import {
   getPatentInsightBreakpoint,
   normalizePatentInsightLayouts,
   readPatentInsightLayouts,
+  resolveLayoutCollisionsDownward,
   toReactGridLayouts,
   writePatentInsightLayouts,
   type PatentInsightLayouts,
@@ -36,10 +37,6 @@ const FILTER_STORAGE_KEY = 'patent-insight-filters';
 const CHART_RESIZE_EVENT = 'patent-insight:chart-resize';
 const PATENT_INSIGHT_GRID_MARGIN = [12, 12] as const;
 const PATENT_INSIGHT_GRID_PADDING = [0, 0] as const;
-const COLLISION_SAFE_NO_COMPACTOR = {
-  ...noCompactor,
-  preventCollision: true,
-};
 const DEFAULT_DATE_RANGE_START = '1970-01-01';
 const DEFAULT_TOP_N_TARGET = 20;
 const EMPTY_PATENT_INSIGHT_STATISTICS: PatentInsightStatistics = {
@@ -300,10 +297,19 @@ const PatentInsight: React.FC = () => {
   const [topNTarget, setTopNTarget] = useState(storedFilters.topNTarget ?? DEFAULT_TOP_N_TARGET);
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const [filingLanguageLegendSelected, setFilingLanguageLegendSelected] = useState<Record<string, boolean>>({});
-  const [savedGridLayouts, setSavedGridLayouts] = useState<PatentInsightLayouts>(initialGridLayouts);
-  const [draftGridLayouts, setDraftGridLayouts] = useState<PatentInsightLayouts>(initialGridLayouts);
-  const draftGridLayoutsRef = useRef<PatentInsightLayouts>(initialGridLayouts);
+  const [savedGridLayouts, setSavedGridLayouts] = useState<PatentInsightLayouts>(() => (
+    normalizePatentInsightLayouts(initialGridLayouts)
+  ));
+  const [draftGridLayouts, setDraftGridLayouts] = useState<PatentInsightLayouts>(() => (
+    normalizePatentInsightLayouts(initialGridLayouts)
+  ));
+  const draftGridLayoutsRef = useRef<PatentInsightLayouts>(
+    normalizePatentInsightLayouts(initialGridLayouts),
+  );
+  const layoutEditSnapshotRef = useRef<PatentInsightLayouts | null>(null);
+  const activeGridInteractionItemRef = useRef<string | null>(null);
   const [isLayoutEditing, setIsLayoutEditing] = useState(false);
+  const [gridRenderRevision, setGridRenderRevision] = useState(0);
 
   const layoutPreset = useMemo(() => getPatentAnalysisLayoutPreset(viewportWidth), [viewportWidth]);
   const isStackedLayout = viewportWidth < 1200;
@@ -323,6 +329,14 @@ const PatentInsight: React.FC = () => {
     enabled: isGridInteractionEnabled,
     handles: ['se' as const],
   }), [isGridInteractionEnabled]);
+  const collisionPushCompactor = useMemo(() => ({
+    ...noCompactor,
+    preventCollision: false,
+    compact: (layout: Layout) => resolveLayoutCollisionsDownward(
+      layout,
+      activeGridInteractionItemRef.current,
+    ),
+  }), []);
   const gridConfig = useMemo(() => ({
     cols: gridColumnCount,
     rowHeight: 33,
@@ -426,16 +440,25 @@ const PatentInsight: React.FC = () => {
 
   useEffect(() => {
     const nextLayouts = readPatentInsightLayouts(session.user.id);
-    setSavedGridLayouts(nextLayouts);
-    setDraftGridLayouts(nextLayouts);
-    draftGridLayoutsRef.current = nextLayouts;
+    const nextSavedLayouts = normalizePatentInsightLayouts(nextLayouts);
+    const nextDraftLayouts = normalizePatentInsightLayouts(nextLayouts);
+    setSavedGridLayouts(nextSavedLayouts);
+    setDraftGridLayouts(nextDraftLayouts);
+    draftGridLayoutsRef.current = nextDraftLayouts;
+    layoutEditSnapshotRef.current = null;
+    activeGridInteractionItemRef.current = null;
     setIsLayoutEditing(false);
   }, [session.user.id]);
 
   useEffect(() => {
     if (canEditGridLayout || !isLayoutEditing) return;
-    setDraftGridLayouts(savedGridLayouts);
-    draftGridLayoutsRef.current = savedGridLayouts;
+    const restoredLayouts = normalizePatentInsightLayouts(
+      layoutEditSnapshotRef.current ?? savedGridLayouts,
+    );
+    setDraftGridLayouts(restoredLayouts);
+    draftGridLayoutsRef.current = restoredLayouts;
+    layoutEditSnapshotRef.current = null;
+    activeGridInteractionItemRef.current = null;
     setIsLayoutEditing(false);
   }, [canEditGridLayout, isLayoutEditing, savedGridLayouts]);
 
@@ -448,28 +471,56 @@ const PatentInsight: React.FC = () => {
   }, [activeGridBreakpoint, isGridInteractionEnabled]);
 
   const handleGridResizeStop = React.useCallback(() => {
+    activeGridInteractionItemRef.current = null;
     window.dispatchEvent(new Event(CHART_RESIZE_EVENT));
+  }, []);
+
+  const handleGridInteractionStart = React.useCallback((
+    _layout: Layout,
+    _oldItem: Layout[number] | null,
+    newItem: Layout[number] | null,
+  ) => {
+    activeGridInteractionItemRef.current = newItem?.i ?? null;
+  }, []);
+
+  const handleGridDragStop = React.useCallback(() => {
+    activeGridInteractionItemRef.current = null;
   }, []);
 
   const handleStartLayoutEdit = () => {
     if (!canEditGridLayout) return;
-    setDraftGridLayouts(savedGridLayouts);
-    draftGridLayoutsRef.current = savedGridLayouts;
+    const snapshotLayouts = normalizePatentInsightLayouts(savedGridLayouts);
+    const nextDraftLayouts = normalizePatentInsightLayouts(snapshotLayouts);
+    layoutEditSnapshotRef.current = snapshotLayouts;
+    activeGridInteractionItemRef.current = null;
+    setDraftGridLayouts(nextDraftLayouts);
+    draftGridLayoutsRef.current = nextDraftLayouts;
     setIsLayoutEditing(true);
   };
 
   const handleCancelLayoutEdit = () => {
-    setDraftGridLayouts(savedGridLayouts);
-    draftGridLayoutsRef.current = savedGridLayouts;
+    const storedLayouts = readPatentInsightLayouts(session.user.id);
+    const restoredSavedLayouts = normalizePatentInsightLayouts(storedLayouts);
+    const restoredDraftLayouts = normalizePatentInsightLayouts(storedLayouts);
+    setSavedGridLayouts(restoredSavedLayouts);
+    setDraftGridLayouts(restoredDraftLayouts);
+    draftGridLayoutsRef.current = restoredDraftLayouts;
+    layoutEditSnapshotRef.current = null;
+    activeGridInteractionItemRef.current = null;
     setIsLayoutEditing(false);
+    setGridRenderRevision((revision) => revision + 1);
   };
 
   const handleSaveLayout = () => {
     try {
-      const nextLayouts = draftGridLayoutsRef.current;
+      const nextLayouts = normalizePatentInsightLayouts(draftGridLayoutsRef.current);
+      const nextDraftLayouts = normalizePatentInsightLayouts(nextLayouts);
       writePatentInsightLayouts(session.user.id, nextLayouts);
       setSavedGridLayouts(nextLayouts);
-      setDraftGridLayouts(nextLayouts);
+      setDraftGridLayouts(nextDraftLayouts);
+      draftGridLayoutsRef.current = nextDraftLayouts;
+      layoutEditSnapshotRef.current = null;
+      activeGridInteractionItemRef.current = null;
       setIsLayoutEditing(false);
       message.success('차트 배치를 브라우저에 저장했습니다.');
     } catch {
@@ -998,15 +1049,19 @@ const PatentInsight: React.FC = () => {
           <div ref={handleGridContainerRef} className="patent-insight-grid-container">
             {isGridMeasured ? (
               <GridLayout
+                key={`patent-insight-grid-${gridRenderRevision}`}
                 className={`patent-insight-grid${isLayoutEditing ? ' is-editing' : ''}`}
                 style={gridStyle}
                 width={gridWidth}
                 layout={activeGridLayout}
                 gridConfig={gridConfig}
-                compactor={COLLISION_SAFE_NO_COMPACTOR}
+                compactor={collisionPushCompactor}
                 dragConfig={gridDragConfig}
                 resizeConfig={gridResizeConfig}
                 onLayoutChange={handleGridLayoutChange}
+                onDragStart={handleGridInteractionStart}
+                onDragStop={handleGridDragStop}
+                onResizeStart={handleGridInteractionStart}
                 onResizeStop={handleGridResizeStop}
               >
                 <div key="totalPatent" className="patent-insight-grid-item patent-insight-metric-grid-item">

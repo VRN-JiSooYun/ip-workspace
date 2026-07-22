@@ -241,10 +241,24 @@ const getMinColumnsForPixelWidth = (
   );
 };
 
-const resolveLayoutCollisionsDownward = (items: Layout): Layout => {
+export const resolveLayoutCollisionsDownward = (
+  items: Layout,
+  priorityItemId?: string | null,
+): Layout => {
   const resolvedItems: LayoutItem[] = [];
+  const priorityItem = priorityItemId
+    ? items.find((item) => item.i === priorityItemId)
+    : undefined;
+  const orderedItems = priorityItem
+    ? [
+        priorityItem,
+        ...items
+          .filter((item) => item.i !== priorityItem.i)
+          .sort((left, right) => left.y - right.y || left.x - right.x),
+      ]
+    : items;
 
-  items.forEach((item) => {
+  orderedItems.forEach((item) => {
     const nextItem = { ...item };
     let collision = resolvedItems.find((placedItem) => (
       nextItem.x < placedItem.x + placedItem.w &&
@@ -265,7 +279,8 @@ const resolveLayoutCollisionsDownward = (items: Layout): Layout => {
     resolvedItems.push(nextItem);
   });
 
-  return resolvedItems;
+  const resolvedById = new Map(resolvedItems.map((item) => [item.i, item]));
+  return items.map((item) => resolvedById.get(item.i) ?? { ...item });
 };
 
 export const toReactGridLayouts = (
