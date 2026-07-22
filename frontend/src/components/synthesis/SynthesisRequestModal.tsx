@@ -325,6 +325,8 @@ const SynthesisRequestModal: React.FC<SynthesisRequestModalProps> = ({
                 <Form.Item name="synthesisReferenceName" hidden noStyle><Input /></Form.Item>
                 <Cascader
                   multiple
+                  allowClear={false}
+                  removeIcon={null}
                   disabled={isReadOnly}
                   options={designPurposeOptions}
                   showCheckedStrategy={Cascader.SHOW_CHILD}
@@ -369,6 +371,8 @@ const SynthesisRequestModal: React.FC<SynthesisRequestModalProps> = ({
               <Form.Item label="단계" className="synthesis-request-inline-item" required>
                 <Cascader
                   multiple
+                  allowClear={false}
+                  removeIcon={null}
                   disabled={isReadOnly}
                   options={designExpansionOptions}
                   showCheckedStrategy={Cascader.SHOW_CHILD}

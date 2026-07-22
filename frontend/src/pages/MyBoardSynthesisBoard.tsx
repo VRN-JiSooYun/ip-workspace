@@ -1644,6 +1644,21 @@ const MyBoardSynthesisBoard: React.FC = () => {
     );
   }, [getDesignMemoPreviewBlocks]);
 
+  const renderProjectTag = React.useCallback((project: string) => (
+    <Tag
+      style={{
+        marginInlineEnd: 0,
+        color: 'inherit',
+        fontSize: 'inherit',
+        fontWeight: 'inherit',
+        background: 'transparent',
+        borderColor: '#000000',
+      }}
+    >
+      {project}
+    </Tag>
+  ), []);
+
   const synthesisGroupStatusMap = React.useMemo(() => {
     const statusMap = new Map<string, SynthesisGroupStatus>();
 
@@ -1788,7 +1803,7 @@ const MyBoardSynthesisBoard: React.FC = () => {
       render: formatDisplayDate,
     },
     {
-      title: 'Target',
+      title: '프로젝트',
       dataIndex: 'target',
       key: 'target',
       width: MYBOARD_GROUP_COLUMN_WIDTHS.target,
@@ -1796,7 +1811,7 @@ const MyBoardSynthesisBoard: React.FC = () => {
       className: 'my-board-group-fixed-column',
       onCell: () => createFixedGroupColumnProps(MYBOARD_GROUP_COLUMN_WIDTHS.target),
       onHeaderCell: () => createFixedGroupColumnProps(MYBOARD_GROUP_COLUMN_WIDTHS.target),
-      render: (t: string) => <Tag color="blue">{t}</Tag>
+      render: renderProjectTag,
     },
     {
       title: '화합물 구조',
@@ -1810,7 +1825,7 @@ const MyBoardSynthesisBoard: React.FC = () => {
       render: renderRepresentativeStructure
     },
     {
-      title: 'Title',
+      title: '타이틀',
       dataIndex: 'name',
       key: 'name',
       width: groupTableTitleWidth,
@@ -2161,14 +2176,12 @@ const MyBoardSynthesisBoard: React.FC = () => {
   const handleOpenDesignModal = React.useCallback(() => {
     if (!canAddCompound) return;
     const nextIdeaNumber = peekNextIdeaNumber();
-    const nextSynthesisRequestNumber = peekNextSynthesisRequestNumber();
     resetDesignModalState();
     setIsCompoundEditModalOpen(false);
     setDesignFormInitialValues({
       target: selectedDesignTargetText,
       group: selectedDesignGroupDisplayText,
       ideaNumber: nextIdeaNumber,
-      synthesisRequestNo: nextSynthesisRequestNumber,
       requiredAmountMg: 10,
     });
     setIsDesignModalOpen(true);
@@ -2362,8 +2375,6 @@ const MyBoardSynthesisBoard: React.FC = () => {
       return;
     }
     const ideaNumber = reserveNextIdeaNumber();
-    const reservedSynthesisRequestNumber = reserveNextSynthesisRequestNumber();
-    const synthesisRequestNumber = String(values.synthesisRequestNo || '').trim() || reservedSynthesisRequestNumber;
     const targetGroupId = selectedGroupIds[0];
     const targetGroup = groups.find((group) => group.id === targetGroupId);
     const timestamp = Date.now();
@@ -2396,7 +2407,7 @@ const MyBoardSynthesisBoard: React.FC = () => {
       synthesisOwner: currentUser?.name ?? '문태훈',
       synthesisAcceptedDate: '-',
       synthesisTargetDate: '-',
-      progressMemo: synthesisRequestNumber,
+      progressMemo: '-',
       isCompleted: false,
       registeredDate: formatDisplayDate(new Date().toISOString()),
       researchNote: '-',
@@ -2436,9 +2447,6 @@ const MyBoardSynthesisBoard: React.FC = () => {
     const purposeText = getDesignPurposeText(values.referenceName);
     const expansionText = getDesignExpansionText();
     const nextSource = values.source || '-';
-    const synthesisRequestNumber = isSynthesisRequestNumber(selectedEditableCompound.progressMemo)
-      ? String(values.synthesisRequestNo || selectedEditableCompound.progressMemo).trim()
-      : reserveNextSynthesisRequestNumber();
     const updateCompound = (compound: Compound): Compound => (
       compound.id === selectedEditableCompound.id
         ? {
@@ -2455,7 +2463,6 @@ const MyBoardSynthesisBoard: React.FC = () => {
           expectedEffect: normalizeDesignMemoValue(values.expectedEffect),
           synthesisExpansionLevel: expansionText || '-',
           requestMemo: normalizeDesignMemoValue(values.requestMemo),
-          progressMemo: synthesisRequestNumber,
         }
         : compound
     );
@@ -2648,9 +2655,6 @@ const MyBoardSynthesisBoard: React.FC = () => {
       ideaNumber: selectedEditableCompound.designNo || selectedEditableCompound.name || selectedEditableCompound.compoundId,
       smilesPreview: selectedEditableCompound.smiles || '',
       designMemo: selectedEditableCompound.designMemo === '-' ? '' : selectedEditableCompound.designMemo,
-      synthesisRequestNo: isSynthesisRequestNumber(selectedEditableCompound.progressMemo)
-        ? selectedEditableCompound.progressMemo
-        : peekNextSynthesisRequestNumber(),
       assayPurpose: selectedPurposePaths.map((path) => path.map(String)),
       requiredAmountMg: selectedEditableCompound.requiredAmountMg ?? 0,
       synthesisStep: expansionPaths.map((path) => path.map(String)),
@@ -2959,7 +2963,7 @@ const MyBoardSynthesisBoard: React.FC = () => {
       align: 'center' as const,
       render: (groupId: string) => selectedGroupOrderMap[groupId] ? `G${selectedGroupOrderMap[groupId]}` : '-'
     },
-    '프로젝트': { title: '프로젝트', dataIndex: 'project', key: 'project', width: 80, render: (project: string) => <Tag color="blue">{project}</Tag> },
+    '프로젝트': { title: '프로젝트', dataIndex: 'project', key: 'project', width: 80, render: renderProjectTag },
     '물질 번호 (VRN)': { title: '물질 번호 (VRN)', dataIndex: 'compoundId', key: 'compoundId', width: 128, render: renderCompoundIdStatusCell },
     '화합물 구조': {
       title: '화합물 구조',
@@ -4460,7 +4464,10 @@ const MyBoardSynthesisBoard: React.FC = () => {
                 </Form.Item>
                 <Cascader
                   multiple
+                  allowClear={false}
+                  removeIcon={null}
                   disabled={isSynthesisRequestReadOnly}
+                  className="synthesis-selection-cascader"
                   options={designPurposeOptions}
                   classNames={{ popup: { root: 'idea-compound-popup-scroll idea-toggle-cascader-popup' } }}
                   showCheckedStrategy={Cascader.SHOW_CHILD}
@@ -4528,7 +4535,10 @@ const MyBoardSynthesisBoard: React.FC = () => {
               >
                 <Cascader
                   multiple
+                  allowClear={false}
+                  removeIcon={null}
                   disabled={isSynthesisRequestReadOnly}
+                  className="synthesis-selection-cascader"
                   options={designExpansionOptions}
                   classNames={{ popup: { root: 'idea-compound-popup-scroll idea-toggle-cascader-popup' } }}
                   showCheckedStrategy={Cascader.SHOW_CHILD}
@@ -4777,7 +4787,6 @@ const MyBoardSynthesisBoard: React.FC = () => {
                       name="synthesisRequestNo"
                       label="합성 의뢰 번호"
                       className="idea-inline-form-item"
-                      rules={[{ required: true, message: '합성 의뢰 번호가 필요합니다.' }]}
                     >
                       <Input disabled placeholder="LYH-26-0001" />
                     </Form.Item>
@@ -4794,6 +4803,7 @@ const MyBoardSynthesisBoard: React.FC = () => {
                     >
                       <Cascader
                         multiple
+                        className="synthesis-selection-cascader"
                         options={designPurposeOptions}
                         classNames={{ popup: { root: 'idea-compound-popup-scroll idea-toggle-cascader-popup' } }}
                         showCheckedStrategy={Cascader.SHOW_CHILD}
@@ -4860,6 +4870,7 @@ const MyBoardSynthesisBoard: React.FC = () => {
                     >
                       <Cascader
                         multiple
+                        className="synthesis-selection-cascader"
                         options={designExpansionOptions}
                         classNames={{ popup: { root: 'idea-compound-popup-scroll idea-toggle-cascader-popup' } }}
                         showCheckedStrategy={Cascader.SHOW_CHILD}
@@ -5277,6 +5288,12 @@ const MyBoardSynthesisBoard: React.FC = () => {
           color: #000 !important;
           -webkit-text-fill-color: #000 !important;
         }
+        .synthesis-request-form .synthesis-selection-cascader.ant-select-multiple .ant-select-selection-item,
+        .idea-compound-form .synthesis-selection-cascader.ant-select-multiple .ant-select-selection-item {
+          background: ${token.colorFillQuaternary};
+          border-color: ${token.colorBorderSecondary};
+          color: ${token.colorTextSecondary};
+        }
         .synthesis-request-memo-editor {
           width: 100%;
           min-height: 64px;
@@ -5615,9 +5632,9 @@ const MyBoardSynthesisBoard: React.FC = () => {
         .idea-toggle-cascader-popup .ant-cascader-menu-item-active,
         .idea-toggle-cascader-popup .ant-cascader-menu-item:has(.ant-cascader-checkbox-checked),
         .idea-toggle-cascader-popup .ant-cascader-menu-item:has(.ant-cascader-checkbox-indeterminate) {
-          background: ${token.colorPrimaryBg};
-          border-color: ${token.colorPrimary};
-          color: ${token.colorPrimary};
+          background: ${token.colorFillQuaternary};
+          border-color: ${token.colorBorderSecondary};
+          color: ${token.colorTextSecondary};
           font-weight: 600;
         }
         .idea-reference-cascader-dropdown {

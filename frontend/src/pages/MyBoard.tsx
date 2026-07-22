@@ -204,9 +204,6 @@ type DesignMemoPreviewBlock =
 
 const IDEA_COMPOUND_COUNTER_STORAGE_PREFIX = 'my-board:idea-compound-counter';
 const IDEA_COMPOUND_PREFIX = 'LYH';
-const SYNTHESIS_REQUEST_COUNTER_STORAGE_PREFIX = 'my-board:synthesis-request-counter';
-const SYNTHESIS_REQUEST_PREFIX = 'LYH';
-
 const getIdeaYearMonth = () => {
   const now = new Date();
   return `${String(now.getFullYear()).slice(-2)}${String(now.getMonth() + 1).padStart(2, '0')}`;
@@ -226,8 +223,6 @@ const formatIdeaNumber = (prefix: string, yearMonth: string, sequence: number) =
   `${prefix}-${yearMonth}-${String(sequence).padStart(4, '0')}`
 );
 
-const getCurrentYearSuffix = () => String(new Date().getFullYear()).slice(-2);
-
 const peekNextIdeaNumber = () => {
   const prefix = IDEA_COMPOUND_PREFIX;
   const yearMonth = getIdeaYearMonth();
@@ -242,40 +237,6 @@ const reserveNextIdeaNumber = () => {
     window.localStorage.setItem(getIdeaCounterStorageKey(prefix, yearMonth), String(nextSequence));
   }
   return formatIdeaNumber(prefix, yearMonth, nextSequence);
-};
-
-const getSynthesisRequestCounterStorageKey = (prefix: string, year: string) => (
-  `${SYNTHESIS_REQUEST_COUNTER_STORAGE_PREFIX}:${prefix}:${year}`
-);
-
-const readSynthesisRequestCounter = (prefix: string, year: string) => {
-  if (typeof window === 'undefined') return 0;
-  const value = Number(window.localStorage.getItem(getSynthesisRequestCounterStorageKey(prefix, year)) || '0');
-  return Number.isFinite(value) ? value : 0;
-};
-
-const formatSynthesisRequestNumber = (prefix: string, year: string, sequence: number) => (
-  `${prefix}-${year}-${String(sequence).padStart(4, '0')}`
-);
-
-const isSynthesisRequestNumber = (value?: string) => (
-  new RegExp(`^${SYNTHESIS_REQUEST_PREFIX}-\\d{2}-\\d{4}$`).test(String(value || '').trim())
-);
-
-const peekNextSynthesisRequestNumber = () => {
-  const prefix = SYNTHESIS_REQUEST_PREFIX;
-  const year = getCurrentYearSuffix();
-  return formatSynthesisRequestNumber(prefix, year, readSynthesisRequestCounter(prefix, year) + 1);
-};
-
-const reserveNextSynthesisRequestNumber = () => {
-  const prefix = SYNTHESIS_REQUEST_PREFIX;
-  const year = getCurrentYearSuffix();
-  const nextSequence = readSynthesisRequestCounter(prefix, year) + 1;
-  if (typeof window !== 'undefined') {
-    window.localStorage.setItem(getSynthesisRequestCounterStorageKey(prefix, year), String(nextSequence));
-  }
-  return formatSynthesisRequestNumber(prefix, year, nextSequence);
 };
 
 const insertCompoundsAfterGroupTail = (rows: Compound[], compoundsToInsert: Compound[]) => (
@@ -1676,6 +1637,21 @@ const MyBoard: React.FC = () => {
     );
   }, [getDesignMemoPreviewBlocks]);
 
+  const renderProjectTag = React.useCallback((project: string) => (
+    <Tag
+      style={{
+        marginInlineEnd: 0,
+        color: 'inherit',
+        fontSize: 'inherit',
+        fontWeight: 'inherit',
+        background: 'transparent',
+        borderColor: '#000000',
+      }}
+    >
+      {project}
+    </Tag>
+  ), []);
+
   const groupColumns = [
     {
       title: '순번',
@@ -1700,7 +1676,7 @@ const MyBoard: React.FC = () => {
       render: formatDisplayDate,
     },
     {
-      title: 'Target',
+      title: '프로젝트',
       dataIndex: 'target',
       key: 'target',
       width: MYBOARD_GROUP_COLUMN_WIDTHS.target,
@@ -1708,7 +1684,7 @@ const MyBoard: React.FC = () => {
       className: 'my-board-group-fixed-column',
       onCell: () => createFixedGroupColumnProps(MYBOARD_GROUP_COLUMN_WIDTHS.target),
       onHeaderCell: () => createFixedGroupColumnProps(MYBOARD_GROUP_COLUMN_WIDTHS.target),
-      render: (t: string) => <Tag color="blue">{t}</Tag>
+      render: renderProjectTag,
     },
     {
       title: '화합물 구조',
@@ -1722,7 +1698,7 @@ const MyBoard: React.FC = () => {
       render: renderRepresentativeStructure
     },
     {
-      title: 'Title',
+      title: '타이틀',
       dataIndex: 'name',
       key: 'name',
       width: groupTableTitleWidth,
@@ -2027,14 +2003,12 @@ const MyBoard: React.FC = () => {
   const handleOpenDesignModal = React.useCallback(() => {
     if (!canAddCompound) return;
     const nextIdeaNumber = peekNextIdeaNumber();
-    const nextSynthesisRequestNumber = peekNextSynthesisRequestNumber();
     resetDesignModalState();
     setIsCompoundEditModalOpen(false);
     setDesignFormInitialValues({
       target: selectedDesignTargetText,
       group: selectedDesignGroupDisplayText,
       ideaNumber: nextIdeaNumber,
-      synthesisRequestNo: nextSynthesisRequestNumber,
       requiredAmountMg: 10,
     });
     setIsDesignModalOpen(true);
@@ -2225,10 +2199,9 @@ const MyBoard: React.FC = () => {
     }
 
     const ideaNumber = reserveNextIdeaNumber();
-    const synthesisRequestNumber = reserveNextSynthesisRequestNumber();
     const targetGroupId = selectedGroupIds[0];
-    const targetGroup = groups.find((group) => group.id === targetGroupId);
     const timestamp = Date.now();
+    const project = String(values.target ?? '').trim() || 'Unassigned';
     const purposeText = getDesignPurposeText(values.referenceName);
     const expansionText = getDesignExpansionText();
     const newCompound: Compound = {
@@ -2241,7 +2214,7 @@ const MyBoard: React.FC = () => {
       creDate: formatDisplayDate(new Date().toISOString()),
       manager: currentUser?.name ?? '문태훈',
       status: '디자인',
-      project: targetGroup?.target && targetGroup.target !== '-' ? targetGroup.target : 'Unassigned',
+      project,
       shareStatus: '내 물질',
       designSource: values.source || '-',
       properties1: [50, 50, 50, 50],
@@ -2261,7 +2234,7 @@ const MyBoard: React.FC = () => {
       synthesisOwner: currentUser?.name ?? '문태훈',
       synthesisAcceptedDate: '-',
       synthesisTargetDate: '-',
-      progressMemo: synthesisRequestNumber,
+      progressMemo: '-',
       isCompleted: false,
       registeredDate: formatDisplayDate(new Date().toISOString()),
       researchNote: '-',
@@ -2285,7 +2258,6 @@ const MyBoard: React.FC = () => {
     designSmiles,
     getDesignPurposeText,
     getDesignExpansionText,
-    groups,
     modal,
     normalizeDesignMemoValue,
     resetDesignModalState,
@@ -2375,15 +2347,14 @@ const MyBoard: React.FC = () => {
     const purposeText = getDesignPurposeText(values.referenceName);
     const expansionText = getDesignExpansionText();
     const nextSource = values.source || '-';
-    const synthesisRequestNumber = isSynthesisRequestNumber(selectedEditableCompound.progressMemo)
-      ? String(values.synthesisRequestNo || selectedEditableCompound.progressMemo).trim()
-      : reserveNextSynthesisRequestNumber();
+    const nextProject = String(values.target ?? '').trim() || '-';
     const updateCompound = (compound: Compound): Compound => (
       compound.id === selectedEditableCompound.id
         ? {
           ...compound,
           source: nextSource,
           smiles: normalizedSmiles,
+          project: nextProject,
           designSource: nextSource,
           requiredCalcs: selectedCalculations,
           chemaxonCalculation: synchronousResults.chemaxonCalculation,
@@ -2397,7 +2368,6 @@ const MyBoard: React.FC = () => {
           expectedEffect: normalizeDesignMemoValue(values.expectedEffect),
           synthesisExpansionLevel: expansionText || '-',
           requestMemo: normalizeDesignMemoValue(values.requestMemo),
-          progressMemo: synthesisRequestNumber,
         }
         : compound
     );
@@ -2594,9 +2564,6 @@ const MyBoard: React.FC = () => {
       ideaNumber: selectedEditableCompound.designNo || selectedEditableCompound.name || selectedEditableCompound.compoundId,
       smilesPreview: selectedEditableCompound.smiles || '',
       designMemo: selectedEditableCompound.designMemo === '-' ? '' : selectedEditableCompound.designMemo,
-      synthesisRequestNo: isSynthesisRequestNumber(selectedEditableCompound.progressMemo)
-        ? selectedEditableCompound.progressMemo
-        : peekNextSynthesisRequestNumber(),
       assayPurpose: selectedPurposePaths.map((path) => path.map(String)),
       requiredAmountMg: selectedEditableCompound.requiredAmountMg ?? 0,
       synthesisStep: expansionPaths.map((path) => path.map(String)),
@@ -2912,7 +2879,7 @@ const MyBoard: React.FC = () => {
       align: 'center' as const,
       render: (groupId: string) => selectedGroupOrderMap[groupId] ? `G${selectedGroupOrderMap[groupId]}` : '-'
     },
-    '프로젝트': { title: '프로젝트', dataIndex: 'project', key: 'project', width: 80, render: (project: string) => <Tag color="blue">{project}</Tag> },
+    '프로젝트': { title: '프로젝트', dataIndex: 'project', key: 'project', width: 80, render: renderProjectTag },
     '물질 번호 (VRN)': { title: '물질 번호 (VRN)', dataIndex: 'compoundId', key: 'compoundId', width: 128, render: renderCompoundIdStatusCell },
     '화합물 구조': {
       title: '화합물 구조',
@@ -3768,49 +3735,54 @@ const MyBoard: React.FC = () => {
                 >
                   그룹 리스트
                 </Text>
-                <Space size={4}>
-                  <Button
-                    type="primary"
-                    size="small"
-                    icon={<Plus size={14} />}
-                    onClick={openCreateGroupModal}
-                    style={{
-                      background: token.colorPrimary,
-                      borderColor: token.colorPrimary,
-                    }}
-                  >
-                    Add
-                  </Button>
-                  <Button
-                    size="small"
-                    icon={<Edit3 size={13} />}
-                    disabled={!selectedEditableGroup}
-                    onClick={openEditGroupModal}
-                  >
-                    Edit
-                  </Button>
-                  <Button
-                    size="small"
-                    danger
-                    icon={<Trash2 size={13} />}
-                    disabled={selectedGroupIds.length === 0}
-                    onClick={() => confirmGroupDeletion(selectedGroupIds)}
-                  >
-                    Del
-                  </Button>
-                </Space>
-                <Divider type="vertical" className="my-board-group-action-divider" />
-                <Space size={8} className="my-board-group-pin-filter">
-                  <Button
-                    type={groupPinFilter === 'pinned' ? 'primary' : 'default'}
-                    size="small"
-                    icon={<Bookmark size={12} />}
-                    onClick={() => setGroupPinFilter((value) => value === 'pinned' ? 'all' : 'pinned')}
-                  >
-                    핀 고정
-                    <span className="my-board-group-pin-filter-count">{formatNumberWithComma(pinnedGroupCount)}</span>
-                  </Button>
-                </Space>
+                <div className="my-board-group-toolbar-actions">
+                  <Space size={4}>
+                    <Button
+                      type="primary"
+                      size="small"
+                      icon={<Plus size={14} />}
+                      onClick={openCreateGroupModal}
+                      style={{
+                        background: token.colorPrimary,
+                        borderColor: token.colorPrimary,
+                      }}
+                    >
+                      Add
+                    </Button>
+                    <Button
+                      type="primary"
+                      size="small"
+                      icon={<Edit3 size={14} />}
+                      disabled={!selectedEditableGroup}
+                      style={getCompoundActionButtonStyle(Boolean(selectedEditableGroup))}
+                      onClick={openEditGroupModal}
+                    >
+                      Edit
+                    </Button>
+                    <Button
+                      type="primary"
+                      size="small"
+                      icon={<Trash2 size={14} />}
+                      disabled={selectedGroupIds.length === 0}
+                      style={getCompoundActionButtonStyle(selectedGroupIds.length > 0)}
+                      onClick={() => confirmGroupDeletion(selectedGroupIds)}
+                    >
+                      Del
+                    </Button>
+                  </Space>
+                  <Divider type="vertical" className="my-board-group-action-divider" />
+                  <Space size={8} className="my-board-group-pin-filter">
+                    <Button
+                      type={groupPinFilter === 'pinned' ? 'primary' : 'default'}
+                      size="small"
+                      icon={<Bookmark size={12} />}
+                      onClick={() => setGroupPinFilter((value) => value === 'pinned' ? 'all' : 'pinned')}
+                    >
+                      핀 고정
+                      <span className="my-board-group-pin-filter-count">{formatNumberWithComma(pinnedGroupCount)}</span>
+                    </Button>
+                  </Space>
+                </div>
 	              </div>
 	              <Space size={8}>
 	                <Button
@@ -4282,16 +4254,16 @@ const MyBoard: React.FC = () => {
         <Form form={groupForm} layout="vertical" style={{ marginTop: 16 }}>
           <Form.Item
             name="name"
-            label="그룹 이름"
+            label="타이틀"
             rules={[
-              { required: true, message: '그룹 이름을 입력하세요.' },
-              { whitespace: true, message: '그룹 이름을 입력하세요.' },
+              { required: true, message: '타이틀을 입력하세요.' },
+              { whitespace: true, message: '타이틀을 입력하세요.' },
             ]}
           >
-            <Input placeholder="그룹 이름을 입력하세요" />
+            <Input placeholder="타이틀을 입력하세요" />
           </Form.Item>
-          <Form.Item name="target" label="타겟/프로젝트">
-            <Select placeholder="타켓 선택">
+          <Form.Item name="target" label="프로젝트">
+            <Select placeholder="프로젝트를 선택하세요">
               {projectList.map(p => <Option key={p} value={p}>{p}</Option>)}
             </Select>
           </Form.Item>
@@ -4474,8 +4446,8 @@ const MyBoard: React.FC = () => {
               </Form.Item>
             </Col>
             <Col span={6}>
-              <Form.Item name="target" label="타겟" className="idea-inline-form-item">
-                <Input disabled />
+              <Form.Item name="target" label="프로젝트" className="idea-inline-form-item">
+                <Input />
               </Form.Item>
             </Col>
             <Col span={6}>
@@ -4543,7 +4515,6 @@ const MyBoard: React.FC = () => {
                       name="synthesisRequestNo"
                       label="합성 의뢰 번호"
                       className="idea-inline-form-item"
-                      rules={[{ required: true, message: '합성 의뢰 번호가 필요합니다.' }]}
                     >
                       <Input disabled />
                     </Form.Item>
@@ -4562,6 +4533,7 @@ const MyBoard: React.FC = () => {
                         multiple
                         allowClear={false}
                         removeIcon={null}
+                        className="synthesis-selection-cascader"
                         options={designPurposeOptions}
                         classNames={{ popup: { root: 'idea-compound-popup-scroll idea-toggle-cascader-popup' } }}
                         showCheckedStrategy={Cascader.SHOW_CHILD}
@@ -4630,6 +4602,7 @@ const MyBoard: React.FC = () => {
                         multiple
                         allowClear={false}
                         removeIcon={null}
+                        className="synthesis-selection-cascader"
                         options={designExpansionOptions}
                         classNames={{ popup: { root: 'idea-compound-popup-scroll idea-toggle-cascader-popup' } }}
                         showCheckedStrategy={Cascader.SHOW_CHILD}
@@ -5041,6 +5014,11 @@ const MyBoard: React.FC = () => {
           color: #000 !important;
           -webkit-text-fill-color: #000 !important;
         }
+        .idea-compound-form .synthesis-selection-cascader.ant-select-multiple .ant-select-selection-item {
+          background: ${token.colorFillQuaternary};
+          border-color: ${token.colorBorderSecondary};
+          color: ${token.colorTextSecondary};
+        }
         .idea-smiles-form-item textarea {
           resize: none !important;
         }
@@ -5316,9 +5294,9 @@ const MyBoard: React.FC = () => {
         .idea-toggle-cascader-popup .ant-cascader-menu-item-active,
         .idea-toggle-cascader-popup .ant-cascader-menu-item:has(.ant-cascader-checkbox-checked),
         .idea-toggle-cascader-popup .ant-cascader-menu-item:has(.ant-cascader-checkbox-indeterminate) {
-          background: ${token.colorPrimaryBg};
-          border-color: ${token.colorPrimary};
-          color: ${token.colorPrimary};
+          background: ${token.colorFillQuaternary};
+          border-color: ${token.colorBorderSecondary};
+          color: ${token.colorTextSecondary};
           font-weight: 600;
         }
         .idea-reference-cascader-dropdown {
@@ -5379,6 +5357,11 @@ const MyBoard: React.FC = () => {
           height: 20px;
           margin-inline: 0;
           border-inline-start-color: ${token.colorBorder};
+        }
+        .my-board-group-toolbar-actions {
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
         }
         .my-board-group-pin-filter {
           flex: 0 0 auto;
