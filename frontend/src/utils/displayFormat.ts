@@ -10,8 +10,12 @@ export const formatNumberWithComma = (value: unknown, options: { fractionDigits?
   const formattedValue = typeof options.fractionDigits === 'number'
     ? numericValue.toFixed(options.fractionDigits)
     : String(numericValue);
+  const [integerPart, fractionPart] = formattedValue.split('.');
+  const formattedIntegerPart = integerPart.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 
-  return formattedValue.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  return fractionPart === undefined
+    ? formattedIntegerPart
+    : `${formattedIntegerPart}.${fractionPart}`;
 };
 
 export const formatDisplayDate = (value: unknown) => {

@@ -6,6 +6,7 @@
 
 - `frontend_spec.md`: 프론트엔드 기술 스택과 기본 설계 방향
 - `UI_STANDARD_GUIDE.md`: 공통 UI 기준
+- `auth_database_schema.md`: PostgreSQL 14·Prisma 인증 및 비동기 계산 ERD와 데이터 보안 기준
 - `task.md`: 초기~중기 구현 체크리스트와 완료 현황
 - `walkthrough.md`: 주요 구현 결과 요약
 

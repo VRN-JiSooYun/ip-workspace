@@ -1,0 +1,144 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id            String         @id @default(uuid()) @db.Uuid
+  name          String
+  email         String         @unique
+  emailVerified Boolean        @default(false)
+  image         String?
+  role          String         @default("USER")
+  status        String         @default("ACTIVE")
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  sessions      Session[]
+  accounts      Account[]
+  calculationJobs CalculationJob[]
+  auditActions  AuthAuditLog[] @relation("AuditActor")
+  auditTargets  AuthAuditLog[] @relation("AuditTarget")
+
+  @@index([role, status])
+  @@map("user")
+}
+
+enum CalculationProvider {
+  THREE_D_PSA
+}
+
+enum CalculationJobType {
+  PSA
+  ESOL
+}
+
+enum CalculationJobStatus {
+  SUBMITTING
+  QUEUED
+  COMPLETED
+  FAILED
+}
+
+model CalculationJob {
+  id                 String               @id @default(uuid()) @db.Uuid
+  userId             String               @db.Uuid
+  compoundDraftKey   String
+  provider           CalculationProvider  @default(THREE_D_PSA)
+  jobType            CalculationJobType
+  externalKey        String               @unique
+  externalJobId      String?
+  smiles             String
+  status             CalculationJobStatus @default(SUBMITTING)
+  resultData         Json?
+  errorMessage       String?
+  requestedAt        DateTime             @default(now())
+  callbackReceivedAt DateTime?
+  completedAt        DateTime?
+  deletedAt          DateTime?
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+  user               User                 @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@index([userId, compoundDraftKey, deletedAt])
+  @@index([status, deletedAt, updatedAt])
+  @@map("calculation_job")
+}
+
+model Session {
+  id        String   @id @default(uuid()) @db.Uuid
+  expiresAt DateTime
+  token     String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  ipAddress String?
+  userAgent String?
+  userId    String   @db.Uuid
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("session")
+}
+
+model Account {
+  id                    String    @id @default(uuid()) @db.Uuid
+  accountId             String
+  providerId            String
+  userId                String    @db.Uuid
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  tokenValidatedAt      DateTime?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([providerId, accountId])
+  @@unique([userId, providerId])
+  @@index([userId])
+  @@map("account")
+}
+
+model Verification {
+  id         String   @id @default(uuid()) @db.Uuid
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([identifier])
+  @@index([expiresAt])
+  @@map("verification")
+}
+
+model AuthAuditLog {
+  id           String   @id @default(uuid()) @db.Uuid
+  actorUserId  String?  @db.Uuid
+  targetUserId String?  @db.Uuid
+  eventType    String
+  result       String
+  errorCode    String?
+  requestId    String?
+  ipAddress    String?
+  userAgent    String?
+  metadata     Json?
+  createdAt    DateTime @default(now())
+  actor        User?    @relation("AuditActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+  target       User?    @relation("AuditTarget", fields: [targetUserId], references: [id], onDelete: SetNull)
+
+  @@index([actorUserId, createdAt])
+  @@index([targetUserId, createdAt])
+  @@index([eventType, createdAt])
+  @@index([requestId])
+  @@index([createdAt])
+  @@map("auth_audit_log")
+}

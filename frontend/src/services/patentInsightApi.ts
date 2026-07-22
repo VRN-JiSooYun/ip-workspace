@@ -6,6 +6,7 @@ import {
   PatentInsightStatistics,
   PatentInsightTimePoint,
 } from '../mocks/patentInsight';
+import { notifyIfAuthRequired } from './authApi';
 
 export type PatentInsightStatisticsRequest = {
   applicant?: string;
@@ -149,7 +150,9 @@ const postJson = async <T>(path: string, body: Record<string, unknown>): Promise
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
+    credentials: 'include',
   });
+  notifyIfAuthRequired(response);
 
   if (!response.ok) {
     throw new Error(`Patent Insight API request failed: ${response.status}`);

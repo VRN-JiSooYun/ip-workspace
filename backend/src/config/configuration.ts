@@ -40,5 +40,25 @@ export default () => ({
     authToken: process.env.COMPOUND_API_AUTH_TOKEN ?? '',
     timeoutMs: parseNumber(process.env.COMPOUND_API_TIMEOUT_MS, 30000),
   },
+  threeDPsa: {
+    apiUrl: process.env.THREE_D_PSA_API_URL ?? 'http://172.16.1.130:20010',
+    submitTimeoutMs: parseNumber(process.env.THREE_D_PSA_SUBMIT_TIMEOUT_MS, 10000),
+    callbackSecret: process.env.THREE_D_PSA_CALLBACK_SECRET ?? '',
+    callbackMaxBodyMb: parseNumber(process.env.THREE_D_PSA_CALLBACK_MAX_BODY_MB, 25),
+  },
+  vprop: {
+    apiUrl: process.env.VPROP_API_URL ?? 'http://172.16.1.207:8100',
+    timeoutMs: parseNumber(process.env.VPROP_API_TIMEOUT_MS, 25000),
+    maxResponseBytes: parseNumber(process.env.VPROP_MAX_RESPONSE_BYTES, 5242880),
+  },
+  auth: {
+    groupwareOrigin: process.env.GROUPWARE_ORIGIN ?? 'https://voronoi.app',
+    sessionExpiresInSeconds: parseNumber(process.env.AUTH_SESSION_EXPIRES_IN_SECONDS, 21600),
+    sessionUpdateAgeSeconds: parseNumber(process.env.AUTH_SESSION_UPDATE_AGE_SECONDS, 1800),
+    revalidateIntervalSeconds: parseNumber(
+      process.env.GROUPWARE_REVALIDATE_INTERVAL_SECONDS,
+      600,
+    ),
+  },
   httpTimeoutMs: parseNumber(process.env.HTTP_TIMEOUT_MS, 30000),
 });

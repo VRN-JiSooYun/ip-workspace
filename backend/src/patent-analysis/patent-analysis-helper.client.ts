@@ -5,7 +5,7 @@ import {
 } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
 import { ConfigService } from '@nestjs/config';
-import FormData = require('form-data');
+import FormData from 'form-data';
 import {
   PatentAnalysisFormPayload,
   PatentAnalysisHelperResult,

@@ -2,7 +2,7 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
 const monitoringProxy = {
-  target: 'http://172.16.1.212:2026',
+  target: 'http://172.16.1.200:2026',
   changeOrigin: true,
 };
 

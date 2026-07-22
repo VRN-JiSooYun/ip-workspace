@@ -1,20 +1,21 @@
-FROM oven/bun:1 AS build
+FROM oven/bun:1.3.14 AS build
 
 WORKDIR /app
 
-COPY package.json ./
-RUN bun install
+COPY package.json bun.lock ./
+RUN bun install --frozen-lockfile
 
 COPY . .
+RUN DATABASE_URL=postgresql://prisma-build:prisma-build@localhost:5432/prisma-build bunx --bun prisma generate
 RUN bun run build
 
-FROM oven/bun:1 AS runtime
+FROM oven/bun:1.3.14 AS runtime
 
 WORKDIR /app
 ENV NODE_ENV=production
 
-COPY package.json ./
-RUN bun install --production
+COPY package.json bun.lock ./
+RUN bun install --production --frozen-lockfile
 
 COPY --from=build /app/dist ./dist
 

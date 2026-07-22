@@ -29,8 +29,8 @@
 - Mock 데이터: `mocks/*.ts` (예: `compounds.ts`).
 
 ## Frontend Display Formatting Rules
-- 숫자 표시: 프론트엔드 화면에 표시되는 정수/소수는 기본적으로 셋 자리 comma를 적용합니다.
-  - 권장 정규식: `String(value).replace(/\B(?=(\d{3})+(?!\d))/g, ',')`
+- 숫자 표시: 프론트엔드 화면에 표시되는 숫자는 기본적으로 정수부에 셋 자리 comma를 적용합니다.
+  - 공통 유틸 `formatNumberWithComma`를 사용하며 정수부에만 셋 자리 comma를 적용하고 소수점 이하에는 comma를 적용하지 않습니다.
   - 예: `1000` → `1,000`, `1234567.89` → `1,234,567.89`
   - 예외: 특허 번호, compound ID, model ID처럼 숫자처럼 보여도 식별자인 값은 comma를 적용하지 않습니다.
 - 날짜 표시: 프론트엔드 화면에 표시되는 날짜는 기본적으로 `YYYY.mm.dd`, 날짜+시간은 `YYYY.mm.dd HH:MM` 형식을 사용합니다.
@@ -68,6 +68,7 @@
   - 컨테이너 내에서 `bun add <package>`, `bun run build` 등 실행 가능.
   - 로컬에서는 `docker-compose.yml`을 통해 컨테이너 실행.
 - **문서화**: 모든 작업내용을 문서화합니다. 작업 보고서는 `docs/reports/YYYY/MM/report_YYYYMMDD_<topic>.md`, 날짜 기반 작업 계획은 `docs/plans/YYYY/MM/plan_YYYYMMDD_<topic>.md`에 저장하고, 장기 기준 문서는 `docs/` 루트에 유지합니다. 상세 탐색 및 명명 규칙은 `docs/README.md`를 따릅니다.
+- **DB Schema·ERD 동기화**: PostgreSQL/Prisma table, column, enum, relation, FK, index, unique constraint, nullability 또는 soft delete 정책을 추가·변경·삭제할 때는 같은 작업에서 `backend/prisma/schema.prisma`, 관련 migration SQL과 `docs/auth_database_schema.md`의 Mermaid ERD·table 설명을 함께 갱신합니다. DB 변경 작업 보고서에는 schema·migration·ERD 간 정합성 확인 결과를 기록하며, 사용자가 ERD 문서화를 별도로 요청하지 않아도 항상 적용합니다.
 - **라이브러리/프레임워크 질의**: Context7 MCP 문서를 먼저 조회하고, sequential thinking을 사용하여 답변 구성.
 - **현재 인프라 구성**:
   - Frontend: Vite + React + TypeScript + Ant Design + Zustand + React Context (ThemeContext)

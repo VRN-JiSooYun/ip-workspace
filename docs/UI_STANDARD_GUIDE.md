@@ -37,8 +37,8 @@
   - page number는 셋 자리 comma를 적용하고, page item은 auto width와 충분한 좌우 여백을 유지합니다.
 
 ### 데이터 표시 포맷 (Number & Date)
-- 숫자 표시: 화면에 표시되는 정수/소수는 기본적으로 셋 자리 comma를 적용합니다.
-  - 권장 정규식: `String(value).replace(/\B(?=(\d{3})+(?!\d))/g, ',')`
+- 숫자 표시: 화면에 표시되는 숫자는 기본적으로 정수부에 셋 자리 comma를 적용합니다.
+  - 공통 유틸 `formatNumberWithComma`를 사용하며 소수점 이하에는 comma를 적용하지 않습니다.
   - 예: `1000` → `1,000`, `1234567.89` → `1,234,567.89`
   - 예외: 특허 번호, compound ID, model ID처럼 숫자처럼 보여도 식별자인 값은 comma를 적용하지 않습니다.
 - 날짜 표시: 화면에 표시되는 날짜는 기본적으로 `YYYY.mm.dd`, 날짜+시간은 `YYYY.mm.dd HH:MM` 형식을 사용합니다.

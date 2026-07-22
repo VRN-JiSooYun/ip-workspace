@@ -1,4 +1,5 @@
 import { Patent } from '../mocks/patents';
+import { notifyIfAuthRequired } from './authApi';
 
 type RuntimeWindow = Window & {
   _env_?: {
@@ -118,7 +119,8 @@ const requestJson = async <T>(
   }
 
   try {
-    const response = await fetch(url, { signal: controller.signal });
+    const response = await fetch(url, { signal: controller.signal, credentials: 'include' });
+    notifyIfAuthRequired(response);
     if (!response.ok) {
       throw new ApiRequestError(await getErrorMessage(response), response.status);
     }
@@ -166,7 +168,9 @@ const requestJsonBody = async <T>(
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body ?? {}),
       signal: controller.signal,
+      credentials: 'include',
     });
+    notifyIfAuthRequired(response);
     if (!response.ok) {
       throw new ApiRequestError(await getErrorMessage(response), response.status);
     }
@@ -209,7 +213,8 @@ const requestBlob = async (
   }
 
   try {
-    const response = await fetch(url, { signal: controller.signal });
+    const response = await fetch(url, { signal: controller.signal, credentials: 'include' });
+    notifyIfAuthRequired(response);
     if (!response.ok) {
       throw new ApiRequestError(await getErrorMessage(response), response.status);
     }

@@ -6,6 +6,9 @@ import myBoardGroup4Svg from '../assets/mol_svg/myboard_group4.svg?raw';
 import myBoardGroup5Svg from '../assets/mol_svg/myboard_group5.svg?raw';
 import exampleCompoundsCsv from './Example_compounds.csv?raw';
 import type { KinaseFamily, KinomeLayoutId } from '../data/kinomeTree';
+import type { CompoundCalculateData } from '../services/compoundApi';
+import type { QuantumCalculationJob } from '../services/calculationApi';
+import type { VpropResult } from '../services/vpropApi';
 
 export interface CompoundGroup {
   id: string;
@@ -87,6 +90,24 @@ export interface CompoundQuickViewerAsset {
   };
 }
 
+export type ChemaxonCalculationResult = {
+  smiles: string;
+  calculatedAt: string;
+  data: CompoundCalculateData;
+};
+
+export type QuantumCalculations = {
+  psa?: QuantumCalculationJob;
+  esol?: QuantumCalculationJob;
+};
+
+export type VpropCalculationResult = {
+  smiles: string;
+  method: 'rdkit';
+  calculatedAt: string;
+  data: VpropResult;
+};
+
 export interface Compound {
   id: string;
   groupId: string;
@@ -111,6 +132,9 @@ export interface Compound {
   properties1?: number[];
   properties2?: number[];
   requiredCalcs?: string[];
+  chemaxonCalculation?: ChemaxonCalculationResult;
+  vpropCalculation?: VpropCalculationResult;
+  quantumCalculations?: QuantumCalculations;
   designNo?: string;
   designMemo?: string;
   requiredAmountMg?: number;
@@ -383,7 +407,7 @@ const createMockCompound = (
     designSource: source,
     properties1: [45 + (seed % 5) * 8, 35 + (seed % 7) * 7, 50 + (seed % 6) * 6, 42 + (seed % 8) * 5],
     properties2: [52 + (seed % 6) * 6, 40 + (seed % 5) * 9, 48 + (seed % 7) * 6, 38 + (seed % 6) * 7],
-    requiredCalcs: seed % 2 === 0 ? ['3D TPSA QM', 'Solubility QM'] : ['Permeability MD', '특허성'],
+    requiredCalcs: seed % 2 === 0 ? ['3D PSA QM', 'Solubility QM'] : ['Permeability MD', '특허성'],
     designNo: designName,
     designMemo: `${memoBase} - ${source} 기반 ${seed % 2 === 0 ? '극성 조정' : '치환기 확장'} 후보`,
     requiredAmountMg: 10 + (seed % 5) * 5,
@@ -428,7 +452,7 @@ const legacyMockCompounds: Compound[] = [
     },
     properties1: [100, 20, 40, 50],
     properties2: [80, 40, 60, 30],
-    requiredCalcs: ['3D TPSA QM', 'Solubility QM'],
+    requiredCalcs: ['3D PSA QM', 'Solubility QM'],
     designNo: 'D-cMET-001',
     designMemo: 'Tepotinib hinge binder 변형안',
     requiredAmountMg: 20,
@@ -533,7 +557,7 @@ const legacyMockCompounds: Compound[] = [
     },
     properties1: [75, 55, 65, 45],
     properties2: [68, 58, 72, 52],
-    requiredCalcs: ['3D TPSA QM', '합성기능성'],
+    requiredCalcs: ['3D PSA QM', '합성기능성'],
     designNo: 'D-cMET-004',
     designMemo: 'fragment merge 후보',
     requiredAmountMg: 10,
@@ -574,7 +598,7 @@ const legacyMockCompounds: Compound[] = [
     designSource: '내 머리',
     properties1: [62, 48, 71, 54],
     properties2: [58, 45, 69, 51],
-    requiredCalcs: ['3D TPSA QM', '특허성'],
+    requiredCalcs: ['3D PSA QM', '특허성'],
     designNo: 'D-MB-001',
     designMemo: 'C1CC1(C(=O)NC2=CC=C(C=C2)OC3=C4C=C(NC4=NC=C3)C(=O)NCCN5CCOCC5)C(=O)NC6=CC=C(C=C6)F',
     requiredAmountMg: 10,

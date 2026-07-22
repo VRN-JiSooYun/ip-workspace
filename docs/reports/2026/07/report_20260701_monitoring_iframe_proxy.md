@@ -4,7 +4,7 @@
 - 2026.07.01
 
 ## 요청
-- 내부망 모니터링 화면 `http://172.16.1.212:2026`을 My Workspace 프론트 화면에서 iframe으로 표시한다.
+- 내부망 모니터링 화면 `http://172.16.1.200:2026`을 My Workspace 프론트 화면에서 iframe으로 표시한다.
 - 외부 네트워크 사용자는 내부 IP에 직접 접근할 수 없으므로, 우리 도메인 하위 경로를 reverse proxy로 연결한다.
 - 좌측 메뉴의 `수리응용2팀 서비스 개발 진행 현황` 위에 `모니터링` 메뉴를 추가한다.
 
@@ -24,7 +24,7 @@
   - mini sidebar에서도 동일하게 표시되도록 `bottomMiniMenuItems`에 추가했다.
 
 - `frontend/vite.config.ts`
-  - 로컬 Vite dev server에서 `/monitoring` 요청을 `http://172.16.1.212:2026`으로 proxy하도록 추가했다.
+  - 로컬 Vite dev server에서 `/monitoring` 요청을 `http://172.16.1.200:2026`으로 proxy하도록 추가했다.
 
 - `frontend/nginx.conf`
   - 정적 nginx 배포에서 `/monitoring/` 요청을 `${MONITORING_PROXY_TARGET}`으로 proxy하도록 추가했다.
@@ -32,7 +32,7 @@
 
 - `docker-compose.yml`, `docker-compose.dev.yml`, `frontend/env.template.js`, `frontend/src/types/external-modules.d.ts`
   - `VITE_MONITORING_URL=/monitoring/`을 추가했다.
-  - dev nginx 배포용 `MONITORING_PROXY_TARGET=http://172.16.1.212:2026`을 추가했다.
+  - dev nginx 배포용 `MONITORING_PROXY_TARGET=http://172.16.1.200:2026`을 추가했다.
 
 ## Python 모니터링 화면에서 확인할 사항
 - iframe 차단 헤더가 없어야 한다.

@@ -43,7 +43,6 @@ export const DEFAULT_GROUP_STRUCTURE_VIEW_SETTINGS: GroupStructureViewSettings =
 };
 
 const BOOKMARKED_GROUP_IDS_STORAGE_KEY = 'my-board:bookmarked-group-ids';
-const COMPOUND_LOGIN_TOKEN_STORAGE_KEY = 'compound-api:login-token';
 
 const readBookmarkedGroupIds = (): string[] => {
   if (typeof window === 'undefined') return [];
@@ -68,30 +67,6 @@ const writeBookmarkedGroupIds = (groupIds: string[]) => {
   }
 };
 
-const readCompoundLoginToken = (): string => {
-  if (typeof window === 'undefined') return '';
-
-  try {
-    return window.localStorage.getItem(COMPOUND_LOGIN_TOKEN_STORAGE_KEY) ?? '';
-  } catch {
-    return '';
-  }
-};
-
-const writeCompoundLoginToken = (loginToken: string) => {
-  if (typeof window === 'undefined') return;
-
-  try {
-    if (loginToken) {
-      window.localStorage.setItem(COMPOUND_LOGIN_TOKEN_STORAGE_KEY, loginToken);
-    } else {
-      window.localStorage.removeItem(COMPOUND_LOGIN_TOKEN_STORAGE_KEY);
-    }
-  } catch {
-    // Ignore temporary UX persistence failures.
-  }
-};
-
 const insertCompoundAfterGroupTail = (rows: Compound[], compound: Compound) => {
   const rowsWithoutCompound = rows.filter((item) => item.id !== compound.id);
   const lastGroupIndex = rowsWithoutCompound.reduce((lastIndex, item, index) => (
@@ -111,7 +86,6 @@ interface BoardState {
   selectedSarCompoundIds: string[];
   hiddenCompoundIds: string[];
   bookmarkedGroupIds: string[];
-  compoundLoginToken: string;
   externalCompoundRows: Compound[];
   compoundSarRows: CompoundSarDataRow[];
   groupedCompoundSarData: GroupedCompoundSarData[];
@@ -122,7 +96,6 @@ interface BoardState {
   setSelectedSarCompoundIds: (compoundIds: string[]) => void;
   toggleBookmarkedGroup: (groupId: string) => void;
   setBookmarkedGroupIds: (groupIds: string[]) => void;
-  setCompoundLoginToken: (loginToken: string) => void;
   addExternalCompoundRow: (compound: Compound) => void;
   setExternalCompoundRows: (compounds: Compound[]) => void;
   setCompoundSarData: (rows: CompoundSarDataRow[], groups: GroupedCompoundSarData[]) => void;
@@ -141,7 +114,6 @@ export const useBoardStore = create<BoardState>((set) => ({
   selectedSarCompoundIds: [],
   hiddenCompoundIds: [],
   bookmarkedGroupIds: readBookmarkedGroupIds(),
-  compoundLoginToken: readCompoundLoginToken(),
   externalCompoundRows: [],
   compoundSarRows: [],
   groupedCompoundSarData: [],
@@ -165,10 +137,6 @@ export const useBoardStore = create<BoardState>((set) => ({
   setBookmarkedGroupIds: (groupIds) => {
     writeBookmarkedGroupIds(groupIds);
     set({ bookmarkedGroupIds: groupIds });
-  },
-  setCompoundLoginToken: (loginToken) => {
-    writeCompoundLoginToken(loginToken);
-    set({ compoundLoginToken: loginToken });
   },
   addExternalCompoundRow: (compound) => set((state) => ({
     externalCompoundRows: insertCompoundAfterGroupTail(state.externalCompoundRows, compound),

@@ -1,3 +1,5 @@
+import { notifyIfAuthRequired } from './authApi';
+
 type RuntimeWindow = Window & {
   _env_?: {
     VITE_API_URL?: string;
@@ -76,7 +78,9 @@ export const conformerApi = {
         ...request,
       }),
       signal,
+      credentials: 'include',
     });
+    notifyIfAuthRequired(response);
 
     if (!response.ok) {
       throw new ConformerApiError(await getErrorMessage(response), response.status);

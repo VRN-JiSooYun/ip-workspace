@@ -4,22 +4,42 @@ import dayjs from 'dayjs';
 import { useNavigate } from 'react-router-dom';
 import { Alert, App, Button, Card, Col, DatePicker, Empty, Input, InputNumber, Row, Space, Spin, Table, Tooltip, Typography, theme } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
-import { BarChart3, ChevronDown, ChevronUp, RefreshCw, RotateCcw, Search } from 'lucide-react';
+import { GridLayout, useContainerWidth } from 'react-grid-layout';
+import type { Layout } from 'react-grid-layout';
+import { noCompactor } from 'react-grid-layout/core';
+import { BarChart3, Check, ChevronDown, ChevronUp, Edit3, GripVertical, RefreshCw, RotateCcw, Search, X } from 'lucide-react';
 import PageHeaderBreadcrumb from '../components/common/PageHeaderBreadcrumb';
 import { getPatentAnalysisLayoutPreset } from '../config/patentAnalysisLayout';
+import {
+  PATENT_INSIGHT_BREAKPOINTS,
+  PATENT_INSIGHT_COLS,
+  getDefaultPatentInsightLayouts,
+  getPatentInsightBreakpoint,
+  normalizePatentInsightLayouts,
+  readPatentInsightLayouts,
+  toReactGridLayouts,
+  writePatentInsightLayouts,
+  type PatentInsightLayouts,
+} from '../config/patentInsightGrid';
+import { useAuthSession } from '../contexts/AuthSessionContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { PatentInsightApplicantItem, PatentInsightCountItem, PatentInsightStatistics } from '../mocks/patentInsight';
 import { patentInsightApi } from '../services/patentInsightApi';
 import { useUIStore } from '../store/useUIStore';
+import 'react-grid-layout/css/styles.css';
+import 'react-resizable/css/styles.css';
 
 const { RangePicker } = DatePicker;
 const { Text } = Typography;
 
-const SPLIT_STORAGE_KEY = 'patent-insight-split-ratio';
 const FILTER_STORAGE_KEY = 'patent-insight-filters';
-const SPLIT_DEFAULT_PERCENT = 60;
-const SPLIT_MIN_PERCENT = 46;
-const SPLIT_MAX_PERCENT = 72;
+const CHART_RESIZE_EVENT = 'patent-insight:chart-resize';
+const PATENT_INSIGHT_GRID_MARGIN = [12, 12] as const;
+const PATENT_INSIGHT_GRID_PADDING = [0, 0] as const;
+const COLLISION_SAFE_NO_COMPACTOR = {
+  ...noCompactor,
+  preventCollision: true,
+};
 const DEFAULT_DATE_RANGE_START = '1970-01-01';
 const DEFAULT_TOP_N_TARGET = 20;
 const EMPTY_PATENT_INSIGHT_STATISTICS: PatentInsightStatistics = {
@@ -38,14 +58,6 @@ type StoredFilters = {
   dateRange?: [string | null, string | null] | null;
   topNApplicant?: number;
   topNTarget?: number;
-};
-
-const readStoredSplitRatio = () => {
-  if (typeof window === 'undefined') return SPLIT_DEFAULT_PERCENT;
-  const value = Number(window.localStorage.getItem(SPLIT_STORAGE_KEY));
-  return Number.isFinite(value)
-    ? Math.min(SPLIT_MAX_PERCENT, Math.max(SPLIT_MIN_PERCENT, value))
-    : SPLIT_DEFAULT_PERCENT;
 };
 
 const readStoredFilters = (): StoredFilters => {
@@ -124,7 +136,7 @@ const SafeReactECharts: React.FC<{
 
   useEffect(() => {
     const container = containerRef.current;
-    if (!container || typeof ResizeObserver === 'undefined') return;
+    if (!container) return;
 
     const resizeChart = () => {
       if (resizeFrameRef.current !== null) {
@@ -134,16 +146,29 @@ const SafeReactECharts: React.FC<{
         resizeFrameRef.current = null;
         const chart = chartRef.current?.getEchartsInstance?.();
         if (chart && !chart.isDisposed?.()) {
-          chart.resize();
+          const rect = container.getBoundingClientRect();
+          if (rect.width > 0 && rect.height > 0) {
+            chart.resize({
+              width: Math.floor(rect.width),
+              height: Math.floor(rect.height),
+            });
+          }
         }
       });
     };
 
-    const resizeObserver = new ResizeObserver(resizeChart);
-    resizeObserver.observe(container);
+    const gridItem = container.closest('.react-grid-item');
+    const resizeObserver = typeof ResizeObserver === 'undefined'
+      ? null
+      : new ResizeObserver(resizeChart);
+    resizeObserver?.observe(container);
+    if (gridItem) resizeObserver?.observe(gridItem);
+    window.addEventListener(CHART_RESIZE_EVENT, resizeChart);
+    resizeChart();
 
     return () => {
-      resizeObserver.disconnect();
+      resizeObserver?.disconnect();
+      window.removeEventListener(CHART_RESIZE_EVENT, resizeChart);
       if (resizeFrameRef.current !== null) {
         window.cancelAnimationFrame(resizeFrameRef.current);
         resizeFrameRef.current = null;
@@ -172,7 +197,8 @@ const ChartPanel: React.FC<{
   extra?: React.ReactNode;
   children: React.ReactNode;
   className?: string;
-}> = ({ title, extra, children, className }) => {
+  isLayoutEditing?: boolean;
+}> = ({ title, extra, children, className, isLayoutEditing = false }) => {
   const { token } = theme.useToken();
 
   return (
@@ -184,6 +210,7 @@ const ChartPanel: React.FC<{
           display: 'flex',
           flexDirection: 'column',
           padding: 14,
+          boxSizing: 'border-box',
         },
       }}
       style={{
@@ -192,7 +219,10 @@ const ChartPanel: React.FC<{
       }}
     >
       <div className="patent-insight-card-header">
-        <Text strong>{title}</Text>
+        <div className="patent-insight-card-title patent-insight-card-drag-handle">
+          {isLayoutEditing ? <GripVertical size={15} aria-hidden="true" /> : null}
+          <Text strong>{title}</Text>
+        </div>
         {extra}
       </div>
       <div className="patent-insight-chart-body">
@@ -202,16 +232,30 @@ const ChartPanel: React.FC<{
   );
 };
 
-const MetricCard: React.FC<{ label: string; value: number; caption?: string }> = ({ label, value, caption }) => {
+const MetricCard: React.FC<{
+  label: string;
+  value: number;
+  caption?: string;
+  isLayoutEditing?: boolean;
+}> = ({ label, value, caption, isLayoutEditing = false }) => {
   const { token } = theme.useToken();
 
   return (
     <Card
       className="patent-insight-metric-card"
       style={{ border: `1px solid ${token.colorBorderSecondary}`, boxShadow: 'none' }}
-      styles={{ body: { padding: 16 } }}
+      styles={{
+        body: {
+          height: '100%',
+          padding: 16,
+          boxSizing: 'border-box',
+        },
+      }}
     >
-      <Text type="secondary" style={{ fontSize: 11, fontWeight: 700 }}>{label}</Text>
+      <div className="patent-insight-metric-title patent-insight-card-drag-handle">
+        {isLayoutEditing ? <GripVertical size={15} aria-hidden="true" /> : null}
+        <Text type="secondary" style={{ fontSize: 11, fontWeight: 700 }}>{label}</Text>
+      </div>
       <div style={{ marginTop: 12, fontSize: 30, lineHeight: 1, fontWeight: 760, color: token.colorPrimary }}>
         {formatInteger(value)}
       </div>
@@ -222,14 +266,25 @@ const MetricCard: React.FC<{ label: string; value: number; caption?: string }> =
 
 const PatentInsight: React.FC = () => {
   const { token } = theme.useToken();
-  const { message } = App.useApp();
+  const { message, modal } = App.useApp();
+  const session = useAuthSession();
   const navigate = useNavigate();
   const { isDarkMode } = useTheme();
   const { setHeaderContent } = useUIStore();
   const storedFilters = useMemo(readStoredFilters, []);
   const hasLoadedInitialStatisticsRef = useRef(false);
-  const splitContainerRef = useRef<HTMLDivElement | null>(null);
-  const splitRafRef = useRef<number | null>(null);
+  const initialGridLayouts = useMemo(
+    () => readPatentInsightLayouts(session.user.id),
+    [session.user.id],
+  );
+  const {
+    width: gridWidth,
+    containerRef: gridContainerRef,
+    mounted: isGridMeasured,
+  } = useContainerWidth({ initialWidth: 1280 });
+  const handleGridContainerRef = React.useCallback((node: HTMLDivElement | null) => {
+    (gridContainerRef as React.MutableRefObject<HTMLDivElement | null>).current = node;
+  }, [gridContainerRef]);
 
   const [viewportWidth, setViewportWidth] = useState(() => (typeof window === 'undefined' ? 1920 : window.innerWidth));
   const [statistics, setStatistics] = useState<PatentInsightStatistics>(EMPTY_PATENT_INSIGHT_STATISTICS);
@@ -243,13 +298,42 @@ const PatentInsight: React.FC = () => {
   });
   const [topNApplicant, setTopNApplicant] = useState(storedFilters.topNApplicant ?? 10);
   const [topNTarget, setTopNTarget] = useState(storedFilters.topNTarget ?? DEFAULT_TOP_N_TARGET);
-  const [splitRatio, setSplitRatio] = useState(readStoredSplitRatio);
-  const [isResizingSplit, setIsResizingSplit] = useState(false);
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const [filingLanguageLegendSelected, setFilingLanguageLegendSelected] = useState<Record<string, boolean>>({});
+  const [savedGridLayouts, setSavedGridLayouts] = useState<PatentInsightLayouts>(initialGridLayouts);
+  const [draftGridLayouts, setDraftGridLayouts] = useState<PatentInsightLayouts>(initialGridLayouts);
+  const draftGridLayoutsRef = useRef<PatentInsightLayouts>(initialGridLayouts);
+  const [isLayoutEditing, setIsLayoutEditing] = useState(false);
 
   const layoutPreset = useMemo(() => getPatentAnalysisLayoutPreset(viewportWidth), [viewportWidth]);
   const isStackedLayout = viewportWidth < 1200;
+  const canEditGridLayout = isGridMeasured && gridWidth >= PATENT_INSIGHT_BREAKPOINTS.sm;
+  const isGridInteractionEnabled = isLayoutEditing && canEditGridLayout;
+  const activeGridBreakpoint = getPatentInsightBreakpoint(gridWidth);
+  const gridColumnCount = PATENT_INSIGHT_COLS[activeGridBreakpoint];
+  const gridStyle = useMemo(() => ({
+    '--patent-insight-grid-columns': gridColumnCount,
+  }) as React.CSSProperties, [gridColumnCount]);
+  const gridDragConfig = useMemo(() => ({
+    enabled: isGridInteractionEnabled,
+    handle: '.patent-insight-card-drag-handle',
+    cancel: '.patent-insight-chart-body, canvas, button, a, input, .ant-table, .ant-select',
+  }), [isGridInteractionEnabled]);
+  const gridResizeConfig = useMemo(() => ({
+    enabled: isGridInteractionEnabled,
+    handles: ['se' as const],
+  }), [isGridInteractionEnabled]);
+  const gridConfig = useMemo(() => ({
+    cols: gridColumnCount,
+    rowHeight: 33,
+    margin: PATENT_INSIGHT_GRID_MARGIN,
+    containerPadding: PATENT_INSIGHT_GRID_PADDING,
+  }), [gridColumnCount]);
+  const reactGridLayouts = useMemo(
+    () => toReactGridLayouts(draftGridLayouts, gridWidth),
+    [draftGridLayouts, gridWidth],
+  );
+  const activeGridLayout = reactGridLayouts[activeGridBreakpoint] ?? [];
 
   const chartTextColor = token.colorTextSecondary;
   const chartGridColor = token.colorBorderSecondary;
@@ -329,10 +413,6 @@ const PatentInsight: React.FC = () => {
   }, [setHeaderContent]);
 
   useEffect(() => {
-    window.localStorage.setItem(SPLIT_STORAGE_KEY, String(splitRatio));
-  }, [splitRatio]);
-
-  useEffect(() => {
     window.localStorage.setItem(FILTER_STORAGE_KEY, JSON.stringify({
       applicant,
       dateRange: dateRange ? [
@@ -344,74 +424,72 @@ const PatentInsight: React.FC = () => {
     }));
   }, [applicant, dateRange, topNApplicant, topNTarget]);
 
-  const clampSplitRatio = React.useCallback((value: number) =>
-    Math.min(SPLIT_MAX_PERCENT, Math.max(SPLIT_MIN_PERCENT, value)), []);
-
-  const updateSplitRatioFromClientX = React.useCallback((clientX: number) => {
-    const container = splitContainerRef.current;
-    if (!container) return;
-    const rect = container.getBoundingClientRect();
-    if (rect.width <= 0) return;
-    setSplitRatio(clampSplitRatio(((clientX - rect.left) / rect.width) * 100));
-  }, [clampSplitRatio]);
-
-  const stopSplitResize = React.useCallback(() => {
-    setIsResizingSplit(false);
-    document.body.style.cursor = '';
-    document.body.style.userSelect = '';
-  }, []);
+  useEffect(() => {
+    const nextLayouts = readPatentInsightLayouts(session.user.id);
+    setSavedGridLayouts(nextLayouts);
+    setDraftGridLayouts(nextLayouts);
+    draftGridLayoutsRef.current = nextLayouts;
+    setIsLayoutEditing(false);
+  }, [session.user.id]);
 
   useEffect(() => {
-    if (!isResizingSplit) return;
+    if (canEditGridLayout || !isLayoutEditing) return;
+    setDraftGridLayouts(savedGridLayouts);
+    draftGridLayoutsRef.current = savedGridLayouts;
+    setIsLayoutEditing(false);
+  }, [canEditGridLayout, isLayoutEditing, savedGridLayouts]);
 
-    const onMouseMove = (event: MouseEvent) => {
-      if (splitRafRef.current) {
-        window.cancelAnimationFrame(splitRafRef.current);
-      }
-      splitRafRef.current = window.requestAnimationFrame(() => {
-        updateSplitRatioFromClientX(event.clientX);
-      });
-    };
-    const onMouseUp = () => stopSplitResize();
+  const handleGridLayoutChange = React.useCallback((currentLayout: Layout) => {
+    if (!isGridInteractionEnabled) return;
+    draftGridLayoutsRef.current = normalizePatentInsightLayouts({
+      ...draftGridLayoutsRef.current,
+      [activeGridBreakpoint]: currentLayout,
+    });
+  }, [activeGridBreakpoint, isGridInteractionEnabled]);
 
-    window.addEventListener('mousemove', onMouseMove);
-    window.addEventListener('mouseup', onMouseUp);
+  const handleGridResizeStop = React.useCallback(() => {
+    window.dispatchEvent(new Event(CHART_RESIZE_EVENT));
+  }, []);
 
-    return () => {
-      window.removeEventListener('mousemove', onMouseMove);
-      window.removeEventListener('mouseup', onMouseUp);
-      if (splitRafRef.current) {
-        window.cancelAnimationFrame(splitRafRef.current);
-        splitRafRef.current = null;
-      }
-    };
-  }, [isResizingSplit, stopSplitResize, updateSplitRatioFromClientX]);
-
-  const handleSplitMouseDown = (event: React.MouseEvent<HTMLDivElement>) => {
-    event.preventDefault();
-    setIsResizingSplit(true);
-    document.body.style.cursor = 'col-resize';
-    document.body.style.userSelect = 'none';
+  const handleStartLayoutEdit = () => {
+    if (!canEditGridLayout) return;
+    setDraftGridLayouts(savedGridLayouts);
+    draftGridLayoutsRef.current = savedGridLayouts;
+    setIsLayoutEditing(true);
   };
 
-  const handleSplitKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
-    const step = 2;
-    if (event.key === 'ArrowLeft') {
-      event.preventDefault();
-      setSplitRatio(prev => clampSplitRatio(prev - step));
-    } else if (event.key === 'ArrowRight') {
-      event.preventDefault();
-      setSplitRatio(prev => clampSplitRatio(prev + step));
-    } else if (event.key === 'Home') {
-      event.preventDefault();
-      setSplitRatio(SPLIT_MIN_PERCENT);
-    } else if (event.key === 'End') {
-      event.preventDefault();
-      setSplitRatio(SPLIT_MAX_PERCENT);
-    } else if (event.key === 'Enter' || event.key === ' ') {
-      event.preventDefault();
-      setSplitRatio(SPLIT_DEFAULT_PERCENT);
+  const handleCancelLayoutEdit = () => {
+    setDraftGridLayouts(savedGridLayouts);
+    draftGridLayoutsRef.current = savedGridLayouts;
+    setIsLayoutEditing(false);
+  };
+
+  const handleSaveLayout = () => {
+    try {
+      const nextLayouts = draftGridLayoutsRef.current;
+      writePatentInsightLayouts(session.user.id, nextLayouts);
+      setSavedGridLayouts(nextLayouts);
+      setDraftGridLayouts(nextLayouts);
+      setIsLayoutEditing(false);
+      message.success('차트 배치를 브라우저에 저장했습니다.');
+    } catch {
+      message.error('차트 배치를 저장하지 못했습니다.');
     }
+  };
+
+  const handleResetLayout = () => {
+    modal.confirm({
+      title: '기본 차트 배치로 초기화할까요?',
+      content: '기본 배치를 편집 화면에 적용합니다. 저장을 눌러야 확정됩니다.',
+      okText: '초기화',
+      cancelText: '취소',
+      onOk: () => {
+        const nextLayouts = getDefaultPatentInsightLayouts();
+        draftGridLayoutsRef.current = nextLayouts;
+        setDraftGridLayouts(nextLayouts);
+        message.info('기본 배치를 적용했습니다. 저장을 눌러 확정하세요.');
+      },
+    });
   };
 
   const loadStatistics = React.useCallback(async () => {
@@ -767,8 +845,6 @@ const PatentInsight: React.FC = () => {
   }), [chartAxisLineColor, chartTextColor, chartTooltipBg, heatmapPalette, heatmapTargets, heatmapValues, heatmapXAxisLabels, maxHeatmapValue, token.colorBorderSecondary, token.colorText]);
 
   const chartTheme = isDarkMode ? 'dark' : undefined;
-  const leftWidth = isStackedLayout ? '100%' : `calc(${splitRatio}% - 6px)`;
-  const rightWidth = isStackedLayout ? '100%' : `calc(${100 - splitRatio}% - 6px)`;
 
   return (
     <div
@@ -832,6 +908,36 @@ const PatentInsight: React.FC = () => {
               <Button type="primary" icon={<Search size={18} />} disabled={isLoading} onClick={() => void loadStatistics()} className="v-action-btn">
                 검색
               </Button>
+              <Space size={8} wrap className="patent-insight-layout-actions">
+                {isLayoutEditing ? (
+                  <>
+                    <Button
+                      icon={<RotateCcw size={16} />}
+                      onClick={handleResetLayout}
+                      className="v-action-btn"
+                    >
+                      기본 배치
+                    </Button>
+                    <Button icon={<X size={16} />} onClick={handleCancelLayoutEdit} className="v-action-btn">
+                      취소
+                    </Button>
+                    <Button type="primary" icon={<Check size={16} />} onClick={handleSaveLayout} className="v-action-btn">
+                      저장
+                    </Button>
+                  </>
+                ) : (
+                  <Tooltip title={canEditGridLayout ? '카드를 이동하거나 크기를 조절합니다.' : '화면 너비가 768px 이상일 때 사용할 수 있습니다.'}>
+                    <Button
+                      icon={<Edit3 size={16} />}
+                      disabled={!canEditGridLayout}
+                      onClick={handleStartLayoutEdit}
+                      className="v-action-btn"
+                    >
+                      레이아웃 편집
+                    </Button>
+                  </Tooltip>
+                )}
+              </Space>
             </div>
           </Col>
         </Row>
@@ -889,95 +995,99 @@ const PatentInsight: React.FC = () => {
             />
           ) : null}
 
-          <div className="patent-insight-metric-grid">
-            <MetricCard label="Total Patent" value={statistics.totalCount} />
-            <MetricCard label="Filtered Patent" value={statistics.filteredCount} caption={applicant.trim() || dateRange ? 'Current filter result' : undefined} />
-          </div>
-
-          <div
-            ref={splitContainerRef}
-            className={`patent-insight-split${isStackedLayout ? ' patent-insight-split-stacked' : ''}`}
-          >
-            <div className="patent-insight-left" style={{ width: leftWidth }}>
-              <ChartPanel title="These Patent across time" className="patent-insight-line-panel">
-                {statistics.countAcrossTime.length > 0 ? (
-                  <SafeReactECharts option={lineOption} theme={chartTheme} style={{ width: '100%', height: '100%' }} />
-                ) : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} />}
-              </ChartPanel>
-
-              <div className="patent-insight-small-grid">
-                <ChartPanel title="Patent per Patent Office">
-                  <SafeReactECharts option={getBarOption(statistics.patentPerOffice.slice(0, 7))} theme={chartTheme} style={{ width: '100%', height: '100%' }} />
-                </ChartPanel>
-                <ChartPanel title="Company count">
-                  <Table<PatentInsightApplicantItem>
-                    className="patent-insight-company-table"
-                    rowKey="applicant"
-                    size="small"
-                    pagination={false}
-                    columns={applicantColumns}
-                    dataSource={statistics.patentCountByApplicant.slice(0, topNApplicant)}
-                    scroll={{ y: 190 }}
-                  />
-                </ChartPanel>
-                <ChartPanel title="Filing language count">
-                  <SafeReactECharts
-                    option={donutOption}
-                    theme={chartTheme}
-                    style={{ width: '100%', height: '100%' }}
-                    onEvents={filingLanguageChartEvents}
-                  />
-                </ChartPanel>
-                <ChartPanel title="Patent per Patent Type">
-                  <SafeReactECharts option={getBarOption(statistics.patentTypeCounts.slice(0, 7), { gridLeft: 128, labelWidth: 116 })} theme={chartTheme} style={{ width: '100%', height: '100%' }} />
-                </ChartPanel>
-              </div>
-            </div>
-
-            <div
-              role="separator"
-              aria-orientation="vertical"
-              aria-label="Patent Insight chart area width"
-              aria-valuemin={SPLIT_MIN_PERCENT}
-              aria-valuemax={SPLIT_MAX_PERCENT}
-              aria-valuenow={Math.round(splitRatio)}
-              tabIndex={0}
-              onMouseDown={handleSplitMouseDown}
-              onDoubleClick={() => setSplitRatio(SPLIT_DEFAULT_PERCENT)}
-              onKeyDown={handleSplitKeyDown}
-              className="patent-insight-resizer"
-              style={{ display: isStackedLayout ? 'none' : 'flex' }}
-            >
-              <div />
-            </div>
-
-            <div className="patent-insight-right" style={{ width: rightWidth }}>
-              <ChartPanel
-                title="Target x Applicant heatmap"
-                extra={(
-                  <Button
-                    type="text"
-                    size="small"
-                    icon={<RotateCcw size={14} />}
-                    onClick={() => setSplitRatio(SPLIT_DEFAULT_PERCENT)}
-                  />
-                )}
-                className="patent-insight-heatmap-panel"
+          <div ref={handleGridContainerRef} className="patent-insight-grid-container">
+            {isGridMeasured ? (
+              <GridLayout
+                className={`patent-insight-grid${isLayoutEditing ? ' is-editing' : ''}`}
+                style={gridStyle}
+                width={gridWidth}
+                layout={activeGridLayout}
+                gridConfig={gridConfig}
+                compactor={COLLISION_SAFE_NO_COMPACTOR}
+                dragConfig={gridDragConfig}
+                resizeConfig={gridResizeConfig}
+                onLayoutChange={handleGridLayoutChange}
+                onResizeStop={handleGridResizeStop}
               >
-                <SafeReactECharts
-                  option={heatmapOption}
-                  theme={chartTheme}
-                  style={{ width: '100%', height: '100%' }}
-                  onEvents={heatmapEvents}
-                />
-              </ChartPanel>
-            </div>
+                <div key="totalPatent" className="patent-insight-grid-item patent-insight-metric-grid-item">
+                  <MetricCard
+                    label="Total Patent"
+                    value={statistics.totalCount}
+                    isLayoutEditing={isLayoutEditing}
+                  />
+                </div>
+                <div key="filteredPatent" className="patent-insight-grid-item patent-insight-metric-grid-item">
+                  <MetricCard
+                    label="Filtered Patent"
+                    value={statistics.filteredCount}
+                    caption={applicant.trim() || dateRange ? 'Current filter result' : undefined}
+                    isLayoutEditing={isLayoutEditing}
+                  />
+                </div>
+                <div key="patentAcrossTime" className="patent-insight-grid-item">
+                  <ChartPanel title="These Patent across time" isLayoutEditing={isLayoutEditing}>
+                    {statistics.countAcrossTime.length > 0 ? (
+                      <SafeReactECharts option={lineOption} theme={chartTheme} style={{ width: '100%', height: '100%' }} />
+                    ) : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} />}
+                  </ChartPanel>
+                </div>
+                <div key="patentPerOffice" className="patent-insight-grid-item">
+                  <ChartPanel title="Patent per Patent Office" isLayoutEditing={isLayoutEditing}>
+                    <SafeReactECharts option={getBarOption(statistics.patentPerOffice.slice(0, 7))} theme={chartTheme} style={{ width: '100%', height: '100%' }} />
+                  </ChartPanel>
+                </div>
+                <div key="companyCount" className="patent-insight-grid-item">
+                  <ChartPanel title="Company count" isLayoutEditing={isLayoutEditing}>
+                    <Table<PatentInsightApplicantItem>
+                      className="patent-insight-company-table"
+                      rowKey="applicant"
+                      size="small"
+                      pagination={false}
+                      columns={applicantColumns}
+                      dataSource={statistics.patentCountByApplicant.slice(0, topNApplicant)}
+                      scroll={{ y: 190 }}
+                    />
+                  </ChartPanel>
+                </div>
+                <div key="filingLanguageCount" className="patent-insight-grid-item">
+                  <ChartPanel title="Filing language count" isLayoutEditing={isLayoutEditing}>
+                    <SafeReactECharts
+                      option={donutOption}
+                      theme={chartTheme}
+                      style={{ width: '100%', height: '100%' }}
+                      onEvents={filingLanguageChartEvents}
+                    />
+                  </ChartPanel>
+                </div>
+                <div key="patentPerType" className="patent-insight-grid-item">
+                  <ChartPanel title="Patent per Patent Type" isLayoutEditing={isLayoutEditing}>
+                    <SafeReactECharts option={getBarOption(statistics.patentTypeCounts.slice(0, 7), { gridLeft: 128, labelWidth: 116 })} theme={chartTheme} style={{ width: '100%', height: '100%' }} />
+                  </ChartPanel>
+                </div>
+                <div key="targetApplicantHeatmap" className="patent-insight-grid-item">
+                  <ChartPanel title="Target x Applicant heatmap" isLayoutEditing={isLayoutEditing}>
+                    <SafeReactECharts
+                      option={heatmapOption}
+                      theme={chartTheme}
+                      style={{ width: '100%', height: '100%' }}
+                      onEvents={heatmapEvents}
+                    />
+                  </ChartPanel>
+                </div>
+              </GridLayout>
+            ) : (
+              <div className="patent-insight-grid-loading"><Spin /></div>
+            )}
           </div>
 
-          <div className="patent-insight-footnote">
-            <BarChart3 size={14} />
-            <Text type="secondary">차트 split은 마우스 드래그 또는 키보드 방향키로 조정할 수 있습니다.</Text>
-          </div>
+          {isLayoutEditing ? (
+            <div className="patent-insight-footnote">
+              <BarChart3 size={14} />
+              <Text type="secondary">
+                카드 제목을 드래그해 이동하고 우측 하단 핸들로 크기를 조절한 뒤 저장하세요.
+              </Text>
+            </div>
+          ) : null}
         </Spin>
       </div>
     </div>

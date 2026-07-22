@@ -45,7 +45,6 @@ import { compoundApi, type CompoundSearchResult } from '../services/compoundApi'
 import shareForwardIconRaw from '../assets/svg/share-forward-fill.svg?raw';
 import shareIconRaw from '../assets/svg/share.svg?raw';
 import bookmarkIconRaw from '../assets/svg/bookmark.svg?raw';
-import eyeOffIconRaw from '../assets/svg/eye-off.svg?raw';
 import { formatDisplayDate, formatNumberWithComma } from '../utils/displayFormat';
 
 const { Title, Text } = Typography;
@@ -66,7 +65,6 @@ const createSvgMaskUrl = (svg: string) => `data:image/svg+xml;charset=utf-8,${en
 const shareForwardIconMaskUrl = createSvgMaskUrl(shareForwardIconRaw);
 const shareIconMaskUrl = createSvgMaskUrl(shareIconRaw);
 const bookmarkIconMaskUrl = createSvgMaskUrl(bookmarkIconRaw);
-const eyeOffIconMaskUrl = createSvgMaskUrl(eyeOffIconRaw);
 const MYBOARD_RESPONSIVE_TEXT_COLUMN_KEYS = new Set([
   'designMemo',
   'assayPurpose',
@@ -516,10 +514,8 @@ const MyBoardSynthesisBoard: React.FC = () => {
     toggleGroupSelection,
     setSelectedGroupIds,
     setSelectedSarCompoundIds,
-    hideCompounds,
     bookmarkedGroupIds,
     toggleBookmarkedGroup,
-    compoundLoginToken,
     externalCompoundRows,
     addExternalCompoundRow,
     setExternalCompoundRows,
@@ -630,7 +626,7 @@ const MyBoardSynthesisBoard: React.FC = () => {
     const query = quickAddCode.trim();
     setSelectedQuickAddCode((current) => current && current !== query ? '' : current);
 
-    if (!isQuickAddModalOpen || !query || !compoundLoginToken.trim()) {
+    if (!isQuickAddModalOpen || !query) {
       setQuickAddResults([]);
       setIsQuickAddSearching(false);
       setQuickAddError(null);
@@ -641,7 +637,7 @@ const MyBoardSynthesisBoard: React.FC = () => {
     const timeoutId = window.setTimeout(() => {
       setIsQuickAddSearching(true);
       setQuickAddError(null);
-      compoundApi.searchCompounds(compoundLoginToken, query, { signal: controller.signal })
+      compoundApi.searchCompounds(query, { signal: controller.signal })
         .then((results) => {
           setQuickAddResults(results);
         })
@@ -661,7 +657,7 @@ const MyBoardSynthesisBoard: React.FC = () => {
       window.clearTimeout(timeoutId);
       controller.abort();
     };
-  }, [compoundLoginToken, isQuickAddModalOpen, quickAddCode]);
+  }, [isQuickAddModalOpen, quickAddCode]);
 
   useEffect(() => {
     if (externalCompoundRows.length === 0) return;
@@ -1203,7 +1199,7 @@ const MyBoardSynthesisBoard: React.FC = () => {
   const shareList = ['내 물질', '공유함', '공유받음'];
   const sourceList = ['내 머리', '동료 머리', 'Patent', 'Paper', 'FBDD', 'ELN'];
   const calculationOptions = [
-    '3D TPSA QM', 'Solubility QM', 'Solubility DL', 'E-Sol QM',
+    '3D PSA QM', 'Solubility QM', 'Solubility DL', 'E-Sol QM',
     'Permeability MD', '특허성', '합성기능성'
   ];
   const designPurposeOptions = [
@@ -1832,15 +1828,7 @@ const MyBoardSynthesisBoard: React.FC = () => {
       className: 'my-board-group-fixed-column',
       onCell: () => createFixedGroupColumnProps(MYBOARD_GROUP_COLUMN_WIDTHS.count),
       onHeaderCell: () => createFixedGroupColumnProps(MYBOARD_GROUP_COLUMN_WIDTHS.count),
-      render: (value: number) => (
-        <div className="my-board-synthesis-summary-cell">
-          {renderSynthesisSummaryBadge(Number(value) || 0, {
-            background: '#FFFFFF',
-            border: token.colorBorder,
-            text: '#000000',
-          })}
-        </div>
-      ),
+      render: (value: number) => formatNumberWithComma(Number(value) || 0),
     },
     {
       title: '합성 완료',
@@ -1853,9 +1841,9 @@ const MyBoardSynthesisBoard: React.FC = () => {
       onCell: () => createFixedGroupColumnProps(MYBOARD_GROUP_COLUMN_WIDTHS.synthesisDone),
       onHeaderCell: () => createFixedGroupColumnProps(MYBOARD_GROUP_COLUMN_WIDTHS.synthesisDone),
       render: (groupId: string) => renderSynthesisStatusTag(groupId, 'done', {
-        background: token.colorPrimaryBg,
-        border: token.colorPrimaryBorder,
-        text: token.colorPrimaryText,
+        background: token.colorSuccessBg,
+        border: token.colorSuccessBorder,
+        text: token.colorSuccessText,
       }),
     },
     {
@@ -1996,7 +1984,6 @@ const MyBoardSynthesisBoard: React.FC = () => {
   const canAddCompound = selectedGroupIds.length > 0;
   const canDeleteCompound = hasSelectedDetailCompounds;
   const canEditCompound = selectedDetailCompoundIds.length === 1;
-  const canHideCompound = hasSelectedDetailCompounds;
   const selectedDesignGroups = React.useMemo(
     () => groups.filter((group) => selectedGroupIds.includes(group.id)),
     [groups, selectedGroupIds]
@@ -2517,29 +2504,14 @@ const MyBoardSynthesisBoard: React.FC = () => {
     });
   }, [canDeleteCompound, externalCompoundRows, modal, selectedDetailCompoundIds, setExternalCompoundRows]);
 
-  const handleHideSelectedCompounds = React.useCallback(() => {
-    if (!canHideCompound) return;
-    hideCompounds(selectedDetailCompoundIds.map(String));
-    setSelectedDetailCompoundIds([]);
-    setCompoundContextMenu(null);
-  }, [canHideCompound, hideCompounds, selectedDetailCompoundIds]);
-
   const handleQuickAddCompound = React.useCallback(async () => {
     const compoundCode = (selectedQuickAddCode || quickAddCode).trim();
     const targetGroupId = selectedGroupIds[0];
     if (!compoundCode || !targetGroupId) return;
-    if (!compoundLoginToken.trim()) {
-      modal.error({
-        title: 'Login token 필요',
-        content: '헤더의 login token 버튼에서 compound_api login_token을 먼저 입력해주세요.',
-      });
-      return;
-    }
-
     setIsQuickAddAdding(true);
 
     try {
-      const response = await compoundApi.getCompounds(compoundLoginToken, [compoundCode]);
+      const response = await compoundApi.getCompounds([compoundCode]);
       const compoundData = response.compounds.find((compound) => (
         compound.compound_code.toLowerCase() === compoundCode.toLowerCase()
       )) ?? response.compounds[0];
@@ -2612,7 +2584,6 @@ const MyBoardSynthesisBoard: React.FC = () => {
     }
   }, [
     addExternalCompoundRow,
-    compoundLoginToken,
     currentUser?.name,
     groups,
     modal,
@@ -2637,17 +2608,9 @@ const MyBoardSynthesisBoard: React.FC = () => {
       return;
     }
 
-    if (!compoundLoginToken.trim()) {
-      modal.error({
-        title: 'Login token 필요',
-        content: 'SAR 데이터를 조회하려면 헤더의 login token 버튼에서 compound_api login_token을 먼저 입력해주세요.',
-      });
-      return;
-    }
-
     setIsSarDataLoading(true);
     try {
-      const response = await compoundApi.getCompoundSarData(compoundLoginToken, externalCompoundCodes);
+      const response = await compoundApi.getCompoundSarData(externalCompoundCodes);
       setCompoundSarData(response.rows, response.groups);
       navigate('/myboard/sar-table');
     } catch (error) {
@@ -2659,7 +2622,6 @@ const MyBoardSynthesisBoard: React.FC = () => {
       setIsSarDataLoading(false);
     }
   }, [
-    compoundLoginToken,
     filteredCompounds,
     modal,
     navigate,
@@ -2794,12 +2756,6 @@ const MyBoardSynthesisBoard: React.FC = () => {
       disabled: !canEditCompound,
     },
     {
-      key: 'hide',
-      icon: <span className="my-board-action-icon my-board-action-icon-eye-off" aria-hidden="true" />,
-      label: '숨기기',
-      disabled: !canHideCompound,
-    },
-    {
       type: 'divider',
     },
     {
@@ -2831,11 +2787,6 @@ const MyBoardSynthesisBoard: React.FC = () => {
 
     if (key === 'edit') {
       handleOpenCompoundEdit();
-      return;
-    }
-
-    if (key === 'hide') {
-      handleHideSelectedCompounds();
       return;
     }
 
@@ -4106,7 +4057,7 @@ const MyBoardSynthesisBoard: React.FC = () => {
                     alignItems: 'center',
                     fontSize: 16,
                     lineHeight: '24px',
-                    minHeight: 24,
+                    minHeight: 30,
                   }}
                 >
                   그룹 상세 목록
@@ -4669,7 +4620,7 @@ const MyBoardSynthesisBoard: React.FC = () => {
         okText="추가"
         cancelText="취소"
         okButtonProps={{
-          disabled: !(selectedQuickAddCode || quickAddCode).trim() || selectedGroupIds.length === 0 || !compoundLoginToken.trim(),
+          disabled: !(selectedQuickAddCode || quickAddCode).trim() || selectedGroupIds.length === 0,
           loading: isQuickAddAdding,
         }}
       >
@@ -4690,11 +4641,6 @@ const MyBoardSynthesisBoard: React.FC = () => {
               }}
             />
           </Form.Item>
-          {!compoundLoginToken.trim() ? (
-            <Text type="danger" style={{ fontSize: 12 }}>
-              헤더의 login token 버튼에서 compound_api login_token을 먼저 입력해주세요.
-            </Text>
-          ) : null}
           {quickAddError ? (
             <Text type="danger" style={{ display: 'block', marginTop: 8, fontSize: 12 }}>
               {quickAddError}
@@ -6320,17 +6266,6 @@ const MyBoardSynthesisBoard: React.FC = () => {
           align-items: center;
           justify-content: center;
           border-radius: 2px;
-        }
-        .my-board-action-icon {
-          display: block;
-          width: 14px;
-          height: 14px;
-          pointer-events: none;
-        }
-        .my-board-action-icon-eye-off {
-          background: currentColor;
-          mask: url("${eyeOffIconMaskUrl}") center / contain no-repeat;
-          -webkit-mask: url("${eyeOffIconMaskUrl}") center / contain no-repeat;
         }
         .my-board-structure-setting-value {
           height: 20px;

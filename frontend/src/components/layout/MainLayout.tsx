@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Layout, Menu, Button, theme, Input, Avatar, Space, Select, Tag, Dropdown, Tooltip, Modal, Form, Typography } from 'antd';
+import { Layout, Menu, Button, theme, Input, Avatar, Space, Dropdown, Tooltip } from 'antd';
 import type { MenuProps } from 'antd';
 import { useTheme } from '../../contexts/ThemeContext';
 import {
@@ -18,14 +18,13 @@ import {
   PanelLeftClose,
   FileText,
   HelpCircle,
-  KeyRound
+  ShieldCheck,
 } from 'lucide-react';
 import BenzeneIcon from '../common/BenzeneIcon';
 import RdkitDrawOptionsModal from '../common/RdkitDrawOptionsModal';
-import { useUserStore } from '../../store/useUserStore';
+import { useAuthSession } from '../../contexts/AuthSessionContext';
 
 const { Header, Sider, Content } = Layout;
-const { Text } = Typography;
 
 interface MainLayoutProps {
   children: React.ReactNode;
@@ -41,13 +40,10 @@ interface MiniMenuItem {
 }
 
 import { useUIStore } from '../../store/useUIStore';
-import { useBoardStore } from '../../store/useBoardStore';
 
 const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
   const [sidebarMode, setSidebarMode] = useState<'full' | 'mini' | 'hidden'>('full');
   const [isRdkitDrawOptionsOpen, setIsRdkitDrawOptionsOpen] = useState(false);
-  const [isLoginTokenModalOpen, setIsLoginTokenModalOpen] = useState(false);
-  const [draftLoginToken, setDraftLoginToken] = useState('');
   const [viewportWidth, setViewportWidth] = useState<number>(() => {
     if (typeof window === 'undefined') return 1920;
     return window.innerWidth;
@@ -55,8 +51,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
   const { token } = theme.useToken();
   const { isDarkMode, toggleTheme } = useTheme();
   const { headerContent } = useUIStore();
-  const { compoundLoginToken, setCompoundLoginToken } = useBoardStore();
-  const { users, currentUserId, currentUser, setCurrentUserId } = useUserStore();
+  const session = useAuthSession();
   const navigate = useNavigate();
   const location = useLocation();
   const isStackedHeader = viewportWidth <= 900;
@@ -68,16 +63,6 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
   }, []);
-
-  const openLoginTokenModal = () => {
-    setDraftLoginToken(compoundLoginToken);
-    setIsLoginTokenModalOpen(true);
-  };
-
-  const saveLoginToken = () => {
-    setCompoundLoginToken(draftLoginToken.trim());
-    setIsLoginTokenModalOpen(false);
-  };
 
   const renderSidebarIcon = (icon: React.ReactNode) => (
     <span className="sidebar-menu-icon">{icon}</span>
@@ -188,6 +173,12 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
   ];
 
   const bottomMiniMenuItems: MiniMenuItem[] = [
+    ...(session.user.role === 'ADMIN' ? [{
+      key: 'access-registry',
+      label: '사용자 접근 관리',
+      icon: <ShieldCheck size={22} />,
+      onClick: () => navigate('/workspace/access-registry'),
+    }] : []),
     {
       key: 'monitoring',
       label: '모니터링',
@@ -229,6 +220,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
     if (path === '/universal-search') return 'universal-search';
     if (path === '/monitoring') return 'monitoring';
     if (path === '/development-status') return 'development-status';
+    if (path === '/workspace/access-registry') return 'access-registry';
     if (path === '/contact') return 'contact';
     return 'dashboard';
   };
@@ -498,6 +490,12 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
               selectedKeys={[getSelectedKey()]}
               style={{ background: 'transparent', borderRight: 0 }}
               items={[
+              ...(session.user.role === 'ADMIN' ? [{
+                key: 'access-registry',
+                icon: renderSidebarIcon(<ShieldCheck size={22} />),
+                label: <span style={{ fontWeight: 600 }}>사용자 접근 관리</span>,
+                onClick: () => navigate('/workspace/access-registry')
+              }] : []),
               {
                 key: 'monitoring',
                 icon: renderSidebarIcon(<Monitor size={22} />),
@@ -595,45 +593,24 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                   aria-label="RDKit Draw 설정 열기"
                 />
               </Tooltip>
-              <Tooltip title={compoundLoginToken ? 'Compound login token 설정됨' : 'Compound login token 입력'}>
-                <Button
-                  type={compoundLoginToken ? 'primary' : 'text'}
-                  icon={<KeyRound size={18} color={compoundLoginToken ? '#fff' : token.colorTextSecondary} />}
-                  onClick={openLoginTokenModal}
-                  aria-label="Compound login token 설정"
-                />
-              </Tooltip>
             </Space>
-            <Select
-              value={currentUserId}
-              onChange={setCurrentUserId}
-              style={{ width: isStackedHeader ? 168 : 188 }}
-              popupMatchSelectWidth={240}
-              optionLabelProp="label"
-              options={users.map((user) => ({
-                value: user.id,
-                label: `${user.name} · ${user.team}`,
-              }))}
-              optionRender={(option) => {
-                const user = users.find((item) => item.id === option.value);
-                if (!user) return option.label;
-
-                return (
-                  <Space size={8}>
-                    <Avatar size={24}>{user.name.slice(0, 1)}</Avatar>
-                    <span>{user.name}</span>
-                    <Tag color={user.role === 'design' ? 'orange' : 'blue'} style={{ margin: 0 }}>
-                      {user.team}
-                    </Tag>
-                  </Space>
-                );
+            <span
+              title={session.user.email}
+              style={{
+                maxWidth: isStackedHeader ? 200 : 280,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+                color: token.colorText,
               }}
-            />
+            >
+              {session.user.email}
+            </span>
             <Avatar
               size={40}
               style={{ border: '2px solid #fff', boxShadow: '0 2px 4px rgba(0,0,0,0.05)', background: token.colorPrimary }}
             >
-              {currentUser.name.slice(0, 1)}
+              {session.user.email.charAt(0).toUpperCase() || '?'}
             </Avatar>
           </div>
         </Header>
@@ -656,29 +633,6 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
         open={isRdkitDrawOptionsOpen}
         onCancel={() => setIsRdkitDrawOptionsOpen(false)}
       />
-      <Modal
-        title="Compound login token"
-        open={isLoginTokenModalOpen}
-        onOk={saveLoginToken}
-        onCancel={() => setIsLoginTokenModalOpen(false)}
-        okText="저장"
-        cancelText="취소"
-      >
-        <Form layout="vertical" style={{ marginTop: 16 }}>
-          <Form.Item label="Login token">
-            <Input.Password
-              autoFocus
-              value={draftLoginToken}
-              onChange={(event) => setDraftLoginToken(event.target.value)}
-              placeholder="compound_api login_token"
-              onPressEnter={saveLoginToken}
-            />
-          </Form.Item>
-          <Text type="secondary" style={{ fontSize: 12 }}>
-            임시 저장 값입니다. 추후 로그인/DB 연동 시 localStorage key compound-api:login-token은 제거 대상입니다.
-          </Text>
-        </Form>
-      </Modal>
       <style>{`
         .app-sidebar .ant-menu-item-selected { 
           background-color: ${isDarkMode ? '#2b2b2b' : '#ffffff'} !important; 

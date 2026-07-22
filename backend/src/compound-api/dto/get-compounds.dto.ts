@@ -1,10 +1,6 @@
-import { ArrayNotEmpty, IsArray, IsIn, IsNotEmpty, IsString } from 'class-validator';
+import { ArrayNotEmpty, IsArray, IsIn, IsString } from 'class-validator';
 
 export class GetCompoundsDto {
-  @IsString()
-  @IsNotEmpty()
-  login_token!: string;
-
   @IsArray()
   @ArrayNotEmpty()
   @IsString({ each: true })

@@ -1,3 +1,5 @@
+import { notifyIfAuthRequired } from './authApi';
+
 type RuntimeWindow = Window & {
   _env_?: {
     VITE_API_URL?: string;
@@ -27,6 +29,32 @@ export type GroupedCompoundSarData = {
 export type GetCompoundSarDataResponse = {
   rows: CompoundSarDataRow[];
   groups: GroupedCompoundSarData[];
+};
+
+export type CompoundCalculateData = {
+  heavy_atom_count: number;
+  fsp3: number;
+  num_rotatable_bonds: number;
+  log_s: number;
+  cns_mpo_score: number;
+  log_p: number;
+  log_d: number;
+  molecular_weight: number;
+  topological_polar_surface_area: number;
+  num_h_bond_donors: number;
+  pka: number;
+  exact_mass: number;
+  chemical_formula: string;
+  composition: Record<string, string>;
+  num_h_bond_acceptors: number;
+  num_h_bond_donors_site: number;
+  num_h_bond_acceptors_site: number;
+  num_rule_of_5_violations: number;
+};
+
+export type GetCompoundCalculateResponse = {
+  result: boolean;
+  data: CompoundCalculateData;
 };
 
 type RequestOptions = {
@@ -81,7 +109,9 @@ const postJson = async <T>(
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
     signal: options?.signal,
+    credentials: 'include',
   });
+  notifyIfAuthRequired(response);
 
   if (!response.ok) {
     throw new CompoundApiError(await getErrorMessage(response), response.status);
@@ -91,25 +121,28 @@ const postJson = async <T>(
 };
 
 export const compoundApi = {
-  searchCompounds(loginToken: string, query: string, options?: RequestOptions) {
+  searchCompounds(query: string, options?: RequestOptions) {
     return postJson<CompoundSearchResult[]>('/compound-api/search-compounds', {
-      login_token: loginToken,
       query,
     }, options);
   },
 
-  getCompounds(loginToken: string, compounds: string[], options?: RequestOptions) {
+  getCompounds(compounds: string[], options?: RequestOptions) {
     return postJson<GetCompoundsResponse>('/compound-api/get-compounds', {
-      login_token: loginToken,
       compounds,
       type: 'smiles',
     }, options);
   },
 
-  getCompoundSarData(loginToken: string, compounds: string[], options?: RequestOptions) {
+  getCompoundSarData(compounds: string[], options?: RequestOptions) {
     return postJson<GetCompoundSarDataResponse>('/compound-api/get-compound-sar-data', {
-      login_token: loginToken,
       compounds,
+    }, options);
+  },
+
+  getCompoundCalculate(smiles: string, options?: RequestOptions) {
+    return postJson<GetCompoundCalculateResponse>('/compound-api/get-compound-calculate', {
+      smiles,
     }, options);
   },
 };

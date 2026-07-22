@@ -31,8 +31,7 @@ Thumbs.db
 # Backend specific (NestJS / Prisma)
 backend/node_modules/
 backend/dist/
-backend/prisma/migrations/
-!backend/prisma/schema.prisma
+backend/src/generated/prisma/
 
 # Frontend specific (Vite / React)
 frontend/node_modules/

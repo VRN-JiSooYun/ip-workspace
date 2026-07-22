@@ -17,6 +17,9 @@ import DevelopmentStatus from './pages/DevelopmentStatus';
 import Monitoring from './pages/Monitoring';
 import EmptyPage from './pages/EmptyPage';
 import UniversalSearch from './pages/UniversalSearch';
+import AuthGate from './components/auth/AuthGate';
+import AccessRegistry from './pages/AccessRegistry';
+import Contact from './pages/Contact';
 
 const App: React.FC = () => {
   const { isDarkMode } = useTheme();
@@ -77,7 +80,8 @@ const App: React.FC = () => {
     >
       <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <AntApp>
-          <MainLayout>
+          <AuthGate>
+            <MainLayout>
             <Routes>
               <Route path="/" element={<Navigate to="/dashboard" replace />} />
               <Route path="/dashboard" element={<Dashboard />} />
@@ -105,10 +109,12 @@ const App: React.FC = () => {
               <Route path="/universal-search" element={<UniversalSearch />} />
               <Route path="/monitoring" element={<Monitoring />} />
               <Route path="/development-status" element={<DevelopmentStatus />} />
-              <Route path="/contact" element={<EmptyPage title="문의하기" breadcrumb={[{ label: '문의하기' }]} />} />
+              <Route path="/workspace/access-registry" element={<AccessRegistry />} />
+              <Route path="/contact" element={<Contact />} />
               <Route path="*" element={<Navigate to="/dashboard" replace />} />
             </Routes>
-          </MainLayout>
+            </MainLayout>
+          </AuthGate>
         </AntApp>
       </Router>
     </ConfigProvider>

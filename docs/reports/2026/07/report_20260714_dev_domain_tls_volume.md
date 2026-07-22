@@ -19,7 +19,7 @@ frontend Nginx TCP 443 (TLS 종료)
 ## 구현 내용
 
 - `docker-compose.dev.yml`의 frontend 포트를 `18080:443`으로 변경했다.
-- `DEV_TLS_CERT_PATH`, `DEV_TLS_KEY_PATH`가 가리키는 호스트 파일을 Nginx 컨테이너에 읽기 전용으로 마운트한다.
+- `TLS_CERT_PATH`, `TLS_KEY_PATH`가 가리키는 호스트 파일을 Nginx 컨테이너에 읽기 전용으로 마운트한다.
 - 두 인증서 경로가 없거나 비어 있으면 Compose 단계에서 오류가 발생하도록 필수 환경변수로 지정했다.
 - Nginx가 `voronoi.app`, `www.voronoi.app`에 대해 TLS 1.2/1.3으로 서비스하도록 설정했다.
 - backend CORS에 외부 브라우저 origin인 `https://voronoi.app:28000`을 추가했다.
@@ -46,9 +46,9 @@ chmod 600 /opt/voronoi/tls/private.key
 GitHub `dev_myworkspace` Environment에 다음 variables를 등록한다.
 
 ```text
-DEV_TLS_CERT_PATH=/opt/voronoi/tls/fullchain.pem
-DEV_TLS_KEY_PATH=/opt/voronoi/tls/private.key
-DEV_PUBLIC_ORIGIN=https://voronoi.app:28000
+TLS_CERT_PATH=/opt/voronoi/tls/fullchain.pem
+TLS_KEY_PATH=/opt/voronoi/tls/private.key
+PUBLIC_ORIGIN=https://voronoi.app:28000
 ```
 
 경로는 인증서 내용이 아니므로 GitHub Environment secret이 아닌 variable로 관리한다. 개인키 파일 자체는 Git에 커밋하지 않고 개발 서버에만 보관한다.

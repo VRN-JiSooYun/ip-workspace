@@ -39,12 +39,20 @@ import CompoundStructureView from '../components/common/CompoundStructureView';
 import StructurePreviewModal from '../components/common/StructurePreviewModal';
 import ToggleTag from '../components/common/ToggleTag';
 import QuickViewerPanel from '../components/myboard/QuickViewerPanel';
+import ChemaxonDataModal from '../components/myboard/ChemaxonDataModal';
+import QuantumCalculationDataModal from '../components/myboard/QuantumCalculationDataModal';
+import VpropDataModal from '../components/myboard/VpropDataModal';
 import PlainMemoEditor from '../components/common/PlainMemoEditor';
 import { compoundApi, type CompoundSearchResult } from '../services/compoundApi';
+import {
+  calculationApi,
+  type QuantumCalculationJob,
+  type QuantumJobType,
+} from '../services/calculationApi';
+import { vpropApi } from '../services/vpropApi';
 import shareForwardIconRaw from '../assets/svg/share-forward-fill.svg?raw';
 import shareIconRaw from '../assets/svg/share.svg?raw';
 import bookmarkIconRaw from '../assets/svg/bookmark.svg?raw';
-import eyeOffIconRaw from '../assets/svg/eye-off.svg?raw';
 import { formatDisplayDate, formatNumberWithComma } from '../utils/displayFormat';
 
 const { Title, Text } = Typography;
@@ -60,6 +68,59 @@ const MYBOARD_SHARE_STATUS_COLORS = {
   '공유 하는중': '#F87C63',
   '공유 받는중': '#1677ff',
 } as const;
+const QUANTUM_CALCULATION_OPTIONS: Record<string, QuantumJobType> = {
+  '3D PSA QM': 'PSA',
+  'E-Sol QM': 'ESOL',
+};
+type SynchronousCalculationProvider = 'Chemaxon' | 'Vprop';
+class SynchronousCalculationError extends Error {
+  constructor(
+    readonly provider: SynchronousCalculationProvider,
+    readonly originalError: unknown,
+  ) {
+    super(`${provider} calculation failed.`);
+  }
+}
+const settleSynchronousCalculation = async <T,>(
+  provider: SynchronousCalculationProvider,
+  request: Promise<T>,
+) => {
+  try {
+    return { value: await request } as const;
+  } catch (error) {
+    return { error: new SynchronousCalculationError(provider, error) } as const;
+  }
+};
+const getSynchronousCalculationErrorMessage = (error: SynchronousCalculationError) => {
+  const message = error.originalError instanceof Error ? error.originalError.message : '';
+  if (error.provider === 'Vprop') {
+    if (message === 'VPROP_TIMEOUT') return 'Vprop 계산 시간이 초과되었습니다.';
+    if (message === 'VPROP_INVALID_RESPONSE') return 'Vprop 응답 형식이 올바르지 않습니다.';
+    if (message === 'VPROP_REQUEST_FAILED') return 'Vprop 서버에 연결할 수 없습니다.';
+  }
+  return message || `${error.provider} 계산값을 불러오지 못했습니다.`;
+};
+const createCalculationDraftKey = () => (
+  typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+    ? crypto.randomUUID()
+    : `calculation-${Date.now()}-${Math.random().toString(36).slice(2)}`
+);
+const toQuantumCalculations = (
+  jobs: QuantumCalculationJob[],
+): NonNullable<Compound['quantumCalculations']> => jobs.reduce<NonNullable<Compound['quantumCalculations']>>(
+  (result, job) => ({
+    ...result,
+    ...(job.jobType === 'PSA' ? { psa: job } : { esol: job }),
+  }),
+  {},
+);
+const mergeQuantumJobs = (compound: Compound, jobs: QuantumCalculationJob[]): Compound => ({
+  ...compound,
+  quantumCalculations: {
+    ...compound.quantumCalculations,
+    ...toQuantumCalculations(jobs),
+  },
+});
 const MYBOARD_SYNTHESIS_REQUEST_STATUS_LABELS: Record<NonNullable<Compound['synthesisRequestStatus']>, string> = {
   requested: '접수 대기',
   accepted: '합성 대기',
@@ -70,7 +131,6 @@ const createSvgMaskUrl = (svg: string) => `data:image/svg+xml;charset=utf-8,${en
 const shareForwardIconMaskUrl = createSvgMaskUrl(shareForwardIconRaw);
 const shareIconMaskUrl = createSvgMaskUrl(shareIconRaw);
 const bookmarkIconMaskUrl = createSvgMaskUrl(bookmarkIconRaw);
-const eyeOffIconMaskUrl = createSvgMaskUrl(eyeOffIconRaw);
 const MYBOARD_RESPONSIVE_TEXT_COLUMN_KEYS = new Set([
   'designMemo',
   'assayPurpose',
@@ -454,10 +514,8 @@ const MyBoard: React.FC = () => {
     toggleGroupSelection,
     setSelectedGroupIds,
     setSelectedSarCompoundIds,
-    hideCompounds,
     bookmarkedGroupIds,
     toggleBookmarkedGroup,
-    compoundLoginToken,
     externalCompoundRows,
     addExternalCompoundRow,
     setExternalCompoundRows,
@@ -487,6 +545,9 @@ const MyBoard: React.FC = () => {
   const [selectedQuickAddCode, setSelectedQuickAddCode] = useState('');
   const [isQuickAddSearching, setIsQuickAddSearching] = useState(false);
   const [isQuickAddAdding, setIsQuickAddAdding] = useState(false);
+  const [isChemaxonCalculating, setIsChemaxonCalculating] = useState(false);
+  const [isVpropCalculating, setIsVpropCalculating] = useState(false);
+  const [isQuantumSubmitting, setIsQuantumSubmitting] = useState(false);
   const [quickAddError, setQuickAddError] = useState<string | null>(null);
   const [isSarDataLoading, setIsSarDataLoading] = useState(false);
   const [cdjsInstance, setCdjsInstance] = useState<any>(null);
@@ -537,6 +598,9 @@ const MyBoard: React.FC = () => {
     y: number;
     compoundId: string;
   } | null>(null);
+  const [chemaxonViewerCompound, setChemaxonViewerCompound] = useState<Compound | null>(null);
+  const [vpropViewerCompound, setVpropViewerCompound] = useState<Compound | null>(null);
+  const [quantumViewerCompound, setQuantumViewerCompound] = useState<Compound | null>(null);
   const detailTableWrapperRef = React.useRef<HTMLDivElement | null>(null);
   const detailViewContentRef = React.useRef<HTMLDivElement | null>(null);
   const [groupTableScrollY, setGroupTableScrollY] = useState<number | undefined>(undefined);
@@ -561,7 +625,7 @@ const MyBoard: React.FC = () => {
     const query = quickAddCode.trim();
     setSelectedQuickAddCode((current) => current && current !== query ? '' : current);
 
-    if (!isQuickAddModalOpen || !query || !compoundLoginToken.trim()) {
+    if (!isQuickAddModalOpen || !query) {
       setQuickAddResults([]);
       setIsQuickAddSearching(false);
       setQuickAddError(null);
@@ -572,7 +636,7 @@ const MyBoard: React.FC = () => {
     const timeoutId = window.setTimeout(() => {
       setIsQuickAddSearching(true);
       setQuickAddError(null);
-      compoundApi.searchCompounds(compoundLoginToken, query, { signal: controller.signal })
+      compoundApi.searchCompounds(query, { signal: controller.signal })
         .then((results) => {
           setQuickAddResults(results);
         })
@@ -592,7 +656,7 @@ const MyBoard: React.FC = () => {
       window.clearTimeout(timeoutId);
       controller.abort();
     };
-  }, [compoundLoginToken, isQuickAddModalOpen, quickAddCode]);
+  }, [isQuickAddModalOpen, quickAddCode]);
 
   useEffect(() => {
     if (externalCompoundRows.length === 0) return;
@@ -1139,8 +1203,8 @@ const MyBoard: React.FC = () => {
   const shareList = ['내 물질', '공유함', '공유받음'];
   const sourceList = ['내 머리', '동료 머리', 'Patent', 'Paper', 'FBDD', 'ELN'];
   const calculationOptions = [
-    '3D TPSA QM', 'Solubility QM', 'Solubility DL', 'E-Sol QM',
-    'Permeability MD', '특허성', '합성기능성'
+    '3D PSA QM', 'Solubility QM', 'Solubility DL', 'E-Sol QM',
+    'Permeability MD', '특허성', '합성기능성', 'Chemaxon', 'Vprop'
   ];
   const designPurposeOptions = [
     {
@@ -1765,7 +1829,6 @@ const MyBoard: React.FC = () => {
   const canEditCompound = Boolean(
     selectedEditableCompound && !isCompoundEditLocked(selectedEditableCompound)
   );
-  const canHideCompound = hasSelectedDetailCompounds;
   const selectedDesignGroups = React.useMemo(
     () => groups.filter((group) => selectedGroupIds.includes(group.id)),
     [groups, selectedGroupIds]
@@ -1885,8 +1948,9 @@ const MyBoard: React.FC = () => {
 
   const handleDesignSmilesChange = React.useCallback((value: string) => {
     setDesignSmiles(value);
+    designForm.setFieldValue('smilesPreview', value);
     setDesignSmilesError('');
-  }, []);
+  }, [designForm]);
 
   const handleOpenDesignModal = React.useCallback(() => {
     if (!canAddCompound) return;
@@ -1905,10 +1969,11 @@ const MyBoard: React.FC = () => {
   }, [canAddCompound, resetDesignModalState, selectedDesignGroupDisplayText, selectedDesignTargetText]);
 
   const handleCloseDesignModal = React.useCallback(() => {
+    if (isChemaxonCalculating || isVpropCalculating || isQuantumSubmitting) return;
     setIsDesignModalOpen(false);
     setIsCompoundEditModalOpen(false);
     resetDesignModalState();
-  }, [resetDesignModalState]);
+  }, [isChemaxonCalculating, isQuantumSubmitting, isVpropCalculating, resetDesignModalState]);
 
   const parseCascaderText = React.useCallback((
     value: string | undefined,
@@ -1960,14 +2025,133 @@ const MyBoard: React.FC = () => {
   const getCascaderStringValue = React.useCallback((value: Array<Array<string | number>>) => (
     value.map((path) => path.map(String))
   ), []);
+  const calculateChemaxon = React.useCallback(async (smiles: string) => {
+    const response = await compoundApi.getCompoundCalculate(smiles);
+    return {
+      smiles,
+      calculatedAt: new Date().toISOString(),
+      data: response.data,
+    };
+  }, []);
+  const calculateVprop = React.useCallback(async (smiles: string) => {
+    const response = await vpropApi.predict(smiles);
+    return {
+      smiles,
+      method: 'rdkit' as const,
+      calculatedAt: new Date().toISOString(),
+      data: response.result,
+    };
+  }, []);
+  const calculateSelectedSynchronousResults = React.useCallback(async (
+    smiles: string,
+    existingCompound?: Compound,
+  ) => {
+    const shouldCalculateChemaxon = selectedCalculations.includes('Chemaxon');
+    const shouldCalculateVprop = selectedCalculations.includes('Vprop');
+    const existingChemaxon = shouldCalculateChemaxon
+      && existingCompound?.chemaxonCalculation?.smiles === smiles
+      ? existingCompound.chemaxonCalculation
+      : undefined;
+    const existingVprop = shouldCalculateVprop
+      && existingCompound?.vpropCalculation?.smiles === smiles
+      ? existingCompound.vpropCalculation
+      : undefined;
+    const needsChemaxon = shouldCalculateChemaxon && !existingChemaxon;
+    const needsVprop = shouldCalculateVprop && !existingVprop;
+
+    if (needsChemaxon) setIsChemaxonCalculating(true);
+    if (needsVprop) setIsVpropCalculating(true);
+    try {
+      const [chemaxonResult, vpropResult] = await Promise.all([
+        needsChemaxon
+          ? settleSynchronousCalculation('Chemaxon', calculateChemaxon(smiles))
+          : Promise.resolve({ value: existingChemaxon } as const),
+        needsVprop
+          ? settleSynchronousCalculation('Vprop', calculateVprop(smiles))
+          : Promise.resolve({ value: existingVprop } as const),
+      ]);
+      if ('error' in chemaxonResult) throw chemaxonResult.error;
+      if ('error' in vpropResult) throw vpropResult.error;
+      return {
+        chemaxonCalculation: chemaxonResult.value,
+        vpropCalculation: vpropResult.value,
+      };
+    } finally {
+      if (needsChemaxon) setIsChemaxonCalculating(false);
+      if (needsVprop) setIsVpropCalculating(false);
+    }
+  }, [calculateChemaxon, calculateVprop, selectedCalculations]);
+  const submitQuantumCalculations = React.useCallback(async (
+    smiles: string,
+    jobTypes: QuantumJobType[],
+    compoundDraftKey: string,
+  ) => {
+    setIsQuantumSubmitting(true);
+    try {
+      return await calculationApi.createQuantumJobs({ compoundDraftKey, smiles, jobTypes });
+    } finally {
+      setIsQuantumSubmitting(false);
+    }
+  }, []);
   const handleRegisterDesignIdea = React.useCallback(async () => {
     if (!canAddCompound) return;
-    await cdjsInstance?.__flushPendingInput?.();
+    const flushedSmiles = await cdjsInstance?.__flushPendingInput?.();
     const values = await designForm.validateFields();
-    if (!designSmiles.trim()) {
+    const normalizedSmiles = (typeof flushedSmiles === 'string' ? flushedSmiles : designSmiles).trim();
+    if (!normalizedSmiles) {
       setDesignSmilesError('SMILES 또는 구조 정보를 입력해주세요');
       return;
     }
+    let synchronousResults: Awaited<ReturnType<typeof calculateSelectedSynchronousResults>>;
+    try {
+      synchronousResults = await calculateSelectedSynchronousResults(normalizedSmiles);
+    } catch (error) {
+      const calculationError = error instanceof SynchronousCalculationError
+        ? error
+        : new SynchronousCalculationError('Vprop', error);
+      modal.error({
+        title: `${calculationError.provider} 계산 실패`,
+        content: getSynchronousCalculationErrorMessage(calculationError),
+      });
+      return;
+    }
+
+    const requestedQuantumJobTypes = selectedCalculations
+      .map((option) => QUANTUM_CALCULATION_OPTIONS[option])
+      .filter((jobType): jobType is QuantumJobType => Boolean(jobType));
+    let quantumCalculations: Compound['quantumCalculations'];
+    if (requestedQuantumJobTypes.length > 0) {
+      try {
+        const response = await submitQuantumCalculations(
+          normalizedSmiles,
+          requestedQuantumJobTypes,
+          createCalculationDraftKey(),
+        );
+        const acceptedJobs = response.jobs.filter((job) => job.status !== 'FAILED');
+        if (acceptedJobs.length === 0) {
+          modal.error({
+            title: '3D PSA·E-Sol 계산 요청 실패',
+            content: response.jobs.map((job) => job.errorMessage).filter(Boolean).join('\n')
+              || '계산 작업을 접수하지 못했습니다.',
+          });
+          return;
+        }
+        quantumCalculations = toQuantumCalculations(response.jobs);
+        if (acceptedJobs.length !== response.jobs.length) {
+          modal.warning({
+            title: '일부 계산 요청 실패',
+            content: '접수된 계산은 계속 진행되며 실패한 항목은 우클릭 데이터 화면에서 확인할 수 있습니다.',
+          });
+        }
+      } catch (error) {
+        modal.error({
+          title: '3D PSA·E-Sol 계산 요청 실패',
+          content: error instanceof Error ? error.message : '계산 작업을 접수하지 못했습니다.',
+        });
+        return;
+      }
+    }
+
     const ideaNumber = reserveNextIdeaNumber();
     const synthesisRequestNumber = reserveNextSynthesisRequestNumber();
     const targetGroupId = selectedGroupIds[0];
@@ -1981,7 +2165,7 @@ const MyBoard: React.FC = () => {
       compoundId: '',
       name: ideaNumber,
       source: values.source || 'Manual',
-      smiles: designSmiles.trim(),
+      smiles: normalizedSmiles,
       creDate: formatDisplayDate(new Date().toISOString()),
       manager: currentUser?.name ?? '문태훈',
       status: '디자인',
@@ -1991,6 +2175,9 @@ const MyBoard: React.FC = () => {
       properties1: [50, 50, 50, 50],
       properties2: [50, 50, 50, 50],
       requiredCalcs: selectedCalculations,
+      chemaxonCalculation: synchronousResults.chemaxonCalculation,
+      vpropCalculation: synchronousResults.vpropCalculation,
+      quantumCalculations,
       designNo: ideaNumber,
       designMemo: normalizeDesignMemoValue(values.designMemo),
       requiredAmountMg: Number(values.requiredAmountMg) || 0,
@@ -2019,6 +2206,7 @@ const MyBoard: React.FC = () => {
     resetDesignModalState();
   }, [
     cdjsInstance,
+    calculateSelectedSynchronousResults,
     canAddCompound,
     currentUser?.name,
     designForm,
@@ -2026,20 +2214,92 @@ const MyBoard: React.FC = () => {
     getDesignPurposeText,
     getDesignExpansionText,
     groups,
+    modal,
     normalizeDesignMemoValue,
     resetDesignModalState,
     selectedCalculations,
     selectedGroupIds,
+    submitQuantumCalculations,
   ]);
 
   const handleUpdateDesignIdea = React.useCallback(async () => {
     if (!selectedEditableCompound) return;
-    await cdjsInstance?.__flushPendingInput?.();
+    const flushedSmiles = await cdjsInstance?.__flushPendingInput?.();
     const values = await designForm.validateFields();
-    if (!designSmiles.trim()) {
+    const normalizedSmiles = (typeof flushedSmiles === 'string' ? flushedSmiles : designSmiles).trim();
+    if (!normalizedSmiles) {
       setDesignSmilesError('SMILES 또는 구조 정보를 입력해주세요');
       return;
     }
+    let synchronousResults: Awaited<ReturnType<typeof calculateSelectedSynchronousResults>>;
+    try {
+      synchronousResults = await calculateSelectedSynchronousResults(
+        normalizedSmiles,
+        selectedEditableCompound,
+      );
+    } catch (error) {
+      const calculationError = error instanceof SynchronousCalculationError
+        ? error
+        : new SynchronousCalculationError('Vprop', error);
+      modal.error({
+        title: `${calculationError.provider} 계산 실패`,
+        content: getSynchronousCalculationErrorMessage(calculationError),
+      });
+      return;
+    }
+
+    const requestedQuantumJobTypes = selectedCalculations
+      .map((option) => QUANTUM_CALCULATION_OPTIONS[option])
+      .filter((jobType): jobType is QuantumJobType => Boolean(jobType));
+    const existingQuantumJobs = [
+      selectedEditableCompound.quantumCalculations?.psa,
+      selectedEditableCompound.quantumCalculations?.esol,
+    ].filter((job): job is QuantumCalculationJob => Boolean(
+      job && job.smiles === normalizedSmiles && job.status !== 'FAILED'
+        && requestedQuantumJobTypes.includes(job.jobType),
+    ));
+    const missingQuantumJobTypes = requestedQuantumJobTypes.filter(
+      (jobType) => !existingQuantumJobs.some((job) => job.jobType === jobType),
+    );
+    let quantumCalculations = requestedQuantumJobTypes.length > 0
+      ? toQuantumCalculations(existingQuantumJobs)
+      : undefined;
+
+    if (missingQuantumJobTypes.length > 0) {
+      try {
+        const response = await submitQuantumCalculations(
+          normalizedSmiles,
+          missingQuantumJobTypes,
+          createCalculationDraftKey(),
+        );
+        const acceptedJobs = response.jobs.filter((job) => job.status !== 'FAILED');
+        if (acceptedJobs.length === 0 && existingQuantumJobs.length === 0) {
+          modal.error({
+            title: '3D PSA·E-Sol 계산 요청 실패',
+            content: response.jobs.map((job) => job.errorMessage).filter(Boolean).join('\n')
+              || '계산 작업을 접수하지 못했습니다.',
+          });
+          return;
+        }
+        quantumCalculations = {
+          ...quantumCalculations,
+          ...toQuantumCalculations(response.jobs),
+        };
+        if (acceptedJobs.length !== response.jobs.length) {
+          modal.warning({
+            title: '일부 계산 요청 실패',
+            content: '접수된 계산은 계속 진행되며 실패한 항목은 우클릭 데이터 화면에서 확인할 수 있습니다.',
+          });
+        }
+      } catch (error) {
+        modal.error({
+          title: '3D PSA·E-Sol 계산 요청 실패',
+          content: error instanceof Error ? error.message : '계산 작업을 접수하지 못했습니다.',
+        });
+        return;
+      }
+    }
+
     const purposeText = getDesignPurposeText(values.referenceName);
     const expansionText = getDesignExpansionText();
     const nextSource = values.source || '-';
@@ -2051,9 +2311,12 @@ const MyBoard: React.FC = () => {
         ? {
           ...compound,
           source: nextSource,
-          smiles: designSmiles.trim(),
+          smiles: normalizedSmiles,
           designSource: nextSource,
           requiredCalcs: selectedCalculations,
+          chemaxonCalculation: synchronousResults.chemaxonCalculation,
+          vpropCalculation: synchronousResults.vpropCalculation,
+          quantumCalculations,
           designNo: values.ideaNumber || compound.designNo,
           name: values.ideaNumber || compound.name,
           designMemo: normalizeDesignMemoValue(values.designMemo),
@@ -2074,16 +2337,19 @@ const MyBoard: React.FC = () => {
     resetDesignModalState();
   }, [
     cdjsInstance,
+    calculateSelectedSynchronousResults,
     designForm,
     designSmiles,
     externalCompoundRows,
     getDesignExpansionText,
     getDesignPurposeText,
+    modal,
     normalizeDesignMemoValue,
     resetDesignModalState,
     selectedCalculations,
     selectedEditableCompound,
     setExternalCompoundRows,
+    submitQuantumCalculations,
   ]);
 
   const openCompoundGroupSelectModal = React.useCallback((action: 'move' | 'copy') => {
@@ -2111,29 +2377,14 @@ const MyBoard: React.FC = () => {
     });
   }, [canDeleteCompound, externalCompoundRows, modal, selectedDetailCompoundIds, setExternalCompoundRows]);
 
-  const handleHideSelectedCompounds = React.useCallback(() => {
-    if (!canHideCompound) return;
-    hideCompounds(selectedDetailCompoundIds.map(String));
-    setSelectedDetailCompoundIds([]);
-    setCompoundContextMenu(null);
-  }, [canHideCompound, hideCompounds, selectedDetailCompoundIds]);
-
   const handleQuickAddCompound = React.useCallback(async () => {
     const compoundCode = (selectedQuickAddCode || quickAddCode).trim();
     const targetGroupId = selectedGroupIds[0];
     if (!canAddCompound || !compoundCode || !targetGroupId) return;
-    if (!compoundLoginToken.trim()) {
-      modal.error({
-        title: 'Login token 필요',
-        content: '헤더의 login token 버튼에서 compound_api login_token을 먼저 입력해주세요.',
-      });
-      return;
-    }
-
     setIsQuickAddAdding(true);
 
     try {
-      const response = await compoundApi.getCompounds(compoundLoginToken, [compoundCode]);
+      const response = await compoundApi.getCompounds([compoundCode]);
       const compoundData = response.compounds.find((compound) => (
         compound.compound_code.toLowerCase() === compoundCode.toLowerCase()
       )) ?? response.compounds[0];
@@ -2207,7 +2458,6 @@ const MyBoard: React.FC = () => {
   }, [
     addExternalCompoundRow,
     canAddCompound,
-    compoundLoginToken,
     currentUser?.name,
     groups,
     modal,
@@ -2232,17 +2482,9 @@ const MyBoard: React.FC = () => {
       return;
     }
 
-    if (!compoundLoginToken.trim()) {
-      modal.error({
-        title: 'Login token 필요',
-        content: 'SAR 데이터를 조회하려면 헤더의 login token 버튼에서 compound_api login_token을 먼저 입력해주세요.',
-      });
-      return;
-    }
-
     setIsSarDataLoading(true);
     try {
-      const response = await compoundApi.getCompoundSarData(compoundLoginToken, externalCompoundCodes);
+      const response = await compoundApi.getCompoundSarData(externalCompoundCodes);
       setCompoundSarData(response.rows, response.groups);
       navigate('/myboard/sar-table');
     } catch (error) {
@@ -2254,7 +2496,6 @@ const MyBoard: React.FC = () => {
       setIsSarDataLoading(false);
     }
   }, [
-    compoundLoginToken,
     filteredCompounds,
     modal,
     navigate,
@@ -2359,6 +2600,25 @@ const MyBoard: React.FC = () => {
     detailSelectionAnchorRef.current = compoundId;
   }, [filteredCompounds, toggleDetailCompoundSelection]);
 
+  const contextMenuCompound = compoundContextMenu
+    ? compoundRows.find((compound) => compound.id === compoundContextMenu.compoundId)
+    : undefined;
+
+  const handleQuantumJobsUpdated = React.useCallback((
+    compoundId: string,
+    jobs: QuantumCalculationJob[],
+  ) => {
+    setCompoundRows((prev) => prev.map((compound) => (
+      compound.id === compoundId ? mergeQuantumJobs(compound, jobs) : compound
+    )));
+    setExternalCompoundRows(externalCompoundRows.map((compound) => (
+      compound.id === compoundId ? mergeQuantumJobs(compound, jobs) : compound
+    )));
+    setQuantumViewerCompound((compound) => (
+      compound?.id === compoundId ? mergeQuantumJobs(compound, jobs) : compound
+    ));
+  }, [externalCompoundRows, setExternalCompoundRows]);
+
   const compoundContextMenuItems: MenuProps['items'] = [
     {
       key: 'split',
@@ -2389,12 +2649,6 @@ const MyBoard: React.FC = () => {
       disabled: !canEditCompound,
     },
     {
-      key: 'hide',
-      icon: <span className="my-board-action-icon my-board-action-icon-eye-off" aria-hidden="true" />,
-      label: '숨기기',
-      disabled: !canHideCompound,
-    },
-    {
       type: 'divider',
     },
     {
@@ -2409,9 +2663,51 @@ const MyBoard: React.FC = () => {
       label: '다른 그룹으로 복제',
       disabled: !hasSelectedDetailCompounds,
     },
+    {
+      type: 'divider',
+    },
+    {
+      key: 'viewChemaxon',
+      icon: <Activity size={14} />,
+      label: 'Chemaxon 데이터 보기',
+      disabled: !contextMenuCompound?.chemaxonCalculation,
+    },
+    {
+      key: 'viewVprop',
+      icon: <Activity size={14} />,
+      label: 'Vprop 데이터 보기',
+      disabled: !contextMenuCompound?.vpropCalculation,
+    },
+    {
+      key: 'viewQuantumCalculations',
+      icon: <Activity size={14} />,
+      label: '3D PSA·E-Sol 데이터 보기',
+      disabled: !contextMenuCompound?.quantumCalculations,
+    },
   ];
 
   const handleCompoundContextMenuClick: MenuProps['onClick'] = ({ key }) => {
+    if (key === 'viewChemaxon') {
+      if (!contextMenuCompound?.chemaxonCalculation) return;
+      setChemaxonViewerCompound(contextMenuCompound);
+      setCompoundContextMenu(null);
+      return;
+    }
+
+    if (key === 'viewVprop') {
+      if (!contextMenuCompound?.vpropCalculation) return;
+      setVpropViewerCompound(contextMenuCompound);
+      setCompoundContextMenu(null);
+      return;
+    }
+
+    if (key === 'viewQuantumCalculations') {
+      if (!contextMenuCompound?.quantumCalculations) return;
+      setQuantumViewerCompound(contextMenuCompound);
+      setCompoundContextMenu(null);
+      return;
+    }
+
     if (key === 'split' || key === 'newGroup') {
       if (!hasSelectedDetailCompounds) return;
       setIsGroupModalOpen(true);
@@ -2426,11 +2722,6 @@ const MyBoard: React.FC = () => {
 
     if (key === 'edit') {
       handleOpenCompoundEdit();
-      return;
-    }
-
-    if (key === 'hide') {
-      handleHideSelectedCompounds();
       return;
     }
 
@@ -3987,7 +4278,7 @@ const MyBoard: React.FC = () => {
         okText="추가"
         cancelText="취소"
         okButtonProps={{
-          disabled: !(selectedQuickAddCode || quickAddCode).trim() || !canAddCompound || !compoundLoginToken.trim(),
+          disabled: !(selectedQuickAddCode || quickAddCode).trim() || !canAddCompound,
           loading: isQuickAddAdding,
         }}
       >
@@ -4008,11 +4299,6 @@ const MyBoard: React.FC = () => {
               }}
             />
           </Form.Item>
-          {!compoundLoginToken.trim() ? (
-            <Text type="danger" style={{ fontSize: 12 }}>
-              헤더의 login token 버튼에서 compound_api login_token을 먼저 입력해주세요.
-            </Text>
-          ) : null}
           {quickAddError ? (
             <Text type="danger" style={{ display: 'block', marginTop: 8, fontSize: 12 }}>
               {quickAddError}
@@ -4048,6 +4334,20 @@ const MyBoard: React.FC = () => {
         </Form>
       </Modal>
 
+      <ChemaxonDataModal
+        compound={chemaxonViewerCompound}
+        onClose={() => setChemaxonViewerCompound(null)}
+      />
+      <VpropDataModal
+        compound={vpropViewerCompound}
+        onClose={() => setVpropViewerCompound(null)}
+      />
+      <QuantumCalculationDataModal
+        compound={quantumViewerCompound}
+        onClose={() => setQuantumViewerCompound(null)}
+        onJobsUpdated={handleQuantumJobsUpdated}
+      />
+
       {/* Create Design Modal */}
       <Modal
         className="idea-compound-modal"
@@ -4056,12 +4356,16 @@ const MyBoard: React.FC = () => {
         onCancel={handleCloseDesignModal}
         onOk={isCompoundEditModalOpen ? handleUpdateDesignIdea : handleRegisterDesignIdea}
         okButtonProps={{
-          disabled: !cdjsInstance,
+          disabled: !cdjsInstance || isChemaxonCalculating || isVpropCalculating || isQuantumSubmitting,
+          loading: isChemaxonCalculating || isVpropCalculating || isQuantumSubmitting,
           onMouseDown: (event: React.MouseEvent<HTMLElement>) => {
             event.preventDefault();
             void cdjsInstance?.__flushPendingInput?.();
           },
         }}
+        cancelButtonProps={{ disabled: isChemaxonCalculating || isVpropCalculating || isQuantumSubmitting }}
+        closable={!isChemaxonCalculating && !isVpropCalculating && !isQuantumSubmitting}
+        maskClosable={!isChemaxonCalculating && !isVpropCalculating && !isQuantumSubmitting}
         okText={isCompoundEditModalOpen ? '수정' : '등록'}
         cancelText="취소"
         width="min(1200px, calc(100vw - 24px))"
@@ -4097,7 +4401,7 @@ const MyBoard: React.FC = () => {
                 <div className="idea-chemdraw-editor-box">
                   <ChemDrawEditor
                     active={isDesignModalOpen || isCompoundEditModalOpen}
-                    height={432}
+                    height={360}
                     flipControlsPlacement="left"
                     smilesValue={designSmiles}
                     onSmilesChange={handleDesignSmilesChange}
@@ -4252,6 +4556,7 @@ const MyBoard: React.FC = () => {
                     <Form.Item
                       name="expectedEffect"
                       label="기대 개선 효과"
+                      required
                       className="idea-inline-form-item idea-rich-text-form-item"
                       getValueFromEvent={(value) => (typeof value === 'string' ? value : '')}
                       rules={[{
@@ -5596,17 +5901,6 @@ const MyBoard: React.FC = () => {
           justify-content: center;
           border-radius: 2px;
         }
-        .my-board-action-icon {
-          display: block;
-          width: 14px;
-          height: 14px;
-          pointer-events: none;
-        }
-        .my-board-action-icon-eye-off {
-          background: currentColor;
-          mask: url("${eyeOffIconMaskUrl}") center / contain no-repeat;
-          -webkit-mask: url("${eyeOffIconMaskUrl}") center / contain no-repeat;
-        }
         .my-board-structure-setting-value {
           height: 20px;
           min-width: 42px;
@@ -5652,12 +5946,6 @@ const MyBoard: React.FC = () => {
         .my-board-detail-table .ant-table-body {
           scrollbar-gutter: stable;
           overflow-y: auto !important;
-        }
-        .my-board-detail-table .ant-pagination {
-          margin-bottom: 2px;
-          padding-bottom: 2px;
-          padding-right: 16px;
-          box-sizing: border-box;
         }
         .my-board-settings-modal .ant-modal-body {
           scrollbar-width: thin;
