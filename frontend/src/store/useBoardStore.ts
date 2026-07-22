@@ -104,6 +104,7 @@ interface BoardState {
   unhideCompounds: (compoundIds: string[]) => void;
   updateGroupStructureViewSettings: (groupId: string, settings: Partial<GroupStructureViewSettings>) => void;
   addGroup: (group: CompoundGroup) => void;
+  updateGroup: (groupId: string, updates: Pick<CompoundGroup, 'name' | 'target'>) => void;
   mergeGroups: (groupIds: string[], name: string) => void;
   copyGroup: (groupId: string) => void;
   deleteGroups: (groupIds: string[]) => void;
@@ -165,6 +166,11 @@ export const useBoardStore = create<BoardState>((set) => ({
     },
   })),
   addGroup: (group) => set((state) => ({ groups: [...state.groups, group] })),
+  updateGroup: (groupId, updates) => set((state) => ({
+    groups: state.groups.map((group) => (
+      group.id === groupId ? { ...group, ...updates } : group
+    )),
+  })),
   mergeGroups: (groupIds, name) => set((state) => {
     const targetGroups = state.groups.filter((group) => groupIds.includes(group.id));
     if (targetGroups.length === 0) return state;

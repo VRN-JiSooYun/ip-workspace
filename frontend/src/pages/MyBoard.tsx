@@ -523,15 +523,19 @@ const MyBoard: React.FC = () => {
     groups,
     groupStructureViewSettings,
     updateGroupStructureViewSettings,
+    addGroup,
+    updateGroup,
     mergeGroups,
     copyGroup,
     deleteGroups,
   } = useBoardStore();
   const { currentUser } = useUserStore();
   const [designForm] = Form.useForm();
+  const [groupForm] = Form.useForm<{ name: string; target?: string }>();
   const designReferenceName = Form.useWatch('referenceName', designForm) as string | undefined;
   const [designFormInitialValues, setDesignFormInitialValues] = useState<DesignFormInitialValues>({});
   const [isGroupModalOpen, setIsGroupModalOpen] = useState(false);
+  const [groupModalMode, setGroupModalMode] = useState<'create' | 'edit'>('create');
   const [isDesignModalOpen, setIsDesignModalOpen] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [isStructureModalOpen, setIsStructureModalOpen] = useState(false);
@@ -1823,6 +1827,74 @@ const MyBoard: React.FC = () => {
     compoundRows.filter((compound) => groupIds.includes(compound.groupId)).length
   ), [compoundRows]);
 
+  const selectedEditableGroup = selectedGroupIds.length === 1
+    ? groups.find((group) => group.id === selectedGroupIds[0])
+    : undefined;
+
+  const openCreateGroupModal = React.useCallback(() => {
+    setGroupModalMode('create');
+    groupForm.resetFields();
+    setIsGroupModalOpen(true);
+  }, [groupForm]);
+
+  const openEditGroupModal = React.useCallback(() => {
+    if (!selectedEditableGroup) return;
+    setGroupModalMode('edit');
+    groupForm.setFieldsValue({
+      name: selectedEditableGroup.name,
+      target: selectedEditableGroup.target,
+    });
+    setIsGroupModalOpen(true);
+  }, [groupForm, selectedEditableGroup]);
+
+  const closeGroupModal = React.useCallback(() => {
+    setIsGroupModalOpen(false);
+    groupForm.resetFields();
+  }, [groupForm]);
+
+  const saveGroup = React.useCallback(async () => {
+    const values = await groupForm.validateFields();
+    const name = values.name.trim();
+    const target = values.target?.trim() || undefined;
+
+    if (groupModalMode === 'edit') {
+      if (!selectedEditableGroup) return;
+      updateGroup(selectedEditableGroup.id, { name, target });
+    } else {
+      const groupId = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+        ? crypto.randomUUID()
+        : `group-${Date.now()}`;
+      addGroup({
+        id: groupId,
+        name,
+        type: 'my designs',
+        count: 0,
+        creDate: dayjs().format('YYYY.MM.DD'),
+        target,
+        shareStatus: '공유 안함',
+      });
+      setSelectedGroupIds([groupId]);
+    }
+
+    closeGroupModal();
+  }, [addGroup, closeGroupModal, groupForm, groupModalMode, selectedEditableGroup, setSelectedGroupIds, updateGroup]);
+
+  const confirmGroupDeletion = React.useCallback((groupIds: string[], onDeleted?: () => void) => {
+    if (groupIds.length === 0) return;
+    const compoundCount = getGroupCompoundCount(groupIds);
+    modal.confirm({
+      title: '그룹 삭제',
+      content: `총 ${groupIds.length}개의 그룹(${compoundCount}개의 화합물)을 삭제 하시겠습니까?`,
+      okText: '삭제',
+      cancelText: '취소',
+      okButtonProps: { danger: true },
+      onOk: () => {
+        deleteGroups(groupIds);
+        onDeleted?.();
+      },
+    });
+  }, [deleteGroups, getGroupCompoundCount, modal]);
+
   const hasSelectedDetailCompounds = selectedDetailCompoundIds.length > 0;
   const canAddCompound = selectedGroupIds.length === 1;
   const canDeleteCompound = hasSelectedDetailCompounds;
@@ -2710,7 +2782,7 @@ const MyBoard: React.FC = () => {
 
     if (key === 'split' || key === 'newGroup') {
       if (!hasSelectedDetailCompounds) return;
-      setIsGroupModalOpen(true);
+      openCreateGroupModal();
       setCompoundContextMenu(null);
       return;
     }
@@ -2812,19 +2884,7 @@ const MyBoard: React.FC = () => {
     }
 
     if (key === 'delete') {
-      if (contextGroupIds.length === 0) return;
-      const compoundCount = getGroupCompoundCount(contextGroupIds);
-      modal.confirm({
-        title: '그룹 삭제',
-        content: `총 ${contextGroupIds.length}개의 그룹(${compoundCount}개의 화합물)을 삭제 하시겠습니까?`,
-        okText: '삭제',
-        cancelText: '취소',
-        okButtonProps: { danger: true },
-        onOk: () => {
-          deleteGroups(contextGroupIds);
-          setGroupContextMenu(null);
-        },
-      });
+      confirmGroupDeletion(contextGroupIds, () => setGroupContextMenu(null));
       return;
     }
 
@@ -3708,18 +3768,38 @@ const MyBoard: React.FC = () => {
                 >
                   그룹 리스트
                 </Text>
-                <Button
-                  type="primary"
-                  size="small"
-                  icon={<Plus size={14} />}
-                  onClick={() => setIsGroupModalOpen(true)}
-                  style={{
-                    background: token.colorPrimary,
-                    borderColor: token.colorPrimary,
-                  }}
-                >
-                  Add Group
-                </Button>
+                <Space size={4}>
+                  <Button
+                    type="primary"
+                    size="small"
+                    icon={<Plus size={14} />}
+                    onClick={openCreateGroupModal}
+                    style={{
+                      background: token.colorPrimary,
+                      borderColor: token.colorPrimary,
+                    }}
+                  >
+                    Add
+                  </Button>
+                  <Button
+                    size="small"
+                    icon={<Edit3 size={13} />}
+                    disabled={!selectedEditableGroup}
+                    onClick={openEditGroupModal}
+                  >
+                    Edit
+                  </Button>
+                  <Button
+                    size="small"
+                    danger
+                    icon={<Trash2 size={13} />}
+                    disabled={selectedGroupIds.length === 0}
+                    onClick={() => confirmGroupDeletion(selectedGroupIds)}
+                  >
+                    Del
+                  </Button>
+                </Space>
+                <Divider type="vertical" className="my-board-group-action-divider" />
                 <Space size={8} className="my-board-group-pin-filter">
                   <Button
                     type={groupPinFilter === 'pinned' ? 'primary' : 'default'}
@@ -4189,20 +4269,28 @@ const MyBoard: React.FC = () => {
         )}
       </div>
 
-      {/* Create Group Modal */}
+      {/* Create/Edit Group Modal */}
       <Modal
-        title="신규 그룹 등록"
+        title={groupModalMode === 'edit' ? '그룹 편집' : '신규 그룹 등록'}
         open={isGroupModalOpen}
-        onCancel={() => setIsGroupModalOpen(false)}
-        onOk={() => setIsGroupModalOpen(false)}
-        okText="생성"
+        onCancel={closeGroupModal}
+        onOk={saveGroup}
+        okText={groupModalMode === 'edit' ? '저장' : '생성'}
         cancelText="취소"
+        destroyOnClose
       >
-        <Form layout="vertical" style={{ marginTop: 16 }}>
-          <Form.Item label="그룹 이름" required>
+        <Form form={groupForm} layout="vertical" style={{ marginTop: 16 }}>
+          <Form.Item
+            name="name"
+            label="그룹 이름"
+            rules={[
+              { required: true, message: '그룹 이름을 입력하세요.' },
+              { whitespace: true, message: '그룹 이름을 입력하세요.' },
+            ]}
+          >
             <Input placeholder="그룹 이름을 입력하세요" />
           </Form.Item>
-          <Form.Item label="타겟/프로젝트">
+          <Form.Item name="target" label="타겟/프로젝트">
             <Select placeholder="타켓 선택">
               {projectList.map(p => <Option key={p} value={p}>{p}</Option>)}
             </Select>
@@ -5286,6 +5374,11 @@ const MyBoard: React.FC = () => {
         }
         .my-board-group-row-selected:hover > td {
           background-color: var(--table-row-selected-hover-bg) !important;
+        }
+        .my-board-group-action-divider.ant-divider-vertical {
+          height: 20px;
+          margin-inline: 0;
+          border-inline-start-color: ${token.colorBorder};
         }
         .my-board-group-pin-filter {
           flex: 0 0 auto;
