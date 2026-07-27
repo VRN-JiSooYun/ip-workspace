@@ -20,6 +20,9 @@ import UniversalSearch from './pages/UniversalSearch';
 import AuthGate from './components/auth/AuthGate';
 import AccessRegistry from './pages/AccessRegistry';
 import Contact from './pages/Contact';
+import ConferenceList from './pages/ConferenceList';
+import ConferenceAbstractDetail from './pages/ConferenceAbstractDetail';
+import ConferenceAdmin from './pages/ConferenceAdmin';
 
 const App: React.FC = () => {
   const { isDarkMode } = useTheme();
@@ -104,12 +107,14 @@ const App: React.FC = () => {
               <Route path="/patents/insight" element={<PatentInsight />} />
               <Route path="/patents/manage" element={<EmptyPage title="My 특허 관리" breadcrumb={[{ label: 'Documents' }, { label: 'Patents' }, { label: 'My 특허 관리' }]} />} />
               <Route path="/papers/manage" element={<EmptyPage title="My 논문 관리" breadcrumb={[{ label: 'Documents' }, { label: 'Papers' }, { label: 'My 논문 관리' }]} />} />
-              <Route path="/conferences" element={<EmptyPage title="Conferences" breadcrumb={[{ label: 'Documents' }, { label: 'Conferences' }]} />} />
+              <Route path="/conferences" element={<ConferenceList />} />
+              <Route path="/conferences/abstracts/:abstractId" element={<ConferenceAbstractDetail />} />
               <Route path="/pdbs" element={<EmptyPage title="PDBs" breadcrumb={[{ label: 'PDBs' }]} />} />
               <Route path="/universal-search" element={<UniversalSearch />} />
               <Route path="/monitoring" element={<Monitoring />} />
               <Route path="/development-status" element={<DevelopmentStatus />} />
               <Route path="/workspace/access-registry" element={<AccessRegistry />} />
+              <Route path="/workspace/conference-admin" element={<ConferenceAdmin />} />
               <Route path="/contact" element={<Contact />} />
               <Route path="*" element={<Navigate to="/dashboard" replace />} />
             </Routes>

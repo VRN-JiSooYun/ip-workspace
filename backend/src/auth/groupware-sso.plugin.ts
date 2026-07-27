@@ -6,7 +6,11 @@ import { decryptOAuthToken, setTokenUtil } from 'better-auth/oauth2';
 import { z } from 'zod';
 import { prisma } from '../database/prisma.client';
 import { authRuntimeConfig, loadVersionedSecrets } from './auth-config';
-import { validateGroupwareToken } from './groupware-login-check';
+import {
+  validateGroupwareToken,
+  type GroupwareIdentity,
+} from './groupware-login-check';
+import { syncNotificationRecipientForUser } from '../notification-recipient/notification-recipient-sync';
 
 const GROUPWARE_PROVIDER_ID = 'groupware';
 const secrets = loadVersionedSecrets();
@@ -55,7 +59,12 @@ export const groupwareSsoPlugin = () => ({
       { method: 'GET', requireHeaders: true, use: [sessionMiddleware] },
       async (ctx) => {
         const session = ctx.context.session;
-        if ((session.user as { status?: string }).status !== 'ACTIVE') {
+        const sessionUser = session.user as typeof session.user & {
+          status?: string;
+          team?: string | null;
+          fullname?: string | null;
+        };
+        if (sessionUser.status !== 'ACTIVE') {
           await ctx.context.internalAdapter.deleteUserSessions(session.user.id);
           throw new APIError('FORBIDDEN', { code: 'AUTH_USER_INACTIVE' });
         }
@@ -69,16 +78,26 @@ export const groupwareSsoPlugin = () => ({
 
         const validatedAt = (account as { tokenValidatedAt?: Date | string | null })
           .tokenValidatedAt;
-        const needsRevalidation = !validatedAt ||
+        const needsRevalidation = !sessionUser.team || !sessionUser.fullname ||
+          !validatedAt ||
           Date.now() - new Date(validatedAt).getTime() >=
             authRuntimeConfig.revalidateIntervalSeconds * 1000;
+        let responseUser = session.user;
         if (needsRevalidation) {
           try {
             const token = await decryptOAuthToken(account.accessToken, ctx.context);
-            const email = await validateGroupwareToken(token);
-            if (email !== account.accountId.toLowerCase()) {
+            const identity = await validateGroupwareToken(token);
+            if (identity.email !== account.accountId.toLowerCase()) {
               throw new Error('GROUPWARE_ID_CHANGED');
             }
+            responseUser = await ctx.context.internalAdapter.updateUser(
+              session.user.id,
+              {
+                name: identity.fullname,
+                team: identity.team,
+                fullname: identity.fullname,
+              } as never,
+            );
             await ctx.context.internalAdapter.updateAccount(account.id, {
               tokenValidatedAt: new Date(),
             } as never);
@@ -87,7 +106,7 @@ export const groupwareSsoPlugin = () => ({
             throw new APIError('UNAUTHORIZED', { code: 'GROUPWARE_REAUTH_REQUIRED' });
           }
         }
-        return ctx.json(session);
+        return ctx.json({ ...session, user: responseUser });
       },
     ),
     groupwareExchange: createAuthEndpoint(
@@ -109,9 +128,9 @@ export const groupwareSsoPlugin = () => ({
           throw new APIError('FORBIDDEN', { code: 'AUTH_ORIGIN_REJECTED' });
         }
 
-        let email: string;
+        let identity: GroupwareIdentity;
         try {
-          email = await validateGroupwareToken(ctx.body.loginToken);
+          identity = await validateGroupwareToken(ctx.body.loginToken);
         } catch {
           await audit({
             eventType: 'GROUPWARE_EXCHANGE', result: 'failure',
@@ -119,6 +138,7 @@ export const groupwareSsoPlugin = () => ({
           });
           throw new APIError('UNAUTHORIZED', { code: 'GROUPWARE_LOGIN_INVALID' });
         }
+        const { email } = identity;
 
         if (ctx.body.expectedEmail && ctx.body.expectedEmail !== email) {
           await audit({
@@ -158,7 +178,9 @@ export const groupwareSsoPlugin = () => ({
           try {
             user = await ctx.context.internalAdapter.createUser({
               email,
-              name: email,
+              name: identity.fullname,
+              team: identity.team,
+              fullname: identity.fullname,
               emailVerified: true,
               role,
               status: 'ACTIVE',
@@ -211,6 +233,32 @@ export const groupwareSsoPlugin = () => ({
         if ((user as { status?: string }).status !== 'ACTIVE') {
           await ctx.context.internalAdapter.deleteUserSessions(user.id);
           throw new APIError('FORBIDDEN', { code: 'AUTH_USER_INACTIVE' });
+        }
+        user = await ctx.context.internalAdapter.updateUser(user.id, {
+          name: identity.fullname,
+          team: identity.team,
+          fullname: identity.fullname,
+        } as never);
+
+        try {
+          await syncNotificationRecipientForUser(prisma, {
+            id: user.id,
+            name: user.name,
+            email: user.email,
+            status: (user as { status?: string }).status,
+          });
+        } catch {
+          await audit({
+            eventType: 'NOTIFICATION_RECIPIENT_SYNC',
+            result: 'failure',
+            errorCode: 'NOTIFICATION_RECIPIENT_SYNC_FAILED',
+            requestId,
+            actorUserId: user.id,
+            targetUserId: user.id,
+            email,
+            ipAddress,
+            userAgent,
+          }).catch(() => undefined);
         }
 
         const createdSession = await ctx.context.internalAdapter.createSession(user.id, false);

@@ -9,7 +9,8 @@ export class AdminUsersService {
   listUsers() {
     return this.prisma.client.user.findMany({
       select: {
-        id: true, name: true, email: true, role: true, status: true,
+        id: true, name: true, email: true, team: true, fullname: true,
+        role: true, status: true,
         createdAt: true, updatedAt: true,
       },
       orderBy: { createdAt: 'desc' },
@@ -42,7 +43,8 @@ export class AdminUsersService {
         where: { id: targetUserId },
         data: { role: nextRole, status: nextStatus },
         select: {
-          id: true, name: true, email: true, role: true, status: true,
+          id: true, name: true, email: true, team: true, fullname: true,
+          role: true, status: true,
           createdAt: true, updatedAt: true,
         },
       });

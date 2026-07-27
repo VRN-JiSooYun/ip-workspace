@@ -39,3 +39,10 @@ export const formatDisplayDate = (value: unknown) => {
     .replace(/\b(\d{4})[-/.](\d{2})[-/.](\d{2})\.?(?!\d)/g, '$1.$2.$3')
     .replace(/\b(\d{2})[-/.](\d{2})[-/.](\d{2})\.?(?!\d)/g, '20$1.$2.$3');
 };
+
+export const formatDisplayDateOnly = (value: unknown) => {
+  const formattedValue = formatDisplayDate(value);
+  const datePart = formattedValue.match(/^(\d{4}\.\d{2}\.\d{2})/);
+
+  return datePart?.[1] || formattedValue;
+};

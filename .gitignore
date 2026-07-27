@@ -19,6 +19,10 @@ out/
 .env.test.local
 .env.production.local
 *.env
+.env.*
+!.env.example
+**/token.json
+**/*credential*.json
 
 # IDE / Editor
 .vscode/
@@ -65,3 +69,4 @@ Thumbs.db
 
 sample/
 nginx/
+secrets/

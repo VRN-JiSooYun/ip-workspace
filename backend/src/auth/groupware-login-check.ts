@@ -1,10 +1,58 @@
 import { authRuntimeConfig } from './auth-config';
 
-type LoginCheckResponse = { loginCheck?: unknown; id?: unknown };
+type LoginCheckResponse = {
+  loginCheck?: unknown;
+  id?: unknown;
+  team?: unknown;
+  fullname?: unknown;
+};
 
 export type GroupwareLoginCheckResult =
   | { loginCheck: false }
-  | { loginCheck: true; email: string };
+  | {
+    loginCheck: true;
+    email: string;
+    team: string;
+    fullname: string;
+  };
+
+export type GroupwareIdentity = Extract<
+  GroupwareLoginCheckResult,
+  { loginCheck: true }
+>;
+
+const requiredProfileText = (
+  value: unknown,
+  errorCode: string,
+): string => {
+  if (typeof value !== 'string') throw new Error(errorCode);
+  const trimmed = value.trim();
+  if (!trimmed || trimmed.length > 200) throw new Error(errorCode);
+  return trimmed;
+};
+
+export const parseGroupwareLoginCheckResponse = (
+  result: LoginCheckResponse,
+): GroupwareLoginCheckResult => {
+  if (result.loginCheck === false) return { loginCheck: false };
+  if (result.loginCheck !== true) {
+    throw new Error('GROUPWARE_LOGIN_CHECK_INVALID_RESPONSE');
+  }
+  if (typeof result.id !== 'string' || !result.id.trim()) {
+    throw new Error('GROUPWARE_ID_INVALID');
+  }
+
+  const email = result.id.trim().toLowerCase();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    throw new Error('GROUPWARE_ID_INVALID');
+  }
+  return {
+    loginCheck: true,
+    email,
+    team: requiredProfileText(result.team, 'GROUPWARE_TEAM_INVALID'),
+    fullname: requiredProfileText(result.fullname, 'GROUPWARE_FULLNAME_INVALID'),
+  };
+};
 
 export const checkGroupwareToken = async (
   loginToken: string,
@@ -22,24 +70,15 @@ export const checkGroupwareToken = async (
   });
   if (!response.ok) throw new Error(`GROUPWARE_LOGIN_CHECK_${response.status}`);
 
-  const result = (await response.json()) as LoginCheckResponse;
-  if (result.loginCheck === false) return { loginCheck: false };
-  if (result.loginCheck !== true) {
-    throw new Error('GROUPWARE_LOGIN_CHECK_INVALID_RESPONSE');
-  }
-  if (typeof result.id !== 'string' || !result.id.trim()) {
-    throw new Error('GROUPWARE_ID_INVALID');
-  }
-
-  const email = result.id.trim().toLowerCase();
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    throw new Error('GROUPWARE_ID_INVALID');
-  }
-  return { loginCheck: true, email };
+  return parseGroupwareLoginCheckResponse(
+    (await response.json()) as LoginCheckResponse,
+  );
 };
 
-export const validateGroupwareToken = async (loginToken: string): Promise<string> => {
+export const validateGroupwareToken = async (
+  loginToken: string,
+): Promise<GroupwareIdentity> => {
   const result = await checkGroupwareToken(loginToken);
   if (!result.loginCheck) throw new Error('GROUPWARE_LOGIN_INVALID');
-  return result.email;
+  return result;
 };

@@ -225,6 +225,7 @@ const PatentPdfViewerComponent: React.FC<PatentPdfViewerProps> = ({
   const pdfDocumentParams = React.useMemo(() => ({
     url: document,
     wasmUrl: PDFJS_WASM_URL,
+    withCredentials: true,
   }), [document]);
 
   React.useEffect(() => installPdfWorkerTerminationWarningFilter(), []);

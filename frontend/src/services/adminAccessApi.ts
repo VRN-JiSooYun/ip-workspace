@@ -9,6 +9,8 @@ export type AdminUser = {
   id: string;
   name: string;
   email: string;
+  team: string | null;
+  fullname: string | null;
   role: AdminUserRole;
   status: AdminUserStatus;
   createdAt: string;

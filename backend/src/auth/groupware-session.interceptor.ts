@@ -32,7 +32,12 @@ export class GroupwareSessionInterceptor {
 
     const user = await this.prisma.client.user.findUnique({
       where: { id: userId },
-      select: { status: true, accounts: { where: { providerId: 'groupware' }, take: 1 } },
+      select: {
+        status: true,
+        team: true,
+        fullname: true,
+        accounts: { where: { providerId: 'groupware' }, take: 1 },
+      },
     });
     if (!user || user.status !== 'ACTIVE') {
       await this.prisma.client.session.deleteMany({ where: { userId } });
@@ -45,15 +50,32 @@ export class GroupwareSessionInterceptor {
     }
 
     const revalidateAfter = authRuntimeConfig.revalidateIntervalSeconds * 1000;
-    if (!account.tokenValidatedAt || Date.now() - account.tokenValidatedAt.getTime() >= revalidateAfter) {
+    if (
+      !user.team
+      || !user.fullname
+      || !account.tokenValidatedAt
+      || Date.now() - account.tokenValidatedAt.getTime() >= revalidateAfter
+    ) {
       try {
         const token = await this.groupwareToken.decrypt(account.accessToken ?? '');
-        const email = await validateGroupwareToken(token);
-        if (email !== account.accountId.toLowerCase()) throw new Error('GROUPWARE_ID_CHANGED');
-        await this.prisma.client.account.update({
-          where: { id: account.id },
-          data: { tokenValidatedAt: new Date() },
-        });
+        const identity = await validateGroupwareToken(token);
+        if (identity.email !== account.accountId.toLowerCase()) {
+          throw new Error('GROUPWARE_ID_CHANGED');
+        }
+        await this.prisma.client.$transaction([
+          this.prisma.client.user.update({
+            where: { id: userId },
+            data: {
+              name: identity.fullname,
+              team: identity.team,
+              fullname: identity.fullname,
+            },
+          }),
+          this.prisma.client.account.update({
+            where: { id: account.id },
+            data: { tokenValidatedAt: new Date() },
+          }),
+        ]);
       } catch {
         await this.prisma.client.session.deleteMany({ where: { userId } });
         throw new UnauthorizedException('GROUPWARE_REAUTH_REQUIRED');

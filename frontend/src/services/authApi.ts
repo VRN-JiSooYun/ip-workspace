@@ -1,7 +1,15 @@
 type RuntimeWindow = Window & { _env_?: { VITE_API_URL?: string } };
 
 export type AuthSession = {
-  user: { id: string; email: string; name: string; role?: string; status?: string };
+  user: {
+    id: string;
+    email: string;
+    name: string;
+    team?: string | null;
+    fullname?: string | null;
+    role?: string;
+    status?: string;
+  };
   session: { id: string; expiresAt: string };
 };
 

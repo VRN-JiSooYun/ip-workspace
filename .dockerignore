@@ -1,0 +1,7 @@
+secrets/
+**/secrets/
+**/token.json
+**/*credential*.json
+.env
+.env.*
+!.env.example

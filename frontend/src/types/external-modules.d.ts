@@ -70,6 +70,7 @@ interface ImportMetaEnv {
   readonly VITE_COMPOUND_SEARCH_API_URL?: string;
   readonly VITE_MONITORING_URL?: string;
   readonly VITE_CHEMDRAW_CLIPBOARD_FIXER_URL?: string;
+  readonly VITE_GMAIL_ALLOWED_RECIPIENT_DOMAINS?: string;
 }
 
 interface ImportMeta {

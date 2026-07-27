@@ -52,6 +52,7 @@ services:
       - VITE_MONITORING_URL=/monitoring/
       - VITE_CHEMDRAW_CLIPBOARD_FIXER_URL=http://localhost:47823
       - VITE_GROUPWARE_ORIGIN=${VITE_GROUPWARE_ORIGIN:-https://voronoi.app}
+      - VITE_GMAIL_ALLOWED_RECIPIENT_DOMAINS=${GMAIL_ALLOWED_RECIPIENT_DOMAINS:-voronoi.io}
     depends_on:
       - local-myworkspace-backend
       - local-myworkspace-rdkit-api
@@ -69,6 +70,11 @@ services:
     volumes:
       - ./backend:/app
       - /app/node_modules
+      - ./sample/conference/excel:/app/imports/conference/legacy/excel:ro
+      - ./sample/conference/conference_list.json:/app/imports/conference/legacy/conference_list.json:ro
+      - ./sample/conference/api_metadata:/app/imports/conference/api-metadata:ro
+      - ./sample/groupware_mail_system/getMembers.json:/run/imports/getMembers.json:ro
+      - ./secrets/gmail/token.json:/run/secrets/gmail/token.json:ro
     environment:
       - NODE_ENV=development
       - PORT=3000
@@ -102,6 +108,15 @@ services:
       - AUTH_SESSION_EXPIRES_IN_SECONDS=21600
       - AUTH_SESSION_UPDATE_AGE_SECONDS=1800
       - AUTH_BOOTSTRAP_ADMIN_EMAILS=${AUTH_BOOTSTRAP_ADMIN_EMAILS:-}
+      - CONFERENCE_IMPORT_ROOT=/app/imports/conference
+      - NOTIFICATION_RECIPIENT_SOURCE_FILE=/run/imports/getMembers.json
+      - GMAIL_OAUTH_TOKEN_FILE=/run/secrets/gmail/token.json
+      - GMAIL_FROM_EMAIL=${GMAIL_FROM_EMAIL:-vgw@voronoi.io}
+      - GMAIL_ALLOWED_RECIPIENT_DOMAINS=${GMAIL_ALLOWED_RECIPIENT_DOMAINS:-voronoi.io}
+      - PUBLIC_APP_BASE_URL=${PUBLIC_APP_BASE_URL:-http://localhost:5174}
+      - GMAIL_OUTBOX_POLL_INTERVAL_MS=5000
+      - GMAIL_OUTBOX_LEASE_DURATION_MS=60000
+      - GMAIL_OUTBOX_MAX_ATTEMPTS=5
     depends_on:
       local-myworkspace-migrate:
         condition: service_completed_successfully

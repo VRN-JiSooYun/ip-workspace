@@ -4249,7 +4249,7 @@ const MyBoard: React.FC = () => {
         onOk={saveGroup}
         okText={groupModalMode === 'edit' ? '저장' : '생성'}
         cancelText="취소"
-        destroyOnClose
+        destroyOnHidden
       >
         <Form form={groupForm} layout="vertical" style={{ marginTop: 16 }}>
           <Form.Item

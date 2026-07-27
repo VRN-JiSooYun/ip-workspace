@@ -31,6 +31,8 @@ export const auth = betterAuth({
     additionalFields: {
       role: { type: 'string', required: true, defaultValue: 'USER', input: false },
       status: { type: 'string', required: true, defaultValue: 'ACTIVE', input: false },
+      team: { type: 'string', required: false, input: false },
+      fullname: { type: 'string', required: false, input: false },
     },
   },
   plugins: [groupwareSsoPlugin()],

@@ -13,6 +13,8 @@ model User {
   email         String         @unique
   emailVerified Boolean        @default(false)
   image         String?
+  team          String?
+  fullname      String?
   role          String         @default("USER")
   status        String         @default("ACTIVE")
   createdAt     DateTime       @default(now())
@@ -20,10 +22,17 @@ model User {
   sessions      Session[]
   accounts      Account[]
   calculationJobs CalculationJob[]
+  conferenceBookmarks ConferenceBookmark[]
+  abstractBookmarks AbstractBookmark[]
+  abstractComments ConferenceAbstractComment[]
+  conferenceImportRuns ConferenceImportRun[]
+  notificationRecipient NotificationRecipient? @relation("NotificationRecipientLinkedUser")
+  notificationRecipientImportRuns NotificationRecipientImportRun[]
   auditActions  AuthAuditLog[] @relation("AuditActor")
   auditTargets  AuthAuditLog[] @relation("AuditTarget")
 
   @@index([role, status])
+  @@index([team])
   @@map("user")
 }
 
@@ -41,6 +50,93 @@ enum CalculationJobStatus {
   QUEUED
   COMPLETED
   FAILED
+}
+
+enum ConferenceStatus {
+  OPEN
+  NOT_OPENED
+}
+
+enum ConferenceAssetKind {
+  LOGO
+}
+
+enum ConferenceAbstractAssetKind {
+  POSTER
+  DOCUMENT
+  VIDEO
+  REFERENCE_IMAGE
+  ATTACHMENT
+}
+
+enum ConferenceStorageProvider {
+  LEGACY_HTTP
+  NAS
+}
+
+enum ConferenceAssetMigrationStatus {
+  NOT_PLANNED
+  PENDING
+  MIGRATING
+  READY
+  FAILED
+}
+
+enum ConferenceImportStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  PARTIAL
+  FAILED
+}
+
+enum ConferenceImportMode {
+  DRY_RUN
+  APPLY
+}
+
+enum ConferenceImportIssueSeverity {
+  WARNING
+  ERROR
+}
+
+enum ConferenceCommentSource {
+  WORKSPACE
+  LEGACY_DJANGO
+}
+
+enum ConferenceMailOutboxType {
+  COMMENT_MENTION
+}
+
+enum ConferenceMailOutboxStatus {
+  PENDING
+  PROCESSING
+  RETRY
+  SENT
+  FAILED
+}
+
+enum NotificationRecipientSource {
+  GROUPWARE_IMPORT
+  WORKSPACE_USER
+}
+
+enum NotificationRecipientStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum NotificationRecipientImportStatus {
+  RUNNING
+  COMPLETED
+  PARTIAL
+  FAILED
+}
+
+enum NotificationRecipientImportIssueSeverity {
+  WARNING
+  ERROR
 }
 
 model CalculationJob {
@@ -66,6 +162,330 @@ model CalculationJob {
   @@index([userId, compoundDraftKey, deletedAt])
   @@index([status, deletedAt, updatedAt])
   @@map("calculation_job")
+}
+
+model Conference {
+  id            String           @id @default(uuid()) @db.Uuid
+  legacyId      Int?
+  sourceSystem  String           @default("LEGACY_DJANGO")
+  status        ConferenceStatus @default(OPEN)
+  title         String
+  abbreviation  String
+  fullTitle     String?
+  year          Int
+  sourceUrl     String?          @db.Text
+  dateStart     DateTime?        @db.Date
+  dateEnd       DateTime?        @db.Date
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+  deletedAt     DateTime?
+  abstracts     ConferenceAbstract[]
+  assets        ConferenceAsset[]
+  bookmarks     ConferenceBookmark[]
+
+  @@unique([sourceSystem, legacyId])
+  @@unique([abbreviation, year])
+  @@index([dateStart, dateEnd, deletedAt])
+  @@index([year, deletedAt])
+  @@index([status, deletedAt])
+  @@map("conference")
+}
+
+model ConferenceAbstract {
+  id                              String         @id @default(uuid()) @db.Uuid
+  conferenceId                    String         @db.Uuid
+  legacyId                        Int?
+  sourceSystem                    String         @default("LEGACY_DJANGO")
+  title                           String         @db.Text
+  sourceUrl                       String?        @db.Text
+  firstAuthorName                 String?
+  firstAuthorOrganization         String?        @db.Text
+  firstAuthorUrl                  String?        @db.Text
+  authors                         Json?
+  authorOrganizations             Json?
+  organizations                   Json?
+  contents                        Json?
+  meeting                         String?
+  meetingUrl                      String?        @db.Text
+  sessionType                     String?
+  sessionTypeUrl                  String?        @db.Text
+  sessionTitle                    String?        @db.Text
+  sessionTitleUrl                 String?        @db.Text
+  track                           String?        @db.Text
+  trackUrl                        String?        @db.Text
+  subTrack                        String?
+  subTrackUrl                     String?        @db.Text
+  abstractNumber                  String?
+  posterNumber                    String?
+  clinicalTrialRegistrationNumber String?
+  dateOpen                        DateTime?       @db.Date
+  createdAt                       DateTime        @default(now())
+  updatedAt                       DateTime        @updatedAt
+  deletedAt                       DateTime?
+  conference                      Conference      @relation(fields: [conferenceId], references: [id], onDelete: Restrict)
+  assets                          ConferenceAbstractAsset[]
+  bookmarks                       AbstractBookmark[]
+  comments                        ConferenceAbstractComment[]
+
+  @@unique([sourceSystem, legacyId])
+  @@index([conferenceId, deletedAt, abstractNumber])
+  @@index([conferenceId, dateOpen])
+  @@index([conferenceId, sourceUrl])
+  @@map("conference_abstract")
+}
+
+model ConferenceAsset {
+  id              String                         @id @default(uuid()) @db.Uuid
+  conferenceId    String                         @db.Uuid
+  kind            ConferenceAssetKind
+  storageProvider ConferenceStorageProvider      @default(LEGACY_HTTP)
+  legacySourceUrl String?                        @db.Text
+  storageKey      String?
+  originalFilename String
+  mimeType        String?
+  byteSize        BigInt?
+  sha256          String?
+  migrationStatus ConferenceAssetMigrationStatus @default(NOT_PLANNED)
+  migrationError  String?                        @db.Text
+  migratedAt      DateTime?
+  createdAt       DateTime                       @default(now())
+  conference      Conference                     @relation(fields: [conferenceId], references: [id], onDelete: Restrict)
+
+  @@unique([conferenceId, kind, legacySourceUrl])
+  @@index([conferenceId, kind])
+  @@index([migrationStatus])
+  @@map("conference_asset")
+}
+
+model ConferenceAbstractAsset {
+  id              String                                 @id @default(uuid()) @db.Uuid
+  abstractId      String                                 @db.Uuid
+  kind            ConferenceAbstractAssetKind
+  storageProvider ConferenceStorageProvider              @default(LEGACY_HTTP)
+  legacySourceUrl String?                                @db.Text
+  storageKey      String?
+  originalFilename String
+  mimeType        String?
+  byteSize        BigInt?
+  sha256          String?
+  sortOrder       Int                                    @default(0)
+  migrationStatus ConferenceAssetMigrationStatus         @default(NOT_PLANNED)
+  migrationError  String?                                @db.Text
+  migratedAt      DateTime?
+  createdAt       DateTime                               @default(now())
+  abstract        ConferenceAbstract                     @relation(fields: [abstractId], references: [id], onDelete: Restrict)
+
+  @@unique([abstractId, kind, legacySourceUrl])
+  @@index([abstractId, kind, sortOrder])
+  @@index([migrationStatus])
+  @@map("conference_abstract_asset")
+}
+
+model ConferenceBookmark {
+  userId       String     @db.Uuid
+  conferenceId String     @db.Uuid
+  createdAt    DateTime   @default(now())
+  user         User       @relation(fields: [userId], references: [id], onDelete: Restrict)
+  conference   Conference @relation(fields: [conferenceId], references: [id], onDelete: Restrict)
+
+  @@id([userId, conferenceId])
+  @@index([conferenceId, createdAt])
+  @@map("conference_bookmark")
+}
+
+model AbstractBookmark {
+  userId     String             @db.Uuid
+  abstractId String             @db.Uuid
+  createdAt  DateTime           @default(now())
+  user       User               @relation(fields: [userId], references: [id], onDelete: Restrict)
+  abstract   ConferenceAbstract @relation(fields: [abstractId], references: [id], onDelete: Restrict)
+
+  @@id([userId, abstractId])
+  @@index([abstractId, createdAt])
+  @@map("conference_abstract_bookmark")
+}
+
+model ConferenceAbstractComment {
+  id                      String                             @id @default(uuid()) @db.Uuid
+  abstractId              String                             @db.Uuid
+  authorUserId            String?                            @db.Uuid
+  legacyAuthorRecipientId String?                            @db.Uuid
+  authorNameSnapshot      String?
+  sourceSystem            ConferenceCommentSource            @default(WORKSPACE)
+  legacyCommentKey        String?                            @unique
+  legacyCommentId         Int?
+  legacyOrder             Int?
+  sourceCreatedAt         DateTime?
+  content                 String                             @db.Text
+  createdAt               DateTime                           @default(now())
+  updatedAt               DateTime                           @updatedAt
+  deletedAt               DateTime?
+  abstract                ConferenceAbstract                 @relation(fields: [abstractId], references: [id], onDelete: Restrict)
+  author                  User?                              @relation(fields: [authorUserId], references: [id], onDelete: Restrict)
+  legacyAuthorRecipient   NotificationRecipient?             @relation("ConferenceCommentLegacyAuthor", fields: [legacyAuthorRecipientId], references: [id], onDelete: Restrict)
+  mentions                ConferenceAbstractCommentMention[]
+  mailOutboxes            ConferenceMailOutbox[]
+
+  @@index([abstractId, deletedAt, createdAt])
+  @@index([authorUserId, deletedAt])
+  @@index([legacyAuthorRecipientId, deletedAt])
+  @@map("conference_abstract_comment")
+}
+
+model ConferenceAbstractCommentMention {
+  commentId              String                @db.Uuid
+  mentionedRecipientId   String                @db.Uuid
+  readAt                 DateTime?
+  createdAt              DateTime              @default(now())
+  comment                ConferenceAbstractComment @relation(fields: [commentId], references: [id], onDelete: Restrict)
+  mentionedRecipient     NotificationRecipient @relation(fields: [mentionedRecipientId], references: [id], onDelete: Restrict)
+
+  @@id([commentId, mentionedRecipientId])
+  @@index([mentionedRecipientId, readAt, createdAt])
+  @@map("conference_abstract_comment_mention")
+}
+
+model NotificationRecipient {
+  id                String                      @id @default(uuid()) @db.Uuid
+  memberId          Int?                        @unique
+  name              String
+  email             String
+  normalizedEmail   String                      @unique
+  linkedUserId      String?                     @unique @db.Uuid
+  source            NotificationRecipientSource
+  status            NotificationRecipientStatus @default(ACTIVE)
+  mailEnabled       Boolean                     @default(true)
+  sourceChecksum    String?
+  lastSyncedAt      DateTime                    @default(now())
+  createdAt         DateTime                    @default(now())
+  updatedAt         DateTime                    @updatedAt
+  linkedUser        User?                       @relation("NotificationRecipientLinkedUser", fields: [linkedUserId], references: [id], onDelete: SetNull)
+  commentMentions   ConferenceAbstractCommentMention[]
+  legacyAuthoredComments ConferenceAbstractComment[] @relation("ConferenceCommentLegacyAuthor")
+  mailOutboxes      ConferenceMailOutbox[]
+
+  @@index([status, mailEnabled, name])
+  @@index([lastSyncedAt])
+  @@map("notification_recipient")
+}
+
+model ConferenceMailOutbox {
+  id                     String                       @id @default(uuid()) @db.Uuid
+  type                   ConferenceMailOutboxType     @default(COMMENT_MENTION)
+  status                 ConferenceMailOutboxStatus   @default(PENDING)
+  commentId              String                       @db.Uuid
+  recipientId            String?                      @db.Uuid
+  recipientEmailSnapshot String
+  recipientNormalizedEmail String
+  recipientNameSnapshot  String
+  subjectSnapshot        String
+  textBodySnapshot       String                       @db.Text
+  htmlBodySnapshot       String                       @db.Text
+  messageId              String                       @unique
+  providerMessageId      String?
+  attemptCount           Int                          @default(0)
+  maxAttempts            Int                          @default(5)
+  nextAttemptAt          DateTime                     @default(now())
+  leaseOwner             String?
+  leaseExpiresAt         DateTime?
+  lastErrorCode          String?
+  lastErrorMessage       String?                      @db.Text
+  sentAt                 DateTime?
+  createdAt              DateTime                     @default(now())
+  updatedAt              DateTime                     @updatedAt
+  comment                ConferenceAbstractComment    @relation(fields: [commentId], references: [id], onDelete: Restrict)
+  recipient              NotificationRecipient?       @relation(fields: [recipientId], references: [id], onDelete: Restrict)
+
+  @@unique([type, commentId, recipientNormalizedEmail], map: "conference_mail_outbox_type_comment_email_key")
+  @@index([status, nextAttemptAt])
+  @@index([leaseExpiresAt])
+  @@index([commentId, createdAt])
+  @@index([recipientId, createdAt])
+  @@map("conference_mail_outbox")
+}
+
+model NotificationRecipientImportRun {
+  id                String                            @id @default(uuid()) @db.Uuid
+  mode              ConferenceImportMode
+  status            NotificationRecipientImportStatus @default(RUNNING)
+  profileVersion    String
+  sourceChecksum    String
+  sourceCount       Int                               @default(0)
+  insertedCount     Int                               @default(0)
+  updatedCount      Int                               @default(0)
+  unchangedCount    Int                               @default(0)
+  skippedCount      Int                               @default(0)
+  conflictCount     Int                               @default(0)
+  errorCount        Int                               @default(0)
+  startedByUserId   String                            @db.Uuid
+  startedAt         DateTime                          @default(now())
+  finishedAt        DateTime?
+  startedBy         User                              @relation(fields: [startedByUserId], references: [id], onDelete: Restrict)
+  issues            NotificationRecipientImportIssue[]
+
+  @@unique([sourceChecksum, profileVersion, mode])
+  @@index([status, startedAt])
+  @@index([startedByUserId, startedAt])
+  @@map("notification_recipient_import_run")
+}
+
+model NotificationRecipientImportIssue {
+  id          String                                   @id @default(uuid()) @db.Uuid
+  runId       String                                   @db.Uuid
+  rowNumber   Int?
+  severity    NotificationRecipientImportIssueSeverity
+  errorCode   String
+  message     String                                   @db.Text
+  memberId    Int?
+  createdAt   DateTime                                 @default(now())
+  run         NotificationRecipientImportRun           @relation(fields: [runId], references: [id], onDelete: Restrict)
+
+  @@index([runId, severity, rowNumber])
+  @@index([errorCode])
+  @@map("notification_recipient_import_issue")
+}
+
+model ConferenceImportRun {
+  id                String                 @id @default(uuid()) @db.Uuid
+  status            ConferenceImportStatus @default(PENDING)
+  mode              ConferenceImportMode
+  batchKey          String
+  profileVersion    String
+  sourceChecksum    String
+  idempotencyKey    String?
+  insertedCount     Int                    @default(0)
+  updatedCount      Int                    @default(0)
+  skippedCount      Int                    @default(0)
+  errorCount        Int                    @default(0)
+  startedByUserId   String                 @db.Uuid
+  startedAt         DateTime               @default(now())
+  finishedAt        DateTime?
+  startedBy         User                   @relation(fields: [startedByUserId], references: [id], onDelete: Restrict)
+  issues            ConferenceImportIssue[]
+
+  @@unique([sourceChecksum, profileVersion, mode])
+  @@unique([idempotencyKey])
+  @@index([status, startedAt])
+  @@index([startedByUserId, startedAt])
+  @@map("conference_import_run")
+}
+
+model ConferenceImportIssue {
+  id             String                        @id @default(uuid()) @db.Uuid
+  runId          String                        @db.Uuid
+  sourceFile     String
+  rowNumber      Int?
+  entityType     String
+  severity       ConferenceImportIssueSeverity
+  errorCode      String
+  message        String                        @db.Text
+  sourceSnapshot Json?
+  createdAt      DateTime                      @default(now())
+  run            ConferenceImportRun           @relation(fields: [runId], references: [id], onDelete: Restrict)
+
+  @@index([runId, severity, rowNumber])
+  @@index([errorCode])
+  @@map("conference_import_issue")
 }
 
 model Session {

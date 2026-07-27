@@ -19,6 +19,8 @@ import {
   FileText,
   HelpCircle,
   ShieldCheck,
+  Presentation,
+  Database,
 } from 'lucide-react';
 import BenzeneIcon from '../common/BenzeneIcon';
 import RdkitDrawOptionsModal from '../common/RdkitDrawOptionsModal';
@@ -57,6 +59,9 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
   const isStackedHeader = viewportWidth <= 900;
   const headerHeight = isStackedHeader ? 128 : 80;
   const voraExternalUrl = 'https://voronoi.app/vora/';
+  const userDisplayName = session.user.fullname?.trim()
+    || session.user.name?.trim()
+    || session.user.email;
 
   React.useEffect(() => {
     const onResize = () => setViewportWidth(window.innerWidth);
@@ -112,7 +117,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
       key: 'documents',
       label: 'Documents',
       icon: <FileText size={22} />,
-      activeKeys: ['documents', 'patents', 'patent-write', 'patent-analysis', 'patent-insight', 'patent-manage', 'papers', 'paper-manage', 'conferences'],
+      activeKeys: ['documents', 'patents', 'patent-write', 'patent-analysis', 'patent-insight', 'patent-manage', 'papers', 'paper-manage'],
       menu: {
         items: [
           {
@@ -136,7 +141,6 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
               { key: 'paper-manage', label: renderMiniDropdownLabel('My 논문 관리'), title: '', onClick: () => navigate('/papers/manage') },
             ],
           },
-          { key: 'conferences', label: renderMiniDropdownLabel('Conferences'), title: '', onClick: () => navigate('/conferences') },
         ],
       },
     },
@@ -170,15 +174,29 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
       icon: <Search size={22} />,
       onClick: () => navigate('/universal-search'),
     },
+    {
+      key: 'conferences',
+      label: 'Conference',
+      icon: <Presentation size={22} />,
+      onClick: () => navigate('/conferences'),
+    },
   ];
 
   const bottomMiniMenuItems: MiniMenuItem[] = [
-    ...(session.user.role === 'ADMIN' ? [{
-      key: 'access-registry',
-      label: '사용자 접근 관리',
-      icon: <ShieldCheck size={22} />,
-      onClick: () => navigate('/workspace/access-registry'),
-    }] : []),
+    ...(session.user.role === 'ADMIN' ? [
+      {
+        key: 'access-registry',
+        label: '사용자 접근 관리',
+        icon: <ShieldCheck size={22} />,
+        onClick: () => navigate('/workspace/access-registry'),
+      },
+      {
+        key: 'conference-admin',
+        label: 'Conference 관리',
+        icon: <Database size={22} />,
+        onClick: () => navigate('/workspace/conference-admin'),
+      },
+    ] : []),
     {
       key: 'monitoring',
       label: '모니터링',
@@ -216,11 +234,12 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
     if (path === '/patents/insight') return 'patent-insight';
     if (path === '/patents/manage') return 'patent-manage';
     if (path === '/papers/manage') return 'paper-manage';
-    if (path === '/conferences') return 'conferences';
+    if (path === '/conferences' || path.startsWith('/conferences/')) return 'conferences';
     if (path === '/universal-search') return 'universal-search';
     if (path === '/monitoring') return 'monitoring';
     if (path === '/development-status') return 'development-status';
     if (path === '/workspace/access-registry') return 'access-registry';
+    if (path === '/workspace/conference-admin') return 'conference-admin';
     if (path === '/contact') return 'contact';
     return 'dashboard';
   };
@@ -433,7 +452,6 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                       { key: 'paper-manage', label: 'My 논문 관리', onClick: () => navigate('/papers/manage') },
                     ]
                   },
-                  { key: 'conferences', label: 'Conferences', onClick: () => navigate('/conferences') },
                 ],
               },
               {
@@ -461,6 +479,12 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                 icon: renderSidebarIcon(<Search size={22} />),
                 label: <span style={{ fontWeight: 600 }}>통합검색</span>,
                 onClick: () => navigate('/universal-search')
+              },
+              {
+                key: 'conferences',
+                icon: renderSidebarIcon(<Presentation size={22} />),
+                label: <span style={{ fontWeight: 600 }}>Conference</span>,
+                onClick: () => navigate('/conferences')
               },
               ]}
             />
@@ -495,6 +519,11 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                 icon: renderSidebarIcon(<ShieldCheck size={22} />),
                 label: <span style={{ fontWeight: 600 }}>사용자 접근 관리</span>,
                 onClick: () => navigate('/workspace/access-registry')
+              }, {
+                key: 'conference-admin',
+                icon: renderSidebarIcon(<Database size={22} />),
+                label: <span style={{ fontWeight: 600 }}>Conference 관리</span>,
+                onClick: () => navigate('/workspace/conference-admin')
               }] : []),
               {
                 key: 'monitoring',
@@ -530,6 +559,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
           justifyContent: 'space-between',
           gap: isStackedHeader ? 10 : 0,
           height: headerHeight,
+          lineHeight: 'normal',
           borderBottom: 'none'
         }}>
           <div style={{ display: 'flex', alignItems: 'center', flex: isStackedHeader ? '0 0 auto' : '1 1 auto', minWidth: 0, width: isStackedHeader ? '100%' : undefined, gap: 16, overflow: isStackedHeader ? 'visible' : 'hidden' }}>
@@ -579,10 +609,14 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
             )}
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: isStackedHeader ? 'flex-end' : 'flex-start', gap: isStackedHeader ? 12 : 24, flexShrink: 0, width: isStackedHeader ? '100%' : undefined, minWidth: 0 }}>
-            <Space size={isStackedHeader ? 8 : 16}>
-              <Button type="text" icon={<Bell size={20} color={token.colorTextSecondary} />} />
-              <Button type="text" onClick={toggleTheme} icon={
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: isStackedHeader ? 'flex-end' : 'flex-start', gap: isStackedHeader ? 12 : 24, flexShrink: 0, width: isStackedHeader ? '100%' : undefined, minWidth: 0, height: 40 }}>
+            <Space align="center" size={isStackedHeader ? 8 : 16} style={{ height: 40, lineHeight: 1 }}>
+              <Button
+                type="text"
+                icon={<Bell size={20} color={token.colorTextSecondary} />}
+                style={{ width: 40, height: 40, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
+              />
+              <Button type="text" onClick={toggleTheme} style={{ width: 40, height: 40, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }} icon={
                 isDarkMode ? <Sun size={20} color={token.colorTextSecondary} /> : <Moon size={20} color={token.colorTextSecondary} />
               } />
               <Tooltip title="RDKit Draw 설정">
@@ -591,26 +625,31 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                   icon={<Palette size={20} color={token.colorTextSecondary} />}
                   onClick={() => setIsRdkitDrawOptionsOpen(true)}
                   aria-label="RDKit Draw 설정 열기"
+                  style={{ width: 40, height: 40, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
                 />
               </Tooltip>
             </Space>
             <span
-              title={session.user.email}
+              title={userDisplayName}
               style={{
                 maxWidth: isStackedHeader ? 200 : 280,
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
                 whiteSpace: 'nowrap',
                 color: token.colorText,
+                height: 40,
+                display: 'inline-flex',
+                alignItems: 'center',
+                lineHeight: '20px',
               }}
             >
-              {session.user.email}
+              {userDisplayName}
             </span>
             <Avatar
               size={40}
               style={{ border: '2px solid #fff', boxShadow: '0 2px 4px rgba(0,0,0,0.05)', background: token.colorPrimary }}
             >
-              {session.user.email.charAt(0).toUpperCase() || '?'}
+              {userDisplayName.charAt(0).toUpperCase() || '?'}
             </Avatar>
           </div>
         </Header>

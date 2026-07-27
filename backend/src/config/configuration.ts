@@ -54,6 +54,63 @@ export default () => ({
     timeoutMs: parseNumber(process.env.VPROP_API_TIMEOUT_MS, 25000),
     maxResponseBytes: parseNumber(process.env.VPROP_MAX_RESPONSE_BYTES, 5242880),
   },
+  conferenceMedia: {
+    legacyBaseUrl:
+      process.env.CONFERENCE_LEGACY_MEDIA_BASE_URL ?? 'https://voronoi.app',
+    legacyPathPrefix:
+      process.env.CONFERENCE_LEGACY_MEDIA_PATH_PREFIX ?? '/media/conference/',
+    redirectMode:
+      process.env.CONFERENCE_MEDIA_REDIRECT_MODE ?? 'DIRECT',
+    requestTimeoutMs: parseNumber(
+      process.env.CONFERENCE_MEDIA_REQUEST_TIMEOUT_MS,
+      30000,
+    ),
+    probeSampleLimit: parseNumber(
+      process.env.CONFERENCE_MEDIA_PROBE_SAMPLE_LIMIT,
+      20,
+    ),
+  },
+  conferenceImport: {
+    root:
+      process.env.CONFERENCE_IMPORT_ROOT ?? '/app/imports/conference',
+    pollIntervalMs: parseNumber(
+      process.env.CONFERENCE_IMPORT_POLL_INTERVAL_MS,
+      5000,
+    ),
+    maxIssuesPerRun: parseNumber(
+      process.env.CONFERENCE_IMPORT_MAX_ISSUES_PER_RUN,
+      1000,
+    ),
+  },
+  notificationRecipient: {
+    sourceFile:
+      process.env.NOTIFICATION_RECIPIENT_SOURCE_FILE
+      ?? '/app/imports/groupware-members/getMembers.json',
+  },
+  gmail: {
+    oauthTokenFile:
+      process.env.GMAIL_OAUTH_TOKEN_FILE
+      ?? '/run/secrets/gmail/token.json',
+    fromEmail: process.env.GMAIL_FROM_EMAIL?.trim() || 'vgw@voronoi.io',
+    allowedRecipientDomains: parseCsv(
+      process.env.GMAIL_ALLOWED_RECIPIENT_DOMAINS ?? 'voronoi.io',
+    ).map((domain) => domain.toLowerCase()),
+    publicAppBaseUrl:
+      process.env.PUBLIC_APP_BASE_URL
+      ?? 'http://localhost:5174',
+    pollIntervalMs: parseNumber(
+      process.env.GMAIL_OUTBOX_POLL_INTERVAL_MS,
+      5000,
+    ),
+    leaseDurationMs: parseNumber(
+      process.env.GMAIL_OUTBOX_LEASE_DURATION_MS,
+      60000,
+    ),
+    maxAttempts: parseNumber(
+      process.env.GMAIL_OUTBOX_MAX_ATTEMPTS,
+      5,
+    ),
+  },
   auth: {
     groupwareOrigin: process.env.GROUPWARE_ORIGIN ?? 'https://voronoi.app',
     sessionExpiresInSeconds: parseNumber(process.env.AUTH_SESSION_EXPIRES_IN_SECONDS, 21600),

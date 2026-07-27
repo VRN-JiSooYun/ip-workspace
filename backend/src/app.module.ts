@@ -12,6 +12,13 @@ import { MedichemAuthModule } from './auth/auth.module';
 import { DatabaseModule } from './database/database.module';
 import { AdminModule } from './admin/admin.module';
 import { CalculationsModule } from './calculations/calculations.module';
+import { ConferenceMediaModule } from './conference-media/conference-media.module';
+import { ConferenceImportModule } from './conference-import/conference-import.module';
+import { ConferenceReadModule } from './conference-read/conference-read.module';
+import { ConferenceInteractionModule } from './conference-interaction/conference-interaction.module';
+import { ConferenceAdminModule } from './conference-admin/conference-admin.module';
+import { NotificationRecipientModule } from './notification-recipient/notification-recipient.module';
+import { ConferenceMailModule } from './conference-mail/conference-mail.module';
 
 @Module({
   imports: [
@@ -38,6 +45,13 @@ import { CalculationsModule } from './calculations/calculations.module';
     ConformerModule,
     CompoundApiModule,
     CalculationsModule,
+    ConferenceMediaModule,
+    ConferenceImportModule,
+    ConferenceReadModule,
+    ConferenceInteractionModule,
+    ConferenceAdminModule,
+    NotificationRecipientModule,
+    ConferenceMailModule,
   ],
 })
 export class AppModule {}
