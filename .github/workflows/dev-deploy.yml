@@ -21,24 +21,14 @@ jobs:
         run: |
           set -euo pipefail
           gmail_token_source="/home/thmoon/devops/myworkspace/secrets/gmail/token.json"
-          groupware_members_source="/home/thmoon/devops/myworkspace/secrets/gmail/getMembers.json"
 
           if [ ! -f "${gmail_token_source}" ]; then
             echo "::error::Gmail OAuth token file is missing on the dev server."
             exit 1
           fi
 
-          if [ ! -f "${groupware_members_source}" ]; then
-            echo "::error::Groupware members file is missing on the dev server."
-            exit 1
-          fi
-
           install -d -m 700 secrets/gmail
           install -m 600 "${gmail_token_source}" secrets/gmail/token.json
-          install -d -m 700 sample/groupware_mail_system
-          install -m 600 \
-            "${groupware_members_source}" \
-            sample/groupware_mail_system/getMembers.json
 
       - name: Build and Run Docker Containers
         env:

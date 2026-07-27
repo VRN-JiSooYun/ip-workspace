@@ -1,11 +1,13 @@
 import {
   ConflictException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createHash } from 'node:crypto';
-import { readFile } from 'node:fs/promises';
+import { readFile, realpath } from 'node:fs/promises';
+import { join, sep } from 'node:path';
 import { z } from 'zod';
 import { PrismaService } from '../database/prisma.service';
 import { normalizeRecipientEmail } from './notification-recipient-sync';
@@ -48,6 +50,8 @@ type Action =
   }
   | { type: 'UNCHANGED'; candidate: Candidate };
 
+type RecipientWriteAction = Extract<Action, { type: 'INSERT' | 'UPDATE' }>;
+
 type Analysis = {
   sourceCount: number;
   insertedCount: number;
@@ -63,21 +67,36 @@ type Analysis = {
 
 @Injectable()
 export class NotificationRecipientImportService {
-  private readonly sourceFile: string;
+  private readonly logger = new Logger(NotificationRecipientImportService.name);
+  private readonly importRoot: string;
 
   constructor(
     private readonly prisma: PrismaService,
     config: ConfigService,
   ) {
-    this.sourceFile = config.get<string>(
-      'notificationRecipient.sourceFile',
-      '/app/imports/groupware-members/getMembers.json',
+    this.importRoot = config.get<string>(
+      'notificationRecipient.importRoot',
+      '/app/imports/notification-recipients',
     );
   }
 
-  async execute(startedByUserId: string, mode: ImportMode) {
-    const source = await readFile(this.sourceFile);
+  async execute(startedByUserId: string, mode: ImportMode, batchKey: string) {
+    const batch = await this.prisma.client.notificationRecipientImportBatch.findUnique({
+      where: { batchKey },
+    });
+    if (!batch || batch.status !== 'READY' || !batch.sourceChecksum) {
+      throw new NotFoundException(
+        'NOTIFICATION_RECIPIENT_IMPORT_BATCH_NOT_READY',
+      );
+    }
+    const sourcePath = await this.resolveBatchSource(batch.batchKey);
+    const source = await readFile(sourcePath);
     const sourceChecksum = createHash('sha256').update(source).digest('hex');
+    if (sourceChecksum !== batch.sourceChecksum) {
+      throw new ConflictException(
+        'NOTIFICATION_RECIPIENT_IMPORT_BATCH_CHECKSUM_MISMATCH',
+      );
+    }
 
     const existing = await this.prisma.client.notificationRecipientImportRun.findUnique({
       where: {
@@ -87,12 +106,21 @@ export class NotificationRecipientImportService {
           mode,
         },
       },
-      include: { issues: { orderBy: { rowNumber: 'asc' } } },
+      include: {
+        batch: { select: { id: true, batchKey: true } },
+        issues: { orderBy: { rowNumber: 'asc' } },
+      },
     });
     let run;
     if (existing) {
+      if (existing.batchId !== batch.id) {
+        await this.prisma.client.notificationRecipientImportRun.update({
+          where: { id: existing.id },
+          data: { batchId: batch.id },
+        });
+      }
       if (existing.status !== 'FAILED' && existing.status !== 'PARTIAL') {
-        return existing;
+        return this.getRun(existing.id);
       }
       run = await this.prisma.client.$transaction(async (tx) => {
         await tx.notificationRecipientImportIssue.deleteMany({
@@ -109,6 +137,7 @@ export class NotificationRecipientImportService {
             skippedCount: 0,
             conflictCount: 0,
             errorCount: 0,
+            batchId: batch.id,
             startedByUserId,
             startedAt: new Date(),
             finishedAt: null,
@@ -143,6 +172,7 @@ export class NotificationRecipientImportService {
       data: {
         mode,
         status: 'RUNNING',
+        batchId: batch.id,
         profileVersion: PROFILE_VERSION,
         sourceChecksum,
         startedByUserId,
@@ -183,7 +213,22 @@ export class NotificationRecipientImportService {
           },
         });
       });
-    } catch {
+    } catch (error) {
+      const errorRecord = error && typeof error === 'object'
+        ? error as { code?: unknown; message?: unknown; name?: unknown }
+        : null;
+      const message = typeof errorRecord?.message === 'string'
+        ? errorRecord.message
+        : '';
+      const reason = /expired transaction|transaction.*timeout|timeout.*transaction/i.test(message)
+        ? 'TRANSACTION_TIMEOUT'
+        : typeof errorRecord?.name === 'string'
+          ? errorRecord.name
+          : 'UNKNOWN';
+      const code = typeof errorRecord?.code === 'string' ? errorRecord.code : '-';
+      this.logger.error(
+        `Notification recipient import failed run=${run.id} mode=${mode} reason=${reason} code=${code}`,
+      );
       await this.prisma.client.notificationRecipientImportRun.update({
         where: { id: run.id },
         data: {
@@ -209,6 +254,9 @@ export class NotificationRecipientImportService {
       orderBy: { startedAt: 'desc' },
       take: 50,
       include: {
+        batch: {
+          select: { id: true, batchKey: true },
+        },
         startedBy: { select: { id: true, name: true, email: true } },
         _count: { select: { issues: true } },
       },
@@ -218,12 +266,34 @@ export class NotificationRecipientImportService {
   async getRun(runId: string) {
     const run = await this.prisma.client.notificationRecipientImportRun.findUnique({
       where: { id: runId },
-      include: { issues: { orderBy: { rowNumber: 'asc' } } },
+      include: {
+        batch: { select: { id: true, batchKey: true } },
+        issues: { orderBy: { rowNumber: 'asc' } },
+      },
     });
     if (!run) {
       throw new NotFoundException('NOTIFICATION_RECIPIENT_IMPORT_RUN_NOT_FOUND');
     }
     return run;
+  }
+
+  private async resolveBatchSource(batchKey: string): Promise<string> {
+    let root: string;
+    let sourcePath: string;
+    try {
+      root = await realpath(this.importRoot);
+      sourcePath = await realpath(join(root, batchKey, 'getMembers.json'));
+    } catch {
+      throw new NotFoundException(
+        'NOTIFICATION_RECIPIENT_IMPORT_BATCH_FILE_NOT_FOUND',
+      );
+    }
+    if (!sourcePath.startsWith(`${root}${sep}`)) {
+      throw new NotFoundException(
+        'NOTIFICATION_RECIPIENT_IMPORT_BATCH_FILE_NOT_FOUND',
+      );
+    }
+    return sourcePath;
   }
 
   private parseSource(source: Buffer): unknown[] {
@@ -426,29 +496,36 @@ export class NotificationRecipientImportService {
   }
 
   private async apply(analysis: Analysis): Promise<void> {
+    const insertActions = analysis.actions.filter(
+      (action): action is Extract<Action, { type: 'INSERT' }> => action.type === 'INSERT',
+    );
+    const updateActions = analysis.actions.filter(
+      (action): action is Extract<Action, { type: 'UPDATE' }> => action.type === 'UPDATE',
+    );
+    const recipientData = (action: RecipientWriteAction) => ({
+      memberId: action.candidate.memberId,
+      name: action.candidate.name,
+      email: action.candidate.email,
+      normalizedEmail: action.candidate.normalizedEmail,
+      linkedUserId: action.linkedUserId,
+      source: 'GROUPWARE_IMPORT' as const,
+      status: 'ACTIVE' as const,
+      mailEnabled: true,
+      sourceChecksum: action.candidate.sourceChecksum,
+      lastSyncedAt: new Date(),
+    });
+
     await this.prisma.client.$transaction(async (tx) => {
-      for (const action of analysis.actions) {
-        if (action.type === 'UNCHANGED') continue;
-        const data = {
-          memberId: action.candidate.memberId,
-          name: action.candidate.name,
-          email: action.candidate.email,
-          normalizedEmail: action.candidate.normalizedEmail,
-          linkedUserId: action.linkedUserId,
-          source: 'GROUPWARE_IMPORT' as const,
-          status: 'ACTIVE' as const,
-          mailEnabled: true,
-          sourceChecksum: action.candidate.sourceChecksum,
-          lastSyncedAt: new Date(),
-        };
-        if (action.type === 'INSERT') {
-          await tx.notificationRecipient.create({ data });
-        } else {
-          await tx.notificationRecipient.update({
-            where: { id: action.recipientId },
-            data,
-          });
-        }
+      if (insertActions.length > 0) {
+        await tx.notificationRecipient.createMany({
+          data: insertActions.map(recipientData),
+        });
+      }
+      for (const action of updateActions) {
+        await tx.notificationRecipient.update({
+          where: { id: action.recipientId },
+          data: recipientData(action),
+        });
       }
 
       if (analysis.activeMemberIds.length > 0) {
@@ -465,6 +542,9 @@ export class NotificationRecipientImportService {
           },
         });
       }
+    }, {
+      maxWait: 10_000,
+      timeout: 60_000,
     });
   }
 }

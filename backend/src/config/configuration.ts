@@ -87,9 +87,9 @@ export default () => ({
     ),
   },
   notificationRecipient: {
-    sourceFile:
-      process.env.NOTIFICATION_RECIPIENT_SOURCE_FILE
-      ?? '/app/imports/groupware-members/getMembers.json',
+    importRoot:
+      process.env.NOTIFICATION_RECIPIENT_IMPORT_ROOT
+      ?? '/app/imports/notification-recipients',
   },
   gmail: {
     oauthTokenFile:

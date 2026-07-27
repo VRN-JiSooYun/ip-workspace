@@ -138,8 +138,8 @@ export const validateEnv = (config: EnvConfig): EnvConfig => {
     throw new Error('CONFERENCE_IMPORT_ROOT must be an absolute path');
   }
   ensureAbsolutePath(
-    'NOTIFICATION_RECIPIENT_SOURCE_FILE',
-    config.NOTIFICATION_RECIPIENT_SOURCE_FILE,
+    'NOTIFICATION_RECIPIENT_IMPORT_ROOT',
+    config.NOTIFICATION_RECIPIENT_IMPORT_ROOT,
   );
   ensureAbsolutePath('GMAIL_OAUTH_TOKEN_FILE', config.GMAIL_OAUTH_TOKEN_FILE);
   ensureEmailDomains(

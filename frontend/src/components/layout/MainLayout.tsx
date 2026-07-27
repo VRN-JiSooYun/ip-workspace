@@ -641,6 +641,8 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                 display: 'inline-flex',
                 alignItems: 'center',
                 lineHeight: '20px',
+                fontSize: 15,
+                fontWeight: 600,
               }}
             >
               {userDisplayName}

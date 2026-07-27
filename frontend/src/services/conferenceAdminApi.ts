@@ -60,8 +60,22 @@ export interface NotificationRecipientImportIssue {
   memberId: number | null;
 }
 
+export interface NotificationRecipientImportBatch {
+  id: string;
+  batchKey: string;
+  status: 'READY';
+  sourceChecksum: string;
+  originalFilename: string;
+  mimeType: string | null;
+  byteSize: number;
+  uploadedBy: { id: string; name: string; email: string };
+  createdAt: string;
+  readyAt: string;
+}
+
 export interface NotificationRecipientImportRun {
   id: string;
+  batch: { id: string; batchKey: string } | null;
   mode: ConferenceImportMode;
   status: 'RUNNING' | 'COMPLETED' | 'PARTIAL' | 'FAILED';
   profileVersion: string;
@@ -234,16 +248,30 @@ export const conferenceAdminApi = {
   listRecipientImportRuns: () => request<NotificationRecipientImportRun[]>(
     '/admin/notification-recipient-imports',
   ),
+  listRecipientImportBatches: () => request<NotificationRecipientImportBatch[]>(
+    '/admin/notification-recipient-imports/batches',
+  ),
+  uploadRecipientImportBatch: (batchKey: string, file: File) => {
+    const formData = new FormData();
+    formData.append('batchKey', batchKey);
+    formData.append('file', file, file.name);
+    return request<NotificationRecipientImportBatch>(
+      '/admin/notification-recipient-imports/batches',
+      { method: 'POST', body: formData },
+    );
+  },
   getRecipientImportRun: (runId: string) => request<NotificationRecipientImportRun>(
     `/admin/notification-recipient-imports/${encodeURIComponent(runId)}`,
   ),
-  createRecipientDryRun: () => request<NotificationRecipientImportRun>(
+  createRecipientDryRun: (batchKey: string) => jsonRequest<NotificationRecipientImportRun>(
     '/admin/notification-recipient-imports/dry-run',
-    { method: 'POST' },
+    'POST',
+    { batchKey },
   ),
-  createRecipientApply: () => request<NotificationRecipientImportRun>(
+  createRecipientApply: (batchKey: string) => jsonRequest<NotificationRecipientImportRun>(
     '/admin/notification-recipient-imports',
-    { method: 'POST' },
+    'POST',
+    { batchKey },
   ),
   reconcileRecipientUsers: () => request<{
     sourceCount: number;

@@ -74,7 +74,7 @@ services:
       - ./sample/conference/excel:/app/imports/conference/legacy/excel:ro
       - ./sample/conference/conference_list.json:/app/imports/conference/legacy/conference_list.json:ro
       - ./sample/conference/api_metadata:/app/imports/conference/api-metadata:ro
-      - ./sample/groupware_mail_system/getMembers.json:/run/imports/getMembers.json:ro
+      - local-myworkspace-notification-recipient-import-data:/app/imports/notification-recipients
       - ./secrets/gmail/token.json:/run/secrets/gmail/token.json:ro
     environment:
       - NODE_ENV=development
@@ -111,7 +111,7 @@ services:
       - AUTH_BOOTSTRAP_ADMIN_EMAILS=${AUTH_BOOTSTRAP_ADMIN_EMAILS:-}
       - CONFERENCE_IMPORT_ROOT=/app/imports/conference
       - CONFERENCE_IMPORT_CHUNK_SIZE=${CONFERENCE_IMPORT_CHUNK_SIZE:-50}
-      - NOTIFICATION_RECIPIENT_SOURCE_FILE=/run/imports/getMembers.json
+      - NOTIFICATION_RECIPIENT_IMPORT_ROOT=/app/imports/notification-recipients
       - GMAIL_OAUTH_TOKEN_FILE=/run/secrets/gmail/token.json
       - GMAIL_FROM_EMAIL=${GMAIL_FROM_EMAIL:-vgw@voronoi.io}
       - GMAIL_ALLOWED_RECIPIENT_DOMAINS=${GMAIL_ALLOWED_RECIPIENT_DOMAINS:-voronoi.io}
@@ -156,3 +156,4 @@ networks:
 volumes:
   local-myworkspace-postgres-data:
   local-myworkspace-conference-import-data:
+  local-myworkspace-notification-recipient-import-data:

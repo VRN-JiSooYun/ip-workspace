@@ -43,6 +43,7 @@ import {
   type ConferenceMailHealth,
   type ConferenceMailOutboxItem,
   type NotificationRecipientImportIssue,
+  type NotificationRecipientImportBatch,
   type NotificationRecipientImportRun,
 } from '../services/conferenceAdminApi';
 import { conferenceApi, type ConferenceListItem } from '../services/conferenceApi';
@@ -99,6 +100,8 @@ const ConferenceAdmin: React.FC = () => {
   const [abstractForm] = Form.useForm<AbstractFormValues>();
   const [batches, setBatches] = useState<ConferenceImportBatch[]>([]);
   const [runs, setRuns] = useState<ConferenceImportRun[]>([]);
+  const [recipientBatches, setRecipientBatches] =
+    useState<NotificationRecipientImportBatch[]>([]);
   const [recipientRuns, setRecipientRuns] = useState<NotificationRecipientImportRun[]>([]);
   const [mailHealth, setMailHealth] = useState<ConferenceMailHealth | null>(null);
   const [mailOutboxes, setMailOutboxes] = useState<ConferenceMailOutboxItem[]>([]);
@@ -109,6 +112,10 @@ const ConferenceAdmin: React.FC = () => {
     useState<'LEGACY' | 'API_METADATA'>('LEGACY');
   const [uploadFiles, setUploadFiles] = useState<UploadFile[]>([]);
   const [uploadingBatch, setUploadingBatch] = useState(false);
+  const [selectedRecipientBatch, setSelectedRecipientBatch] = useState<string>();
+  const [recipientUploadBatchKey, setRecipientUploadBatchKey] = useState('');
+  const [recipientUploadFile, setRecipientUploadFile] = useState<UploadFile[]>([]);
+  const [uploadingRecipientBatch, setUploadingRecipientBatch] = useState(false);
   const [profileVersion, setProfileVersion] = useState('v1');
   const [loading, setLoading] = useState(false);
   const [startingMode, setStartingMode] = useState<'DRY_RUN' | 'APPLY' | null>(null);
@@ -141,6 +148,7 @@ const ConferenceAdmin: React.FC = () => {
       const [
         nextBatches,
         nextRuns,
+        nextRecipientBatches,
         nextRecipientRuns,
         nextMailHealth,
         nextMailOutboxes,
@@ -148,6 +156,7 @@ const ConferenceAdmin: React.FC = () => {
       ] = await Promise.all([
         conferenceAdminApi.listBatches(),
         conferenceAdminApi.listRuns(50),
+        conferenceAdminApi.listRecipientImportBatches(),
         conferenceAdminApi.listRecipientImportRuns(),
         conferenceAdminApi.getMailHealth(),
         conferenceAdminApi.listMailOutboxes(),
@@ -159,6 +168,7 @@ const ConferenceAdmin: React.FC = () => {
       ]);
       setBatches(nextBatches);
       setRuns(nextRuns);
+      setRecipientBatches(nextRecipientBatches);
       setRecipientRuns(nextRecipientRuns);
       setMailHealth(nextMailHealth);
       setMailOutboxes(nextMailOutboxes);
@@ -167,6 +177,11 @@ const ConferenceAdmin: React.FC = () => {
         current && nextBatches.some(({ batchKey }) => batchKey === current)
           ? current
           : nextBatches[0]?.batchKey
+      ));
+      setSelectedRecipientBatch((current) => (
+        current && nextRecipientBatches.some(({ batchKey }) => batchKey === current)
+          ? current
+          : nextRecipientBatches[0]?.batchKey
       ));
     } catch (error) {
       void message.error(error instanceof Error ? error.message : 'Conference 관리 정보를 불러오지 못했습니다.');
@@ -206,15 +221,19 @@ const ConferenceAdmin: React.FC = () => {
       && run.errorCount === 0
     ));
   }, [batches, profileVersion, runs, selectedBatch]);
-  const successfulRecipientDryRun = useMemo(
-    () => recipientRuns.find((run) => (
+  const successfulRecipientDryRun = useMemo(() => {
+    const batch = recipientBatches.find(
+      ({ batchKey }) => batchKey === selectedRecipientBatch,
+    );
+    if (!batch) return undefined;
+    return recipientRuns.find((run) => (
       run.mode === 'DRY_RUN'
+      && run.sourceChecksum === batch.sourceChecksum
       && run.status === 'COMPLETED'
       && run.errorCount === 0
       && run.conflictCount === 0
-    )),
-    [recipientRuns],
-  );
+    ));
+  }, [recipientBatches, recipientRuns, selectedRecipientBatch]);
 
   const startImport = async (mode: 'DRY_RUN' | 'APPLY') => {
     if (!selectedBatch) return;
@@ -272,11 +291,12 @@ const ConferenceAdmin: React.FC = () => {
   };
 
   const startRecipientImport = async (mode: 'DRY_RUN' | 'APPLY') => {
+    if (!selectedRecipientBatch) return;
     setStartingRecipientMode(mode);
     try {
       const run = mode === 'DRY_RUN'
-        ? await conferenceAdminApi.createRecipientDryRun()
-        : await conferenceAdminApi.createRecipientApply();
+        ? await conferenceAdminApi.createRecipientDryRun(selectedRecipientBatch)
+        : await conferenceAdminApi.createRecipientApply(selectedRecipientBatch);
       setRecipientRuns((current) => [
         run,
         ...current.filter(({ id }) => id !== run.id),
@@ -294,6 +314,35 @@ const ConferenceAdmin: React.FC = () => {
       );
     } finally {
       setStartingRecipientMode(null);
+    }
+  };
+
+  const uploadRecipientBatch = async () => {
+    const batchKey = recipientUploadBatchKey.trim();
+    const file = recipientUploadFile[0]?.originFileObj;
+    if (!batchKey || !file) {
+      void message.warning('Batch key와 JSON 파일을 확인해 주세요.');
+      return;
+    }
+    setUploadingRecipientBatch(true);
+    try {
+      const batch = await conferenceAdminApi.uploadRecipientImportBatch(
+        batchKey,
+        file,
+      );
+      setRecipientUploadBatchKey('');
+      setRecipientUploadFile([]);
+      void message.success(`메일 대상 batch ${batch.batchKey} 업로드를 완료했습니다.`);
+      await loadAdminData();
+      setSelectedRecipientBatch(batch.batchKey);
+    } catch (error) {
+      void message.error(
+        error instanceof Error
+          ? error.message
+          : '메일 대상 batch 업로드에 실패했습니다.',
+      );
+    } finally {
+      setUploadingRecipientBatch(false);
     }
   };
 
@@ -413,44 +462,54 @@ const ConferenceAdmin: React.FC = () => {
       title: '시작',
       dataIndex: 'startedAt',
       width: 150,
+      align: 'center',
       render: formatDisplayDate,
     },
     {
       title: 'Batch',
       dataIndex: 'batchKey',
       width: 130,
+      align: 'center',
+    },
+    {
+      title: 'Version',
+      dataIndex: 'profileVersion',
+      width: 160,
+      align: 'center',
     },
     {
       title: 'Mode',
       dataIndex: 'mode',
       width: 90,
+      align: 'center',
       render: (mode: string) => <Tag color={mode === 'APPLY' ? 'volcano' : 'blue'}>{mode}</Tag>,
     },
     {
       title: '상태',
       dataIndex: 'status',
       width: 100,
+      align: 'center',
       render: (status: string) => <Tag color={runStatusColor[status]}>{status}</Tag>,
     },
     {
       title: '등록',
       dataIndex: 'insertedCount',
       width: 80,
-      align: 'right',
+      align: 'center',
       render: (value) => formatNumberWithComma(value),
     },
     {
       title: '수정',
       dataIndex: 'updatedCount',
       width: 80,
-      align: 'right',
+      align: 'center',
       render: (value) => formatNumberWithComma(value),
     },
     {
       title: '검사/Skip',
       key: 'processedCount',
       width: 80,
-      align: 'right',
+      align: 'center',
       render: (_, run) => formatNumberWithComma(
         run.mode === 'DRY_RUN' ? run.inspectedCount ?? 0 : run.skippedCount,
       ),
@@ -459,13 +518,14 @@ const ConferenceAdmin: React.FC = () => {
       title: '오류',
       dataIndex: 'errorCount',
       width: 70,
-      align: 'right',
+      align: 'center',
       render: (value) => formatNumberWithComma(value),
     },
     {
       title: '상세',
       key: 'action',
       width: 70,
+      align: 'center',
       render: (_, run) => <Button size="small" onClick={() => void openRun(run.id)}>보기</Button>,
     },
   ];
@@ -484,6 +544,18 @@ const ConferenceAdmin: React.FC = () => {
       dataIndex: 'startedAt',
       width: 150,
       render: formatDisplayDate,
+    },
+    {
+      title: 'Batch',
+      key: 'batchKey',
+      width: 180,
+      ellipsis: true,
+      render: (_, run) => run.batch?.batchKey ?? '-',
+    },
+    {
+      title: 'Version',
+      dataIndex: 'profileVersion',
+      width: 160,
     },
     {
       title: 'Mode',
@@ -774,7 +846,7 @@ const ConferenceAdmin: React.FC = () => {
           columns={runColumns}
           dataSource={runs}
           loading={loading}
-          scroll={{ x: 1000 }}
+          scroll={{ x: 1100 }}
           pagination={{ pageSize: 10, showSizeChanger: true, pageSizeOptions: [10, 30, 50, 100] }}
         />
       </div>
@@ -823,11 +895,64 @@ const ConferenceAdmin: React.FC = () => {
 
   const recipientImportTab = (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      {recipientBatches.length === 0 && (
+        <Alert
+          type="warning"
+          showIcon
+          message="업로드된 메일 대상 batch가 없습니다."
+          description="getMembers.json을 새 batch로 업로드한 뒤 Dry-run을 실행해 주세요."
+        />
+      )}
+      <Card title={<Space><UploadCloud size={17} />메일 대상 batch 업로드</Space>}>
+        <Space wrap size={12} style={{ marginBottom: 12 }}>
+          <Input
+            value={recipientUploadBatchKey}
+            onChange={(event) => setRecipientUploadBatchKey(event.target.value)}
+            placeholder="Batch key (예: groupware-members-20260727)"
+            maxLength={100}
+            style={{ width: 320 }}
+          />
+          <Button
+            type="primary"
+            icon={<UploadCloud size={16} />}
+            loading={uploadingRecipientBatch}
+            disabled={!recipientUploadBatchKey.trim() || recipientUploadFile.length === 0}
+            onClick={() => void uploadRecipientBatch()}
+          >
+            Batch 업로드
+          </Button>
+        </Space>
+        <Upload.Dragger
+          accept=".json,application/json"
+          maxCount={1}
+          fileList={recipientUploadFile}
+          beforeUpload={() => false}
+          onChange={({ fileList }) => setRecipientUploadFile(fileList.slice(-1))}
+          disabled={uploadingRecipientBatch}
+        >
+          <p className="ant-upload-drag-icon"><UploadCloud size={32} /></p>
+          <p className="ant-upload-text">getMembers.json을 끌어놓거나 선택하세요.</p>
+          <p className="ant-upload-hint">
+            JSON 배열 형식의 파일 1개만 업로드할 수 있으며 최대 크기는 5MB입니다.
+          </p>
+        </Upload.Dragger>
+      </Card>
       <Card>
         <Space wrap size={12}>
+          <Select
+            value={selectedRecipientBatch}
+            onChange={setSelectedRecipientBatch}
+            placeholder="Batch 선택"
+            style={{ width: 280 }}
+            options={recipientBatches.map((batch) => ({
+              value: batch.batchKey,
+              label: `${batch.batchKey} (${batch.originalFilename})`,
+            }))}
+          />
           <Button
             icon={<SearchCheck size={16} />}
             loading={startingRecipientMode === 'DRY_RUN'}
+            disabled={!selectedRecipientBatch}
             onClick={() => void startRecipientImport('DRY_RUN')}
           >
             사용자 이메일 Dry-run
@@ -837,7 +962,7 @@ const ConferenceAdmin: React.FC = () => {
             description="이메일이 있는 구성원만 알림 대상 DB에 upsert됩니다."
             okText="APPLY"
             cancelText="취소"
-            disabled={!successfulRecipientDryRun}
+            disabled={!selectedRecipientBatch || !successfulRecipientDryRun}
             onConfirm={() => void startRecipientImport('APPLY')}
           >
             <Button
@@ -845,7 +970,7 @@ const ConferenceAdmin: React.FC = () => {
               danger
               icon={<PlayCircle size={16} />}
               loading={startingRecipientMode === 'APPLY'}
-              disabled={!successfulRecipientDryRun}
+              disabled={!selectedRecipientBatch || !successfulRecipientDryRun}
             >
               APPLY
             </Button>
@@ -869,8 +994,8 @@ const ConferenceAdmin: React.FC = () => {
           style={{ marginTop: 14 }}
           type="info"
           showIcon
-          message="getMembers.json의 member_id, 이름, 이메일을 알림 대상 DB에 저장합니다."
-          description="이메일이 없는 구성원은 등록하지 않고 SKIPPED_NO_EMAIL로 집계합니다. 인증 User는 생성하지 않습니다."
+          message="선택한 getMembers.json batch의 member_id, 이름, 이메일을 알림 대상 DB에 저장합니다."
+          description="APPLY는 같은 batch checksum의 오류·충돌 없는 Dry-run 후에만 활성화됩니다. 이메일이 없는 구성원은 SKIPPED_NO_EMAIL로 제외하며 인증 User는 생성하지 않습니다."
         />
       </Card>
       <div className="v-table-card">
@@ -880,7 +1005,7 @@ const ConferenceAdmin: React.FC = () => {
           columns={recipientRunColumns}
           dataSource={recipientRuns}
           loading={loading}
-          scroll={{ x: 1000 }}
+          scroll={{ x: 1300 }}
           pagination={{
             pageSize: 10,
             showSizeChanger: true,
@@ -1058,6 +1183,12 @@ const ConferenceAdmin: React.FC = () => {
         {selectedRecipientRun && (
           <>
             <Descriptions size="small" column={4}>
+              <Descriptions.Item label="Batch">
+                {selectedRecipientRun.batch?.batchKey ?? '-'}
+              </Descriptions.Item>
+              <Descriptions.Item label="Version">
+                {selectedRecipientRun.profileVersion}
+              </Descriptions.Item>
               <Descriptions.Item label="Mode">
                 {selectedRecipientRun.mode}
               </Descriptions.Item>
