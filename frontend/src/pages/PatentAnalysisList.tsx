@@ -23,7 +23,6 @@ import {
   Check,
   ChevronDown,
   ChevronUp,
-  ExternalLink,
   RotateCcw,
   Share2,
   Star
@@ -33,12 +32,22 @@ import { Patent, mockPatents } from '../mocks/patents';
 import ChemDrawModal from '../components/common/ChemDrawModal';
 import CompoundStructureView from '../components/common/CompoundStructureView';
 import StructurePreviewModal from '../components/common/StructurePreviewModal';
+import PatentQuickViewerPanel from '../components/patent-analysis/PatentQuickViewerPanel';
 import { getPatentAnalysisLayoutPreset } from '../config/patentAnalysisLayout';
 import { useUIStore } from '../store/useUIStore';
 import PageHeaderBreadcrumb from '../components/common/PageHeaderBreadcrumb';
 import ToggleTag from '../components/common/ToggleTag';
-import { mapPatentListItem, patentAnalysisApi } from '../services/patentAnalysisApi';
+import {
+  mapPatentListItem,
+  patentAnalysisApi,
+  type PatentDetailResponse,
+} from '../services/patentAnalysisApi';
 import { formatDisplayDate, formatNumberWithComma } from '../utils/displayFormat';
+import {
+  downloadPatentPdfFile,
+  hasPatentPdfSource,
+  normalizePatentPublicationNumber,
+} from '../utils/patentPdf';
 
 const { Text } = Typography;
 
@@ -71,6 +80,11 @@ const PATENT_OFFICE_FILTER_OPTIONS = ['ALL', 'WIPO', 'USPTO', 'KIPO', 'EPO'];
 const STATUS_FILTER_OPTIONS = ['ALL', '분석중', '완료'];
 const RECENT_PROJECTS = ['EGFR', 'PD-1', 'PD-L1', 'KRAS', 'HER2', 'CD3', 'CD19', 'TNF', 'VEGF', 'BTK', 'AKT1', 'MET', 'FGFR3', 'PKMYT1', 'WEE1', 'VRK1', 'UBP1'];
 const PATENT_ANALYSIS_LIST_STATE_KEY = 'patent-analysis-list-state:v1';
+const PATENT_QUICK_VIEWER_STORAGE_KEY = 'patent-analysis-split:quick-viewer';
+const PATENT_QUICK_VIEWER_MIN_WIDTH = 380;
+const PATENT_QUICK_VIEWER_DEFAULT_WIDTH = 480;
+const PATENT_QUICK_VIEWER_MAX_WIDTH = 1080;
+const PATENT_QUICK_VIEWER_RESIZE_STEP = 24;
 const SEARCH_TYPE_OPTIONS = [
   { label: '특허 제목', value: 'title' },
   { label: '출원인', value: 'applicant' },
@@ -82,6 +96,25 @@ const normalizePatentAnalysisPageSize = (value?: number): number =>
   PATENT_ANALYSIS_PAGE_SIZE_OPTIONS.includes(value as (typeof PATENT_ANALYSIS_PAGE_SIZE_OPTIONS)[number])
     ? Number(value)
     : PATENT_ANALYSIS_DEFAULT_PAGE_SIZE;
+
+const clampPatentQuickViewerWidth = (value: number): number => (
+  Math.min(
+    PATENT_QUICK_VIEWER_MAX_WIDTH,
+    Math.max(PATENT_QUICK_VIEWER_MIN_WIDTH, value),
+  )
+);
+
+const readPatentQuickViewerWidth = (): number => {
+  if (typeof window === 'undefined') return PATENT_QUICK_VIEWER_DEFAULT_WIDTH;
+  try {
+    const stored = Number(window.localStorage.getItem(PATENT_QUICK_VIEWER_STORAGE_KEY));
+    return Number.isFinite(stored)
+      ? clampPatentQuickViewerWidth(stored)
+      : PATENT_QUICK_VIEWER_DEFAULT_WIDTH;
+  } catch {
+    return PATENT_QUICK_VIEWER_DEFAULT_WIDTH;
+  }
+};
 
 type PatentSearchType = 'title' | 'applicant' | 'publicationNumber' | 'structure';
 
@@ -175,6 +208,15 @@ const getFavoriteStateStorageKey = (publicationNumber: string) => (
 
 const normalizeFavoritePatentNumber = (publicationNumber: string) => (
   publicationNumber.replace(/[^A-Za-z0-9]/g, '').toUpperCase()
+);
+
+const isInteractivePatentRowTarget = (
+  target: EventTarget | null,
+  currentTarget: EventTarget | null,
+): boolean => (
+  target instanceof Element
+  && target !== currentTarget
+  && Boolean(target.closest('a, button, input, select, textarea, [role="button"]'))
 );
 
 const writeFavoriteStateToStorage = (publicationNumber: string, isFavorite: boolean) => {
@@ -412,10 +454,19 @@ const PatentAnalysisList: React.FC = () => {
     if (typeof window === 'undefined') return 1920;
     return window.innerWidth;
   });
-  const [viewportHeight, setViewportHeight] = useState<number>(() => {
-    if (typeof window === 'undefined') return 1080;
-    return window.innerHeight;
-  });
+  const [selectedQuickViewPatent, setSelectedQuickViewPatent] = useState<Patent | null>(null);
+  const [quickViewDetail, setQuickViewDetail] = useState<PatentDetailResponse | null>(null);
+  const [quickViewLoading, setQuickViewLoading] = useState(false);
+  const [quickViewError, setQuickViewError] = useState<string | null>(null);
+  const [quickViewRetryKey, setQuickViewRetryKey] = useState(0);
+  const [quickViewerWidth, setQuickViewerWidth] = useState(readPatentQuickViewerWidth);
+  const [isResizingQuickViewer, setIsResizingQuickViewer] = useState(false);
+  const [isDownloadingQuickViewPdf, setIsDownloadingQuickViewPdf] = useState(false);
+  const patentTableRegionRef = React.useRef<HTMLDivElement>(null);
+  const patentAnalysisWorkspaceRef = React.useRef<HTMLDivElement>(null);
+  const quickViewDetailCacheRef = React.useRef<Map<string, PatentDetailResponse>>(new Map());
+  const lastSelectedPatentRowRef = React.useRef<HTMLElement | null>(null);
+  const [patentTableScrollY, setPatentTableScrollY] = useState<number | undefined>(undefined);
   const { setHeaderContent } = useUIStore();
   const layoutPreset = React.useMemo(() => getPatentAnalysisLayoutPreset(viewportWidth), [viewportWidth]);
   const isResponsiveToolbar = viewportWidth <= 1100;
@@ -424,6 +475,113 @@ const PatentAnalysisList: React.FC = () => {
     writeFavoriteStateToStorage(patent.patentNumber, patent.isFavorite);
     const detailUrl = `/patents/analysis/${encodeURIComponent(patent.patentNumber)}`;
     window.open(detailUrl, '_blank', 'noopener,noreferrer');
+  }, []);
+  const selectPatentForQuickView = React.useCallback((
+    patent: Patent,
+    rowElement?: HTMLElement | null,
+  ) => {
+    if (rowElement) {
+      lastSelectedPatentRowRef.current = rowElement;
+    }
+    if (
+      selectedQuickViewPatent
+      && normalizePatentPublicationNumber(selectedQuickViewPatent.patentNumber)
+        === normalizePatentPublicationNumber(patent.patentNumber)
+    ) {
+      return;
+    }
+    setQuickViewDetail(null);
+    setQuickViewError(null);
+    setQuickViewLoading(true);
+    setSelectedQuickViewPatent(patent);
+  }, [selectedQuickViewPatent]);
+  const closePatentQuickViewer = React.useCallback(() => {
+    setSelectedQuickViewPatent(null);
+    setQuickViewDetail(null);
+    setQuickViewError(null);
+    setQuickViewLoading(false);
+    window.requestAnimationFrame(() => {
+      const previousRow = lastSelectedPatentRowRef.current;
+      if (previousRow?.isConnected) {
+        previousRow.focus();
+      }
+    });
+  }, []);
+  const retryPatentQuickView = React.useCallback(() => {
+    if (selectedQuickViewPatent) {
+      quickViewDetailCacheRef.current.delete(
+        normalizePatentPublicationNumber(selectedQuickViewPatent.patentNumber),
+      );
+    }
+    setQuickViewError(null);
+    setQuickViewLoading(true);
+    setQuickViewRetryKey((current) => current + 1);
+  }, [selectedQuickViewPatent]);
+  const handleOpenQuickViewAnalysis = React.useCallback(() => {
+    if (selectedQuickViewPatent) {
+      openPatentDetail(selectedQuickViewPatent);
+    }
+  }, [openPatentDetail, selectedQuickViewPatent]);
+  const handleQuickViewPdfDownload = React.useCallback(async () => {
+    if (!selectedQuickViewPatent || !hasPatentPdfSource(quickViewDetail?.metadata)) {
+      void message.error('다운로드할 OCR PDF 파일이 없습니다.');
+      return;
+    }
+    if (isDownloadingQuickViewPdf) return;
+
+    setIsDownloadingQuickViewPdf(true);
+    try {
+      await downloadPatentPdfFile(selectedQuickViewPatent.patentNumber, {
+        ownerId: PATENT_ANALYSIS_OWNER_ID,
+      });
+    } catch (error) {
+      void message.error(error instanceof Error ? error.message : 'OCR PDF 다운로드에 실패했습니다.');
+    } finally {
+      setIsDownloadingQuickViewPdf(false);
+    }
+  }, [
+    isDownloadingQuickViewPdf,
+    message,
+    quickViewDetail?.metadata,
+    selectedQuickViewPatent,
+  ]);
+  const handleQuickViewerResizeStart = React.useCallback((
+    event: React.MouseEvent<HTMLDivElement>,
+  ) => {
+    event.preventDefault();
+    setIsResizingQuickViewer(true);
+  }, []);
+  const handleQuickViewerResizeKeyDown = React.useCallback((
+    event: React.KeyboardEvent<HTMLDivElement>,
+  ) => {
+    if (event.key === 'ArrowLeft') {
+      event.preventDefault();
+      setQuickViewerWidth((current) => clampPatentQuickViewerWidth(
+        current + PATENT_QUICK_VIEWER_RESIZE_STEP,
+      ));
+      return;
+    }
+    if (event.key === 'ArrowRight') {
+      event.preventDefault();
+      setQuickViewerWidth((current) => clampPatentQuickViewerWidth(
+        current - PATENT_QUICK_VIEWER_RESIZE_STEP,
+      ));
+      return;
+    }
+    if (event.key === 'Home') {
+      event.preventDefault();
+      setQuickViewerWidth(PATENT_QUICK_VIEWER_MIN_WIDTH);
+      return;
+    }
+    if (event.key === 'End') {
+      event.preventDefault();
+      setQuickViewerWidth(PATENT_QUICK_VIEWER_MAX_WIDTH);
+      return;
+    }
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      setQuickViewerWidth(PATENT_QUICK_VIEWER_DEFAULT_WIDTH);
+    }
   }, []);
   const applySearchFilters = React.useCallback((nextSearchType?: PatentSearchType) => {
     const resolvedSearchType = nextSearchType ?? searchTypeRef.current;
@@ -557,11 +715,164 @@ const PatentAnalysisList: React.FC = () => {
   useEffect(() => {
     const onResize = () => {
       setViewportWidth(window.innerWidth);
-      setViewportHeight(window.innerHeight);
     };
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
   }, []);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(
+        PATENT_QUICK_VIEWER_STORAGE_KEY,
+        String(quickViewerWidth),
+      );
+    } catch {
+      // Viewer width persistence is best effort.
+    }
+  }, [quickViewerWidth]);
+
+  useEffect(() => {
+    if (!isResizingQuickViewer) return undefined;
+
+    const handleMouseMove = (event: MouseEvent) => {
+      const workspace = patentAnalysisWorkspaceRef.current;
+      if (!workspace) return;
+      const workspaceRight = workspace.getBoundingClientRect().right;
+      setQuickViewerWidth(clampPatentQuickViewerWidth(workspaceRight - event.clientX));
+    };
+    const handleMouseUp = () => {
+      setIsResizingQuickViewer(false);
+    };
+
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+  }, [isResizingQuickViewer]);
+
+  useEffect(() => {
+    if (!selectedQuickViewPatent) {
+      setQuickViewDetail(null);
+      setQuickViewError(null);
+      setQuickViewLoading(false);
+      return undefined;
+    }
+
+    const publicationNumber = normalizePatentPublicationNumber(
+      selectedQuickViewPatent.patentNumber,
+    );
+    const cachedDetail = quickViewDetailCacheRef.current.get(publicationNumber);
+    if (cachedDetail) {
+      setQuickViewDetail(cachedDetail);
+      setQuickViewError(null);
+      setQuickViewLoading(false);
+      return undefined;
+    }
+
+    let ignore = false;
+    const controller = new AbortController();
+    setQuickViewDetail(cachedDetail ?? null);
+    setQuickViewError(null);
+    setQuickViewLoading(true);
+
+    patentAnalysisApi.getPatentDetail(
+      publicationNumber,
+      { ownerId: PATENT_ANALYSIS_OWNER_ID },
+      { signal: controller.signal },
+    )
+      .then((detail) => {
+        if (ignore) return;
+        quickViewDetailCacheRef.current.set(publicationNumber, detail);
+        setQuickViewDetail(detail);
+      })
+      .catch((error) => {
+        if (ignore) return;
+        setQuickViewError(
+          error instanceof Error ? error.message : '특허 상세 API 요청에 실패했습니다.',
+        );
+      })
+      .finally(() => {
+        if (!ignore) {
+          setQuickViewLoading(false);
+        }
+      });
+
+    return () => {
+      ignore = true;
+      controller.abort();
+    };
+  }, [quickViewRetryKey, selectedQuickViewPatent]);
+
+  React.useLayoutEffect(() => {
+    const region = patentTableRegionRef.current;
+    if (!region) return undefined;
+
+    let animationFrame = 0;
+    const updateTableHeight = () => {
+      cancelAnimationFrame(animationFrame);
+      animationFrame = window.requestAnimationFrame(() => {
+        if (isResponsiveToolbar) {
+          setPatentTableScrollY(undefined);
+          return;
+        }
+
+        const tableBody = region.querySelector<HTMLElement>('.ant-table-body');
+        const tableContent = region.querySelector<HTMLElement>('.ant-table-content');
+        const tableRows = region.querySelector<HTMLElement>('.patent-analysis-list-table .ant-table-tbody');
+        const tableMeasureElement = tableBody ?? tableContent ?? tableRows;
+        if (!tableMeasureElement || !tableRows) return;
+
+        const tablePagination = region.querySelector<HTMLElement>('.ant-pagination');
+        const paginationStyle = tablePagination
+          ? window.getComputedStyle(tablePagination)
+          : null;
+        const paginationReserve = tablePagination
+          ? Math.ceil(
+              tablePagination.getBoundingClientRect().height
+              + Number.parseFloat(paginationStyle?.marginTop || '0')
+              + Number.parseFloat(paginationStyle?.marginBottom || '0'),
+            )
+          : 48;
+        const maxBodyHeight = Math.max(
+          160,
+          Math.floor(
+            window.innerHeight
+            - tableMeasureElement.getBoundingClientRect().top
+            - paginationReserve
+            - 16
+            - 2,
+          ),
+        );
+        const rowsHeight = Math.ceil(tableRows.getBoundingClientRect().height);
+        const nextHeight = rowsHeight <= maxBodyHeight ? undefined : maxBodyHeight;
+
+        setPatentTableScrollY((current) => (
+          current === nextHeight ? current : nextHeight
+        ));
+      });
+    };
+
+    const resizeObserver = new ResizeObserver(updateTableHeight);
+    const mutationObserver = new MutationObserver(updateTableHeight);
+    resizeObserver.observe(region);
+    mutationObserver.observe(region, { childList: true, subtree: true });
+    window.addEventListener('resize', updateTableHeight);
+    updateTableHeight();
+
+    return () => {
+      cancelAnimationFrame(animationFrame);
+      resizeObserver.disconnect();
+      mutationObserver.disconnect();
+      window.removeEventListener('resize', updateTableHeight);
+    };
+  }, [isResponsiveToolbar]);
 
   useEffect(() => {
     if (isStructureSearchMode && showFilters) {
@@ -818,25 +1129,17 @@ const PatentAnalysisList: React.FC = () => {
     return structureCompounds;
   }, [structureCompounds]);
 
-  const patentListTableScrollY = React.useMemo(() => {
-    return Math.max(280, viewportHeight - 420);
-  }, [viewportHeight]);
-
   const patentListTableScroll = React.useMemo(() => {
-    const estimatedRowHeight = PATENT_LIST_STRUCTURE_IMAGE_HEIGHT + 16;
-    const needsVerticalScroll = filteredPatents.length * estimatedRowHeight > patentListTableScrollY;
-    return needsVerticalScroll
-      ? { x: PATENT_LIST_TABLE_SCROLL_X, y: patentListTableScrollY }
-      : { x: PATENT_LIST_TABLE_SCROLL_X };
-  }, [filteredPatents.length, patentListTableScrollY]);
+    return patentTableScrollY === undefined
+      ? { x: PATENT_LIST_TABLE_SCROLL_X }
+      : { x: PATENT_LIST_TABLE_SCROLL_X, y: patentTableScrollY };
+  }, [patentTableScrollY]);
 
   const structureSearchTableScroll = React.useMemo(() => {
-    const estimatedRowHeight = PATENT_LIST_STRUCTURE_IMAGE_HEIGHT + 16;
-    const needsVerticalScroll = filteredStructureCompounds.length * estimatedRowHeight > patentListTableScrollY;
-    return needsVerticalScroll
-      ? { x: STRUCTURE_SEARCH_TABLE_SCROLL_X, y: patentListTableScrollY }
-      : { x: STRUCTURE_SEARCH_TABLE_SCROLL_X };
-  }, [filteredStructureCompounds.length, patentListTableScrollY]);
+    return patentTableScrollY === undefined
+      ? { x: STRUCTURE_SEARCH_TABLE_SCROLL_X }
+      : { x: STRUCTURE_SEARCH_TABLE_SCROLL_X, y: patentTableScrollY };
+  }, [patentTableScrollY]);
 
   const renderStructureColumn = React.useCallback((
     svg: string | undefined,
@@ -879,6 +1182,7 @@ const PatentAnalysisList: React.FC = () => {
           actionOverlayAnchor="container"
           frameless
           structureFitMode="contain"
+          transparentBackground
           frameClassName="patent-analysis-compound-structure-frame"
           svgClassName="patent-analysis-compound-structure-svg"
           onPreview={() => setPreviewStructure({ title, svg: normalizedSvg, smiles })}
@@ -901,6 +1205,12 @@ const PatentAnalysisList: React.FC = () => {
     setPatents(prev => prev.map(item => (
       item.id === patent.id ? { ...item, isFavorite: nextFavorite } : item
     )));
+    setSelectedQuickViewPatent((current) => (
+      current && normalizeFavoritePatentNumber(current.patentNumber)
+        === normalizeFavoritePatentNumber(publicationNumber)
+        ? { ...current, isFavorite: nextFavorite }
+        : current
+    ));
 
     try {
       if (nextFavorite) {
@@ -934,6 +1244,12 @@ const PatentAnalysisList: React.FC = () => {
       setPatents(prev => prev.map(item => (
         item.id === patent.id ? { ...item, isFavorite: patent.isFavorite } : item
       )));
+      setSelectedQuickViewPatent((current) => (
+        current && normalizeFavoritePatentNumber(current.patentNumber)
+          === normalizeFavoritePatentNumber(publicationNumber)
+          ? { ...current, isFavorite: patent.isFavorite }
+          : current
+      ));
       void message.warning(error instanceof Error ? error.message : '즐겨찾기 저장에 실패했습니다.');
     } finally {
       setSavingFavoritePatentNumbers(prev => prev.filter(value => value !== publicationNumber));
@@ -971,6 +1287,12 @@ const PatentAnalysisList: React.FC = () => {
     url.searchParams.set('focus', focus);
     return url.toString();
   }, []);
+  const selectedQuickViewPublicationNumber = selectedQuickViewPatent
+    ? normalizePatentPublicationNumber(selectedQuickViewPatent.patentNumber)
+    : null;
+  const isQuickViewPatentSelected = React.useCallback((patent: Patent) => (
+    selectedQuickViewPublicationNumber === normalizePatentPublicationNumber(patent.patentNumber)
+  ), [selectedQuickViewPublicationNumber]);
 
   const columns = [
     {
@@ -1163,22 +1485,6 @@ const PatentAnalysisList: React.FC = () => {
       className: 'table-center-column',
       render: formatDisplayDate,
     },
-    {
-      title: '작업',
-      key: 'action',
-      width: 70,
-      align: 'center' as const,
-      render: (_: any, record: Patent) => (
-        <Button
-          type="text"
-          icon={<ExternalLink size={16} />}
-          onClick={(event) => {
-            event.stopPropagation();
-            openPatentDetail(record);
-          }}
-        />
-      ),
-    },
   ];
 
   const structureSearchColumns = [
@@ -1335,7 +1641,19 @@ const PatentAnalysisList: React.FC = () => {
           } : false}
           size="small"
           onRow={(record) => ({
-            onClick: () => openPatentDetail(record),
+            onClick: (event) => selectPatentForQuickView(record, event.currentTarget),
+            onKeyDown: (event) => {
+              if (isInteractivePatentRowTarget(event.target, event.currentTarget)) return;
+              if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                selectPatentForQuickView(record, event.currentTarget);
+              }
+            },
+            className: isQuickViewPatentSelected(record)
+              ? 'patent-analysis-quick-view-selected'
+              : '',
+            tabIndex: 0,
+            'aria-selected': isQuickViewPatentSelected(record),
             style: { cursor: 'pointer' },
           })}
         />
@@ -1345,7 +1663,17 @@ const PatentAnalysisList: React.FC = () => {
 
   return (
     <div className="patent-analysis-list-page" style={{ maxWidth: layoutPreset.maxWidth, margin: '0 auto', padding: `0 ${layoutPreset.sidePadding}px`, height: '100%', width: '100%', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflowY: 'auto', overflowX: 'hidden', animation: 'fadeIn 0.3s ease-out' }}>
+      <div
+        ref={patentAnalysisWorkspaceRef}
+        className={`patent-analysis-list-workspace ${selectedQuickViewPatent ? 'patent-analysis-list-workspace-with-viewer' : ''}`}
+      >
+        <div
+          className="patent-analysis-list-workspace-main"
+          style={{
+            overflowY: isResponsiveToolbar ? 'auto' : 'hidden',
+            animation: 'fadeIn 0.3s ease-out',
+          }}
+        >
         <Card variant="borderless" className="c-card compact-filter-card" style={{ marginBottom: 12, flexShrink: 0 }}>
             <Row gutter={[12, 8]} align="middle">
               <Col flex="auto" style={{ minWidth: 0 }}>
@@ -1534,7 +1862,7 @@ const PatentAnalysisList: React.FC = () => {
           )}
         </Card>
 
-        <div className="v-table-card patent-analysis-table-card" style={{ flex: '0 0 auto', display: 'flex', flexDirection: 'column', maxHeight: '100%' }}>
+        <div className="v-table-card patent-analysis-table-card">
           <div className="v-table-header patent-analysis-table-header" style={{ flexWrap: 'wrap', gap: 12 }}>
             <Text strong style={{ color: token.colorPrimary }}>
               {appliedStructureSmiles ? '구조 검색 Compound 목록' : '특허 분석 리스트'}
@@ -1580,141 +1908,260 @@ const PatentAnalysisList: React.FC = () => {
               style={{ margin: '12px 12px 0' }}
             />
           )}
-          {appliedStructureSmiles ? (
-            <Table
-              className="my-board-table patent-analysis-list-table patent-analysis-structure-table"
-              columns={structureSearchColumns}
-              dataSource={filteredStructureCompounds}
-              rowKey="compoundId"
-              size="small"
-              loading={isLoadingPatents}
-              expandable={{
-                columnWidth: STRUCTURE_SEARCH_EXPAND_COLUMN_WIDTH,
-                expandedRowKeys: expandedStructureCompoundIds,
-                expandedRowRender: renderStructureCompoundPatents,
-                rowExpandable: (record) => record.patentCount > 0,
-                onExpandedRowsChange: (expandedKeys) => {
-                  setExpandedStructureCompoundIds(expandedKeys.map(String));
-                },
-                onExpand: (expanded, record) => {
-                  if (expanded) {
-                    void loadStructureCompoundPatents(record.compoundId);
-                  }
-                },
-              }}
-              pagination={{
-                current: currentPage,
-                pageSize,
-                total: Math.min(totalPatents, STRUCTURE_SEARCH_MAX_RESULT_WINDOW),
-                showSizeChanger: true,
-                pageSizeOptions: PATENT_ANALYSIS_PAGE_SIZE_OPTIONS.map(String),
-                itemRender: (page, type, originalElement) => (
-                  type === 'page' ? <span>{formatNumberWithComma(page)}</span> : originalElement
-                ),
-                onChange: (page, nextPageSize) => {
-                  setCurrentPage(page);
-                  setPageSize(normalizePatentAnalysisPageSize(nextPageSize));
-                },
-              }}
-              scroll={structureSearchTableScroll}
-              style={{ flex: 1 }}
-              tableLayout="fixed"
-            />
-          ) : (
-            <Table
-              className="my-board-table patent-analysis-list-table"
-              columns={columns}
-              dataSource={filteredPatents}
-              rowKey="id"
-              size="small"
-              loading={isLoadingPatents}
-              onRow={(record) => ({
-                onClick: () => openPatentDetail(record),
-                style: { cursor: 'pointer' }
-              })}
-              pagination={{
-                current: currentPage,
-                pageSize,
-                total: totalPatents,
-                showSizeChanger: true,
-                pageSizeOptions: PATENT_ANALYSIS_PAGE_SIZE_OPTIONS.map(String),
-                itemRender: (page, type, originalElement) => (
-                  type === 'page' ? <span>{formatNumberWithComma(page)}</span> : originalElement
-                ),
-                onChange: (page, nextPageSize) => {
-                  setCurrentPage(page);
-                  setPageSize(normalizePatentAnalysisPageSize(nextPageSize));
-                },
-              }}
-              scroll={patentListTableScroll}
-              style={{ flex: 1 }}
-              tableLayout="fixed"
-            />
-          )}
+          <div
+            ref={patentTableRegionRef}
+            className="patent-analysis-table-region"
+          >
+            {appliedStructureSmiles ? (
+              <Table
+                className="my-board-table patent-analysis-list-table patent-analysis-structure-table"
+                columns={structureSearchColumns}
+                dataSource={filteredStructureCompounds}
+                rowKey="compoundId"
+                size="small"
+                loading={isLoadingPatents}
+                expandable={{
+                  columnWidth: STRUCTURE_SEARCH_EXPAND_COLUMN_WIDTH,
+                  expandedRowKeys: expandedStructureCompoundIds,
+                  expandedRowRender: renderStructureCompoundPatents,
+                  rowExpandable: (record) => record.patentCount > 0,
+                  onExpandedRowsChange: (expandedKeys) => {
+                    setExpandedStructureCompoundIds(expandedKeys.map(String));
+                  },
+                  onExpand: (expanded, record) => {
+                    if (expanded) {
+                      void loadStructureCompoundPatents(record.compoundId);
+                    }
+                  },
+                }}
+                pagination={{
+                  current: currentPage,
+                  pageSize,
+                  total: Math.min(totalPatents, STRUCTURE_SEARCH_MAX_RESULT_WINDOW),
+                  showSizeChanger: true,
+                  pageSizeOptions: PATENT_ANALYSIS_PAGE_SIZE_OPTIONS.map(String),
+                  itemRender: (page, type, originalElement) => (
+                    type === 'page' ? <span>{formatNumberWithComma(page)}</span> : originalElement
+                  ),
+                  onChange: (page, nextPageSize) => {
+                    setCurrentPage(page);
+                    setPageSize(normalizePatentAnalysisPageSize(nextPageSize));
+                  },
+                }}
+                scroll={structureSearchTableScroll}
+                style={{ flex: 1 }}
+                tableLayout="fixed"
+              />
+            ) : (
+              <Table
+                className="my-board-table patent-analysis-list-table"
+                columns={columns}
+                dataSource={filteredPatents}
+                rowKey="id"
+                size="small"
+                loading={isLoadingPatents}
+                onRow={(record) => ({
+                  onClick: (event) => selectPatentForQuickView(record, event.currentTarget),
+                  onKeyDown: (event) => {
+                    if (isInteractivePatentRowTarget(event.target, event.currentTarget)) return;
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault();
+                      selectPatentForQuickView(record, event.currentTarget);
+                    }
+                  },
+                  className: isQuickViewPatentSelected(record)
+                    ? 'patent-analysis-quick-view-selected'
+                    : '',
+                  tabIndex: 0,
+                  'aria-selected': isQuickViewPatentSelected(record),
+                  style: { cursor: 'pointer' }
+                })}
+                pagination={{
+                  current: currentPage,
+                  pageSize,
+                  total: totalPatents,
+                  showSizeChanger: true,
+                  pageSizeOptions: PATENT_ANALYSIS_PAGE_SIZE_OPTIONS.map(String),
+                  itemRender: (page, type, originalElement) => (
+                    type === 'page' ? <span>{formatNumberWithComma(page)}</span> : originalElement
+                  ),
+                  onChange: (page, nextPageSize) => {
+                    setCurrentPage(page);
+                    setPageSize(normalizePatentAnalysisPageSize(nextPageSize));
+                  },
+                }}
+                scroll={patentListTableScroll}
+                style={{ flex: 1 }}
+                tableLayout="fixed"
+              />
+            )}
+          </div>
+        </div>
         </div>
 
-        <ChemDrawModal 
-          open={isChemDrawVisible} 
-          onCancel={() => setIsChemDrawVisible(false)} 
-          onConfirm={(data) => {
-            setSearchText(data.smiles);
-            setIsChemDrawVisible(false);
-          }}
-          title="구조 검색"
-          confirmText="이 구조로 검색"
-          initialSmiles={searchType === 'structure' ? searchText : undefined}
-        />
-        <StructurePreviewModal
-          open={Boolean(previewStructure)}
-          onCancel={() => setPreviewStructure(null)}
-          title={previewStructure?.title || '구조 미리보기'}
-          svg={previewStructure?.svg}
-          smiles={previewStructure?.smiles}
-          className="patent-analysis-structure-preview"
-        />
-        <Modal
-          title="즐겨찾기 공유"
-          open={isShareModalOpen}
-          onCancel={() => setIsShareModalOpen(false)}
-          onOk={() => void handleShareFavorites()}
-          okText="공유 저장"
-          cancelText="취소"
-          confirmLoading={isSharingFavorites}
-        >
-          <Space direction="vertical" size={12} style={{ width: '100%' }}>
-            <Text type="secondary">
-              기본 즐겨찾기 폴더 /myworkspace/{PATENT_ANALYSIS_OWNER_ID}/ 를 공유합니다.
-            </Text>
-            <Input
-              value={shareCc}
-              onChange={(event) => setShareCc(event.target.value)}
-              placeholder="공유 대상 cc 값"
-            />
-            <Alert
-              type="info"
-              showIcon
-              message="cc 값은 샘플 조직 트리의 선택 id 목록입니다."
-              description="이메일 기반 선택 UX는 helper의 조직 tree id 매핑 계약 확인 후 확장합니다."
-            />
-          </Space>
-        </Modal>
+        {selectedQuickViewPatent ? (
+          <>
+            <div
+              className="patent-analysis-quick-viewer-resizer"
+              role="separator"
+              aria-label="Patent Quick Viewer 너비 조절"
+              aria-orientation="vertical"
+              aria-valuemin={PATENT_QUICK_VIEWER_MIN_WIDTH}
+              aria-valuemax={PATENT_QUICK_VIEWER_MAX_WIDTH}
+              aria-valuenow={quickViewerWidth}
+              tabIndex={0}
+              onMouseDown={handleQuickViewerResizeStart}
+              onKeyDown={handleQuickViewerResizeKeyDown}
+            >
+              <div className="patent-analysis-quick-viewer-resizer-bar" />
+            </div>
+            <div
+              className="patent-analysis-quick-viewer-pane"
+              style={{ width: quickViewerWidth }}
+            >
+              <PatentQuickViewerPanel
+                patent={selectedQuickViewPatent}
+                detail={quickViewDetail}
+                loading={quickViewLoading}
+                error={quickViewError}
+                canDownloadPdf={hasPatentPdfSource(quickViewDetail?.metadata)}
+                downloadingPdf={isDownloadingQuickViewPdf}
+                fullscreen={isResponsiveToolbar}
+                onRetry={retryPatentQuickView}
+                onClose={closePatentQuickViewer}
+                onOpenAnalysis={handleOpenQuickViewAnalysis}
+                onDownloadPdf={() => void handleQuickViewPdfDownload()}
+              />
+            </div>
+          </>
+        ) : null}
       </div>
+
+      <ChemDrawModal
+        open={isChemDrawVisible}
+        onCancel={() => setIsChemDrawVisible(false)}
+        onConfirm={(data) => {
+          setSearchText(data.smiles);
+          setIsChemDrawVisible(false);
+        }}
+        title="구조 검색"
+        confirmText="이 구조로 검색"
+        initialSmiles={searchType === 'structure' ? searchText : undefined}
+      />
+      <StructurePreviewModal
+        open={Boolean(previewStructure)}
+        onCancel={() => setPreviewStructure(null)}
+        title={previewStructure?.title || '구조 미리보기'}
+        svg={previewStructure?.svg}
+        smiles={previewStructure?.smiles}
+        className="patent-analysis-structure-preview"
+      />
+      <Modal
+        title="즐겨찾기 공유"
+        open={isShareModalOpen}
+        onCancel={() => setIsShareModalOpen(false)}
+        onOk={() => void handleShareFavorites()}
+        okText="공유 저장"
+        cancelText="취소"
+        confirmLoading={isSharingFavorites}
+      >
+        <Space direction="vertical" size={12} style={{ width: '100%' }}>
+          <Text type="secondary">
+            기본 즐겨찾기 폴더 /myworkspace/{PATENT_ANALYSIS_OWNER_ID}/ 를 공유합니다.
+          </Text>
+          <Input
+            value={shareCc}
+            onChange={(event) => setShareCc(event.target.value)}
+            placeholder="공유 대상 cc 값"
+          />
+          <Alert
+            type="info"
+            showIcon
+            message="cc 값은 샘플 조직 트리의 선택 id 목록입니다."
+            description="이메일 기반 선택 UX는 helper의 조직 tree id 매핑 계약 확인 후 확장합니다."
+          />
+        </Space>
+      </Modal>
       <style>{`
         @keyframes fadeIn {
           from { opacity: 0; transform: translateY(10px); }
           to { opacity: 1; transform: translateY(0); }
         }
+        .patent-analysis-list-workspace {
+          width: 100%;
+          min-width: 0;
+          min-height: 0;
+          display: flex;
+          flex: 1 1 auto;
+          align-items: stretch;
+          gap: 0;
+        }
+        .patent-analysis-list-workspace-main {
+          min-width: 0;
+          min-height: 0;
+          display: flex;
+          flex: 1 1 auto;
+          flex-direction: column;
+          overflow-x: hidden;
+        }
+        .patent-analysis-quick-viewer-resizer {
+          width: 14px;
+          min-width: 14px;
+          display: flex;
+          flex: 0 0 14px;
+          align-items: center;
+          align-self: stretch;
+          justify-content: center;
+          cursor: col-resize;
+          outline: none;
+        }
+        .patent-analysis-quick-viewer-resizer-bar {
+          width: 4px;
+          height: 88px;
+          border-radius: 999px;
+          background: ${isResizingQuickViewer ? token.colorPrimary : token.colorBorder};
+          transition: background-color 0.16s ease, height 0.16s ease;
+        }
+        .patent-analysis-quick-viewer-resizer:hover .patent-analysis-quick-viewer-resizer-bar,
+        .patent-analysis-quick-viewer-resizer:focus-visible .patent-analysis-quick-viewer-resizer-bar {
+          height: 112px;
+          background: ${token.colorPrimary};
+        }
+        .patent-analysis-quick-viewer-pane {
+          min-width: ${PATENT_QUICK_VIEWER_MIN_WIDTH}px;
+          max-width: ${PATENT_QUICK_VIEWER_MAX_WIDTH}px;
+          min-height: 0;
+          height: 100%;
+          display: flex;
+          flex: 0 0 auto;
+          overflow: hidden;
+          box-sizing: border-box;
+        }
         .ant-table-row:hover > td {
           background: var(--table-row-hover-bg) !important;
+        }
+        .patent-analysis-list-table .ant-table-tbody > tr.patent-analysis-quick-view-selected > td,
+        .structure-patent-subtable .ant-table-tbody > tr.patent-analysis-quick-view-selected > td {
+          background: ${token.colorPrimaryBg} !important;
+        }
+        .patent-analysis-list-table .ant-table-tbody > tr:focus-visible > td,
+        .structure-patent-subtable .ant-table-tbody > tr:focus-visible > td {
+          box-shadow: inset 0 0 0 2px ${token.colorPrimary};
         }
         .patent-analysis-table-header {
           min-height: 48px;
         }
         .patent-analysis-table-card {
-          flex-grow: 0;
+          flex: 0 0 auto;
+          min-height: 0;
+          overflow: hidden;
+        }
+        .patent-analysis-table-region {
+          min-height: 0;
+          overflow: hidden;
         }
         .patent-analysis-list-table {
-          flex: 0 0 auto !important;
+          min-height: 0;
         }
         .patent-analysis-list-table .ant-pagination {
           margin: 12px 16px !important;
@@ -1820,6 +2267,33 @@ const PatentAnalysisList: React.FC = () => {
         .patent-analysis-structure-preview svg {
           width: 94%;
           height: 94%;
+        }
+        @media (max-width: 1100px) {
+          .patent-analysis-list-workspace {
+            display: block;
+          }
+          .patent-analysis-list-workspace-main {
+            width: 100%;
+            height: 100%;
+          }
+          .patent-analysis-quick-viewer-resizer {
+            display: none;
+          }
+          .patent-analysis-quick-viewer-pane {
+            position: fixed;
+            inset: 0;
+            z-index: 1200;
+            width: 100vw !important;
+            max-width: none;
+            min-width: 0;
+            height: 100vh;
+            padding: 0;
+            background: ${token.colorBgContainer};
+          }
+          .patent-analysis-quick-viewer-pane .patent-quick-viewer-panel {
+            border: 0;
+            border-radius: 0;
+          }
         }
       `}</style>
     </div>

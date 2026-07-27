@@ -50,22 +50,6 @@ export class ConferenceInteractionService {
     );
   }
 
-  async setConferenceBookmark(userId: string, conferenceId: string, bookmarked: boolean) {
-    await this.assertConference(conferenceId);
-    if (bookmarked) {
-      await this.prisma.client.conferenceBookmark.upsert({
-        where: { userId_conferenceId: { userId, conferenceId } },
-        create: { userId, conferenceId },
-        update: {},
-      });
-    } else {
-      await this.prisma.client.conferenceBookmark.deleteMany({
-        where: { userId, conferenceId },
-      });
-    }
-    return { conferenceId, isFavorite: bookmarked };
-  }
-
   async setAbstractBookmark(userId: string, abstractId: string, bookmarked: boolean) {
     await this.assertAbstract(abstractId);
     if (bookmarked) {
@@ -292,14 +276,6 @@ export class ConferenceInteractionService {
       });
       return { commentId, deleted: true };
     });
-  }
-
-  private async assertConference(conferenceId: string): Promise<void> {
-    const conference = await this.prisma.client.conference.findFirst({
-      where: { id: conferenceId, deletedAt: null },
-      select: { id: true },
-    });
-    if (!conference) throw new NotFoundException('CONFERENCE_NOT_FOUND');
   }
 
   private async assertAbstract(abstractId: string): Promise<void> {

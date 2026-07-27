@@ -1,7 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import type { Prisma } from '../generated/prisma/client';
 import { PrismaService } from '../database/prisma.service';
-import type { ConferenceAbstractListQueryDto } from './dto/conference-abstract-list-query.dto';
-import type { ConferenceListQueryDto } from './dto/conference-list-query.dto';
+import type { ConferenceAbstractSearchQueryDto } from './dto/conference-abstract-search-query.dto';
 
 const parseDate = (value?: string): Date | undefined => (
   value ? new Date(`${value.slice(0, 10)}T00:00:00.000Z`) : undefined
@@ -37,82 +37,10 @@ const assetDto = (asset: {
 export class ConferenceReadService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async listConferences(userId: string, query: ConferenceListQueryDto) {
-    assertDateRange(query.dateFrom, query.dateTo);
-    const q = query.q?.trim();
-    const dateFrom = parseDate(query.dateFrom);
-    const dateTo = parseDate(query.dateTo);
-    const where = {
-      deletedAt: null,
-      ...(q ? {
-        OR: [
-          { title: { contains: q, mode: 'insensitive' as const } },
-          { abbreviation: { contains: q, mode: 'insensitive' as const } },
-          { fullTitle: { contains: q, mode: 'insensitive' as const } },
-        ],
-      } : {}),
-      ...(query.favoriteOnly ? {
-        bookmarks: { some: { userId } },
-      } : {}),
-      ...(dateFrom ? { dateEnd: { gte: dateFrom } } : {}),
-      ...(dateTo ? { dateStart: { lte: dateTo } } : {}),
-    };
-    const orderBy = query.sort === 'titleAsc'
-      ? [{ title: 'asc' as const }]
-      : [{ year: 'desc' as const }, { title: 'asc' as const }];
-    const [items, total] = await this.prisma.client.$transaction([
-      this.prisma.client.conference.findMany({
-        where,
-        orderBy,
-        skip: (query.page - 1) * query.pageSize,
-        take: query.pageSize,
-        include: {
-          bookmarks: { where: { userId }, select: { userId: true } },
-          assets: {
-            where: { kind: 'LOGO' },
-            select: {
-              id: true,
-              kind: true,
-              originalFilename: true,
-              mimeType: true,
-              byteSize: true,
-            },
-            take: 1,
-          },
-          _count: {
-            select: { abstracts: { where: { deletedAt: null } } },
-          },
-        },
-      }),
-      this.prisma.client.conference.count({ where }),
-    ]);
-    return {
-      items: items.map((conference) => ({
-        id: conference.id,
-        title: conference.title,
-        abbreviation: conference.abbreviation,
-        fullTitle: conference.fullTitle,
-        year: conference.year,
-        status: conference.status,
-        sourceUrl: conference.sourceUrl,
-        dateStart: conference.dateStart,
-        dateEnd: conference.dateEnd,
-        abstractCount: conference._count.abstracts,
-        isFavorite: conference.bookmarks.length > 0,
-        logo: conference.assets[0] ? assetDto(conference.assets[0]) : null,
-      })),
-      page: query.page,
-      pageSize: query.pageSize,
-      total,
-      hasNext: query.page * query.pageSize < total,
-    };
-  }
-
-  async getConference(userId: string, conferenceId: string) {
+  async getConference(conferenceId: string) {
     const conference = await this.prisma.client.conference.findFirst({
       where: { id: conferenceId, deletedAt: null },
       include: {
-        bookmarks: { where: { userId }, select: { userId: true } },
         assets: {
           orderBy: { createdAt: 'asc' },
           select: {
@@ -138,65 +66,134 @@ export class ConferenceReadService {
       dateStart: conference.dateStart,
       dateEnd: conference.dateEnd,
       abstractCount: conference._count.abstracts,
-      isFavorite: conference.bookmarks.length > 0,
       assets: conference.assets.map(assetDto),
     };
   }
 
-  async listAbstracts(
+  async searchAbstracts(
     userId: string,
-    conferenceId: string,
-    query: ConferenceAbstractListQueryDto,
+    query: ConferenceAbstractSearchQueryDto,
   ) {
     assertDateRange(query.dateFrom, query.dateTo);
-    const conference = await this.prisma.client.conference.findFirst({
-      where: { id: conferenceId, deletedAt: null },
-      select: { id: true, title: true, abbreviation: true, year: true },
-    });
-    if (!conference) throw new NotFoundException('CONFERENCE_NOT_FOUND');
-
     const q = query.q?.trim();
-    const where = {
-      conferenceId,
+    const dateFrom = parseDate(query.dateFrom);
+    const dateTo = parseDate(query.dateTo);
+    const conferenceWhere: Prisma.ConferenceWhereInput = {
       deletedAt: null,
-      ...(q ? {
-        OR: [
-          { title: { contains: q, mode: 'insensitive' as const } },
-          { abstractNumber: { contains: q, mode: 'insensitive' as const } },
-          { firstAuthorName: { contains: q, mode: 'insensitive' as const } },
-          { firstAuthorOrganization: { contains: q, mode: 'insensitive' as const } },
-          { meeting: { contains: q, mode: 'insensitive' as const } },
-          { sessionType: { contains: q, mode: 'insensitive' as const } },
-          { sessionTitle: { contains: q, mode: 'insensitive' as const } },
-          { track: { contains: q, mode: 'insensitive' as const } },
-          { subTrack: { contains: q, mode: 'insensitive' as const } },
-        ],
-      } : {}),
-      ...(query.favoriteOnly ? { bookmarks: { some: { userId } } } : {}),
-      ...(query.dateFrom ? { dateOpen: { gte: parseDate(query.dateFrom) } } : {}),
-      ...(query.dateTo ? { dateOpen: { lte: parseDate(query.dateTo) } } : {}),
-      ...(query.hasPoster ? { assets: { some: { kind: 'POSTER' as const } } } : {}),
-      ...(query.hasVideo ? { assets: { some: { kind: 'VIDEO' as const } } } : {}),
-      ...(query.hasDocument ? { assets: { some: { kind: 'DOCUMENT' as const } } } : {}),
+      ...(query.conferenceIds?.length ? { id: { in: query.conferenceIds } } : {}),
+      ...(query.years?.length ? { year: { in: query.years } } : {}),
+      ...(query.dateField === 'conferencePeriod' && dateFrom
+        ? { dateEnd: { gte: dateFrom } }
+        : {}),
+      ...(query.dateField === 'conferencePeriod' && dateTo
+        ? { dateStart: { lte: dateTo } }
+        : {}),
     };
-    const orderBy = query.sort === 'titleAsc'
-      ? [{ title: 'asc' as const }]
-      : query.sort === 'dateOpenDesc'
-        ? [{ dateOpen: 'desc' as const }, { title: 'asc' as const }]
-        : query.sort === 'commentCountDesc'
-          ? [
-            { comments: { _count: 'desc' as const } },
-            { abstractNumber: 'asc' as const },
-            { title: 'asc' as const },
-          ]
-          : [{ abstractNumber: 'asc' as const }, { title: 'asc' as const }];
-    const [items, total] = await this.prisma.client.$transaction([
+    const and: Prisma.ConferenceAbstractWhereInput[] = [];
+
+    if (q) {
+      const insensitive = { contains: q, mode: 'insensitive' as const };
+      const abstractNumber = { abstractNumber: insensitive };
+      const title = { title: insensitive };
+      const authorConditions: Prisma.ConferenceAbstractWhereInput[] = [
+        { firstAuthorName: insensitive },
+        { firstAuthorOrganization: insensitive },
+      ];
+      const conferenceCondition: Prisma.ConferenceAbstractWhereInput = {
+        conference: {
+          OR: [
+            { title: insensitive },
+            { abbreviation: insensitive },
+            { fullTitle: insensitive },
+          ],
+        },
+      };
+      const searchConditions: Prisma.ConferenceAbstractWhereInput[] = (
+        query.searchField === 'conference'
+          ? [conferenceCondition]
+          : query.searchField === 'title'
+            ? [title]
+            : query.searchField === 'author'
+              ? authorConditions
+              : query.searchField === 'abstractNumber'
+                ? [abstractNumber]
+                : [
+                  title,
+                  abstractNumber,
+                  ...authorConditions,
+                  conferenceCondition,
+                  { meeting: insensitive },
+                  { sessionType: insensitive },
+                  { sessionTitle: insensitive },
+                  { track: insensitive },
+                  { subTrack: insensitive },
+                ]
+      );
+      and.push({ OR: searchConditions });
+    }
+    if (query.favoriteOnly) {
+      and.push({ bookmarks: { some: { userId } } });
+    }
+    if (query.dateField === 'dateOpen' && (dateFrom || dateTo)) {
+      and.push({
+        dateOpen: {
+          ...(dateFrom ? { gte: dateFrom } : {}),
+          ...(dateTo ? { lte: dateTo } : {}),
+        },
+      });
+    }
+    if (query.hasPoster) and.push({ assets: { some: { kind: 'POSTER' } } });
+    if (query.hasVideo) and.push({ assets: { some: { kind: 'VIDEO' } } });
+    if (query.hasDocument) and.push({ assets: { some: { kind: 'DOCUMENT' } } });
+
+    const where: Prisma.ConferenceAbstractWhereInput = {
+      deletedAt: null,
+      conference: conferenceWhere,
+      ...(and.length ? { AND: and } : {}),
+    };
+    const orderBy: Prisma.ConferenceAbstractOrderByWithRelationInput[] = (
+      query.sort === 'titleAsc'
+        ? [{ title: 'asc' }, { id: 'asc' }]
+        : query.sort === 'dateOpenDesc'
+          ? [{ dateOpen: 'desc' }, { title: 'asc' }, { id: 'asc' }]
+          : query.sort === 'commentCountDesc'
+            ? [
+              { comments: { _count: 'desc' } },
+              { abstractNumber: 'asc' },
+              { id: 'asc' },
+            ]
+            : query.sort === 'abstractNumberAsc'
+              ? [
+                { conference: { year: 'desc' } },
+                { abstractNumber: 'asc' },
+                { id: 'asc' },
+              ]
+              : [
+                { conference: { year: 'desc' } },
+                { conference: { abbreviation: 'asc' } },
+                { abstractNumber: 'asc' },
+                { id: 'asc' },
+              ]
+    );
+    const [items, total, facetConferences] = await this.prisma.client.$transaction([
       this.prisma.client.conferenceAbstract.findMany({
         where,
         orderBy,
         skip: (query.page - 1) * query.pageSize,
         take: query.pageSize,
         include: {
+          conference: {
+            select: {
+              id: true,
+              title: true,
+              abbreviation: true,
+              fullTitle: true,
+              year: true,
+              status: true,
+              dateStart: true,
+              dateEnd: true,
+            },
+          },
           bookmarks: { where: { userId }, select: { userId: true } },
           assets: {
             select: { kind: true },
@@ -209,13 +206,33 @@ export class ConferenceReadService {
         },
       }),
       this.prisma.client.conferenceAbstract.count({ where }),
+      this.prisma.client.conference.findMany({
+        where: {
+          deletedAt: null,
+          abstracts: { some: { deletedAt: null } },
+        },
+        select: {
+          id: true,
+          title: true,
+          abbreviation: true,
+          fullTitle: true,
+          year: true,
+          status: true,
+          dateStart: true,
+          dateEnd: true,
+        },
+        orderBy: [{ year: 'desc' }, { abbreviation: 'asc' }],
+      }),
     ]);
     return {
-      conference,
       items: items.map((abstract) => {
-        const kinds = new Set(abstract.assets.map((asset) => asset.kind));
+        const assetCounts = abstract.assets.reduce((counts, asset) => {
+          counts[asset.kind] = (counts[asset.kind] ?? 0) + 1;
+          return counts;
+        }, {} as Partial<Record<string, number>>);
         return {
           id: abstract.id,
+          conference: abstract.conference,
           abstractNumber: abstract.abstractNumber,
           title: abstract.title,
           firstAuthorName: abstract.firstAuthorName,
@@ -228,10 +245,10 @@ export class ConferenceReadService {
           isFavorite: abstract.bookmarks.length > 0,
           commentCount: abstract._count.comments,
           assetSummary: {
-            hasPoster: kinds.has('POSTER'),
-            hasVideo: kinds.has('VIDEO'),
-            hasDocument: kinds.has('DOCUMENT'),
-            hasReferenceImage: kinds.has('REFERENCE_IMAGE'),
+            posterCount: assetCounts.POSTER ?? 0,
+            videoCount: assetCounts.VIDEO ?? 0,
+            documentCount: assetCounts.DOCUMENT ?? 0,
+            referenceImageCount: assetCounts.REFERENCE_IMAGE ?? 0,
           },
         };
       }),
@@ -239,6 +256,10 @@ export class ConferenceReadService {
       pageSize: query.pageSize,
       total,
       hasNext: query.page * query.pageSize < total,
+      facets: {
+        conferences: facetConferences,
+        years: [...new Set(facetConferences.map(({ year }) => year))],
+      },
     };
   }
 

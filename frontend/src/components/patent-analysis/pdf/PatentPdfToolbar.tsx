@@ -1,8 +1,26 @@
 import React from 'react';
-import { Button, Input, InputNumber, Space, Typography } from 'antd';
-import { Maximize2, Minimize2, RotateCcw, RotateCw, PanelLeftClose, PanelLeftOpen, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Download } from 'lucide-react';
+import { Button, Input, InputNumber, Space, Tooltip, Typography } from 'antd';
+import { Maximize2, Minimize2, RotateCcw, RotateCw, PanelLeftClose, PanelLeftOpen, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Download, ExternalLink } from 'lucide-react';
 
 const { Text } = Typography;
+
+type PdfToolbarButtonProps = React.ComponentProps<typeof Button> & {
+  tooltip: string;
+};
+
+const PdfToolbarButton: React.FC<PdfToolbarButtonProps> = ({
+  tooltip,
+  ...buttonProps
+}) => (
+  <Tooltip title={tooltip}>
+    <span style={{ display: 'inline-flex' }}>
+      <Button
+        {...buttonProps}
+        aria-label={buttonProps['aria-label'] ?? tooltip}
+      />
+    </span>
+  </Tooltip>
+);
 
 type PatentPdfToolbarProps = {
   splitRatio: number;
@@ -17,6 +35,7 @@ type PatentPdfToolbarProps = {
   currentPage: number;
   totalPages: number;
   onToggleFit: () => void;
+  onOpenPdfInBrowser?: () => void;
   onSearchQueryChange: (value: string) => void;
   onRunSearch: (value?: string) => void;
   onClearSearch: () => void;
@@ -43,6 +62,7 @@ const PatentPdfToolbar: React.FC<PatentPdfToolbarProps> = ({
   currentPage,
   totalPages,
   onToggleFit,
+  onOpenPdfInBrowser,
   onSearchQueryChange,
   onRunSearch,
   onClearSearch,
@@ -86,20 +106,29 @@ const PatentPdfToolbar: React.FC<PatentPdfToolbarProps> = ({
         flexShrink: 0,
       }}
     >
-      <Button
+      <PdfToolbarButton
         icon={thumbnailCollapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
         size="small"
         onClick={onToggleThumbnail}
-        title={thumbnailCollapsed ? '썸네일 펼치기' : '썸네일 접기'}
+        tooltip={thumbnailCollapsed ? 'PDF 썸네일 펼치기' : 'PDF 썸네일 접기'}
       />
 
-      <Button
+      <PdfToolbarButton
         icon={splitRatio <= minSplitPercent ? <Maximize2 size={16} /> : <Minimize2 size={16} />}
         size="small"
         onClick={onToggleFit}
-        title={splitRatio <= minSplitPercent ? 'PDF 영역 확대 (45%)' : `PDF 영역 축소 (${minSplitPercent}%)`}
-      >
-      </Button>
+        tooltip={splitRatio <= minSplitPercent
+          ? 'PDF Viewer 영역 확대 (45%)'
+          : `PDF Viewer 영역 축소 (${minSplitPercent}%)`}
+      />
+
+      <PdfToolbarButton
+        icon={<ExternalLink size={16} />}
+        size="small"
+        onClick={onOpenPdfInBrowser}
+        disabled={!onOpenPdfInBrowser}
+        tooltip="브라우저에서 PDF 전체 보기"
+      />
 
       <Input
         allowClear
@@ -124,9 +153,14 @@ const PatentPdfToolbar: React.FC<PatentPdfToolbarProps> = ({
         size="small"
       />
 
-      <Button size="small" type="primary" onClick={() => onRunSearch(searchQuery)}>
+      <PdfToolbarButton
+        size="small"
+        type="primary"
+        tooltip="입력한 텍스트를 PDF에서 검색"
+        onClick={() => onRunSearch(searchQuery)}
+      >
         Search
-      </Button>
+      </PdfToolbarButton>
 
       <Text style={{ fontSize: 11 }}>
         {searchMatchCount > 0
@@ -135,15 +169,55 @@ const PatentPdfToolbar: React.FC<PatentPdfToolbarProps> = ({
                 ? '0 matches'
                 : '-/-'}
       </Text>
-      <Button size="small" icon={<ChevronLeft size={14} />} onClick={() => onMoveSearchMatch(-1)} disabled={searchMatchCount === 0} title="이전 검색 결과" />
-      <Button size="small" icon={<ChevronRight size={14} />} onClick={() => onMoveSearchMatch(1)} disabled={searchMatchCount === 0} title="다음 검색 결과" />
+      <PdfToolbarButton
+        size="small"
+        icon={<ChevronLeft size={14} />}
+        onClick={() => onMoveSearchMatch(-1)}
+        disabled={searchMatchCount === 0}
+        tooltip="이전 검색 결과로 이동"
+      />
+      <PdfToolbarButton
+        size="small"
+        icon={<ChevronRight size={14} />}
+        onClick={() => onMoveSearchMatch(1)}
+        disabled={searchMatchCount === 0}
+        tooltip="다음 검색 결과로 이동"
+      />
 
       <Space size={4} style={{ marginLeft: 'auto' }}>
-        <Button size="small" icon={<ChevronUp size={14} />} onClick={() => onPageStep?.(-1)} disabled={!totalPages} title="이전 페이지" />
-        <Button size="small" icon={<ChevronDown size={14} />} onClick={() => onPageStep?.(1)} disabled={!totalPages} title="다음 페이지" />
-        <Button size="small" icon={<RotateCcw size={14} />} onClick={onRotateLeft} title="좌측으로 회전" />
-        <Button size="small" icon={<RotateCw size={14} />} onClick={onRotateRight} title="우측으로 회전" />
-        <Button size="small" icon={<Download size={14} />} onClick={onDownloadPdf} disabled={!onDownloadPdf} title="PDF 다운로드" />
+        <PdfToolbarButton
+          size="small"
+          icon={<ChevronUp size={14} />}
+          onClick={() => onPageStep?.(-1)}
+          disabled={!totalPages}
+          tooltip="이전 PDF 페이지로 이동"
+        />
+        <PdfToolbarButton
+          size="small"
+          icon={<ChevronDown size={14} />}
+          onClick={() => onPageStep?.(1)}
+          disabled={!totalPages}
+          tooltip="다음 PDF 페이지로 이동"
+        />
+        <PdfToolbarButton
+          size="small"
+          icon={<RotateCcw size={14} />}
+          onClick={onRotateLeft}
+          tooltip="PDF를 왼쪽으로 회전"
+        />
+        <PdfToolbarButton
+          size="small"
+          icon={<RotateCw size={14} />}
+          onClick={onRotateRight}
+          tooltip="PDF를 오른쪽으로 회전"
+        />
+        <PdfToolbarButton
+          size="small"
+          icon={<Download size={14} />}
+          onClick={onDownloadPdf}
+          disabled={!onDownloadPdf}
+          tooltip="OCR PDF 다운로드"
+        />
         <InputNumber
           size="small"
           min={1}

@@ -32,6 +32,8 @@ export interface DataCardItemProps {
   imageHeight?: number;
   /** 이미지 영역을 정사각형으로 표시 */
   squareImage?: boolean;
+  /** SVG의 전체 캔버스 배경을 투명하게 표시 */
+  transparentImageBackground?: boolean;
   /** 이미지 클릭 시 콜백 */
   onImageClick?: () => void;
   /** 이미지 미리보기 버튼 클릭 콜백 */
@@ -89,6 +91,7 @@ const DataCardItem: React.FC<DataCardItemProps> = ({
   imageType = 'svg',
   imageHeight = 130,
   squareImage = false,
+  transparentImageBackground = false,
   onImageClick,
   onPreview,
   imageOverlayActions,
@@ -143,6 +146,7 @@ const DataCardItem: React.FC<DataCardItemProps> = ({
             fullWidth
             frameless
             structureFitMode="contain"
+            transparentBackground={transparentImageBackground}
             actionPlacement="overlay"
             actionOverlayAnchor="container"
             actionOverlayPlacement="bottom-right"
@@ -228,7 +232,7 @@ const DataCardItem: React.FC<DataCardItemProps> = ({
           width: '100%',
           height: squareImage ? undefined : imageHeight,
           aspectRatio: squareImage ? '1 / 1' : undefined,
-          background: token.colorBgContainer,
+          background: transparentImageBackground ? 'transparent' : token.colorBgContainer,
           border: `1px solid ${token.colorBorderSecondary}`,
           borderRadius: 8,
           marginBottom: 8,

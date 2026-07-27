@@ -1,36 +1,25 @@
 import { Controller, Get, Param, ParseUUIDPipe, Query } from '@nestjs/common';
 import { Session, type UserSession } from '@thallesp/nestjs-better-auth';
 import { ConferenceReadService } from './conference-read.service';
-import { ConferenceAbstractListQueryDto } from './dto/conference-abstract-list-query.dto';
-import { ConferenceListQueryDto } from './dto/conference-list-query.dto';
+import { ConferenceAbstractSearchQueryDto } from './dto/conference-abstract-search-query.dto';
 
 @Controller('api')
 export class ConferenceReadController {
   constructor(private readonly conferences: ConferenceReadService) {}
 
-  @Get('conferences')
-  listConferences(
+  @Get('conference-abstracts')
+  searchAbstracts(
     @Session() session: UserSession,
-    @Query() query: ConferenceListQueryDto,
+    @Query() query: ConferenceAbstractSearchQueryDto,
   ) {
-    return this.conferences.listConferences(session.user.id, query);
+    return this.conferences.searchAbstracts(session.user.id, query);
   }
 
   @Get('conferences/:conferenceId')
   getConference(
-    @Session() session: UserSession,
     @Param('conferenceId', new ParseUUIDPipe({ version: '4' })) conferenceId: string,
   ) {
-    return this.conferences.getConference(session.user.id, conferenceId);
-  }
-
-  @Get('conferences/:conferenceId/abstracts')
-  listAbstracts(
-    @Session() session: UserSession,
-    @Param('conferenceId', new ParseUUIDPipe({ version: '4' })) conferenceId: string,
-    @Query() query: ConferenceAbstractListQueryDto,
-  ) {
-    return this.conferences.listAbstracts(session.user.id, conferenceId, query);
+    return this.conferences.getConference(conferenceId);
   }
 
   @Get('conference-abstracts/:abstractId')

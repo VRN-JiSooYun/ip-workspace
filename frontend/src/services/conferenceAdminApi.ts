@@ -145,6 +145,17 @@ export interface CreateAdminConferenceInput {
   dateEnd?: string;
 }
 
+export interface AdminConferenceOption {
+  id: string;
+  title: string;
+  abbreviation: string;
+  fullTitle: string | null;
+  year: number;
+  status: 'OPEN' | 'NOT_OPENED';
+  dateStart: string | null;
+  dateEnd: string | null;
+}
+
 export interface CreateAdminAbstractInput {
   title: string;
   sourceUrl?: string;
@@ -212,6 +223,9 @@ const jsonRequest = <T>(
 });
 
 export const conferenceAdminApi = {
+  listConferenceOptions: () => request<AdminConferenceOption[]>(
+    '/admin/conferences/options',
+  ),
   listBatches: () => request<ConferenceImportBatch[]>('/admin/conference-imports/batches'),
   uploadBatch: (
     batchKey: string,

@@ -1,4 +1,4 @@
-import { Body, Controller, Param, ParseUUIDPipe, Patch, Post } from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post } from '@nestjs/common';
 import { Roles } from '@thallesp/nestjs-better-auth';
 import { ConferenceAdminService } from './conference-admin.service';
 import { CreateAdminConferenceDto } from './dto/create-admin-conference.dto';
@@ -10,6 +10,11 @@ import { UpdateAdminConferenceAbstractDto } from './dto/update-admin-conference-
 @Controller('api/admin')
 export class ConferenceAdminController {
   constructor(private readonly conferences: ConferenceAdminService) {}
+
+  @Get('conferences/options')
+  listConferenceOptions() {
+    return this.conferences.listConferenceOptions();
+  }
 
   @Post('conferences')
   createConference(@Body() body: CreateAdminConferenceDto) {

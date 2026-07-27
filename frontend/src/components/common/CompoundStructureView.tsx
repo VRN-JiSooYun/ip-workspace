@@ -48,6 +48,7 @@ export interface CompoundStructureViewProps {
   svgClassName?: string;
   structureStyle?: React.CSSProperties;
   structureFitMode?: 'stretch' | 'contain';
+  transparentBackground?: boolean;
   fullWidth?: boolean;
   showPreviewAction?: boolean;
   showCopyAction?: boolean;
@@ -484,6 +485,7 @@ const CompoundStructureView: React.FC<CompoundStructureViewProps> = ({
   svgClassName,
   structureStyle,
   structureFitMode = 'stretch',
+  transparentBackground = false,
   fullWidth = false,
   showPreviewAction = true,
   showCopyAction = true,
@@ -537,9 +539,15 @@ const CompoundStructureView: React.FC<CompoundStructureViewProps> = ({
     : '';
   const cachedRdkitSvg = expectedRdkitSvgKey ? rdkitSvgCache?.[expectedRdkitSvgKey] : undefined;
   const generatedSvg = generatedStructure?.cacheKey === expectedRdkitSvgKey ? generatedStructure.svg : null;
-  const displaySvg = renderedSvgOverride || (preferRdkitSvg
+  const sourceDisplaySvg = renderedSvgOverride || (preferRdkitSvg
     ? generatedSvg || cachedRdkitSvg || null
     : generatedStructure?.svg || cachedRdkitSvg || rdkitSvg || svg);
+  const displaySvg = useMemo(
+    () => transparentBackground && sourceDisplaySvg
+      ? stripSvgBackground(sourceDisplaySvg)
+      : sourceDisplaySvg,
+    [sourceDisplaySvg, transparentBackground],
+  );
   const copyText = getCompoundStructureCopyText({ smiles, molBlock: displayMolBlock, cdxml, svg: displaySvg });
   const shouldShowCopyImageAction = showCopyImageAction ?? showCopyAction;
   const canOpenChemDraw = Boolean(cdxml || displayMolBlock || smiles);

@@ -22,7 +22,6 @@ model User {
   sessions      Session[]
   accounts      Account[]
   calculationJobs CalculationJob[]
-  conferenceBookmarks ConferenceBookmark[]
   abstractBookmarks AbstractBookmark[]
   abstractComments ConferenceAbstractComment[]
   conferenceImportRuns ConferenceImportRun[]
@@ -202,7 +201,6 @@ model Conference {
   deletedAt     DateTime?
   abstracts     ConferenceAbstract[]
   assets        ConferenceAsset[]
-  bookmarks     ConferenceBookmark[]
 
   @@unique([sourceSystem, legacyId])
   @@unique([abbreviation, year])
@@ -300,18 +298,6 @@ model ConferenceAbstractAsset {
   @@index([abstractId, kind, sortOrder])
   @@index([migrationStatus])
   @@map("conference_abstract_asset")
-}
-
-model ConferenceBookmark {
-  userId       String     @db.Uuid
-  conferenceId String     @db.Uuid
-  createdAt    DateTime   @default(now())
-  user         User       @relation(fields: [userId], references: [id], onDelete: Restrict)
-  conference   Conference @relation(fields: [conferenceId], references: [id], onDelete: Restrict)
-
-  @@id([userId, conferenceId])
-  @@index([conferenceId, createdAt])
-  @@map("conference_bookmark")
 }
 
 model AbstractBookmark {

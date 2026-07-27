@@ -18,22 +18,6 @@ import { RecipientSearchQueryDto } from './dto/recipient-search-query.dto';
 export class ConferenceInteractionController {
   constructor(private readonly interactions: ConferenceInteractionService) {}
 
-  @Put('conferences/:conferenceId/bookmark')
-  bookmarkConference(
-    @Session() session: UserSession,
-    @Param('conferenceId', new ParseUUIDPipe({ version: '4' })) conferenceId: string,
-  ) {
-    return this.interactions.setConferenceBookmark(session.user.id, conferenceId, true);
-  }
-
-  @Delete('conferences/:conferenceId/bookmark')
-  unbookmarkConference(
-    @Session() session: UserSession,
-    @Param('conferenceId', new ParseUUIDPipe({ version: '4' })) conferenceId: string,
-  ) {
-    return this.interactions.setConferenceBookmark(session.user.id, conferenceId, false);
-  }
-
   @Put('conference-abstracts/:abstractId/bookmark')
   bookmarkAbstract(
     @Session() session: UserSession,

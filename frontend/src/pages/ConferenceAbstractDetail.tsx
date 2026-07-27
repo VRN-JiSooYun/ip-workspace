@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { useLocation, useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import {
   Alert,
   App,
@@ -267,7 +267,6 @@ const AssetDownload: React.FC<{ asset: ConferenceAsset }> = ({ asset }) => (
 const ConferenceAbstractDetail: React.FC = () => {
   const { abstractId } = useParams<{ abstractId: string }>();
   const navigate = useNavigate();
-  const location = useLocation();
   const { message } = App.useApp();
   const session = useAuthSession();
   const { setHeaderContent } = useUIStore();
@@ -284,15 +283,7 @@ const ConferenceAbstractDetail: React.FC = () => {
   const [recipientSearchLoading, setRecipientSearchLoading] = useState(false);
   const [submittingComment, setSubmittingComment] = useState(false);
   const [deletingCommentIds, setDeletingCommentIds] = useState<Set<string>>(new Set());
-  const returnConferenceId = (
-    new URLSearchParams(location.search).get('conferenceId')
-    ||
-    (location.state as { conferenceId?: string } | null)?.conferenceId
-    || detail?.conference.id
-  );
-  const returnToList = useCallback(() => navigate(
-    returnConferenceId ? `/conferences?conferenceId=${encodeURIComponent(returnConferenceId)}` : '/conferences',
-  ), [navigate, returnConferenceId]);
+  const returnToList = useCallback(() => navigate('/conferences'), [navigate]);
 
   useEffect(() => {
     if (!abstractId) {

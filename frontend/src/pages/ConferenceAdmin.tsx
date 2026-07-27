@@ -37,6 +37,7 @@ import PageHeaderBreadcrumb from '../components/common/PageHeaderBreadcrumb';
 import { useAuthSession } from '../contexts/AuthSessionContext';
 import {
   conferenceAdminApi,
+  type AdminConferenceOption,
   type ConferenceImportBatch,
   type ConferenceImportIssue,
   type ConferenceImportRun,
@@ -46,7 +47,6 @@ import {
   type NotificationRecipientImportBatch,
   type NotificationRecipientImportRun,
 } from '../services/conferenceAdminApi';
-import { conferenceApi, type ConferenceListItem } from '../services/conferenceApi';
 import { useUIStore } from '../store/useUIStore';
 import { formatDisplayDate, formatNumberWithComma } from '../utils/displayFormat';
 
@@ -105,7 +105,7 @@ const ConferenceAdmin: React.FC = () => {
   const [recipientRuns, setRecipientRuns] = useState<NotificationRecipientImportRun[]>([]);
   const [mailHealth, setMailHealth] = useState<ConferenceMailHealth | null>(null);
   const [mailOutboxes, setMailOutboxes] = useState<ConferenceMailOutboxItem[]>([]);
-  const [conferences, setConferences] = useState<ConferenceListItem[]>([]);
+  const [conferences, setConferences] = useState<AdminConferenceOption[]>([]);
   const [selectedBatch, setSelectedBatch] = useState<string>();
   const [uploadBatchKey, setUploadBatchKey] = useState('');
   const [uploadBatchKind, setUploadBatchKind] =
@@ -160,11 +160,7 @@ const ConferenceAdmin: React.FC = () => {
         conferenceAdminApi.listRecipientImportRuns(),
         conferenceAdminApi.getMailHealth(),
         conferenceAdminApi.listMailOutboxes(),
-        conferenceApi.listConferences({
-          page: 1,
-          pageSize: 100,
-          sort: 'yearDesc',
-        }),
+        conferenceAdminApi.listConferenceOptions(),
       ]);
       setBatches(nextBatches);
       setRuns(nextRuns);
@@ -172,7 +168,7 @@ const ConferenceAdmin: React.FC = () => {
       setRecipientRuns(nextRecipientRuns);
       setMailHealth(nextMailHealth);
       setMailOutboxes(nextMailOutboxes);
-      setConferences(conferenceResponse.items);
+      setConferences(conferenceResponse);
       setSelectedBatch((current) => (
         current && nextBatches.some(({ batchKey }) => batchKey === current)
           ? current

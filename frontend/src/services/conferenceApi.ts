@@ -25,23 +25,20 @@ export interface ConferenceAsset {
   downloadUrl: string | null;
 }
 
-export interface ConferenceListItem {
+export interface ConferenceOption {
   id: string;
   title: string;
   abbreviation: string;
   fullTitle: string | null;
   year: number;
   status: 'OPEN' | 'NOT_OPENED';
-  sourceUrl: string | null;
   dateStart: string | null;
   dateEnd: string | null;
-  abstractCount: number;
-  isFavorite: boolean;
-  logo: ConferenceAsset | null;
 }
 
 export interface ConferenceAbstractListItem {
   id: string;
+  conference: ConferenceOption;
   abstractNumber: string | null;
   title: string;
   firstAuthorName: string | null;
@@ -54,10 +51,10 @@ export interface ConferenceAbstractListItem {
   isFavorite: boolean;
   commentCount: number;
   assetSummary: {
-    hasPoster: boolean;
-    hasVideo: boolean;
-    hasDocument: boolean;
-    hasReferenceImage: boolean;
+    posterCount: number;
+    videoCount: number;
+    documentCount: number;
+    referenceImageCount: number;
   };
 }
 
@@ -86,7 +83,10 @@ export interface ConferenceComment {
   notificationQueuedCount?: number;
 }
 
-export interface ConferenceAbstractDetail extends Omit<ConferenceAbstractListItem, 'assetSummary'> {
+export interface ConferenceAbstractDetail extends Omit<
+  ConferenceAbstractListItem,
+  'assetSummary' | 'conference'
+> {
   conference: {
     id: string;
     title: string;
@@ -120,36 +120,40 @@ interface PaginatedResponse<T> {
   hasNext: boolean;
 }
 
-export interface ConferenceListResponse extends PaginatedResponse<ConferenceListItem> {}
-
 export interface ConferenceAbstractListResponse extends PaginatedResponse<ConferenceAbstractListItem> {
-  conference: {
-    id: string;
-    title: string;
-    abbreviation: string;
-    year: number;
+  facets: {
+    conferences: ConferenceOption[];
+    years: number[];
   };
 }
 
-export interface ConferenceListParams {
-  q?: string;
-  favoriteOnly?: boolean;
-  dateFrom?: string;
-  dateTo?: string;
-  sort?: 'titleAsc' | 'yearDesc';
-  page?: number;
-  pageSize?: number;
-}
+export type ConferenceAbstractSearchField =
+  | 'all'
+  | 'conference'
+  | 'title'
+  | 'author'
+  | 'abstractNumber';
+
+export type ConferenceAbstractDateField = 'conferencePeriod' | 'dateOpen';
 
 export interface ConferenceAbstractListParams {
   q?: string;
+  searchField?: ConferenceAbstractSearchField;
+  conferenceIds?: string;
+  years?: string;
   favoriteOnly?: boolean;
+  dateField?: ConferenceAbstractDateField;
   dateFrom?: string;
   dateTo?: string;
   hasPoster?: boolean;
   hasVideo?: boolean;
   hasDocument?: boolean;
-  sort?: 'abstractNumberAsc' | 'titleAsc' | 'dateOpenDesc' | 'commentCountDesc';
+  sort?:
+    | 'conferenceYearDesc'
+    | 'abstractNumberAsc'
+    | 'titleAsc'
+    | 'dateOpenDesc'
+    | 'commentCountDesc';
   page?: number;
   pageSize?: number;
 }
@@ -238,15 +242,11 @@ export const resolveConferenceAssetUrl = (path: string) => (
 );
 
 export const conferenceApi = {
-  listConferences: (params: ConferenceListParams, signal?: AbortSignal) => (
-    get<ConferenceListResponse>('/conferences', { ...params }, signal)
-  ),
   listAbstracts: (
-    conferenceId: string,
     params: ConferenceAbstractListParams,
     signal?: AbortSignal,
   ) => get<ConferenceAbstractListResponse>(
-    `/conferences/${encodeURIComponent(conferenceId)}/abstracts`,
+    '/conference-abstracts',
     { ...params },
     signal,
   ),
@@ -255,12 +255,6 @@ export const conferenceApi = {
       `/conference-abstracts/${encodeURIComponent(abstractId)}`,
       undefined,
       signal,
-    )
-  ),
-  setConferenceBookmark: (conferenceId: string, bookmarked: boolean) => (
-    mutate<{ conferenceId: string; isFavorite: boolean }>(
-      `/conferences/${encodeURIComponent(conferenceId)}/bookmark`,
-      bookmarked ? 'PUT' : 'DELETE',
     )
   ),
   setAbstractBookmark: (abstractId: string, bookmarked: boolean) => (

@@ -53,6 +53,10 @@ import PatentPdfViewer from '../components/patent-analysis/pdf/PatentPdfViewer';
 import { usePatentPdfViewer } from '../hooks/usePatentPdfViewer';
 import { mapPatentListItem, patentAnalysisApi } from '../services/patentAnalysisApi';
 import { formatDisplayDate, formatNumberWithComma } from '../utils/displayFormat';
+import {
+  downloadPatentPdfFile,
+  resolvePatentPdfDocument,
+} from '../utils/patentPdf';
 
 const { Title, Text, Paragraph } = Typography;
 
@@ -128,6 +132,18 @@ const getCompoundLookupCandidates = (compound: Record<string, any>) => [
   compound.source_compound_id,
   compound._id,
 ].flatMap(getCompoundLookupValues);
+
+const formatPatentExampleNumber = (value: unknown) => {
+  const values = (Array.isArray(value) ? value : [value])
+    .filter((item) => item !== undefined && item !== null)
+    .map((item) => String(item).trim())
+    .filter(Boolean);
+
+  if (values.length === 0) return 'N/A';
+  const exampleNumbers = values.filter((item) => item.toLowerCase() !== 'nan');
+  if (exampleNumbers.length === 0) return 'Intermediate';
+  return exampleNumbers.join(', ');
+};
 
 const normalizeAutoHighlightPage = (rawPage: unknown): number => {
   const value = Array.isArray(rawPage) ? rawPage[0] : rawPage;
@@ -260,15 +276,6 @@ const findCompoundHighlightTarget = (
     }
   }
 
-  return null;
-};
-
-const getBrowserPdfUrl = (value: unknown) => {
-  if (typeof value !== 'string' || !value.trim()) return null;
-  const trimmed = value.trim();
-  if (/^https?:\/\//i.test(trimmed)) return trimmed;
-  if (trimmed.startsWith('/raid/')) return null;
-  if (trimmed.startsWith('/')) return trimmed;
   return null;
 };
 
@@ -410,19 +417,10 @@ const PatentAnalysisDetail: React.FC = () => {
   const [isFavoritePatent, setIsFavoritePatent] = React.useState(() => Boolean(displayedPatent?.isFavorite));
   const [isSavingFavoritePatent, setIsSavingFavoritePatent] = React.useState(false);
   const detailMetadata = apiPatentResult?.data?.[0] ?? null;
-  const browserPdfDocument = React.useMemo(() => {
-    const hasApiPdfPath = Boolean(detailMetadata?.ocr_pdf_path ?? detailMetadata?.pdf_path ?? detailMetadata?.pdf_url);
-    const apiPdfUrl = getBrowserPdfUrl(detailMetadata?.ocr_pdf_path)
-      ?? getBrowserPdfUrl(detailMetadata?.pdf_path)
-      ?? getBrowserPdfUrl(detailMetadata?.pdf_url);
-    if (apiPdfUrl) {
-      return apiPdfUrl;
-    }
-    if (hasApiPdfPath && displayedPatent?.patentNumber) {
-      return patentAnalysisApi.getPatentPdfUrl(normalizePublicationNumber(displayedPatent.patentNumber));
-    }
-    return null;
-  }, [detailMetadata, displayedPatent]);
+  const browserPdfDocument = React.useMemo(
+    () => resolvePatentPdfDocument(detailMetadata, displayedPatent?.patentNumber),
+    [detailMetadata, displayedPatent?.patentNumber],
+  );
   const rawFrequencyAnalysis = patentResult.frequency_analysis_result_json
     ?? patentResult.data?.[0]?.frequency_analysis_result_json
     ?? null;
@@ -596,10 +594,6 @@ const PatentAnalysisDetail: React.FC = () => {
     if (typeof window === 'undefined') return 1920;
     return window.innerWidth;
   });
-  const [viewportHeight, setViewportHeight] = React.useState<number>(() => {
-    if (typeof window === 'undefined') return 1080;
-    return window.innerHeight;
-  });
   const [splitContainerWidth, setSplitContainerWidth] = React.useState<number>(() => {
     if (typeof window === 'undefined') return 1920;
     return window.innerWidth;
@@ -610,20 +604,26 @@ const PatentAnalysisDetail: React.FC = () => {
   const lastSplitRatioRef = React.useRef(SPLIT_DEFAULT_PERCENT);
   const autoCompoundHighlightRef = React.useRef('');
   const rawDataTableRef = React.useRef<any>(null);
+  const rawDataTabContentRef = React.useRef<HTMLDivElement | null>(null);
+  const rawDataTableShellRef = React.useRef<HTMLDivElement | null>(null);
   const cleanDataTableRef = React.useRef<any>(null);
+  const cleanDataTabContentRef = React.useRef<HTMLDivElement | null>(null);
+  const cleanDataTableShellRef = React.useRef<HTMLDivElement | null>(null);
+  const [rawTableScrollY, setRawTableScrollY] = React.useState<number | undefined>(undefined);
+  const [cleanTableScrollY, setCleanTableScrollY] = React.useState<number | undefined>(undefined);
   const layoutPreset = React.useMemo(() => getPatentAnalysisLayoutPreset(viewportWidth), [viewportWidth]);
   const effectiveSplitWidth = splitContainerWidth || viewportWidth;
   const isStackedSplitLayout = effectiveSplitWidth <= DETAIL_STACK_BREAKPOINT;
-  const rawDataTableScrollY = React.useMemo(() => {
-    return Math.max(300, viewportHeight - 470);
-  }, [viewportHeight]);
-  const getRawDataTableScroll = React.useCallback((rowCount: number) => {
-    const estimatedRowHeight = 160;
-    const needsVerticalScroll = rowCount * estimatedRowHeight > rawDataTableScrollY;
-    return needsVerticalScroll
-      ? { x: 'max-content' as const, y: rawDataTableScrollY }
-      : { x: 'max-content' as const };
-  }, [rawDataTableScrollY]);
+  const rawTableScroll = React.useMemo(() => (
+    rawTableScrollY === undefined
+      ? { x: 'max-content' as const }
+      : { x: 'max-content' as const, y: rawTableScrollY }
+  ), [rawTableScrollY]);
+  const cleanTableScroll = React.useMemo(() => (
+    cleanTableScrollY === undefined
+      ? { x: 'max-content' as const }
+      : { x: 'max-content' as const, y: cleanTableScrollY }
+  ), [cleanTableScrollY]);
   const paginationItemRender = React.useCallback((page: number, type: string, originalElement: React.ReactNode) => (
     type === 'page' ? <span>{formatNumberWithComma(page)}</span> : originalElement
   ), []);
@@ -667,7 +667,6 @@ const PatentAnalysisDetail: React.FC = () => {
   useEffect(() => {
     const onResize = () => {
       setViewportWidth(window.innerWidth);
-      setViewportHeight(window.innerHeight);
     };
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
@@ -689,6 +688,159 @@ const PatentAnalysisDetail: React.FC = () => {
   useEffect(() => {
     lastSplitRatioRef.current = splitRatio;
   }, [splitRatio]);
+
+  React.useLayoutEffect(() => {
+    if (activeTab !== 'raw-data' || rawDataView !== 'table') {
+      setRawTableScrollY(undefined);
+      return undefined;
+    }
+
+    const tabContent = rawDataTabContentRef.current;
+    const tableShell = rawDataTableShellRef.current;
+    if (!tabContent || !tableShell) return undefined;
+
+    let animationFrame = 0;
+    const updateRawTableHeight = () => {
+      cancelAnimationFrame(animationFrame);
+      animationFrame = window.requestAnimationFrame(() => {
+        if (isStackedSplitLayout) {
+          setRawTableScrollY(undefined);
+          return;
+        }
+
+        const tableBody = tableShell.querySelector<HTMLElement>('.ant-table-body');
+        const tableContent = tableShell.querySelector<HTMLElement>('.ant-table-content');
+        const tableRows = tableShell.querySelector<HTMLElement>('.raw-data-embodiment-table .ant-table-tbody');
+        const tableMeasureElement = tableBody ?? tableContent ?? tableRows;
+        if (!tableMeasureElement || !tableRows) return;
+
+        const pagination = tableShell.querySelector<HTMLElement>('.ant-pagination');
+        const paginationStyle = pagination ? window.getComputedStyle(pagination) : null;
+        const paginationReserve = pagination
+          ? Math.ceil(
+              pagination.getBoundingClientRect().height
+              + Number.parseFloat(paginationStyle?.marginTop || '0')
+              + Number.parseFloat(paginationStyle?.marginBottom || '0'),
+            )
+          : 48;
+        const maxBodyHeight = Math.max(
+          160,
+          Math.floor(
+            tabContent.getBoundingClientRect().bottom
+            - tableMeasureElement.getBoundingClientRect().top
+            - paginationReserve
+            - 16
+            - 2,
+          ),
+        );
+        const rowsHeight = Math.ceil(tableRows.getBoundingClientRect().height);
+        const nextHeight = rowsHeight <= maxBodyHeight ? undefined : maxBodyHeight;
+
+        setRawTableScrollY((current) => (
+          current === nextHeight ? current : nextHeight
+        ));
+      });
+    };
+
+    const resizeObserver = new ResizeObserver(updateRawTableHeight);
+    const mutationObserver = new MutationObserver(updateRawTableHeight);
+    resizeObserver.observe(tabContent);
+    resizeObserver.observe(tableShell);
+    mutationObserver.observe(tableShell, { childList: true, subtree: true });
+    window.addEventListener('resize', updateRawTableHeight);
+    updateRawTableHeight();
+
+    return () => {
+      cancelAnimationFrame(animationFrame);
+      resizeObserver.disconnect();
+      mutationObserver.disconnect();
+      window.removeEventListener('resize', updateRawTableHeight);
+    };
+  }, [
+    activeTab,
+    isStackedSplitLayout,
+    rawDataExcelRowCount,
+    rawDataView,
+    rawTableCurrentPage,
+    rawTablePageSize,
+    rGroupFilter,
+  ]);
+
+  React.useLayoutEffect(() => {
+    if (activeTab !== 'clean-data' || cleanDataView !== 'table') {
+      setCleanTableScrollY(undefined);
+      return undefined;
+    }
+
+    const tabContent = cleanDataTabContentRef.current;
+    const tableShell = cleanDataTableShellRef.current;
+    if (!tabContent || !tableShell) return undefined;
+
+    let animationFrame = 0;
+    const updateCleanTableHeight = () => {
+      cancelAnimationFrame(animationFrame);
+      animationFrame = window.requestAnimationFrame(() => {
+        if (isStackedSplitLayout) {
+          setCleanTableScrollY(undefined);
+          return;
+        }
+
+        const tableBody = tableShell.querySelector<HTMLElement>('.ant-table-body');
+        const tableContent = tableShell.querySelector<HTMLElement>('.ant-table-content');
+        const tableRows = tableShell.querySelector<HTMLElement>('.raw-data-embodiment-table .ant-table-tbody');
+        const tableMeasureElement = tableBody ?? tableContent ?? tableRows;
+        if (!tableMeasureElement || !tableRows) return;
+
+        const pagination = tableShell.querySelector<HTMLElement>('.ant-pagination');
+        const paginationStyle = pagination ? window.getComputedStyle(pagination) : null;
+        const paginationReserve = pagination
+          ? Math.ceil(
+              pagination.getBoundingClientRect().height
+              + Number.parseFloat(paginationStyle?.marginTop || '0')
+              + Number.parseFloat(paginationStyle?.marginBottom || '0'),
+            )
+          : 48;
+        const maxBodyHeight = Math.max(
+          160,
+          Math.floor(
+            tabContent.getBoundingClientRect().bottom
+            - tableMeasureElement.getBoundingClientRect().top
+            - paginationReserve
+            - 16
+            - 2,
+          ),
+        );
+        const rowsHeight = Math.ceil(tableRows.getBoundingClientRect().height);
+        const nextHeight = rowsHeight <= maxBodyHeight ? undefined : maxBodyHeight;
+
+        setCleanTableScrollY((current) => (
+          current === nextHeight ? current : nextHeight
+        ));
+      });
+    };
+
+    const resizeObserver = new ResizeObserver(updateCleanTableHeight);
+    const mutationObserver = new MutationObserver(updateCleanTableHeight);
+    resizeObserver.observe(tabContent);
+    resizeObserver.observe(tableShell);
+    mutationObserver.observe(tableShell, { childList: true, subtree: true });
+    window.addEventListener('resize', updateCleanTableHeight);
+    updateCleanTableHeight();
+
+    return () => {
+      cancelAnimationFrame(animationFrame);
+      resizeObserver.disconnect();
+      mutationObserver.disconnect();
+      window.removeEventListener('resize', updateCleanTableHeight);
+    };
+  }, [
+    activeTab,
+    cleanDataExcelRowCount,
+    cleanDataView,
+    cleanTableCurrentPage,
+    cleanTablePageSize,
+    isStackedSplitLayout,
+  ]);
 
   useEffect(() => {
     if (!requestedCompoundId) return;
@@ -831,22 +983,28 @@ const PatentAnalysisDetail: React.FC = () => {
     setSplitRatio(clampSplitRatio(layoutPreset.defaultSplit));
   }, [clampSplitRatio, layoutPreset.defaultSplit]);
 
-  const handlePdfDownload = React.useCallback(() => {
-    const pdfUrl = browserPdfDocument;
-    if (!pdfUrl) {
+  const handlePdfDownload = React.useCallback(async () => {
+    const publicationNumber = displayedPatent?.patentNumber;
+    if (!browserPdfDocument || !publicationNumber) {
       message.error('다운로드할 PDF 파일이 없습니다.');
       return;
     }
 
-    const filenameBase = displayedPatent?.patentNumber || 'patent-document';
-    const filename = `${filenameBase.replace(/[^A-Za-z0-9_-]/g, '_')}.pdf`;
-    const link = document.createElement('a');
-    link.href = pdfUrl;
-    link.download = filename;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    try {
+      await downloadPatentPdfFile(publicationNumber);
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : 'PDF 다운로드에 실패했습니다.');
+    }
   }, [browserPdfDocument, displayedPatent?.patentNumber, message]);
+
+  const handleOpenPdfInBrowser = React.useCallback(() => {
+    if (!browserPdfDocument) {
+      message.error('브라우저에서 열 PDF 파일이 없습니다.');
+      return;
+    }
+
+    window.open(browserPdfDocument, '_blank', 'noopener,noreferrer');
+  }, [browserPdfDocument, message]);
 
   const handleEmbodimentsExcelDownload = React.useCallback(async (
     bioactivityType: 'bioactivity' | 'modified_bioactivity',
@@ -1094,13 +1252,34 @@ const PatentAnalysisDetail: React.FC = () => {
     }
   };
 
-  const getTableCopyText = (tableItem: any, tableIndex: number) => {
-    const tsvList = Array.isArray(tableItem?.table_tsv) ? tableItem.table_tsv : [];
-    const csvList = Array.isArray(tableItem?.table_csv) ? tableItem.table_csv : [];
-    const currentTableText = tsvList[tableIndex] ?? csvList[tableIndex];
+  const normalizeTableClipboardText = (value: unknown): string => {
+    if (Array.isArray(value)) {
+      return value
+        .map(normalizeTableClipboardText)
+        .filter(Boolean)
+        .join('\n');
+    }
+    if (typeof value !== 'string') return '';
 
-    if (typeof currentTableText === 'string' && currentTableText.trim()) {
-      return currentTableText.trimEnd();
+    return value
+      .replace(/\r\n?/g, '\n')
+      .replace(/\\r\\n|\\n|\\r/g, '\n')
+      .replace(/\\t/g, '\t')
+      .replace(/^\n+|\n+$/g, '');
+  };
+
+  const getTableCopyText = (tableItem: any, tableIndex: number) => {
+    const tsvSource = Array.isArray(tableItem?.table_tsv)
+      ? tableItem.table_tsv[tableIndex]
+      : tableItem?.table_tsv;
+    const csvSource = Array.isArray(tableItem?.table_csv)
+      ? tableItem.table_csv[tableIndex]
+      : tableItem?.table_csv;
+    const currentTableText = normalizeTableClipboardText(tsvSource)
+      || normalizeTableClipboardText(csvSource);
+
+    if (currentTableText) {
+      return currentTableText;
     }
 
     const pageArray = Array.isArray(tableItem?.page) ? tableItem.page : [];
@@ -1281,6 +1460,7 @@ const PatentAnalysisDetail: React.FC = () => {
       fullWidth
       frameless
       structureFitMode="contain"
+      transparentBackground
       actionPlacement="overlay"
       actionOverlayAnchor="container"
       actionOverlayPlacement="bottom-right"
@@ -1440,6 +1620,7 @@ const PatentAnalysisDetail: React.FC = () => {
               currentPage={pdfViewer.pdfCurrentPage}
               totalPages={pdfViewer.pdfTotalPages}
               onToggleFit={fitPageToScreen}
+              onOpenPdfInBrowser={browserPdfDocument ? handleOpenPdfInBrowser : undefined}
               onSearchQueryChange={pdfViewer.setSearchQuery}
               onRunSearch={(value) => pdfViewer.searchPdf(value ?? pdfViewer.searchQuery)}
               onClearSearch={() => pdfViewer.searchPdf('')}
@@ -1684,7 +1865,17 @@ const PatentAnalysisDetail: React.FC = () => {
                           <Col span={24}>
                             <Card size="small" title="추천 Key Compound (빈도수/중요도 기반)">
                               {recommendedKeyCompounds.length > 0 ? (
-                                <div style={{ display: 'flex', overflowX: 'auto', gap: 16, paddingBottom: 8 }}>
+                                <div
+                                  style={{
+                                    display: 'grid',
+                                    gridAutoFlow: 'column',
+                                    gridTemplateRows: 'repeat(2, max-content)',
+                                    gridAutoColumns: 260,
+                                    overflowX: 'auto',
+                                    gap: 16,
+                                    paddingBottom: 8,
+                                  }}
+                                >
                                   {recommendedKeyCompounds.map((comp: any, idx: number) => {
                                     const compKey = String(comp.id);
                                     const pageArr: number[] = Array.isArray(comp.page) ? comp.page : [];
@@ -1692,9 +1883,9 @@ const PatentAnalysisDetail: React.FC = () => {
                                     const curIdx = pageIndices[compKey] ?? 0;
 
                                     return (
-                                      <div key={`${comp.id}-${idx}`} style={{ width: 260, minWidth: 260, flexShrink: 0 }}>
+                                      <div key={`${comp.id}-${idx}`} style={{ width: 260 }}>
                                         <DataCardItem
-                                          title={comp.compound_id}
+                                          title={formatPatentExampleNumber(comp.example_number)}
                                           tags={comp.ranking ? [{ label: `Rank ${comp.ranking}`, color: 'blue' }] : []}
                                           cornerIcon={
                                             comp.is_human_key_compound ? (
@@ -1705,6 +1896,7 @@ const PatentAnalysisDetail: React.FC = () => {
                                           imageType="svg"
                                           imageHeight={220}
                                           squareImage
+                                          transparentImageBackground
                                           isActive={activeCompId === compKey}
                                           onClick={() => handleCompoundCardClick(comp, comp.ranking)}
                                           onPreview={() => openSvgPreview(comp.compound_svg, `추천 Key Compound - ${comp.compound_id}`, {
@@ -1724,7 +1916,7 @@ const PatentAnalysisDetail: React.FC = () => {
                                                   totalCount: pageArr.length,
                                                   onPrev: () => handlePageChange(compKey, -1, pageArr, bboxArr),
                                                   onNext: () => handlePageChange(compKey, 1, pageArr, bboxArr),
-                                                  pageLabel: () => `p.${pageArr[curIdx] ?? '-'}`,
+                                                  pageLabel: () => `p.${pageArr[curIdx] ?? '-'} (총 ${formatNumberWithComma(pageArr.length)}개)`,
                                                 }
                                               : undefined
                                           }
@@ -1754,7 +1946,20 @@ const PatentAnalysisDetail: React.FC = () => {
                       </span>
                     ),
                     children: activeTab === 'raw-data' ? (
-                      <div className="raw-data-tab-content" style={{ padding: 24, flex: 1, overflowY: 'auto' }}>
+                      <div
+                        ref={rawDataTabContentRef}
+                        className="raw-data-tab-content"
+                        style={{
+                          padding: rawDataView === 'table' ? '24px 24px 0' : '24px 24px 16px',
+                          flex: 1,
+                          height: '100%',
+                          minHeight: 0,
+                          boxSizing: 'border-box',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          overflowY: rawDataView === 'table' && !isStackedSplitLayout ? 'hidden' : 'auto',
+                        }}
+                      >
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
                           <Title level={5} style={{ margin: 0 }}>Embodiment 화합물 목록</Title>
                           <Space>
@@ -1884,11 +2089,11 @@ const PatentAnalysisDetail: React.FC = () => {
                                 align: 'center' as const,
                                 className: 'table-center-column',
                                 sorter: (a: any, b: any) => (a.ranking ?? 999) - (b.ranking ?? 999),
-                                render: (ranking: any, _: any, index: number) => {
+                                render: (ranking: any) => {
                                   // 같은 ranking 값이 여러 개인지 확인 (동률)
                                   const sameCount = rawPc.filter((c: any) => c.ranking === ranking).length;
                                   return (
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+                                    <div style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 3 }}>
                                       <Text style={{ fontSize: 11 }}>{ranking ?? '-'}</Text>
                                       {sameCount > 1 && (
                                         <Tag color="orange" style={{ fontSize: 9, padding: '0 4px', lineHeight: '16px', margin: 0 }}>동률</Tag>
@@ -1897,7 +2102,16 @@ const PatentAnalysisDetail: React.FC = () => {
                                   );
                                 }
                               },
-                              { title: 'Example No.', dataIndex: 'compound_id', key: 'compound_id', width: 130, fixed: 'left' as const, align: 'center' as const, className: 'table-center-column' },
+                              {
+                                title: 'Example No.',
+                                dataIndex: 'example_number',
+                                key: 'example_number',
+                                width: 130,
+                                fixed: 'left' as const,
+                                align: 'center' as const,
+                                className: 'table-center-column',
+                                render: (exampleNumber: unknown) => formatPatentExampleNumber(exampleNumber),
+                              },
                               { title: 'Scaffold Rank', dataIndex: 'scaffold_ranking', key: 'scaffold_ranking', width: 120, align: 'center' as const, className: 'table-center-column', render: (v: any) => v ?? '-' },
                               {
                                 title: 'Structure',
@@ -1929,7 +2143,9 @@ const PatentAnalysisDetail: React.FC = () => {
                                       <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                                         <Button size="small" type="text" icon={<ChevronLeft size={12} />}
                                           onClick={(event) => { event.stopPropagation(); setActiveCompId(compKey); handlePageChange(compKey, -1, pageArr, bboxArr); }} />
-                                        <Text style={{ fontSize: 10 }}>p.{pageArr[curIdx] ?? '-'}</Text>
+                                        <Text style={{ fontSize: 10 }}>
+                                          p.{pageArr[curIdx] ?? '-'} (총 {formatNumberWithComma(pageArr.length)}개)
+                                        </Text>
                                         <Button size="small" type="text" style={{ transform: 'scaleX(-1)' }} icon={<ChevronLeft size={12} />}
                                           onClick={(event) => { event.stopPropagation(); setActiveCompId(compKey); handlePageChange(compKey, 1, pageArr, bboxArr); }} />
                                       </div>
@@ -1993,6 +2209,7 @@ const PatentAnalysisDetail: React.FC = () => {
 
                             return (
                               <div
+                                ref={rawDataTableShellRef}
                                 className="raw-data-table-shell"
                                 style={{
                                   background: token.colorBgContainer,
@@ -2007,7 +2224,7 @@ const PatentAnalysisDetail: React.FC = () => {
                                   dataSource={rawPc}
                                   size="small"
                                   rowKey={(record: any) => `${record.id}-${record.__rowIdx}`}
-                                  scroll={getRawDataTableScroll(rawPc.length)}
+                                  scroll={rawTableScroll}
                                   columns={columns}
                                   rowClassName={(record: any) => activeCompId === String(record.id) ? 'raw-data-row-active' : ''}
                                   onRow={(record: any) => ({
@@ -2044,19 +2261,17 @@ const PatentAnalysisDetail: React.FC = () => {
                             }
 
                             return (
-                              <div className="patent-analysis-card-view" style={{ minHeight: rawDataTableScrollY }}>
+                              <div className="patent-analysis-card-view">
                                 <Row className="patent-analysis-card-grid" gutter={[16, 16]}>
                                   {pagedRawCardRows.map((comp: any, idx: number) => {
                                     const compKey = String(comp.id);
                                     const pageArr: number[] = Array.isArray(comp.page) ? comp.page : [];
                                     const bboxArr: any[] = Array.isArray(comp.bbox) ? comp.bbox : [];
                                     const curIdx = pageIndices[compKey] ?? 0;
-                                    const rEntries = Object.entries(comp.r_groups ?? {}) as [string, string][];
-
                                     return (
                                       <Col span={24} md={12} lg={8} key={`${comp.id}-${idx}`}>
                                         <DataCardItem
-                                          title={comp.compound_id}
+                                          title={formatPatentExampleNumber(comp.example_number)}
                                           tags={comp.ranking ? [{ label: `Rank ${comp.ranking}`, color: 'blue' }] : []}
                                           cornerIcon={
                                             comp.is_human_key_compound ? (
@@ -2067,6 +2282,7 @@ const PatentAnalysisDetail: React.FC = () => {
                                           imageType="svg"
                                           imageHeight={130}
                                           squareImage
+                                          transparentImageBackground
                                           isActive={activeCompId === compKey}
                                           onClick={() => {
                                             setActiveCompId(compKey);
@@ -2082,48 +2298,6 @@ const PatentAnalysisDetail: React.FC = () => {
                                             comp.compound_id,
                                             `rawCompound:${comp.compound_id}`,
                                           )}
-                                          extraInfo={
-                                            rEntries.length > 0 && (
-                                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                                                {rEntries.map(([k, v]) => (
-                                                  <Tooltip key={k} title={`${k}: ${String(v ?? '')}`}>
-                                                    <Tag
-                                                      style={{
-                                                        fontSize: 9,
-                                                        maxWidth: 170,
-                                                        cursor: 'copy',
-                                                        overflow: 'hidden',
-                                                        textOverflow: 'ellipsis',
-                                                        whiteSpace: 'nowrap',
-                                                        display: 'inline-flex',
-                                                        alignItems: 'center',
-                                                        gap: 2
-                                                      }}
-                                                      onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        const copiedText = `${k}: ${String(v ?? '')}`;
-                                                        navigator.clipboard.writeText(copiedText)
-                                                          .then(() => message.success(`${k} 값이 복사되었습니다.`))
-                                                          .catch(() => message.error('복사에 실패했습니다.'));
-                                                      }}
-                                                    >
-                                                      <Text strong style={{ fontSize: 9 }}>{k}:</Text>
-                                                      <span
-                                                        style={{
-                                                          maxWidth: 110,
-                                                          overflow: 'hidden',
-                                                          textOverflow: 'ellipsis',
-                                                          whiteSpace: 'nowrap'
-                                                        }}
-                                                      >
-                                                        {String(v ?? '')}
-                                                      </span>
-                                                    </Tag>
-                                                  </Tooltip>
-                                                ))}
-                                              </div>
-                                            )
-                                          }
                                           footerText={comp.scaffold}
                                           pagination={
                                             pageArr.length > 0
@@ -2132,7 +2306,7 @@ const PatentAnalysisDetail: React.FC = () => {
                                                   totalCount: pageArr.length,
                                                   onPrev: () => handlePageChange(compKey, -1, pageArr, bboxArr),
                                                   onNext: () => handlePageChange(compKey, 1, pageArr, bboxArr),
-                                                  pageLabel: () => `p.${pageArr[curIdx] ?? '-'}`,
+                                                  pageLabel: () => `p.${pageArr[curIdx] ?? '-'} (총 ${formatNumberWithComma(pageArr.length)}개)`,
                                                 }
                                               : undefined
                                           }
@@ -2170,7 +2344,20 @@ const PatentAnalysisDetail: React.FC = () => {
                       </span>
                     ),
                     children: activeTab === 'clean-data' ? (
-                      <div className="raw-data-tab-content" style={{ padding: 24, flex: 1, overflowY: 'auto' }}>
+                      <div
+                        ref={cleanDataTabContentRef}
+                        className="raw-data-tab-content"
+                        style={{
+                          padding: cleanDataView === 'table' ? '24px 24px 0' : '24px 24px 16px',
+                          flex: 1,
+                          height: '100%',
+                          minHeight: 0,
+                          boxSizing: 'border-box',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          overflowY: cleanDataView === 'table' && !isStackedSplitLayout ? 'hidden' : 'auto',
+                        }}
+                      >
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
                           <Title level={5} style={{ margin: 0 }}>Clean Data 화합물 목록</Title>
                           <Space>
@@ -2240,13 +2427,6 @@ const PatentAnalysisDetail: React.FC = () => {
                               const numB = parseInt((b.match(/\d+/) || ['0'])[0], 10);
                               return numA - numB;
                             });
-
-                            const formatExampleNumber = (exampleNumber: any) => {
-                              if (!Array.isArray(exampleNumber) || exampleNumber.length === 0) return 'N/A';
-                              if (exampleNumber.includes('NaN') && exampleNumber.length === 1) return 'Intermediate';
-                              const filtered = exampleNumber.filter((item: any) => item !== 'NaN');
-                              return filtered.length > 0 ? filtered.join(', ') : 'N/A';
-                            };
 
                             const rGroupColumns = allRGroupKeys.map((key) => ({
                               title: key,
@@ -2321,10 +2501,14 @@ const PatentAnalysisDetail: React.FC = () => {
                                 fixed: 'left' as const,
                                 align: 'center' as const,
                                 className: 'table-center-column',
-                                render: (ranking: any) => <Text style={{ fontSize: 11 }}>{ranking ?? '-'}</Text>
+                                render: (ranking: any) => (
+                                  <div style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    <Text style={{ fontSize: 11 }}>{ranking ?? '-'}</Text>
+                                  </div>
+                                )
                               },
                               { title: 'Scaffold Group', dataIndex: 'scaffold_ranking', key: 'scaffold_ranking', width: 118, align: 'center' as const, className: 'table-center-column', render: (v: any) => v ?? '-' },
-                              { title: 'Example Number', key: 'example_number', width: 132, align: 'center' as const, className: 'table-center-column', render: (_: any, record: any) => formatExampleNumber(record.example_number) },
+                              { title: 'Example No.', key: 'example_number', width: 132, align: 'center' as const, className: 'table-center-column', render: (_: any, record: any) => formatPatentExampleNumber(record.example_number) },
                               {
                                 title: 'Structure',
                                 key: 'structure',
@@ -2355,7 +2539,9 @@ const PatentAnalysisDetail: React.FC = () => {
                                       <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                                         <Button size="small" type="text" icon={<ChevronLeft size={12} />}
                                           onClick={(event) => { event.stopPropagation(); setActiveCompId(compKey); handlePageChange(compKey, -1, pageArr, bboxArr); }} />
-                                        <Text style={{ fontSize: 10 }}>p.{pageArr[curIdx] ?? '-'}</Text>
+                                        <Text style={{ fontSize: 10 }}>
+                                          p.{pageArr[curIdx] ?? '-'} (총 {formatNumberWithComma(pageArr.length)}개)
+                                        </Text>
                                         <Button size="small" type="text" style={{ transform: 'scaleX(-1)' }} icon={<ChevronLeft size={12} />}
                                           onClick={(event) => { event.stopPropagation(); setActiveCompId(compKey); handlePageChange(compKey, 1, pageArr, bboxArr); }} />
                                       </div>
@@ -2418,6 +2604,7 @@ const PatentAnalysisDetail: React.FC = () => {
 
                             return (
                               <div
+                                ref={cleanDataTableShellRef}
                                 className="raw-data-table-shell"
                                 style={{
                                   background: token.colorBgContainer,
@@ -2432,7 +2619,7 @@ const PatentAnalysisDetail: React.FC = () => {
                                   dataSource={cleanRows}
                                   size="small"
                                   rowKey={(record: any) => record.__rowKey}
-                                  scroll={getRawDataTableScroll(cleanRows.length)}
+                                  scroll={cleanTableScroll}
                                   columns={columns as any}
                                   rowClassName={(record: any) => activeCompId === `clean-${record.__rowKey ?? record.id}` ? 'raw-data-row-active' : ''}
                                   onRow={(record: any) => ({
@@ -2464,7 +2651,7 @@ const PatentAnalysisDetail: React.FC = () => {
                             const pagedModifiedRows = modifiedRows.slice((currentPage - 1) * cleanCardPageSize, currentPage * cleanCardPageSize);
 
                             return (
-                              <div className="patent-analysis-card-view" style={{ minHeight: rawDataTableScrollY }}>
+                              <div className="patent-analysis-card-view">
                                 <Row className="patent-analysis-card-grid" gutter={[16, 16]}>
                                   {pagedModifiedRows.map((comp: any, idx: number) => {
                                     const compKey = `clean-card-${comp.id}-${((currentPage - 1) * cleanCardPageSize) + idx}`;
@@ -2475,12 +2662,13 @@ const PatentAnalysisDetail: React.FC = () => {
                                     return (
                                       <Col span={24} md={12} lg={8} key={compKey}>
                                         <DataCardItem
-                                          title={comp.compound_id}
+                                          title={formatPatentExampleNumber(comp.example_number)}
                                           tags={comp.ranking ? [{ label: `Rank ${comp.ranking}`, color: 'blue' }] : []}
                                           imageUrl={comp.compound_svg}
                                           imageType="svg"
                                           imageHeight={130}
                                           squareImage
+                                          transparentImageBackground
                                           isActive={activeCompId === compKey}
                                           onClick={() => {
                                             setActiveCompId(compKey);
@@ -2515,7 +2703,7 @@ const PatentAnalysisDetail: React.FC = () => {
                                                   totalCount: pageArr.length,
                                                   onPrev: () => handlePageChange(compKey, -1, pageArr, bboxArr),
                                                   onNext: () => handlePageChange(compKey, 1, pageArr, bboxArr),
-                                                  pageLabel: () => `p.${pageArr[curIdx] ?? '-'}`,
+                                                  pageLabel: () => `p.${pageArr[curIdx] ?? '-'} (총 ${formatNumberWithComma(pageArr.length)}개)`,
                                                 }
                                               : undefined
                                           }
@@ -2613,11 +2801,11 @@ const PatentAnalysisDetail: React.FC = () => {
                                         }
                                         extraInfo={
                                           <div>
-                                            <Text style={{ fontSize: 11 }}>
-                                              Pages: {pageArray.length > 0 ? pageArray.join(', ') : '-'}
-                                            </Text>
-                                            <br />
-                                            <Text style={{ fontSize: 11 }}>Images: {base64List.length}</Text>
+                                            <Tooltip title={pageArray.length > 0 ? `Pages: ${pageArray.join(', ')}` : undefined}>
+                                              <Text className="patent-table-pages-list" style={{ fontSize: 11 }}>
+                                                Pages: {pageArray.length > 0 ? pageArray.join(', ') : '-'}
+                                              </Text>
+                                            </Tooltip>
                                           </div>
                                         }
                                         pagination={
@@ -2627,7 +2815,7 @@ const PatentAnalysisDetail: React.FC = () => {
                                                 totalCount: pageArray.length,
                                                 onPrev: () => handleTablePageChange(tableItem, i, -1),
                                                 onNext: () => handleTablePageChange(tableItem, i, 1),
-                                                pageLabel: () => `p.${pageArray[tableCurrentIndex] ?? '-'}`,
+                                                pageLabel: () => `p.${pageArray[tableCurrentIndex] ?? '-'} (총 ${formatNumberWithComma(pageArray.length)}개)`,
                                               }
                                             : undefined
                                         }
@@ -2762,6 +2950,13 @@ const PatentAnalysisDetail: React.FC = () => {
           width: 100% !important;
           height: 100% !important;
           display: block;
+        }
+        .patent-analysis-detail-page .raw-data-svg-frame,
+        .patent-analysis-detail-page .compound-structure-view,
+        .patent-analysis-detail-page .compound-structure-frame,
+        .patent-analysis-detail-page .compound-structure-svg {
+          background: transparent !important;
+          background-color: transparent !important;
         }
         .raw-data-tab-content .svg-renderer-frame {
           padding: 0 !important;
@@ -3030,6 +3225,15 @@ const PatentAnalysisDetail: React.FC = () => {
           background-color: color-mix(in srgb, ${token.colorPrimary} 22%, ${token.colorBgContainer}) !important;
           background-clip: padding-box !important;
           z-index: 46 !important;
+        }
+        .patent-table-pages-list {
+          display: -webkit-box;
+          max-height: 32px;
+          overflow: hidden;
+          line-height: 16px;
+          overflow-wrap: anywhere;
+          -webkit-box-orient: vertical;
+          -webkit-line-clamp: 2;
         }
         .patent-structure-preview .svg-renderer-frame svg {
           max-width: calc(100% / 1.5) !important;

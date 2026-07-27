@@ -429,10 +429,18 @@ export const patentAnalysisApi = {
       undefined,
       options,
     ),
-  getPatentDetail: (publicationNumber: string, params?: { ownerId?: string }) =>
-    requestJson<PatentDetailResponse>(`/patents/${publicationNumber}`, params),
+  getPatentDetail: (
+    publicationNumber: string,
+    params?: { ownerId?: string },
+    options?: RequestOptions,
+  ) => requestJson<PatentDetailResponse>(`/patents/${publicationNumber}`, params, options),
   getPatentPdfUrl: (publicationNumber: string, params?: { ownerId?: string }) =>
     buildApiUrl(`/patents/${publicationNumber}/pdf`, params),
+  downloadPatentPdf: (
+    publicationNumber: string,
+    params?: { ownerId?: string },
+    options?: RequestOptions,
+  ) => requestBlob(`/patents/${publicationNumber}/pdf`, params, options),
   getEmbodimentsExcelUrl: (
     publicationNumber: string,
     params?: { ownerId?: string; bioactivityType?: 'bioactivity' | 'modified_bioactivity' },

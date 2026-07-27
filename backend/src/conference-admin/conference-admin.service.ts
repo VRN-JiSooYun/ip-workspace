@@ -41,6 +41,23 @@ const assertDateRange = (dateStart?: string, dateEnd?: string): void => {
 export class ConferenceAdminService {
   constructor(private readonly prisma: PrismaService) {}
 
+  listConferenceOptions() {
+    return this.prisma.client.conference.findMany({
+      where: { deletedAt: null },
+      select: {
+        id: true,
+        title: true,
+        abbreviation: true,
+        fullTitle: true,
+        year: true,
+        status: true,
+        dateStart: true,
+        dateEnd: true,
+      },
+      orderBy: [{ year: 'desc' }, { abbreviation: 'asc' }],
+    });
+  }
+
   async createConference(body: CreateAdminConferenceDto) {
     assertDateRange(body.dateStart, body.dateEnd);
     try {
