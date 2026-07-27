@@ -283,6 +283,38 @@
   overflow-wrap: anywhere;
 }
 
+.conference-content-rich {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.conference-content-rich > :first-child {
+  margin-top: 0;
+}
+
+.conference-content-rich > :last-child {
+  margin-bottom: 0;
+}
+
+.conference-content-rich p,
+.conference-content-rich blockquote,
+.conference-content-rich ul,
+.conference-content-rich ol {
+  margin: 0 0 12px;
+}
+
+.conference-content-rich table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.conference-content-rich th,
+.conference-content-rich td {
+  padding: 6px 8px;
+  border: 1px solid var(--c-card-border);
+  vertical-align: top;
+}
+
 .conference-content-array,
 .conference-content-object {
   display: flex;

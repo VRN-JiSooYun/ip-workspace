@@ -72,11 +72,108 @@ const isValidHttpUrl = (value: string): boolean => {
   }
 };
 
-const stripHtml = (value: string) => {
-  const withLineBreaks = value.replace(/<br\s*\/?>/gi, '\n');
-  if (!withLineBreaks.includes('<') || typeof DOMParser === 'undefined') return withLineBreaks;
-  return new DOMParser().parseFromString(withLineBreaks, 'text/html').body.textContent
-    || withLineBreaks;
+const CONFERENCE_CONTENT_TAGS = new Set([
+  'a',
+  'b',
+  'blockquote',
+  'br',
+  'del',
+  'div',
+  'em',
+  'h1',
+  'h2',
+  'h3',
+  'h4',
+  'h5',
+  'h6',
+  'i',
+  'li',
+  'ol',
+  'p',
+  's',
+  'span',
+  'strong',
+  'sub',
+  'sup',
+  'table',
+  'tbody',
+  'td',
+  'th',
+  'thead',
+  'tr',
+  'u',
+  'ul',
+]);
+
+const normalizeConferenceContentText = (value: string) => value
+  .replace(/_x000D_/gi, '\n')
+  .replace(/_x000A_/gi, '\n')
+  .replace(/\r\n?/g, '\n')
+  .replace(/\n[ \t]+\n/g, '\n\n')
+  .replace(/\n{3,}/g, '\n\n')
+  .trim();
+
+const safeConferenceLink = (value: string | null): string | undefined => {
+  if (!value) return undefined;
+  try {
+    const url = new URL(value, window.location.origin);
+    return ['http:', 'https:', 'mailto:'].includes(url.protocol) ? url.href : undefined;
+  } catch {
+    return undefined;
+  }
+};
+
+const renderConferenceHtmlNode = (node: Node, key: string): React.ReactNode => {
+  if (node.nodeType === Node.TEXT_NODE) {
+    return node.textContent;
+  }
+  if (node.nodeType !== Node.ELEMENT_NODE) {
+    return null;
+  }
+
+  const element = node as Element;
+  const tagName = element.tagName.toLowerCase();
+  const children = Array.from(element.childNodes).map((child, index) => (
+    renderConferenceHtmlNode(child, `${key}-${index}`)
+  ));
+
+  if (!CONFERENCE_CONTENT_TAGS.has(tagName)) {
+    return <React.Fragment key={key}>{children}</React.Fragment>;
+  }
+
+  if (tagName === 'a') {
+    const href = safeConferenceLink(element.getAttribute('href'));
+    if (!href) {
+      return <React.Fragment key={key}>{children}</React.Fragment>;
+    }
+    return React.createElement('a', {
+      key,
+      href,
+      target: '_blank',
+      rel: 'noopener noreferrer',
+    }, children);
+  }
+
+  return React.createElement(tagName, { key }, children);
+};
+
+const ConferenceContentText: React.FC<{ value: string }> = ({ value }) => {
+  const normalized = normalizeConferenceContentText(value);
+  if (!normalized) return null;
+
+  const hasHtmlMarkup = /<\/?[a-z][^>]*>/i.test(normalized);
+  if (!hasHtmlMarkup || typeof DOMParser === 'undefined') {
+    return <Paragraph className="conference-content-paragraph">{normalized}</Paragraph>;
+  }
+
+  const document = new DOMParser().parseFromString(normalized, 'text/html');
+  return (
+    <div className="conference-content-rich">
+      {Array.from(document.body.childNodes).map((node, index) => (
+        renderConferenceHtmlNode(node, `conference-content-${index}`)
+      ))}
+    </div>
+  );
 };
 
 const readableLabel = (value: string) => value
@@ -86,7 +183,7 @@ const readableLabel = (value: string) => value
 const StructuredContent: React.FC<{ value: unknown; depth?: number }> = ({ value, depth = 0 }) => {
   if (value === null || value === undefined || value === '') return null;
   if (typeof value === 'string') {
-    return <Paragraph className="conference-content-paragraph">{stripHtml(value)}</Paragraph>;
+    return <ConferenceContentText value={value} />;
   }
   if (typeof value === 'number' || typeof value === 'boolean') {
     return <Text>{String(value)}</Text>;
