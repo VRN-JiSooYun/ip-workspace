@@ -4,6 +4,9 @@
 
 현재 확정된 자동 배포는 `dev` 브랜치 대상 개발 서버 배포입니다. 운영 서버 배포 워크플로우와 별도 운영 Compose 파일은 아직 이 저장소에 정의되어 있지 않습니다.
 
+실제 배포 준비, 검증, 장애 대응과 rollback 절차는
+[`dev_deployment_runbook.md`](dev_deployment_runbook.md)를 따른다.
+
 ## CI/CD 프로세스 다이어그램
 
 ```mermaid
@@ -55,8 +58,13 @@ graph TD
 1. `dev` 브랜치에 push되면 `.github/workflows/dev-deploy.yml`이 실행됩니다.
 2. 워크플로우는 `self-hosted`, `myworkspace` 라벨이 붙은 GitHub Actions runner에서 실행됩니다.
 3. `actions/checkout@v4`가 저장소와 submodule을 checkout합니다. submodule 접근에는 `RDKIT_SUBMODULE_TOKEN` secret을 사용합니다.
-4. runner의 checkout 디렉토리에서 `docker compose -f docker-compose.dev.yml up --build -d --force-recreate`를 실행합니다.
-5. 배포 후 `docker image prune -f`로 사용하지 않는 Docker 이미지를 정리합니다.
+4. dev 서버의
+   `/home/thmoon/devops/myworkspace/secrets/gmail/token.json`을 runner checkout의
+   `secrets/gmail/token.json`으로, 같은 위치의 `getMembers.json`을
+   `sample/groupware_mail_system/getMembers.json`으로 `600` 권한으로
+   복사합니다.
+5. runner의 checkout 디렉토리에서 `docker compose -f docker-compose.dev.yml up --build -d --force-recreate`를 실행합니다.
+6. 배포 후 `docker image prune -f`로 사용하지 않는 Docker 이미지를 정리합니다.
 
 ## 개발 서버 컨테이너 구성
 
@@ -96,6 +104,17 @@ Backend 컨테이너는 `docker-compose.dev.yml`의 환경변수로 외부 API �
 | `GROUPWARE_REVALIDATE_INTERVAL_SECONDS` | `600` | Groupware Token 10분 재검증 |
 
 개발 배포에는 GitHub Environment secret `POSTGRES_PASSWORD`, `BETTER_AUTH_SECRETS`가 필수다. `BETTER_AUTH_SECRETS`는 `version:32자 이상 secret` 형식을 사용하며 기존 배포 후에는 같은 값을 유지해야 기존 암호화 Token과 session을 계속 사용할 수 있다.
+
+Gmail OAuth token은 GitHub Secret이나 image에 넣지 않는다. self-hosted runner가
+dev 서버의 `/home/thmoon/devops/myworkspace/secrets/gmail/token.json`을 checkout
+내부로 복사하고, Compose가 Backend의 `/run/secrets/gmail/token.json`에
+read-only bind mount한다. source 파일이 없으면 배포는 container build 전에
+실패한다.
+
+그룹웨어 구성원 원본도 Git에 넣지 않는다. 같은 host 디렉터리의
+`getMembers.json`을 checkout의
+`sample/groupware_mail_system/getMembers.json`으로 복사하고 Backend의
+`/app/imports/groupware-members/getMembers.json`에 read-only mount한다.
 
 ## 아직 미정인 영역
 

@@ -6,11 +6,20 @@ export type ConferenceImportStatus = 'PENDING' | 'RUNNING' | 'COMPLETED' | 'PART
 export type ConferenceImportMode = 'DRY_RUN' | 'APPLY';
 
 export interface ConferenceImportBatch {
+  id?: string;
   batchKey: string;
+  kind: 'LEGACY' | 'API_METADATA';
+  status: 'READY';
+  source: 'ADMIN_UPLOAD' | 'FILESYSTEM';
+  sourceChecksum: string | null;
   fileCount: number;
   excelCount: number;
+  totalByteSize: number | null;
   hasManifest: boolean;
   sourceFiles: string[];
+  uploadedBy: { id: string; name: string; email: string } | null;
+  createdAt: string | null;
+  readyAt: string | null;
 }
 
 export interface ConferenceImportIssue {
@@ -190,6 +199,20 @@ const jsonRequest = <T>(
 
 export const conferenceAdminApi = {
   listBatches: () => request<ConferenceImportBatch[]>('/admin/conference-imports/batches'),
+  uploadBatch: (
+    batchKey: string,
+    kind: 'LEGACY' | 'API_METADATA',
+    files: File[],
+  ) => {
+    const formData = new FormData();
+    formData.append('batchKey', batchKey);
+    formData.append('kind', kind);
+    files.forEach((file) => formData.append('files', file, file.name));
+    return request<ConferenceImportBatch>('/admin/conference-imports/batches', {
+      method: 'POST',
+      body: formData,
+    });
+  },
   listRuns: (limit = 30) => request<ConferenceImportRun[]>(
     `/admin/conference-imports?limit=${limit}`,
   ),

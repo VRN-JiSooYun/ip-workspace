@@ -70,6 +70,7 @@ services:
     volumes:
       - ./backend:/app
       - /app/node_modules
+      - local-myworkspace-conference-import-data:/app/imports/conference
       - ./sample/conference/excel:/app/imports/conference/legacy/excel:ro
       - ./sample/conference/conference_list.json:/app/imports/conference/legacy/conference_list.json:ro
       - ./sample/conference/api_metadata:/app/imports/conference/api-metadata:ro
@@ -153,3 +154,4 @@ networks:
 
 volumes:
   local-myworkspace-postgres-data:
+  local-myworkspace-conference-import-data:

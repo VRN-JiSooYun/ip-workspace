@@ -5,6 +5,7 @@ import { ConferenceImportService } from './conference-import.service';
 import { ConferenceImportApplyService } from './conference-import-apply.service';
 import { ConferenceMediaModule } from '../conference-media/conference-media.module';
 import { LegacyCommentImportService } from './legacy-comment-import.service';
+import { ConferenceImportUploadService } from './conference-import-upload.service';
 
 @Module({
   imports: [ConferenceMediaModule],
@@ -13,6 +14,7 @@ import { LegacyCommentImportService } from './legacy-comment-import.service';
     ConferenceExcelReaderService,
     ConferenceImportApplyService,
     LegacyCommentImportService,
+    ConferenceImportUploadService,
     ConferenceImportService,
   ],
 })

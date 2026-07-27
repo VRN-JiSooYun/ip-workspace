@@ -1,13 +1,54 @@
-import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  ParseUUIDPipe,
+  Post,
+  Query,
+  UploadedFiles,
+  UseInterceptors,
+} from '@nestjs/common';
 import { Roles, Session, type UserSession } from '@thallesp/nestjs-better-auth';
+import { FilesInterceptor } from '@nestjs/platform-express';
+import { SkipTimeout } from '../common/decorators/skip-timeout.decorator';
 import { ConferenceImportService } from './conference-import.service';
+import {
+  CONFERENCE_IMPORT_UPLOAD_MAX_FILE_BYTES,
+  CONFERENCE_IMPORT_UPLOAD_MAX_FILES,
+  CONFERENCE_IMPORT_UPLOAD_TEMP_DIRECTORY,
+} from './conference-import-upload.constants';
+import {
+  ConferenceImportUploadService,
+  type ConferenceImportUploadFile,
+} from './conference-import-upload.service';
 import { CreateConferenceImportDto } from './dto/create-conference-import.dto';
 import { ConferenceImportListQueryDto } from './dto/conference-import-list-query.dto';
 
 @Roles(['ADMIN'])
 @Controller('api/admin/conference-imports')
 export class ConferenceImportController {
-  constructor(private readonly imports: ConferenceImportService) {}
+  constructor(
+    private readonly imports: ConferenceImportService,
+    private readonly uploads: ConferenceImportUploadService,
+  ) {}
+
+  @Post('batches')
+  @SkipTimeout()
+  @UseInterceptors(FilesInterceptor('files', CONFERENCE_IMPORT_UPLOAD_MAX_FILES, {
+    dest: CONFERENCE_IMPORT_UPLOAD_TEMP_DIRECTORY,
+    limits: {
+      files: CONFERENCE_IMPORT_UPLOAD_MAX_FILES,
+      fileSize: CONFERENCE_IMPORT_UPLOAD_MAX_FILE_BYTES,
+    },
+  }))
+  uploadBatch(
+    @Session() session: UserSession,
+    @Body() body: Record<string, unknown>,
+    @UploadedFiles() files: ConferenceImportUploadFile[] = [],
+  ) {
+    return this.uploads.upload(session.user.id, body, files);
+  }
 
   @Post('dry-run')
   createDryRun(

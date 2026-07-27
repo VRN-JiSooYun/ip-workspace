@@ -69,6 +69,10 @@ export class ConferenceImportService implements OnModuleInit, OnModuleDestroy {
     const batchDirectory = await this.resolveBatchDirectory(dto.batchKey);
     const files = await this.listSourceFiles(batchDirectory);
     const sourceChecksum = await this.calculateChecksum(files);
+    const uploadedBatch = await this.prisma.client.conferenceImportBatch.findUnique({
+      where: { batchKey: dto.batchKey },
+      select: { id: true },
+    });
     const existing = await this.prisma.client.conferenceImportRun.findUnique({
       where: {
         sourceChecksum_profileVersion_mode: {
@@ -79,6 +83,13 @@ export class ConferenceImportService implements OnModuleInit, OnModuleDestroy {
       },
     });
     if (existing) {
+      if (uploadedBatch && !existing.batchId) {
+        existing.batchId = uploadedBatch.id;
+        await this.prisma.client.conferenceImportRun.update({
+          where: { id: existing.id },
+          data: { batchId: uploadedBatch.id },
+        });
+      }
       if (existing.status === 'FAILED' || existing.status === 'PARTIAL') {
         await this.prisma.client.$transaction([
           this.prisma.client.conferenceImportIssue.deleteMany({
@@ -106,6 +117,7 @@ export class ConferenceImportService implements OnModuleInit, OnModuleDestroy {
     try {
       return await this.prisma.client.conferenceImportRun.create({
         data: {
+          batchId: uploadedBatch?.id,
           mode: 'DRY_RUN',
           status: 'PENDING',
           batchKey: dto.batchKey,
@@ -140,6 +152,10 @@ export class ConferenceImportService implements OnModuleInit, OnModuleDestroy {
     const batchDirectory = await this.resolveBatchDirectory(dto.batchKey);
     const files = await this.listSourceFiles(batchDirectory);
     const sourceChecksum = await this.calculateChecksum(files);
+    const uploadedBatch = await this.prisma.client.conferenceImportBatch.findUnique({
+      where: { batchKey: dto.batchKey },
+      select: { id: true },
+    });
     const dryRun = await this.prisma.client.conferenceImportRun.findUnique({
       where: {
         sourceChecksum_profileVersion_mode: {
@@ -162,6 +178,13 @@ export class ConferenceImportService implements OnModuleInit, OnModuleDestroy {
       },
     });
     if (existing) {
+      if (uploadedBatch && !existing.batchId) {
+        existing.batchId = uploadedBatch.id;
+        await this.prisma.client.conferenceImportRun.update({
+          where: { id: existing.id },
+          data: { batchId: uploadedBatch.id },
+        });
+      }
       if (existing.status === 'FAILED' || existing.status === 'PARTIAL') {
         await this.prisma.client.$transaction([
           this.prisma.client.conferenceImportIssue.deleteMany({
@@ -189,6 +212,7 @@ export class ConferenceImportService implements OnModuleInit, OnModuleDestroy {
     try {
       return await this.prisma.client.conferenceImportRun.create({
         data: {
+          batchId: uploadedBatch?.id,
           mode: 'APPLY',
           status: 'PENDING',
           batchKey: dto.batchKey,
@@ -248,11 +272,41 @@ export class ConferenceImportService implements OnModuleInit, OnModuleDestroy {
   }
 
   async listBatches() {
+    const uploadedBatches = await this.prisma.client.conferenceImportBatch.findMany({
+      orderBy: { createdAt: 'desc' },
+      include: {
+        uploadedBy: {
+          select: { id: true, name: true, email: true },
+        },
+        files: {
+          orderBy: { logicalPath: 'asc' },
+        },
+      },
+    });
+    const uploadedBatchKeys = new Set(uploadedBatches.map(({ batchKey }) => batchKey));
+    const persisted = uploadedBatches
+      .filter(({ status }) => status === 'READY')
+      .map((batch) => ({
+        id: batch.id,
+        batchKey: batch.batchKey,
+        kind: batch.kind,
+        status: batch.status,
+        source: 'ADMIN_UPLOAD' as const,
+        sourceChecksum: batch.sourceChecksum,
+        fileCount: batch.fileCount,
+        excelCount: batch.excelCount,
+        totalByteSize: Number(batch.totalByteSize),
+        hasManifest: batch.hasManifest,
+        sourceFiles: batch.files.map(({ logicalPath }) => logicalPath),
+        uploadedBy: batch.uploadedBy,
+        createdAt: batch.createdAt,
+        readyAt: batch.readyAt,
+      }));
     let root: string;
     try {
       root = await realpath(this.importRoot);
     } catch {
-      return [];
+      return persisted;
     }
     const entries = await readdir(root, { withFileTypes: true });
     const batches: Array<{
@@ -263,6 +317,7 @@ export class ConferenceImportService implements OnModuleInit, OnModuleDestroy {
       sourceFiles: string[];
     }> = [];
     for (const entry of entries.filter((item) => item.isDirectory())) {
+      if (uploadedBatchKeys.has(entry.name) || entry.name.startsWith('.')) continue;
       const directory = join(root, entry.name);
       const sourceFiles = (await this.collectSourceFiles(directory))
         .map((file) => relative(directory, file))
@@ -276,7 +331,22 @@ export class ConferenceImportService implements OnModuleInit, OnModuleDestroy {
         sourceFiles,
       });
     }
-    return batches.sort((a, b) => a.batchKey.localeCompare(b.batchKey));
+    return [
+      ...persisted,
+      ...batches
+        .sort((a, b) => a.batchKey.localeCompare(b.batchKey))
+        .map((batch) => ({
+          ...batch,
+          kind: batch.hasManifest ? 'LEGACY' as const : 'API_METADATA' as const,
+          status: 'READY' as const,
+          source: 'FILESYSTEM' as const,
+          totalByteSize: null,
+          sourceChecksum: null,
+          uploadedBy: null,
+          createdAt: null,
+          readyAt: null,
+        })),
+    ];
   }
 
   private async processNextImport(): Promise<void> {
@@ -474,6 +544,13 @@ export class ConferenceImportService implements OnModuleInit, OnModuleDestroy {
   }
 
   private async resolveBatchDirectory(batchKey: string): Promise<string> {
+    const uploadedBatch = await this.prisma.client.conferenceImportBatch.findUnique({
+      where: { batchKey },
+      select: { status: true },
+    });
+    if (uploadedBatch && uploadedBatch.status !== 'READY') {
+      throw new NotFoundException('CONFERENCE_IMPORT_BATCH_NOT_READY');
+    }
     let root: string;
     let batch: string;
     try {

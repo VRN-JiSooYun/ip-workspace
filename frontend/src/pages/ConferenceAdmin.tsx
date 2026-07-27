@@ -18,8 +18,9 @@ import {
   Tabs,
   Tag,
   Typography,
+  Upload,
 } from 'antd';
-import type { TableColumnsType } from 'antd';
+import type { TableColumnsType, UploadFile } from 'antd';
 import type { Dayjs } from 'dayjs';
 import {
   Database,
@@ -29,6 +30,7 @@ import {
   Plus,
   RefreshCw,
   SearchCheck,
+  UploadCloud,
   UsersRound,
 } from 'lucide-react';
 import PageHeaderBreadcrumb from '../components/common/PageHeaderBreadcrumb';
@@ -102,6 +104,11 @@ const ConferenceAdmin: React.FC = () => {
   const [mailOutboxes, setMailOutboxes] = useState<ConferenceMailOutboxItem[]>([]);
   const [conferences, setConferences] = useState<ConferenceListItem[]>([]);
   const [selectedBatch, setSelectedBatch] = useState<string>();
+  const [uploadBatchKey, setUploadBatchKey] = useState('');
+  const [uploadBatchKind, setUploadBatchKind] =
+    useState<'LEGACY' | 'API_METADATA'>('LEGACY');
+  const [uploadFiles, setUploadFiles] = useState<UploadFile[]>([]);
+  const [uploadingBatch, setUploadingBatch] = useState(false);
   const [profileVersion, setProfileVersion] = useState('v1');
   const [loading, setLoading] = useState(false);
   const [startingMode, setStartingMode] = useState<'DRY_RUN' | 'APPLY' | null>(null);
@@ -186,13 +193,19 @@ const ConferenceAdmin: React.FC = () => {
     return () => window.clearInterval(intervalId);
   }, [loadAdminData, mailOutboxes, runs]);
 
-  const successfulDryRun = useMemo(() => runs.find((run) => (
-    run.mode === 'DRY_RUN'
-    && run.batchKey === selectedBatch
-    && run.profileVersion === profileVersion
-    && run.status === 'COMPLETED'
-    && run.errorCount === 0
-  )), [profileVersion, runs, selectedBatch]);
+  const successfulDryRun = useMemo(() => {
+    const batch = batches.find(({ batchKey }) => batchKey === selectedBatch);
+    return runs.find((run) => (
+      run.mode === 'DRY_RUN'
+      && (
+        run.batchKey === selectedBatch
+        || Boolean(batch?.sourceChecksum && run.sourceChecksum === batch.sourceChecksum)
+      )
+      && run.profileVersion === profileVersion
+      && run.status === 'COMPLETED'
+      && run.errorCount === 0
+    ));
+  }, [batches, profileVersion, runs, selectedBatch]);
   const successfulRecipientDryRun = useMemo(
     () => recipientRuns.find((run) => (
       run.mode === 'DRY_RUN'
@@ -216,6 +229,37 @@ const ConferenceAdmin: React.FC = () => {
       void message.error(error instanceof Error ? error.message : 'Import 요청에 실패했습니다.');
     } finally {
       setStartingMode(null);
+    }
+  };
+
+  const uploadImportBatch = async () => {
+    const batchKey = uploadBatchKey.trim();
+    const files = uploadFiles
+      .map(({ originFileObj }) => originFileObj)
+      .filter((file): file is NonNullable<typeof file> => Boolean(file));
+    if (!batchKey || files.length === 0) {
+      void message.warning('Batch key와 업로드 파일을 확인해 주세요.');
+      return;
+    }
+    setUploadingBatch(true);
+    try {
+      const batch = await conferenceAdminApi.uploadBatch(
+        batchKey,
+        uploadBatchKind,
+        files,
+      );
+      setUploadBatchKey('');
+      setUploadFiles([]);
+      setSelectedBatch(batch.batchKey);
+      void message.success(`Import batch ${batch.batchKey} 업로드를 완료했습니다.`);
+      await loadAdminData();
+      setSelectedBatch(batch.batchKey);
+    } catch (error) {
+      void message.error(
+        error instanceof Error ? error.message : 'Import batch 업로드에 실패했습니다.',
+      );
+    } finally {
+      setUploadingBatch(false);
     }
   };
 
@@ -611,9 +655,54 @@ const ConferenceAdmin: React.FC = () => {
           type="warning"
           showIcon
           message="사용 가능한 import batch가 없습니다."
-          description="Docker compose 변경사항을 반영해 backend container를 다시 생성해 주세요."
+          description="아래에서 Legacy 또는 API metadata 파일을 새 batch로 업로드해 주세요."
         />
       )}
+      <Card title={<Space><UploadCloud size={17} />Import batch 업로드</Space>}>
+        <Space wrap size={12} style={{ marginBottom: 12 }}>
+          <Input
+            value={uploadBatchKey}
+            onChange={(event) => setUploadBatchKey(event.target.value)}
+            placeholder="Batch key (예: legacy-20260727)"
+            maxLength={100}
+            style={{ width: 260 }}
+          />
+          <Select
+            value={uploadBatchKind}
+            onChange={setUploadBatchKind}
+            style={{ width: 180 }}
+            options={[
+              { value: 'LEGACY', label: 'Legacy metadata' },
+              { value: 'API_METADATA', label: 'API metadata' },
+            ]}
+          />
+          <Button
+            type="primary"
+            icon={<UploadCloud size={16} />}
+            loading={uploadingBatch}
+            disabled={!uploadBatchKey.trim() || uploadFiles.length === 0}
+            onClick={() => void uploadImportBatch()}
+          >
+            Batch 업로드
+          </Button>
+        </Space>
+        <Upload.Dragger
+          multiple
+          accept=".xlsx,.json"
+          maxCount={50}
+          fileList={uploadFiles}
+          beforeUpload={() => false}
+          onChange={({ fileList }) => setUploadFiles(fileList)}
+          disabled={uploadingBatch}
+        >
+          <p className="ant-upload-drag-icon"><UploadCloud size={32} /></p>
+          <p className="ant-upload-text">Excel과 JSON 파일을 끌어놓거나 선택하세요.</p>
+          <p className="ant-upload-hint">
+            Legacy는 conference_list.json 1개와 Excel이 필요합니다. API metadata는
+            Excel만 업로드합니다. 파일당 최대 25MB, batch당 최대 200MB입니다.
+          </p>
+        </Upload.Dragger>
+      </Card>
       <Card>
         <Space wrap size={12}>
           <Select
@@ -623,7 +712,9 @@ const ConferenceAdmin: React.FC = () => {
             style={{ width: 220 }}
             options={batches.map((batch) => ({
               value: batch.batchKey,
-              label: `${batch.batchKey} (${batch.excelCount} Excel)`,
+              label: `${batch.batchKey} (${batch.excelCount} Excel · ${
+                batch.source === 'ADMIN_UPLOAD' ? '업로드' : '서버 파일'
+              })`,
             }))}
           />
           <Input
