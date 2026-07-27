@@ -154,6 +154,10 @@ const renderConferenceHtmlNode = (node: Node, key: string): React.ReactNode => {
     }, children);
   }
 
+  if (tagName === 'br') {
+    return React.createElement('br', { key });
+  }
+
   return React.createElement(tagName, { key }, children);
 };
 
