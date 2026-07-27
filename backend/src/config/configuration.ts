@@ -81,6 +81,10 @@ export default () => ({
       process.env.CONFERENCE_IMPORT_MAX_ISSUES_PER_RUN,
       1000,
     ),
+    chunkSize: parseNumber(
+      process.env.CONFERENCE_IMPORT_CHUNK_SIZE,
+      50,
+    ),
   },
   notificationRecipient: {
     sourceFile:

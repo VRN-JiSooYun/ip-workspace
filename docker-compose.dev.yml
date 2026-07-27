@@ -103,6 +103,7 @@ services:
       - AUTH_SESSION_UPDATE_AGE_SECONDS=1800
       - AUTH_BOOTSTRAP_ADMIN_EMAILS=${AUTH_BOOTSTRAP_ADMIN_EMAILS:-}
       - CONFERENCE_IMPORT_ROOT=/app/imports/conference
+      - CONFERENCE_IMPORT_CHUNK_SIZE=${CONFERENCE_IMPORT_CHUNK_SIZE:-50}
       - NOTIFICATION_RECIPIENT_SOURCE_FILE=/app/imports/groupware-members/getMembers.json
       - GMAIL_OAUTH_TOKEN_FILE=/run/secrets/gmail/token.json
       - GMAIL_FROM_EMAIL=${GMAIL_FROM_EMAIL:-vgw@voronoi.io}

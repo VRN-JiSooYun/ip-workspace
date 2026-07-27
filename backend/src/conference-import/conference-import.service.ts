@@ -380,6 +380,7 @@ export class ConferenceImportService implements OnModuleInit, OnModuleDestroy {
     batchKey: string,
     profileVersion: string,
   ): Promise<void> {
+    this.logger.log(`Conference import APPLY started run=${runId} batch=${batchKey}`);
     try {
       const batchDirectory = await this.resolveBatchDirectory(batchKey);
       const files = await this.listSourceFiles(batchDirectory);
@@ -404,6 +405,9 @@ export class ConferenceImportService implements OnModuleInit, OnModuleDestroy {
           finishedAt: new Date(),
         },
       });
+      this.logger.log(
+        `Conference import APPLY completed run=${runId} batch=${batchKey}`,
+      );
     } catch (error) {
       await this.prisma.client.conferenceImportIssue.create({
         data: {
@@ -424,6 +428,9 @@ export class ConferenceImportService implements OnModuleInit, OnModuleDestroy {
           finishedAt: new Date(),
         },
       });
+      this.logger.error(
+        `Conference import APPLY failed run=${runId} batch=${batchKey}`,
+      );
     }
   }
 

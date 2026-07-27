@@ -1,4 +1,5 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { readFile } from 'node:fs/promises';
 import { basename, sep } from 'node:path';
 import { PrismaService } from '../database/prisma.service';
@@ -26,8 +27,6 @@ type ConferenceRef = {
   abbreviation: string;
   year: number;
 };
-
-const CHUNK_SIZE = 200;
 
 const nullable = (value: string | undefined): string | null => {
   const trimmed = value?.trim() ?? '';
@@ -114,11 +113,20 @@ const legacyAssetSource = (
 
 @Injectable()
 export class ConferenceImportApplyService {
+  private readonly logger = new Logger(ConferenceImportApplyService.name);
+  private readonly chunkSize: number;
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly excelReader: ConferenceExcelReaderService,
     private readonly conferenceMedia: ConferenceMediaService,
-  ) {}
+    config: ConfigService,
+  ) {
+    this.chunkSize = Math.max(
+      10,
+      Math.min(200, config.get<number>('conferenceImport.chunkSize', 50)),
+    );
+  }
 
   async apply(files: string[]): Promise<ApplyResult> {
     const result: ApplyResult = {
@@ -263,16 +271,28 @@ export class ConferenceImportApplyService {
     result: ApplyResult,
   ): Promise<void> {
     let chunk: ConferenceExcelRow[] = [];
+    let processedRows = 0;
+    this.logger.log(`Conference import detail started file=${basename(file)}`);
     for await (const row of this.excelReader.rows(file)) {
       chunk.push(row);
-      if (chunk.length >= CHUNK_SIZE) {
+      if (chunk.length >= this.chunkSize) {
         await this.flushDetailChunk(file, profile, conference, chunk, result);
+        processedRows += chunk.length;
+        if (processedRows % 1000 === 0) {
+          this.logger.log(
+            `Conference import detail progress file=${basename(file)} rows=${processedRows}`,
+          );
+        }
         chunk = [];
       }
     }
     if (chunk.length > 0) {
       await this.flushDetailChunk(file, profile, conference, chunk, result);
+      processedRows += chunk.length;
     }
+    this.logger.log(
+      `Conference import detail completed file=${basename(file)} rows=${processedRows}`,
+    );
   }
 
   private async flushDetailChunk(
@@ -435,7 +455,15 @@ export class ConferenceImportApplyService {
     result: ApplyResult,
   ): Promise<void> {
     const kind = profile;
+    let processedRows = 0;
+    this.logger.log(`Conference import asset started file=${basename(file)}`);
     for await (const row of this.excelReader.rows(file)) {
+      processedRows += 1;
+      if (processedRows % 1000 === 0) {
+        this.logger.log(
+          `Conference import asset progress file=${basename(file)} rows=${processedRows}`,
+        );
+      }
       const abstractUrl = nullable(row.values.abstract_url);
       const source = nullable(row.values[`${profile.toLowerCase()}_url`]);
       if (!abstractUrl || !source) {
@@ -469,6 +497,9 @@ export class ConferenceImportApplyService {
         result,
       );
     }
+    this.logger.log(
+      `Conference import asset completed file=${basename(file)} rows=${processedRows}`,
+    );
   }
 
   private async upsertAsset(
