@@ -208,6 +208,21 @@ type DetailSortRule =
 type DesignPurposeValue = (string | number)[];
 type DesignExpansionValue = (string | number)[];
 type DesignFormInitialValues = Record<string, unknown>;
+const EMPTY_DESIGN_FORM_VALUES: DesignFormInitialValues = {
+  group: '',
+  target: '',
+  ideaNumber: '',
+  smilesPreview: '',
+  designMemo: '',
+  synthesisRequestNo: '',
+  referenceName: '',
+  assayPurpose: [],
+  requiredAmountMg: undefined,
+  synthesisStep: [],
+  expectedEffect: '',
+  requestMemo: '',
+  source: undefined,
+};
 type DesignMemoPreviewBlock =
   | { type: 'text'; text: string }
   | { type: 'image'; src: string };
@@ -504,7 +519,9 @@ const MyBoard: React.FC = () => {
   const [designForm] = Form.useForm();
   const [groupForm] = Form.useForm<{ name: string; target?: string }>();
   const designReferenceName = Form.useWatch('referenceName', designForm) as string | undefined;
-  const [designFormInitialValues, setDesignFormInitialValues] = useState<DesignFormInitialValues>({});
+  const [designFormInitialValues, setDesignFormInitialValues] = useState<DesignFormInitialValues>(
+    () => ({ ...EMPTY_DESIGN_FORM_VALUES }),
+  );
   const [isGroupModalOpen, setIsGroupModalOpen] = useState(false);
   const [groupModalMode, setGroupModalMode] = useState<'create' | 'edit'>('create');
   const [isDesignModalOpen, setIsDesignModalOpen] = useState(false);
@@ -548,6 +565,15 @@ const MyBoard: React.FC = () => {
   } | null>(null);
   const [showFilters, setShowFilters] = useState(false);
   const [viewMode, setViewMode] = useState<'table' | 'draw' | 'tree'>('table');
+
+  React.useLayoutEffect(() => {
+    if (!isDesignModalOpen && !isCompoundEditModalOpen) return;
+
+    designForm.setFieldsValue({
+      ...EMPTY_DESIGN_FORM_VALUES,
+      ...designFormInitialValues,
+    });
+  }, [designForm, designFormInitialValues, isCompoundEditModalOpen, isDesignModalOpen]);
   const [treeZoom, setTreeZoom] = useState(1);
   const [treeFlowInstance, setTreeFlowInstance] = useState<ReactFlowInstance<MyBoardTreeFlowNode, MyBoardTreeFlowEdge> | null>(null);
   const [isTreeMiniMapVisible, setIsTreeMiniMapVisible] = useState(true);
@@ -2309,7 +2335,7 @@ const MyBoard: React.FC = () => {
 
   const resetDesignModalState = React.useCallback(() => {
     designForm.resetFields();
-    setDesignFormInitialValues({});
+    setDesignFormInitialValues({ ...EMPTY_DESIGN_FORM_VALUES });
     setDesignSmiles('');
     setDesignSmilesError('');
     setDesignAttachmentFiles([]);
