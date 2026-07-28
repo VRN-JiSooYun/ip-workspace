@@ -1468,7 +1468,9 @@ const SarTable: React.FC = () => {
         justifyContent: 'center',
         fontWeight: isColorActive && isNumeric && numericValue < 0.5 ? 600 : 400
       }}>
-        {isNumeric && Number.isInteger(numericValue) ? formatNumberWithComma(numericValue) : String(val)}
+        {isNumeric
+          ? formatNumberWithComma(numericValue, { fractionDigits: 2 })
+          : String(val)}
       </div>
     );
   };

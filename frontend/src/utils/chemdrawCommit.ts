@@ -1,5 +1,9 @@
 const wait = (ms: number) => new Promise<void>((resolve) => window.setTimeout(resolve, ms));
 
+export interface ChemDrawCommitOptions {
+  activateSelectionTool?: boolean;
+}
+
 const LASSO_TOOL_NAMES = [
   'lasso',
   'Lasso',
@@ -263,7 +267,11 @@ export const waitForChemDrawEditorReady = async (containerId: string, editor?: a
   return false;
 };
 
-export const commitChemDrawActiveInput = async (containerId: string, editor?: any) => {
+export const commitChemDrawActiveInput = async (
+  containerId: string,
+  editor?: any,
+  options?: ChemDrawCommitOptions,
+) => {
   const container = document.getElementById(containerId);
   if (!container) return;
 
@@ -289,8 +297,9 @@ export const commitChemDrawActiveInput = async (containerId: string, editor?: an
 
   await wait(80);
 
-  const didActivateLassoTool = activateChemDrawLassoTool(editor);
-  const didClickLassoButton = clickLassoToolbarButton(container);
+  const shouldActivateSelectionTool = options?.activateSelectionTool !== false;
+  const didActivateLassoTool = shouldActivateSelectionTool && activateChemDrawLassoTool(editor);
+  const didClickLassoButton = shouldActivateSelectionTool && clickLassoToolbarButton(container);
 
   if (didActivateLassoTool || didClickLassoButton) {
     await wait(180);
@@ -301,5 +310,5 @@ export const commitChemDrawActiveInput = async (containerId: string, editor?: an
     blurElement(target);
   });
 
-  await wait(180);
+  await wait(shouldActivateSelectionTool ? 180 : 20);
 };

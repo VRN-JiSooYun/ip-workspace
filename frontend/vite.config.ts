@@ -9,6 +9,9 @@ const monitoringProxy = {
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [react()],
+  define: {
+    'process.env.DRAGGABLE_DEBUG': 'false',
+  },
   server: {
     host: true,
     port: 5173,
@@ -42,7 +45,13 @@ export default defineConfig({
     },
   },
   optimizeDeps: {
-    include: ['react-pdf-highlighter-plus', 'fabric', 'pdfjs-dist'],
+    include: [
+      'react-pdf-highlighter-plus',
+      'fabric',
+      'pdfjs-dist',
+      'react-grid-layout',
+      'react-draggable',
+    ],
   },
   build: {
     commonjsOptions: {

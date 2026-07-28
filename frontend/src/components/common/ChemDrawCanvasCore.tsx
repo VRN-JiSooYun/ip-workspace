@@ -9,7 +9,11 @@ import { Button, Space, Tooltip, Typography, theme } from 'antd';
 import { ArrowLeftRight, ArrowUpDown, Clipboard, Download, Info } from 'lucide-react';
 import { CHEMDRAW_CONFIG } from '../../config/chemdraw';
 import { installChemDrawKoreanKeyboardBridge } from '../../utils/chemdrawKeyboard';
-import { commitChemDrawActiveInput, waitForChemDrawEditorReady } from '../../utils/chemdrawCommit';
+import {
+  commitChemDrawActiveInput,
+  waitForChemDrawEditorReady,
+  type ChemDrawCommitOptions,
+} from '../../utils/chemdrawCommit';
 import {
   isChemDrawClipboardFixerAvailable,
   isChemDrawClipboardFixerSupportedPlatform,
@@ -40,7 +44,7 @@ export interface ChemDrawStructureData {
 
 export interface ChemDrawCanvasCoreHandle {
   getEditor: () => any;
-  flushPendingInput: () => Promise<string>;
+  flushPendingInput: (options?: ChemDrawCommitOptions) => Promise<string>;
 }
 
 interface ChemDrawCanvasCoreProps {
@@ -261,10 +265,13 @@ const ChemDrawCanvasCore = forwardRef<ChemDrawCanvasCoreHandle, ChemDrawCanvasCo
   const lastEmittedSmilesRef = useRef('');
   const lastLoadedSmilesRef = useRef('');
 
-  const flushPendingInput = async (editor = editorInstance) => {
+  const flushPendingInput = async (
+    editor = editorInstance,
+    options?: ChemDrawCommitOptions,
+  ) => {
     if (!editor) return '';
 
-    await commitChemDrawActiveInput(containerId, editor);
+    await commitChemDrawActiveInput(containerId, editor, options);
 
     const smiles = await getChemDrawEditorSmiles(editor);
     lastEmittedSmilesRef.current = smiles;
@@ -274,7 +281,7 @@ const ChemDrawCanvasCore = forwardRef<ChemDrawCanvasCoreHandle, ChemDrawCanvasCo
 
   useImperativeHandle(ref, () => ({
     getEditor: () => editorInstance,
-    flushPendingInput: () => flushPendingInput(editorInstance),
+    flushPendingInput: (options) => flushPendingInput(editorInstance, options),
   }), [editorInstance]);
 
   useEffect(() => {
@@ -307,8 +314,15 @@ const ChemDrawCanvasCore = forwardRef<ChemDrawCanvasCoreHandle, ChemDrawCanvasCo
             viewOnly: false,
             callback: (editor: any) => {
               if (isDisposed) return;
-              editor.__flushPendingInput = () => flushPendingInput(editor);
-              window.setTimeout(() => loadStructureIntoEditor(editor, initialCdxml, initialSmiles, initialMolblock), 500);
+              editor.__flushPendingInput = (options?: ChemDrawCommitOptions) => flushPendingInput(editor, options);
+              window.setTimeout(() => {
+                if (isDisposed) return;
+                loadStructureIntoEditor(editor, initialCdxml, initialSmiles, initialMolblock);
+                if (initialSmiles?.trim()) {
+                  lastLoadedSmilesRef.current = initialSmiles.trim();
+                  lastEmittedSmilesRef.current = initialSmiles.trim();
+                }
+              }, 500);
               void waitForChemDrawEditorReady(containerId, editor).then(async () => {
                 if (isDisposed) return;
                 await wait(100);

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import {
   Handle,
   MarkerType,
@@ -144,6 +144,10 @@ type SynthesisRequestFormValues = {
   expectedEffect?: string;
   requestMemo?: string;
   synthesisRequestType?: string;
+};
+
+type SynthesisBoardNavigationState = {
+  synthesisRequestTargetId?: string;
 };
 type DesignMemoPreviewBlock =
   | { type: 'text'; text: string }
@@ -310,6 +314,7 @@ const MYBOARD_CENTER_COLUMN_KEYS = new Set([
   'requestDate',
   'synthesisExpansionLevel',
   'synthesisOwner',
+  'synthesisStudyGroup',
   'synthesisAcceptedDate',
   'synthesisTargetDate',
   'isCompleted',
@@ -505,6 +510,7 @@ const ManagerComparisonPopup = ({ record, currentMgrName }: { record: SynthesisG
 
 const MyBoardSynthesisBoard: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { token } = theme.useToken();
   const { modal } = AntApp.useApp();
   const { setHeaderContent } = useUIStore();
@@ -604,6 +610,7 @@ const MyBoardSynthesisBoard: React.FC = () => {
   } | null>(null);
   const detailTableWrapperRef = React.useRef<HTMLDivElement | null>(null);
   const detailViewContentRef = React.useRef<HTMLDivElement | null>(null);
+  const handledSynthesisRequestTargetIdRef = React.useRef<string | null>(null);
   const [groupTableScrollY, setGroupTableScrollY] = useState<number | undefined>(undefined);
   const [detailTableScrollY, setDetailTableScrollY] = useState<number | undefined>(() => {
     if (typeof window === 'undefined') return undefined;
@@ -1119,28 +1126,31 @@ const MyBoardSynthesisBoard: React.FC = () => {
     applyDefaultGroupListSplit();
   }, [applyDefaultGroupListSplit, stopSplitResize]);
 
-  const alwaysColumnKeys = React.useMemo(() => [
-    '순번', '그룹 번호', '프로젝트', '물질 번호 (VRN)', '화합물 구조', '데이터', '단계', '출처', '디자인 비고'
-  ], []);
-  const synthesisDetailColumnKeys = React.useMemo(() => [
+  const defaultActive = React.useMemo(() => [
+    '순번',
+    '화합물 구조',
+    '물질 번호 (VRN)',
+    '프로젝트',
+    '그룹 번호',
+    '필요량 (mg)',
+    '합성 의뢰일',
     '합성 담당자',
-    '합성 스터디 그룹 수락일자',
-    '합성 목표일',
-    '진행사항 비고',
-    '완료 여부',
-    '등록일',
+    '합성 의뢰 수락일',
+    '합성 완료 목표일',
+    '합성 진행 상황 비고',
+    '물질 등록일',
+    '합성 스터디 그룹',
     '연구노트',
     '리포트 자료',
     '합성 종료 이유',
   ], []);
-  const defaultOrder = React.useMemo(
-    () => [...alwaysColumnKeys, ...synthesisDetailColumnKeys],
-    [alwaysColumnKeys, synthesisDetailColumnKeys]
-  );
-  const defaultActive = React.useMemo(
-    () => [...alwaysColumnKeys, ...synthesisDetailColumnKeys],
-    [alwaysColumnKeys, synthesisDetailColumnKeys]
-  );
+  const defaultOrder = React.useMemo(() => [
+    ...defaultActive,
+    '데이터',
+    '단계',
+    '출처',
+    '디자인 비고',
+  ], [defaultActive]);
 
   // COLUMN STATES (Order & Visibility)
   const [columnOrder, setColumnOrder] = useState<string[]>(defaultOrder);
@@ -2302,6 +2312,40 @@ const MyBoardSynthesisBoard: React.FC = () => {
     synthesisRequestForm.resetFields();
   }, [synthesisRequestForm]);
 
+  React.useEffect(() => {
+    const navigationState = location.state as SynthesisBoardNavigationState | null;
+    const targetId = navigationState?.synthesisRequestTargetId;
+    if (!targetId || handledSynthesisRequestTargetIdRef.current === targetId) return;
+
+    const target = compoundRows.find((compound) => compound.id === targetId);
+    if (!target) return;
+
+    handledSynthesisRequestTargetIdRef.current = targetId;
+    setSelectedGroupIds([target.groupId]);
+    setSelectedDetailCompoundIds([target.id]);
+    setDetailPagination((current) => {
+      const targetGroupRows = compoundRows.filter((compound) => (
+        compound.groupId === target.groupId && !hiddenCompoundIds.includes(compound.id)
+      ));
+      const targetIndex = targetGroupRows.findIndex((compound) => compound.id === target.id);
+
+      return {
+        ...current,
+        current: targetIndex >= 0 ? Math.floor(targetIndex / current.pageSize) + 1 : 1,
+      };
+    });
+    handleOpenSynthesisRequest(target);
+    navigate(location.pathname, { replace: true, state: null });
+  }, [
+    compoundRows,
+    handleOpenSynthesisRequest,
+    hiddenCompoundIds,
+    location.pathname,
+    location.state,
+    navigate,
+    setSelectedGroupIds,
+  ]);
+
   const handleSubmitSynthesisRequest = React.useCallback(async () => {
     if (!synthesisRequestTarget) return;
     if (selectedSynthesisRequestPurposes.length === 0 || selectedSynthesisRequestSteps.length === 0) return;
@@ -3087,7 +3131,7 @@ const MyBoardSynthesisBoard: React.FC = () => {
     '필요량 (mg)': { title: '필요량 (mg)', dataIndex: 'requiredAmountMg', key: 'requiredAmountMg', width: 104, align: 'right' as const },
     '목적 (개선하고자 하는 assay)': { title: '목적 (개선하고자 하는 assay)', dataIndex: 'assayPurpose', key: 'assayPurpose', width: 260, render: renderMultilineText },
     '기대 개선 효과': { title: '기대 개선 효과', dataIndex: 'expectedEffect', key: 'expectedEffect', width: 180, render: renderDesignMemoPreview },
-    '의뢰일자': { title: '의뢰일자', dataIndex: 'requestDate', key: 'requestDate', width: 96, render: formatDisplayDate },
+    '합성 의뢰일': { title: '합성 의뢰일', dataIndex: 'requestDate', key: 'requestDate', width: 96, render: formatDisplayDate },
     '합성 확장 필요 정도': { title: '합성 확장 필요 정도', dataIndex: 'synthesisExpansionLevel', key: 'synthesisExpansionLevel', width: 144 },
     '의뢰 비고': { title: '의뢰 비고', dataIndex: 'requestMemo', key: 'requestMemo', width: 180, render: renderDesignMemoPreview },
     '합성 담당자': {
@@ -3137,40 +3181,42 @@ const MyBoardSynthesisBoard: React.FC = () => {
         )
       ),
     },
-    '합성 스터디 그룹 수락일자': {
-      title: '합성 스터디 그룹 수락일자',
+    '합성 스터디 그룹': {
+      title: '합성 스터디 그룹',
+      dataIndex: 'synthesisStudyGroup',
+      key: 'synthesisStudyGroup',
+      width: 124,
+      align: 'center' as const,
+      className: 'table-center-column',
+      render: (value: string | undefined) => value || '-',
+    },
+    '합성 의뢰 수락일': {
+      title: '합성 의뢰 수락일',
       dataIndex: 'synthesisAcceptedDate',
       key: 'synthesisAcceptedDate',
-      width: 172,
+      width: 124,
       align: 'center' as const,
       className: 'table-center-column',
       render: formatDisplayDate,
     },
-    '합성 목표일': {
-      title: '합성 목표일',
+    '합성 완료 목표일': {
+      title: '합성 완료 목표일',
       dataIndex: 'synthesisTargetDate',
       key: 'synthesisTargetDate',
-      width: 104,
+      width: 124,
       align: 'center' as const,
       className: 'table-center-column',
       render: formatDisplayDate,
     },
-    '진행사항 비고': { title: '진행사항 비고', dataIndex: 'progressMemo', key: 'progressMemo', width: 180, ellipsis: true },
-    '완료 여부': {
-      title: '완료 여부',
-      dataIndex: 'isCompleted',
-      key: 'isCompleted',
-      width: 86,
-      align: 'center' as const,
-      className: 'table-center-column',
-      render: (isCompleted: boolean) => (
-        <Tag color={isCompleted ? 'green' : 'gold'} style={{ margin: 0 }}>
-          {isCompleted ? '완료' : '진행중'}
-        </Tag>
-      ),
+    '합성 진행 상황 비고': {
+      title: '합성 진행 상황 비고',
+      dataIndex: 'progressMemo',
+      key: 'progressMemo',
+      width: 180,
+      ellipsis: true,
     },
-    '등록일': {
-      title: '등록일',
+    '물질 등록일': {
+      title: '물질 등록일',
       dataIndex: 'registeredDate',
       key: 'registeredDate',
       width: 96,
@@ -4064,7 +4110,7 @@ const MyBoardSynthesisBoard: React.FC = () => {
                     minHeight: 30,
                   }}
                 >
-                  그룹 상세 목록
+                  합성 관리 상세 목록
                 </Text>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', flex: '1 1 auto' }}>
@@ -4370,7 +4416,7 @@ const MyBoardSynthesisBoard: React.FC = () => {
       </Modal>
 
       <Modal
-        title="화합물 합성 요청"
+        title="화합물 합성 의뢰"
         open={isSynthesisRequestModalOpen}
         onCancel={handleCloseSynthesisRequest}
         onOk={() => {
@@ -4601,11 +4647,11 @@ const MyBoardSynthesisBoard: React.FC = () => {
             <Col flex="0 0 30%" style={{ maxWidth: '30%' }}>
               <Form.Item
                 name="synthesisRequestType"
-                label="합성 요청 구분"
+                label="합성 의뢰 구분"
                 className="synthesis-request-inline-item"
-                rules={[{ required: true, message: '합성 요청 구분을 선택하세요.' }]}
+                rules={[{ required: true, message: '합성 의뢰 구분을 선택하세요.' }]}
               >
-                <Select placeholder="요청 구분 선택" disabled={isSynthesisRequestReadOnly}>
+                <Select placeholder="의뢰 구분 선택" disabled={isSynthesisRequestReadOnly}>
                   {SYNTHESIS_REQUEST_TYPE_OPTIONS.map((item) => (
                     <Option key={item} value={item}>{item}</Option>
                   ))}

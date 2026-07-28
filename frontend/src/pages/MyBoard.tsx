@@ -13,7 +13,7 @@ import {
 } from '@xyflow/react';
 import {
   Row, Col, Card, Table, Button, Input,
-  Space, Typography, Modal, Form, Tag, List, Select, DatePicker, Avatar, Divider, Upload, Segmented, theme, Tooltip, Dropdown, App as AntApp, Cascader, InputNumber
+  Space, Typography, Modal, Form, Tag, List, Select, DatePicker, Avatar, Divider, Upload, Segmented, Spin, theme, Tooltip, Dropdown, App as AntApp, Cascader, InputNumber
 } from 'antd';
 import type { MenuProps, UploadFile } from 'antd';
 import {
@@ -27,7 +27,7 @@ import { DEFAULT_GROUP_STRUCTURE_VIEW_SETTINGS, useBoardStore } from '../store/u
 import { mockCompounds, type Compound, type CompoundGroup, type CompoundQuickViewerAssetType } from '../mocks/compounds';
 import { useUserStore } from '../store/useUserStore';
 import RadarChart from '../components/charts/RadarChart';
-import dayjs from 'dayjs';
+import dayjs, { type Dayjs } from 'dayjs';
 import { getPatentAnalysisLayoutPreset } from '../config/patentAnalysisLayout';
 import { useUIStore } from '../store/useUIStore';
 import PageHeaderBreadcrumb from '../components/common/PageHeaderBreadcrumb';
@@ -43,7 +43,11 @@ import ChemaxonDataModal from '../components/myboard/ChemaxonDataModal';
 import QuantumCalculationDataModal from '../components/myboard/QuantumCalculationDataModal';
 import VpropDataModal from '../components/myboard/VpropDataModal';
 import PlainMemoEditor from '../components/common/PlainMemoEditor';
-import { compoundApi, type CompoundSearchResult } from '../services/compoundApi';
+import {
+  compoundApi,
+  type CompoundPermissionResult,
+  type CompoundSearchResult,
+} from '../services/compoundApi';
 import {
   calculationApi,
   type QuantumCalculationJob,
@@ -195,6 +199,12 @@ const MYBOARD_STRUCTURE_IMAGE_SCALE_MAX = 160;
 const MYBOARD_STRUCTURE_IMAGE_SCALE_STEP = 5;
 type SvgIntrinsicSize = { width: number; height: number };
 type MyBoardGroupPinFilter = 'all' | 'pinned';
+type DetailSortKey = 'groupOrder' | 'compoundId' | 'structure' | 'quickViewerAssets';
+type DetailSortRule =
+  | { key: 'groupOrder'; mode: { focusedGroupId: string } }
+  | { key: 'compoundId'; mode: 'workflowReverse' | 'workflowForward' }
+  | { key: 'structure'; mode: 'molecularWeightAsc' | 'molecularWeightDesc' }
+  | { key: 'quickViewerAssets'; mode: CompoundQuickViewerAssetType };
 type DesignPurposeValue = (string | number)[];
 type DesignExpansionValue = (string | number)[];
 type DesignFormInitialValues = Record<string, unknown>;
@@ -508,6 +518,9 @@ const MyBoard: React.FC = () => {
   const [quickAddCode, setQuickAddCode] = useState('');
   const [quickAddResults, setQuickAddResults] = useState<CompoundSearchResult[]>([]);
   const [selectedQuickAddCode, setSelectedQuickAddCode] = useState('');
+  const [quickAddPreview, setQuickAddPreview] = useState<CompoundPermissionResult | null>(null);
+  const [quickAddPreviewError, setQuickAddPreviewError] = useState<string | null>(null);
+  const [isQuickAddPreviewLoading, setIsQuickAddPreviewLoading] = useState(false);
   const [isQuickAddSearching, setIsQuickAddSearching] = useState(false);
   const [isQuickAddAdding, setIsQuickAddAdding] = useState(false);
   const [isChemaxonCalculating, setIsChemaxonCalculating] = useState(false);
@@ -540,6 +553,7 @@ const MyBoard: React.FC = () => {
   const [isTreeMiniMapVisible, setIsTreeMiniMapVisible] = useState(true);
   const whiteboardCanvasStateRef = React.useRef<Record<string, unknown> | string | null>(null);
   const [detailCompoundTypeFilter, setDetailCompoundTypeFilter] = useState<'all' | 'design' | 'compound'>('all');
+  const [detailSortRules, setDetailSortRules] = useState<DetailSortRule[]>([]);
   const [compoundRows, setCompoundRows] = useState<Compound[]>(() => (
     insertCompoundsAfterGroupTail(
       mockCompounds.filter((compound) => !externalCompoundRows.some((external) => external.id === compound.id)),
@@ -622,6 +636,44 @@ const MyBoard: React.FC = () => {
       controller.abort();
     };
   }, [isQuickAddModalOpen, quickAddCode]);
+
+  useEffect(() => {
+    const compoundCode = selectedQuickAddCode.trim();
+    if (!isQuickAddModalOpen || !compoundCode) {
+      setQuickAddPreview(null);
+      setQuickAddPreviewError(null);
+      setIsQuickAddPreviewLoading(false);
+      return;
+    }
+
+    const controller = new AbortController();
+    setQuickAddPreview(null);
+    setQuickAddPreviewError(null);
+    setIsQuickAddPreviewLoading(true);
+
+    compoundApi.getCompounds([compoundCode], { signal: controller.signal })
+      .then((response) => {
+        const compound = response.compounds.find((item) => (
+          item.compound_code.toLowerCase() === compoundCode.toLowerCase()
+        )) ?? response.compounds[0];
+        const smiles = compound?.smiles?.trim() ?? '';
+
+        if (!compound || !smiles || smiles.toLowerCase() === 'no permission') {
+          setQuickAddPreviewError('화합물 구조를 조회할 권한이 없습니다.');
+          return;
+        }
+        setQuickAddPreview(compound);
+      })
+      .catch((error) => {
+        if (controller.signal.aborted) return;
+        setQuickAddPreviewError(error instanceof Error ? error.message : '화합물 구조를 불러오지 못했습니다.');
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setIsQuickAddPreviewLoading(false);
+      });
+
+    return () => controller.abort();
+  }, [isQuickAddModalOpen, selectedQuickAddCode]);
 
   useEffect(() => {
     if (externalCompoundRows.length === 0) return;
@@ -724,14 +776,6 @@ const MyBoard: React.FC = () => {
         return groups.indexOf(a) - groups.indexOf(b);
       }),
     [bookmarkedGroupIdSet, bookmarkedGroupIds, groups]
-  );
-  const visibleGroupRows = React.useMemo(
-    () => (
-      groupPinFilter === 'pinned'
-        ? sortedGroupRows.filter((group) => bookmarkedGroupIdSet.has(group.id))
-        : sortedGroupRows
-    ),
-    [bookmarkedGroupIdSet, groupPinFilter, sortedGroupRows]
   );
   const clampSplitRatio = React.useCallback((value: number) => {
     return Math.min(Math.max(value, MYBOARD_SPLIT_MIN_PERCENT), MYBOARD_SPLIT_MAX_PERCENT);
@@ -1096,20 +1140,29 @@ const MyBoard: React.FC = () => {
     applyDefaultGroupListSplit();
   }, [applyDefaultGroupListSplit, stopSplitResize]);
 
-  const alwaysColumnKeys = React.useMemo(() => [
-    '순번', '그룹 번호', '프로젝트', '물질 번호 (VRN)', '화합물 구조', '데이터', '단계', '출처', '디자인 비고', 'MolProp1', 'MolProp2'
+  const defaultActive = React.useMemo(() => [
+    '순번',
+    '화합물 구조',
+    '데이터',
+    '물질 번호 (VRN)',
+    'MolProp1',
+    'MolProp2',
+    '프로젝트',
+    '그룹 번호',
+    '디자인 번호',
+    '디자인 비고',
+    '목적 (개선하고자 하는 assay)',
+    '기대 개선 효과',
+    '합성 확장 필요 정도',
+    '합성 의뢰 비고',
+    '단계',
+    '출처',
   ], []);
-  const designColumnKeys = React.useMemo(() => [
-    '디자인 번호', '필요량 (mg)', '목적 (개선하고자 하는 assay)', '기대 개선 효과', '의뢰일자', '합성 확장 필요 정도', '의뢰 비고'
-  ], []);
-  const defaultOrder = React.useMemo(
-    () => [...alwaysColumnKeys, ...designColumnKeys],
-    [alwaysColumnKeys, designColumnKeys]
-  );
-  const defaultActive = React.useMemo(
-    () => [...alwaysColumnKeys, ...designColumnKeys],
-    [alwaysColumnKeys, designColumnKeys]
-  );
+  const defaultOrder = React.useMemo(() => [
+    ...defaultActive,
+    '필요량 (mg)',
+    '합성 의뢰일',
+  ], [defaultActive]);
 
   // COLUMN STATES (Order & Visibility)
   const [columnOrder, setColumnOrder] = useState<string[]>(defaultOrder);
@@ -1203,6 +1256,7 @@ const MyBoard: React.FC = () => {
   const [selectedShares, setSelectedShares] = useState<string[]>(['ALL', ...shareList]);
   const [selectedSources, setSelectedSources] = useState<string[]>(['ALL', ...sourceList]);
   const [period, setPeriod] = useState<string>('전체');
+  const [dateRange, setDateRange] = useState<[Dayjs | null, Dayjs | null] | null>(null);
   const [keyword, setKeyword] = useState<string>('');
   const [selectedCalculations, setSelectedCalculations] = useState<string[]>([]);
   const areAllCalculationsSelected = selectedCalculations.length === calculationOptions.length;
@@ -1255,26 +1309,76 @@ const MyBoard: React.FC = () => {
     ...groupStructureViewSettings[groupId],
   }), [groupStructureViewSettings]);
 
-  const filteredCompounds = React.useMemo(() => {
+  const groupById = React.useMemo(
+    () => new Map(groups.map((group) => [group.id, group])),
+    [groups]
+  );
+  const searchFilteredCompounds = React.useMemo(() => {
+    const normalizedKeyword = keyword.trim().toLowerCase();
+    const today = dayjs().endOf('day');
+    const periodMonths = period === '3개월'
+      ? 3
+      : period === '6개월'
+        ? 6
+        : period === '12개월'
+          ? 12
+          : null;
+    const periodStart = periodMonths === null
+      ? dateRange?.[0]?.startOf('day') ?? null
+      : dayjs().subtract(periodMonths, 'month').startOf('day');
+    const periodEnd = periodMonths === null
+      ? dateRange?.[1]?.endOf('day') ?? null
+      : today;
+
     return compoundRows
+      .filter((compound) => {
+        const group = groupById.get(compound.groupId);
+        const compoundDate = dayjs(compound.creDate.replace(/\./g, '-'));
+        const matchesKeyword = keyword === 'Structure Search Result' || !normalizedKeyword || [
+          compound.name,
+          compound.compoundId,
+          compound.designNo,
+          compound.smiles,
+          group?.name,
+          group?.target,
+        ].some((value) => value?.toLowerCase().includes(normalizedKeyword));
+        const matchesPeriod = (!periodStart || (compoundDate.isValid() && !compoundDate.isBefore(periodStart))) &&
+          (!periodEnd || (compoundDate.isValid() && !compoundDate.isAfter(periodEnd)));
+
+        if (hiddenCompoundIds.includes(compound.id)) return false;
+        if (!selectedProjects.includes('ALL') && !selectedProjects.includes(compound.project ?? '')) return false;
+        if (!selectedShares.includes('ALL') && !selectedShares.includes(compound.shareStatus ?? '')) return false;
+        if (!selectedSources.includes('ALL') && !selectedSources.includes(compound.designSource ?? '')) return false;
+        if (!matchesPeriod || !matchesKeyword) return false;
+        return true;
+      });
+  }, [compoundRows, dateRange, groupById, hiddenCompoundIds, keyword, period, selectedProjects, selectedShares, selectedSources]);
+  const searchMatchedGroupIdSet = React.useMemo(
+    () => new Set(searchFilteredCompounds.map((compound) => compound.groupId)),
+    [searchFilteredCompounds]
+  );
+  const hasActiveSearchFilter = keyword.trim().length > 0 ||
+    period !== '전체' ||
+    Boolean(dateRange?.[0] && dateRange?.[1]) ||
+    !selectedProjects.includes('ALL') ||
+    !selectedShares.includes('ALL') ||
+    !selectedSources.includes('ALL');
+  const visibleGroupRows = React.useMemo(() => (
+    sortedGroupRows.filter((group) => (
+      (!hasActiveSearchFilter || searchMatchedGroupIdSet.has(group.id)) &&
+      (groupPinFilter !== 'pinned' || bookmarkedGroupIdSet.has(group.id))
+    ))
+  ), [bookmarkedGroupIdSet, groupPinFilter, hasActiveSearchFilter, searchMatchedGroupIdSet, sortedGroupRows]);
+  const filteredCompounds = React.useMemo(() => {
+    return searchFilteredCompounds
       .filter((compound) => {
         const hasCompoundId = compound.compoundId.trim().length > 0;
         const hasSynthesisRequestStatus = Boolean(compound.synthesisRequestStatus);
         const isCompoundType = hasCompoundId || hasSynthesisRequestStatus;
-        // If it's a structure search results mode, don't filter out by the keyword string
-        const matchesKeyword = keyword === 'Structure Search Result' ||
-          compound.name.toLowerCase().includes(keyword.toLowerCase()) ||
-          compound.compoundId.toLowerCase().includes(keyword.toLowerCase()) ||
-          compound.smiles.toLowerCase().includes(keyword.toLowerCase());
 
-        if (hiddenCompoundIds.includes(compound.id)) return false;
         if (detailCompoundTypeFilter === 'design' && isCompoundType) return false;
         if (detailCompoundTypeFilter === 'compound' && !isCompoundType) return false;
         if (selectedGroupIds.length > 0 && !selectedGroupIds.includes(compound.groupId)) return false;
-        if (!selectedProjects.includes('ALL') && compound.project && !selectedProjects.includes(compound.project)) return false;
-        if (!selectedShares.includes('ALL') && compound.shareStatus && !selectedShares.includes(compound.shareStatus)) return false;
-        if (!selectedSources.includes('ALL') && compound.designSource && !selectedSources.includes(compound.designSource)) return false;
-        if (keyword && !matchesKeyword) return false;
         return true;
       })
       .sort((a, b) => {
@@ -1284,7 +1388,205 @@ const MyBoard: React.FC = () => {
         if (aGroupOrder !== bGroupOrder) return aGroupOrder - bGroupOrder;
         return compoundRows.indexOf(a) - compoundRows.indexOf(b);
       });
-  }, [compoundRows, detailCompoundTypeFilter, hiddenCompoundIds, keyword, selectedGroupIds, selectedGroupOrderMap, selectedProjects, selectedShares, selectedSources]);
+  }, [compoundRows, detailCompoundTypeFilter, searchFilteredCompounds, selectedGroupIds, selectedGroupOrderMap]);
+
+  const cycleDetailSort = React.useCallback((key: DetailSortKey) => {
+    setDetailSortRules((currentRules) => {
+      const currentRuleIndex = currentRules.findIndex((rule) => rule.key === key);
+      const currentRule = currentRuleIndex >= 0 ? currentRules[currentRuleIndex] : undefined;
+      let nextRule: DetailSortRule | null = null;
+
+      if (key === 'groupOrder') {
+        if (selectedGroupIds.length === 0) return currentRules;
+        const currentFocusedGroupId = currentRule?.key === 'groupOrder'
+          ? currentRule.mode.focusedGroupId
+          : null;
+        const currentGroupIndex = currentFocusedGroupId
+          ? selectedGroupIds.indexOf(currentFocusedGroupId)
+          : -1;
+        const nextGroupId = selectedGroupIds[currentGroupIndex + 1];
+        nextRule = nextGroupId
+          ? { key: 'groupOrder', mode: { focusedGroupId: nextGroupId } }
+          : null;
+      } else if (key === 'compoundId') {
+        const currentMode = currentRule?.key === 'compoundId' ? currentRule.mode : null;
+        nextRule = currentMode === null
+          ? { key: 'compoundId', mode: 'workflowReverse' }
+          : currentMode === 'workflowReverse'
+            ? { key: 'compoundId', mode: 'workflowForward' }
+            : null;
+      } else if (key === 'structure') {
+        const currentMode = currentRule?.key === 'structure' ? currentRule.mode : null;
+        nextRule = currentMode === null
+          ? { key: 'structure', mode: 'molecularWeightAsc' }
+          : currentMode === 'molecularWeightAsc'
+            ? { key: 'structure', mode: 'molecularWeightDesc' }
+            : null;
+      } else {
+        const currentMode = currentRule?.key === 'quickViewerAssets' ? currentRule.mode : null;
+        const currentModeIndex = currentMode ? MYBOARD_DATA_ASSET_ORDER.indexOf(currentMode) : -1;
+        const nextMode = MYBOARD_DATA_ASSET_ORDER[currentModeIndex + 1];
+        nextRule = nextMode ? { key: 'quickViewerAssets', mode: nextMode } : null;
+      }
+
+      if (!nextRule) {
+        return currentRules.filter((rule) => rule.key !== key);
+      }
+      const resolvedNextRule = nextRule;
+      if (currentRuleIndex < 0) {
+        return [...currentRules, resolvedNextRule];
+      }
+
+      return currentRules.map((rule, index) => index === currentRuleIndex ? resolvedNextRule : rule);
+    });
+    setDetailPagination((current) => (
+      current.current === 1 ? current : { ...current, current: 1 }
+    ));
+  }, [selectedGroupIds]);
+
+  const clearDetailSorting = React.useCallback(() => {
+    setDetailSortRules([]);
+    setDetailPagination((current) => (
+      current.current === 1 ? current : { ...current, current: 1 }
+    ));
+  }, []);
+
+  React.useEffect(() => {
+    setDetailSortRules((currentRules) => currentRules.filter((rule) => (
+      rule.key !== 'groupOrder' || selectedGroupIds.includes(rule.mode.focusedGroupId)
+    )));
+  }, [selectedGroupIds]);
+
+  React.useEffect(() => {
+    const visibleSortKeys = new Set<DetailSortKey>();
+    if (activeColumns.includes('그룹 번호')) visibleSortKeys.add('groupOrder');
+    if (activeColumns.includes('물질 번호 (VRN)')) visibleSortKeys.add('compoundId');
+    if (activeColumns.includes('화합물 구조')) visibleSortKeys.add('structure');
+    if (activeColumns.includes('데이터')) visibleSortKeys.add('quickViewerAssets');
+
+    setDetailSortRules((currentRules) => currentRules.filter((rule) => visibleSortKeys.has(rule.key)));
+  }, [activeColumns]);
+
+  React.useEffect(() => {
+    setDetailPagination((current) => (
+      current.current === 1 ? current : { ...current, current: 1 }
+    ));
+  }, [detailSortRules]);
+
+  const sortedDetailCompounds = React.useMemo(() => {
+    if (detailSortRules.length === 0) return filteredCompounds;
+
+    const originalOrderMap = new Map(filteredCompounds.map((compound, index) => [compound.id, index]));
+    const getWorkflowOrder = (compound: Compound): number | null => {
+      if (compound.compoundId.trim() || compound.synthesisRequestStatus === 'vnaIssued') return 3;
+      if (compound.synthesisRequestStatus === 'synthesizing') return 2;
+      if (compound.synthesisRequestStatus === 'accepted') return 1;
+      if (compound.synthesisRequestStatus === 'requested') return 0;
+      return null;
+    };
+    const getMolecularWeight = (compound: Compound): number | null => {
+      const value = compound.molecularWeight ?? compound.chemaxonCalculation?.data.molecular_weight;
+      return typeof value === 'number' && Number.isFinite(value) ? value : null;
+    };
+    const compareNullableNumbers = (
+      first: number | null,
+      second: number | null,
+      direction: 'asc' | 'desc'
+    ) => {
+      if (first === null && second === null) return 0;
+      if (first === null) return 1;
+      if (second === null) return -1;
+      return direction === 'asc' ? first - second : second - first;
+    };
+
+    return [...filteredCompounds].sort((first, second) => {
+      for (const rule of detailSortRules) {
+        let comparison = 0;
+
+        if (rule.key === 'groupOrder') {
+          const remainingGroupIds = selectedGroupIds.filter((groupId) => groupId !== rule.mode.focusedGroupId);
+          const groupOrder = new Map<string, number>(
+            [rule.mode.focusedGroupId, ...remainingGroupIds]
+              .map((groupId, index): [string, number] => [groupId, index])
+          );
+          comparison = (groupOrder.get(first.groupId) ?? Number.MAX_SAFE_INTEGER) -
+            (groupOrder.get(second.groupId) ?? Number.MAX_SAFE_INTEGER);
+        } else if (rule.key === 'compoundId') {
+          comparison = compareNullableNumbers(
+            getWorkflowOrder(first),
+            getWorkflowOrder(second),
+            rule.mode === 'workflowForward' ? 'asc' : 'desc'
+          );
+        } else if (rule.key === 'structure') {
+          comparison = compareNullableNumbers(
+            getMolecularWeight(first),
+            getMolecularWeight(second),
+            rule.mode === 'molecularWeightAsc' ? 'asc' : 'desc'
+          );
+        } else {
+          const firstHasAsset = first.quickViewerAssets?.some((asset) => asset.type === rule.mode) ?? false;
+          const secondHasAsset = second.quickViewerAssets?.some((asset) => asset.type === rule.mode) ?? false;
+          comparison = Number(secondHasAsset) - Number(firstHasAsset);
+        }
+
+        if (comparison !== 0) return comparison;
+      }
+
+      return (originalOrderMap.get(first.id) ?? Number.MAX_SAFE_INTEGER) -
+        (originalOrderMap.get(second.id) ?? Number.MAX_SAFE_INTEGER);
+    });
+  }, [detailSortRules, filteredCompounds, selectedGroupIds]);
+
+  const getDetailSortModeLabel = React.useCallback((rule: DetailSortRule) => {
+    if (rule.key === 'groupOrder') {
+      const groupNumber = selectedGroupIds.indexOf(rule.mode.focusedGroupId) + 1;
+      return groupNumber > 0 ? `G${groupNumber} 우선` : '그룹 우선';
+    }
+    if (rule.key === 'compoundId') {
+      return rule.mode === 'workflowReverse' ? '합성 역순' : '합성 순';
+    }
+    if (rule.key === 'structure') {
+      return rule.mode === 'molecularWeightAsc' ? 'MW↑' : 'MW↓';
+    }
+
+    return rule.mode === 'kp'
+      ? 'KP'
+      : rule.mode === 'pdb'
+        ? 'PDB'
+        : rule.mode === 'docking'
+          ? 'Docking'
+          : 'MD';
+  }, [selectedGroupIds]);
+
+  const renderDetailSortableTitle = React.useCallback((key: DetailSortKey, label: string) => {
+    const sortPriority = detailSortRules.findIndex((rule) => rule.key === key);
+    const activeRule = sortPriority >= 0 ? detailSortRules[sortPriority] : null;
+    const modeLabel = activeRule ? getDetailSortModeLabel(activeRule) : null;
+    const accessibleLabel = activeRule
+      ? `${label}: ${modeLabel}, 정렬 우선순위 ${sortPriority + 1}`
+      : `${label}: 정렬 없음`;
+
+    return (
+      <Tooltip title={accessibleLabel}>
+        <button
+          type="button"
+          className={`my-board-detail-sort-header${activeRule ? ' is-active' : ''}`}
+          aria-label={`${accessibleLabel}. 클릭하여 다음 정렬로 변경`}
+          onClick={() => cycleDetailSort(key)}
+        >
+          <span className="my-board-detail-sort-label">{label}</span>
+          {activeRule && (
+            <span className="my-board-detail-sort-meta">
+              {modeLabel && <span className="my-board-detail-sort-mode">{modeLabel}</span>}
+              <span className="my-board-detail-sort-priority" aria-hidden="true">
+                {sortPriority + 1}
+              </span>
+            </span>
+          )}
+        </button>
+      </Tooltip>
+    );
+  }, [cycleDetailSort, detailSortRules, getDetailSortModeLabel]);
 
   const treeCompounds = React.useMemo(() => {
     const sourceRows = filteredCompounds.length > 0
@@ -1363,8 +1665,8 @@ const MyBoard: React.FC = () => {
 
   const pagedDetailCompounds = React.useMemo(() => {
     const startIndex = (detailPagination.current - 1) * detailPagination.pageSize;
-    return filteredCompounds.slice(startIndex, startIndex + detailPagination.pageSize);
-  }, [detailPagination.current, detailPagination.pageSize, filteredCompounds]);
+    return sortedDetailCompounds.slice(startIndex, startIndex + detailPagination.pageSize);
+  }, [detailPagination.current, detailPagination.pageSize, sortedDetailCompounds]);
 
   const detailStructureScaleRatio = React.useMemo(() => {
     if (selectedGroupIds.length !== 1) return 1;
@@ -1433,6 +1735,17 @@ const MyBoard: React.FC = () => {
     [compoundRows, selectedDetailCompoundKeys]
   );
   const selectedEditableCompound = selectedDetailCompounds.length === 1 ? selectedDetailCompounds[0] : null;
+  const isEditCalculationLocked = Boolean(
+    isCompoundEditModalOpen &&
+    selectedEditableCompound &&
+    (
+      (selectedEditableCompound.requiredCalcs?.length ?? 0) > 0 ||
+      selectedEditableCompound.chemaxonCalculation ||
+      selectedEditableCompound.vpropCalculation ||
+      selectedEditableCompound.quantumCalculations?.psa ||
+      selectedEditableCompound.quantumCalculations?.esol
+    )
+  );
 
   React.useEffect(() => {
     const visibleIds = new Set(filteredCompounds.map((compound) => compound.id));
@@ -1503,39 +1816,45 @@ const MyBoard: React.FC = () => {
         <div className="my-board-structure-bookmark">
           {renderGroupBookmarkButton(record.id)}
         </div>
-        <CompoundStructureView
-          svg={structureSvg}
-          rdkitSvg={(representativeCompound as any)?.rdkitSvg}
-          rdkitSvgCache={(representativeCompound as any)?.rdkitSvgCache}
-          title={representativeCompound?.compoundId || representativeCompound?.name || 'Structure'}
-          smiles={representativeCompound?.smiles}
-          molBlock={(representativeCompound as any)?.molBlock ?? (representativeCompound as any)?.mol_block ?? (representativeCompound as any)?.molblock}
-          cdxml={(representativeCompound as any)?.draw}
-          width={MYBOARD_GROUP_STRUCTURE_WIDTH}
-          height={MYBOARD_GROUP_STRUCTURE_HEIGHT}
-          iconSize={40}
-          gap={0}
-          actionPlacement="overlay"
-          actionOverlayAnchor="container"
-          preferRdkitSvg
-          rdkitAngleDeg={structureSettings.sarRotationDeg}
-          rdkitScalePercent={structureSettings.myBoardImageScalePercent}
-          rdkitMinSize={[MYBOARD_GROUP_STRUCTURE_WIDTH, MYBOARD_GROUP_STRUCTURE_HEIGHT]}
-          onStructureGenerated={(data) => {
-            if (representativeCompound?.id) handleCompoundStructureGenerated(representativeCompound.id, data);
-          }}
-          frameStyle={{ border: 0, background: 'transparent', boxShadow: 'none', overflow: 'visible' }}
-          onPreview={(previewSvg) => {
-            if (!previewSvg) return;
-            setStructurePreview({
-              title: representativeCompound?.compoundId || representativeCompound?.name || 'Structure',
-              svg: previewSvg,
-              smiles: representativeCompound?.smiles,
-              molblock: representativeCompound?.molBlock ?? representativeCompound?.mol_block ?? representativeCompound?.molblock,
-              cdxml: representativeCompound?.draw,
-            });
-          }}
-        />
+        {representativeCompound ? (
+          <CompoundStructureView
+            svg={structureSvg}
+            rdkitSvg={(representativeCompound as any).rdkitSvg}
+            rdkitSvgCache={(representativeCompound as any).rdkitSvgCache}
+            title={representativeCompound.compoundId || representativeCompound.name || 'Structure'}
+            smiles={representativeCompound.smiles}
+            molBlock={(representativeCompound as any).molBlock ?? (representativeCompound as any).mol_block ?? (representativeCompound as any).molblock}
+            cdxml={(representativeCompound as any).draw}
+            width={MYBOARD_GROUP_STRUCTURE_WIDTH}
+            height={MYBOARD_GROUP_STRUCTURE_HEIGHT}
+            iconSize={40}
+            gap={0}
+            actionPlacement="overlay"
+            actionOverlayAnchor="container"
+            preferRdkitSvg
+            rdkitAngleDeg={structureSettings.sarRotationDeg}
+            rdkitScalePercent={structureSettings.myBoardImageScalePercent}
+            rdkitMinSize={[MYBOARD_GROUP_STRUCTURE_WIDTH, MYBOARD_GROUP_STRUCTURE_HEIGHT]}
+            onStructureGenerated={(data) => {
+              handleCompoundStructureGenerated(representativeCompound.id, data);
+            }}
+            frameStyle={{ border: 0, background: 'transparent', boxShadow: 'none', overflow: 'visible' }}
+            onPreview={(previewSvg) => {
+              if (!previewSvg) return;
+              setStructurePreview({
+                title: representativeCompound.compoundId || representativeCompound.name || 'Structure',
+                svg: previewSvg,
+                smiles: representativeCompound.smiles,
+                molblock: representativeCompound.molBlock ?? representativeCompound.mol_block ?? representativeCompound.molblock,
+                cdxml: representativeCompound.draw,
+              });
+            }}
+          />
+        ) : (
+          <Text type="secondary" style={{ fontSize: 12, lineHeight: '20px' }}>
+            No compounds
+          </Text>
+        )}
       </div>
     );
   };
@@ -1981,6 +2300,12 @@ const MyBoard: React.FC = () => {
     borderColor: enabled ? token.colorPrimary : token.colorBorderSecondary,
     color: enabled ? token.colorBgContainer : token.colorTextTertiary,
   }), [token]);
+  const getOutlineActionButtonStyle = React.useCallback((enabled: boolean): React.CSSProperties => ({
+    background: 'transparent',
+    borderColor: enabled ? token.colorPrimary : token.colorBorderSecondary,
+    color: enabled ? token.colorPrimary : token.colorTextTertiary,
+    boxShadow: 'none',
+  }), [token]);
 
   const resetDesignModalState = React.useCallback(() => {
     designForm.resetFields();
@@ -2009,7 +2334,6 @@ const MyBoard: React.FC = () => {
       target: selectedDesignTargetText,
       group: selectedDesignGroupDisplayText,
       ideaNumber: nextIdeaNumber,
-      requiredAmountMg: 10,
     });
     setIsDesignModalOpen(true);
   }, [canAddCompound, resetDesignModalState, selectedDesignGroupDisplayText, selectedDesignTargetText]);
@@ -2141,7 +2465,7 @@ const MyBoard: React.FC = () => {
   }, []);
   const handleRegisterDesignIdea = React.useCallback(async () => {
     if (!canAddCompound) return;
-    const flushedSmiles = await cdjsInstance?.__flushPendingInput?.();
+    const flushedSmiles = await cdjsInstance?.__flushPendingInput?.({ activateSelectionTool: false });
     const values = await designForm.validateFields();
     const normalizedSmiles = (typeof flushedSmiles === 'string' ? flushedSmiles : designSmiles).trim();
     if (!normalizedSmiles) {
@@ -2223,9 +2547,14 @@ const MyBoard: React.FC = () => {
       chemaxonCalculation: synchronousResults.chemaxonCalculation,
       vpropCalculation: synchronousResults.vpropCalculation,
       quantumCalculations,
+      molecularWeight: synchronousResults.chemaxonCalculation?.data.molecular_weight,
       designNo: ideaNumber,
       designMemo: normalizeDesignMemoValue(values.designMemo),
-      requiredAmountMg: Number(values.requiredAmountMg) || 0,
+      requiredAmountMg: values.requiredAmountMg === undefined ||
+        values.requiredAmountMg === null ||
+        values.requiredAmountMg === ''
+        ? undefined
+        : Number(values.requiredAmountMg),
       assayPurpose: purposeText || '-',
       expectedEffect: normalizeDesignMemoValue(values.expectedEffect),
       requestDate: formatDisplayDate(new Date().toISOString()),
@@ -2268,7 +2597,7 @@ const MyBoard: React.FC = () => {
 
   const handleUpdateDesignIdea = React.useCallback(async () => {
     if (!selectedEditableCompound) return;
-    const flushedSmiles = await cdjsInstance?.__flushPendingInput?.();
+    const flushedSmiles = await cdjsInstance?.__flushPendingInput?.({ activateSelectionTool: false });
     const values = await designForm.validateFields();
     const normalizedSmiles = (typeof flushedSmiles === 'string' ? flushedSmiles : designSmiles).trim();
     if (!normalizedSmiles) {
@@ -2360,10 +2689,15 @@ const MyBoard: React.FC = () => {
           chemaxonCalculation: synchronousResults.chemaxonCalculation,
           vpropCalculation: synchronousResults.vpropCalculation,
           quantumCalculations,
+          molecularWeight: synchronousResults.chemaxonCalculation?.data.molecular_weight,
           designNo: values.ideaNumber || compound.designNo,
           name: values.ideaNumber || compound.name,
           designMemo: normalizeDesignMemoValue(values.designMemo),
-          requiredAmountMg: Number(values.requiredAmountMg) || 0,
+          requiredAmountMg: values.requiredAmountMg === undefined ||
+            values.requiredAmountMg === null ||
+            values.requiredAmountMg === ''
+            ? undefined
+            : Number(values.requiredAmountMg),
           assayPurpose: purposeText || '-',
           expectedEffect: normalizeDesignMemoValue(values.expectedEffect),
           synthesisExpansionLevel: expansionText || '-',
@@ -2426,10 +2760,13 @@ const MyBoard: React.FC = () => {
     setIsQuickAddAdding(true);
 
     try {
-      const response = await compoundApi.getCompounds([compoundCode]);
-      const compoundData = response.compounds.find((compound) => (
+      const cachedCompound = quickAddPreview?.compound_code.toLowerCase() === compoundCode.toLowerCase()
+        ? quickAddPreview
+        : null;
+      const response = cachedCompound ? null : await compoundApi.getCompounds([compoundCode]);
+      const compoundData = cachedCompound ?? response?.compounds.find((compound) => (
         compound.compound_code.toLowerCase() === compoundCode.toLowerCase()
-      )) ?? response.compounds[0];
+      )) ?? response?.compounds[0];
 
       const compoundSmiles = compoundData?.smiles?.trim() ?? '';
       if (!compoundData || !compoundSmiles || compoundSmiles.toLowerCase() === 'no permission') {
@@ -2504,6 +2841,7 @@ const MyBoard: React.FC = () => {
     groups,
     modal,
     quickAddCode,
+    quickAddPreview,
     selectedGroupIds,
     selectedQuickAddCode,
   ]);
@@ -2565,7 +2903,7 @@ const MyBoard: React.FC = () => {
       smilesPreview: selectedEditableCompound.smiles || '',
       designMemo: selectedEditableCompound.designMemo === '-' ? '' : selectedEditableCompound.designMemo,
       assayPurpose: selectedPurposePaths.map((path) => path.map(String)),
-      requiredAmountMg: selectedEditableCompound.requiredAmountMg ?? 0,
+      requiredAmountMg: selectedEditableCompound.requiredAmountMg,
       synthesisStep: expansionPaths.map((path) => path.map(String)),
       expectedEffect: selectedEditableCompound.expectedEffect === '-' ? '' : selectedEditableCompound.expectedEffect,
       referenceName,
@@ -2619,7 +2957,7 @@ const MyBoard: React.FC = () => {
 
     if (event.shiftKey) {
       event.preventDefault();
-      const rangeIds = getRangeSelectionIds(filteredCompounds, detailSelectionAnchorRef.current, compoundId);
+      const rangeIds = getRangeSelectionIds(sortedDetailCompounds, detailSelectionAnchorRef.current, compoundId);
       if (event.ctrlKey || event.metaKey) {
         setSelectedDetailCompoundIds((prev) => Array.from(new Set([...prev.map(String), ...rangeIds])));
       } else {
@@ -2637,7 +2975,7 @@ const MyBoard: React.FC = () => {
 
     setSelectedDetailCompoundIds([compoundId]);
     detailSelectionAnchorRef.current = compoundId;
-  }, [filteredCompounds, toggleDetailCompoundSelection]);
+  }, [sortedDetailCompounds, toggleDetailCompoundSelection]);
 
   const contextMenuCompound = compoundContextMenu
     ? compoundRows.find((compound) => compound.id === compoundContextMenu.compoundId)
@@ -2872,17 +3210,23 @@ const MyBoard: React.FC = () => {
   const allColumnsMap: Record<string, any> = {
     '순번': { title: '순번', key: 'num', render: (_: any, __: any, index: number) => index + 1, width: 48 },
     '그룹 번호': {
-      title: '그룹',
+      title: renderDetailSortableTitle('groupOrder', '그룹'),
       dataIndex: 'groupId',
       key: 'groupOrder',
-      width: 56,
+      width: 88,
       align: 'center' as const,
       render: (groupId: string) => selectedGroupOrderMap[groupId] ? `G${selectedGroupOrderMap[groupId]}` : '-'
     },
     '프로젝트': { title: '프로젝트', dataIndex: 'project', key: 'project', width: 80, render: renderProjectTag },
-    '물질 번호 (VRN)': { title: '물질 번호 (VRN)', dataIndex: 'compoundId', key: 'compoundId', width: 128, render: renderCompoundIdStatusCell },
+    '물질 번호 (VRN)': {
+      title: renderDetailSortableTitle('compoundId', '물질 번호 (VRN)'),
+      dataIndex: 'compoundId',
+      key: 'compoundId',
+      width: 152,
+      render: renderCompoundIdStatusCell,
+    },
     '화합물 구조': {
-      title: '화합물 구조',
+      title: renderDetailSortableTitle('structure', '화합물 구조'),
       dataIndex: 'structureSvg',
       key: 'structure',
       width: Math.max(212, detailStructureFrameSize.width + 24),
@@ -2931,10 +3275,10 @@ const MyBoard: React.FC = () => {
       }
     },
     '데이터': {
-      title: '데이터',
+      title: renderDetailSortableTitle('quickViewerAssets', '데이터'),
       dataIndex: 'quickViewerAssets',
       key: 'quickViewerAssets',
-      width: 88,
+      width: 112,
       align: 'center' as const,
       render: (_: unknown, record: Compound) => {
         const assets = record.quickViewerAssets ?? [];
@@ -3001,12 +3345,64 @@ const MyBoard: React.FC = () => {
       render: (props: number[]) => props ? <RadarChart data={props} size={56} color="#5856d6" /> : '-'
     },
     '디자인 번호': { title: '디자인 번호', dataIndex: 'designNo', key: 'designNo', width: 112 },
-    '필요량 (mg)': { title: '필요량 (mg)', dataIndex: 'requiredAmountMg', key: 'requiredAmountMg', width: 104, align: 'right' as const },
+    '필요량 (mg)': {
+      title: '필요량 (mg)',
+      dataIndex: 'requiredAmountMg',
+      key: 'requiredAmountMg',
+      width: 104,
+      align: 'right' as const,
+      render: (value: number | undefined, record: Compound) => (
+        value === undefined || value === null
+          ? '-'
+          : (
+            <Button
+              type="link"
+              size="small"
+              style={{ height: 'auto', padding: 0 }}
+              onClick={(event) => {
+                event.stopPropagation();
+                addExternalCompoundRow(record);
+                navigate('/myboard/synthesis-board', {
+                  state: { synthesisRequestTargetId: record.id },
+                });
+              }}
+            >
+              {formatNumberWithComma(value)}
+            </Button>
+          )
+      ),
+    },
     '목적 (개선하고자 하는 assay)': { title: '목적 (개선하고자 하는 assay)', dataIndex: 'assayPurpose', key: 'assayPurpose', width: 260, render: renderMultilineText },
     '기대 개선 효과': { title: '기대 개선 효과', dataIndex: 'expectedEffect', key: 'expectedEffect', width: 180, render: renderDesignMemoPreview },
-    '의뢰일자': { title: '의뢰일자', dataIndex: 'requestDate', key: 'requestDate', width: 96, render: formatDisplayDate },
+    '합성 의뢰일': {
+      title: '합성 의뢰일',
+      dataIndex: 'requestDate',
+      key: 'requestDate',
+      width: 96,
+      render: (value: string | undefined, record: Compound) => {
+        const displayDate = formatDisplayDate(value);
+        if (!value || displayDate === '-') return '-';
+
+        return (
+          <Button
+            type="link"
+            size="small"
+            style={{ height: 'auto', padding: 0 }}
+            onClick={(event) => {
+              event.stopPropagation();
+              addExternalCompoundRow(record);
+              navigate('/myboard/synthesis-board', {
+                state: { synthesisRequestTargetId: record.id },
+              });
+            }}
+          >
+            {displayDate}
+          </Button>
+        );
+      },
+    },
     '합성 확장 필요 정도': { title: '합성 확장 필요 정도', dataIndex: 'synthesisExpansionLevel', key: 'synthesisExpansionLevel', width: 144 },
-    '의뢰 비고': { title: '의뢰 비고', dataIndex: 'requestMemo', key: 'requestMemo', width: 180, render: renderDesignMemoPreview },
+    '합성 의뢰 비고': { title: '합성 의뢰 비고', dataIndex: 'requestMemo', key: 'requestMemo', width: 180, render: renderDesignMemoPreview },
     '합성 담당자': { title: '합성 담당자', dataIndex: 'synthesisOwner', key: 'synthesisOwner', width: 104 },
     '합성 스터디 그룹 수락일자': { title: '합성 스터디 그룹 수락일자', dataIndex: 'synthesisAcceptedDate', key: 'synthesisAcceptedDate', width: 172, render: formatDisplayDate },
     '합성 목표일': { title: '합성 목표일', dataIndex: 'synthesisTargetDate', key: 'synthesisTargetDate', width: 104, render: formatDisplayDate },
@@ -3648,6 +4044,8 @@ const MyBoard: React.FC = () => {
                       format="YYYY.MM.DD"
                       style={{ borderRadius: 8 }}
                       disabled={period !== '전체'}
+                      value={dateRange}
+                      onChange={(value) => setDateRange(value ? [value[0], value[1]] : null)}
                     />
                   </div>
                 </Space>
@@ -3738,33 +4136,33 @@ const MyBoard: React.FC = () => {
                 <div className="my-board-group-toolbar-actions">
                   <Space size={4}>
                     <Button
-                      type="primary"
+                      type="default"
                       size="small"
                       icon={<Plus size={14} />}
                       onClick={openCreateGroupModal}
-                      style={{
-                        background: token.colorPrimary,
-                        borderColor: token.colorPrimary,
-                      }}
+                      className="my-board-outline-action-button"
+                      style={getOutlineActionButtonStyle(true)}
                     >
                       Add
                     </Button>
                     <Button
-                      type="primary"
+                      type="default"
                       size="small"
                       icon={<Edit3 size={14} />}
                       disabled={!selectedEditableGroup}
-                      style={getCompoundActionButtonStyle(Boolean(selectedEditableGroup))}
+                      className="my-board-outline-action-button"
+                      style={getOutlineActionButtonStyle(Boolean(selectedEditableGroup))}
                       onClick={openEditGroupModal}
                     >
                       Edit
                     </Button>
                     <Button
-                      type="primary"
+                      type="default"
                       size="small"
                       icon={<Trash2 size={14} />}
                       disabled={selectedGroupIds.length === 0}
-                      style={getCompoundActionButtonStyle(selectedGroupIds.length > 0)}
+                      className="my-board-outline-action-button"
+                      style={getOutlineActionButtonStyle(selectedGroupIds.length > 0)}
                       onClick={() => confirmGroupDeletion(selectedGroupIds)}
                     >
                       Del
@@ -3837,7 +4235,13 @@ const MyBoard: React.FC = () => {
               pagination={false}
               size="small"
               rowKey="id"
-              locale={{ emptyText: groupPinFilter === 'pinned' ? '핀 고정된 그룹이 없습니다.' : '그룹이 없습니다.' }}
+              locale={{
+                emptyText: hasActiveSearchFilter
+                  ? '검색 결과가 없습니다.'
+                  : groupPinFilter === 'pinned'
+                    ? '핀 고정된 그룹이 없습니다.'
+                    : '그룹이 없습니다.',
+              }}
               scroll={groupTableScroll}
               tableLayout="fixed"
               onRow={(record) => ({
@@ -3951,34 +4355,47 @@ const MyBoard: React.FC = () => {
                       Quick add
                     </Button>
                     <Button
-                      type="primary"
+                      type="default"
                       size="small"
                       icon={<Plus size={14} />}
                       disabled={!canAddCompound}
-                      style={getCompoundActionButtonStyle(canAddCompound)}
+                      className="my-board-outline-action-button"
+                      style={getOutlineActionButtonStyle(canAddCompound)}
                       onClick={handleOpenDesignModal}
                     >
                       Add
                     </Button>
                     <Button
-                      type="primary"
+                      type="default"
                       size="small"
                       icon={<Edit3 size={14} />}
                       disabled={!canEditCompound}
-                      style={getCompoundActionButtonStyle(canEditCompound)}
+                      className="my-board-outline-action-button"
+                      style={getOutlineActionButtonStyle(canEditCompound)}
                       onClick={handleOpenCompoundEdit}
                     >
                       Edit
                     </Button>
                     <Button
-                      type="primary"
+                      type="default"
                       size="small"
                       icon={<Trash2 size={14} />}
                       disabled={!canDeleteCompound}
-                      style={getCompoundActionButtonStyle(canDeleteCompound)}
+                      className="my-board-outline-action-button"
+                      style={getOutlineActionButtonStyle(canDeleteCompound)}
                       onClick={handleDeleteSelectedCompounds}
                     >
                       Del
+                    </Button>
+                    <Button
+                      type="default"
+                      size="small"
+                      disabled={detailSortRules.length === 0}
+                      className="my-board-outline-action-button"
+                      style={getOutlineActionButtonStyle(detailSortRules.length > 0)}
+                      onClick={clearDetailSorting}
+                    >
+                      Sorting 해제
                     </Button>
                   </Space>
                   <Divider type="vertical" className="my-board-detail-toolbar-divider" />
@@ -4130,7 +4547,7 @@ const MyBoard: React.FC = () => {
                 <div className="my-board-detail-table-wrapper" ref={detailTableWrapperRef}>
                   <Table
                     className="my-board-table my-board-detail-table"
-                    dataSource={selectedGroupIds.length > 0 ? filteredCompounds : []}
+                    dataSource={selectedGroupIds.length > 0 ? sortedDetailCompounds : []}
                     columns={styledDynamicCompoundColumns}
                     size="small"
                     rowKey="id"
@@ -4333,6 +4750,9 @@ const MyBoard: React.FC = () => {
           setSelectedQuickAddCode('');
           setQuickAddResults([]);
           setQuickAddError(null);
+          setQuickAddPreview(null);
+          setQuickAddPreviewError(null);
+          setIsQuickAddPreviewLoading(false);
         }}
         onOk={handleQuickAddCompound}
         okText="추가"
@@ -4391,6 +4811,52 @@ const MyBoard: React.FC = () => {
               );
             }}
           />
+          {selectedQuickAddCode ? (
+            <div style={{ marginTop: 16 }}>
+              <Text strong style={{ display: 'block', marginBottom: 8, fontSize: 12 }}>
+                화합물 구조
+              </Text>
+              <div
+                style={{
+                  minHeight: 200,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  border: `1px solid ${token.colorBorderSecondary}`,
+                  borderRadius: token.borderRadius,
+                  background: token.colorBgContainer,
+                  overflow: 'hidden',
+                }}
+              >
+                {isQuickAddPreviewLoading ? <Spin size="small" /> : null}
+                {!isQuickAddPreviewLoading && quickAddPreviewError ? (
+                  <Text type="secondary" style={{ fontSize: 12 }}>
+                    {quickAddPreviewError}
+                  </Text>
+                ) : null}
+                {!isQuickAddPreviewLoading && quickAddPreview ? (
+                  <CompoundStructureView
+                    key={quickAddPreview.compound_code}
+                    title={quickAddPreview.compound_code}
+                    smiles={quickAddPreview.smiles}
+                    width="100%"
+                    height={200}
+                    iconSize={40}
+                    gap={0}
+                    fullWidth
+                    frameless
+                    preferRdkitSvg
+                    transparentBackground
+                    showPreviewAction={false}
+                    showCopyAction={false}
+                    showCopyImageAction={false}
+                    showChemDrawAction={false}
+                    frameStyle={{ border: 0, background: 'transparent', boxShadow: 'none' }}
+                  />
+                ) : null}
+              </div>
+            </div>
+          ) : null}
         </Form>
       </Modal>
 
@@ -4418,10 +4884,6 @@ const MyBoard: React.FC = () => {
         okButtonProps={{
           disabled: !cdjsInstance || isChemaxonCalculating || isVpropCalculating || isQuantumSubmitting,
           loading: isChemaxonCalculating || isVpropCalculating || isQuantumSubmitting,
-          onMouseDown: (event: React.MouseEvent<HTMLElement>) => {
-            event.preventDefault();
-            void cdjsInstance?.__flushPendingInput?.();
-          },
         }}
         cancelButtonProps={{ disabled: isChemaxonCalculating || isVpropCalculating || isQuantumSubmitting }}
         closable={!isChemaxonCalculating && !isVpropCalculating && !isQuantumSubmitting}
@@ -4463,6 +4925,7 @@ const MyBoard: React.FC = () => {
                     active={isDesignModalOpen || isCompoundEditModalOpen}
                     height={360}
                     flipControlsPlacement="left"
+                    initialSmiles={isCompoundEditModalOpen ? selectedEditableCompound?.smiles : undefined}
                     smilesValue={designSmiles}
                     onSmilesChange={handleDesignSmilesChange}
                     onReady={setCdjsInstance}
@@ -4527,7 +4990,6 @@ const MyBoard: React.FC = () => {
                       name="assayPurpose"
                       label="합성 목적"
                       className="idea-inline-form-item"
-                      rules={[{ required: true, message: '합성 목적을 선택하세요.' }]}
                     >
                       <Cascader
                         multiple
@@ -4580,13 +5042,12 @@ const MyBoard: React.FC = () => {
                       name="requiredAmountMg"
                       label="필요량(mg)"
                       className="idea-inline-form-item"
-                      rules={[{ required: true, message: '필요량을 입력하세요.' }]}
                     >
                       <InputNumber
                         className="patent-insight-filter-number-input"
                         min={0}
                         step={1}
-                        placeholder="10"
+                        placeholder="필요량 입력"
                         style={{ width: '100%' }}
                       />
                     </Form.Item>
@@ -4596,7 +5057,6 @@ const MyBoard: React.FC = () => {
                       name="synthesisStep"
                       label="단계"
                       className="idea-inline-form-item"
-                      rules={[{ required: true, message: '단계를 선택하세요.' }]}
                     >
                       <Cascader
                         multiple
@@ -4617,14 +5077,8 @@ const MyBoard: React.FC = () => {
                     <Form.Item
                       name="expectedEffect"
                       label="기대 개선 효과"
-                      required
                       className="idea-inline-form-item idea-rich-text-form-item"
                       getValueFromEvent={(value) => (typeof value === 'string' ? value : '')}
-                      rules={[{
-                        validator: (_, value) => normalizeDesignMemoValue(value) !== '-'
-                          ? Promise.resolve()
-                          : Promise.reject(new Error('기대 개선 효과를 입력하세요.')),
-                      }]}
                     >
                       <PlainMemoEditor
                         className="idea-design-memo-editor"
@@ -4712,8 +5166,12 @@ const MyBoard: React.FC = () => {
                 label={(
                   <div className="idea-calculation-label">
                     <Text strong style={{ fontSize: 13 }}><Activity size={13} style={{ marginRight: 4 }} />Calculations</Text>
+                    {isEditCalculationLocked && (
+                      <Text type="secondary" style={{ fontSize: 11 }}>기존 작업 변경 불가</Text>
+                    )}
                     <ToggleTag
                       checked={areAllCalculationsSelected}
+                      disabled={isEditCalculationLocked}
                       onChange={(checked) => {
                         setSelectedCalculations(checked ? [...calculationOptions] : []);
                       }}
@@ -4730,6 +5188,7 @@ const MyBoard: React.FC = () => {
                     <ToggleTag
                       key={item}
                       checked={selectedCalculations.includes(item)}
+                      disabled={isEditCalculationLocked}
                       onChange={(checked) => {
                         setSelectedCalculations((prev) => (
                           checked ? [...prev, item] : prev.filter(value => value !== item)
@@ -4855,6 +5314,65 @@ const MyBoard: React.FC = () => {
         className="my-board-structure-preview"
       />
       <style>{`
+        .my-board-detail-sort-header {
+          display: inline-flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          gap: 2px;
+          max-width: 100%;
+          margin: 0;
+          padding: 2px;
+          border: 0;
+          border-radius: 4px;
+          background: transparent;
+          color: inherit;
+          font: inherit;
+          line-height: inherit;
+          text-align: center;
+          cursor: pointer;
+        }
+        .my-board-detail-sort-label {
+          display: block;
+          white-space: normal;
+        }
+        .my-board-detail-sort-meta {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          gap: 4px;
+          min-height: 16px;
+        }
+        .my-board-detail-sort-header:hover,
+        .my-board-detail-sort-header.is-active {
+          color: ${token.colorPrimary};
+        }
+        .my-board-detail-sort-header:focus-visible {
+          outline: 2px solid ${token.colorPrimary};
+          outline-offset: 1px;
+        }
+        .my-board-detail-sort-mode {
+          color: ${token.colorTextSecondary};
+          font-size: 10px;
+          font-weight: 500;
+          white-space: nowrap;
+        }
+        .my-board-detail-sort-priority {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          width: 16px;
+          height: 16px;
+          flex: 0 0 16px;
+          box-sizing: border-box;
+          border: 1px solid ${token.colorText};
+          border-radius: 50%;
+          background: transparent;
+          color: ${token.colorText};
+          font-size: 10px;
+          font-weight: 700;
+          line-height: 16px;
+        }
         .my-board-detail-show-filter {
           display: inline-flex;
           align-items: center;
@@ -5362,6 +5880,12 @@ const MyBoard: React.FC = () => {
           display: inline-flex;
           align-items: center;
           gap: 8px;
+        }
+        .my-board-outline-action-button.ant-btn,
+        .my-board-outline-action-button.ant-btn:not(:disabled):hover,
+        .my-board-outline-action-button.ant-btn:not(:disabled):active {
+          background: transparent !important;
+          box-shadow: none !important;
         }
         .my-board-group-pin-filter {
           flex: 0 0 auto;

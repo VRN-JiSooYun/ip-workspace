@@ -329,13 +329,10 @@ const PatentInsight: React.FC = () => {
     enabled: isGridInteractionEnabled,
     handles: ['se' as const],
   }), [isGridInteractionEnabled]);
-  const collisionPushCompactor = useMemo(() => ({
+  const deferredCollisionCompactor = useMemo(() => ({
     ...noCompactor,
+    allowOverlap: true,
     preventCollision: false,
-    compact: (layout: Layout) => resolveLayoutCollisionsDownward(
-      layout,
-      activeGridInteractionItemRef.current,
-    ),
   }), []);
   const gridConfig = useMemo(() => ({
     cols: gridColumnCount,
@@ -464,16 +461,34 @@ const PatentInsight: React.FC = () => {
 
   const handleGridLayoutChange = React.useCallback((currentLayout: Layout) => {
     if (!isGridInteractionEnabled) return;
+    const nextActiveLayout = activeGridInteractionItemRef.current
+      ? currentLayout
+      : resolveLayoutCollisionsDownward(currentLayout);
     draftGridLayoutsRef.current = normalizePatentInsightLayouts({
       ...draftGridLayoutsRef.current,
-      [activeGridBreakpoint]: currentLayout,
+      [activeGridBreakpoint]: nextActiveLayout,
     });
   }, [activeGridBreakpoint, isGridInteractionEnabled]);
 
-  const handleGridResizeStop = React.useCallback(() => {
+  const commitGridInteractionLayout = React.useCallback((currentLayout: Layout) => {
+    const resolvedLayout = resolveLayoutCollisionsDownward(
+      currentLayout,
+      activeGridInteractionItemRef.current,
+    );
+    const nextLayouts = normalizePatentInsightLayouts({
+      ...draftGridLayoutsRef.current,
+      [activeGridBreakpoint]: resolvedLayout,
+    });
+
+    draftGridLayoutsRef.current = nextLayouts;
+    setDraftGridLayouts(nextLayouts);
     activeGridInteractionItemRef.current = null;
+  }, [activeGridBreakpoint]);
+
+  const handleGridResizeStop = React.useCallback((currentLayout: Layout) => {
+    commitGridInteractionLayout(currentLayout);
     window.dispatchEvent(new Event(CHART_RESIZE_EVENT));
-  }, []);
+  }, [commitGridInteractionLayout]);
 
   const handleGridInteractionStart = React.useCallback((
     _layout: Layout,
@@ -483,9 +498,9 @@ const PatentInsight: React.FC = () => {
     activeGridInteractionItemRef.current = newItem?.i ?? null;
   }, []);
 
-  const handleGridDragStop = React.useCallback(() => {
-    activeGridInteractionItemRef.current = null;
-  }, []);
+  const handleGridDragStop = React.useCallback((currentLayout: Layout) => {
+    commitGridInteractionLayout(currentLayout);
+  }, [commitGridInteractionLayout]);
 
   const handleStartLayoutEdit = () => {
     if (!canEditGridLayout) return;
@@ -1055,7 +1070,7 @@ const PatentInsight: React.FC = () => {
                 width={gridWidth}
                 layout={activeGridLayout}
                 gridConfig={gridConfig}
-                compactor={collisionPushCompactor}
+                compactor={deferredCollisionCompactor}
                 dragConfig={gridDragConfig}
                 resizeConfig={gridResizeConfig}
                 onLayoutChange={handleGridLayoutChange}

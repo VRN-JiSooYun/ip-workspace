@@ -583,7 +583,10 @@ const PatentAnalysisList: React.FC = () => {
       setQuickViewerWidth(PATENT_QUICK_VIEWER_DEFAULT_WIDTH);
     }
   }, []);
-  const applySearchFilters = React.useCallback((nextSearchType?: PatentSearchType) => {
+  const applySearchFilters = React.useCallback((
+    nextSearchType?: PatentSearchType,
+    nextFavoriteOnly: boolean = favoriteOnly,
+  ) => {
     const resolvedSearchType = nextSearchType ?? searchTypeRef.current;
     const nextSearchText = searchText.trim();
     if (resolvedSearchType === 'structure' && !nextSearchText) {
@@ -592,7 +595,7 @@ const PatentAnalysisList: React.FC = () => {
 
     setAppliedSearchType(resolvedSearchType);
     setAppliedSearchText(nextSearchText);
-    setAppliedFavoriteOnly(favoriteOnly);
+    setAppliedFavoriteOnly(nextFavoriteOnly);
     setAppliedProjects(selectedProjects);
     setAppliedPeriod(period);
     setAppliedCustomDateRange(customDateRange);
@@ -601,6 +604,11 @@ const PatentAnalysisList: React.FC = () => {
     setExpandedStructureCompoundIds([]);
     setCurrentPage(1);
   }, [customDateRange, favoriteOnly, message, period, searchText, selectedProjects]);
+  const handleFavoriteFilterToggle = React.useCallback(() => {
+    const nextFavoriteOnly = !favoriteOnly;
+    setFavoriteOnly(nextFavoriteOnly);
+    applySearchFilters(undefined, nextFavoriteOnly);
+  }, [applySearchFilters, favoriteOnly]);
   const handleSearchTypeChange = React.useCallback((value: string | number) => {
     const nextSearchType = value as PatentSearchType;
     searchTypeRef.current = nextSearchType;
@@ -1147,6 +1155,7 @@ const PatentAnalysisList: React.FC = () => {
     smiles?: string,
     options?: {
       stopRowClick?: boolean;
+      onClick?: (event: React.MouseEvent<HTMLDivElement>) => void;
       pptLink?: {
         url: string;
         title: string;
@@ -1161,7 +1170,14 @@ const PatentAnalysisList: React.FC = () => {
     return (
       <div
         className="patent-analysis-compound-structure"
-        onClick={options?.stopRowClick ? (event) => event.stopPropagation() : undefined}
+        onClick={options?.stopRowClick || options?.onClick
+          ? (event) => {
+            if (options?.stopRowClick) {
+              event.stopPropagation();
+            }
+            options?.onClick?.(event);
+          }
+          : undefined}
         style={{
           display: 'flex',
           alignItems: 'center',
@@ -1396,6 +1412,12 @@ const PatentAnalysisList: React.FC = () => {
       render: (svg: string | undefined, record: Patent) => (
         renderStructureColumn(svg, `${record.patentNumber} Key Scaffold`, undefined, {
           stopRowClick: true,
+          onClick: (event) => {
+            selectPatentForQuickView(
+              record,
+              event.currentTarget.closest('tr') as HTMLElement | null,
+            );
+          },
           pptLink: {
             url: getPatentListStructureLink(record.patentNumber, 'keyScaffold'),
             title: `${record.patentNumber} Key Scaffold`,
@@ -1413,6 +1435,12 @@ const PatentAnalysisList: React.FC = () => {
       render: (svg: string | undefined, record: Patent) => (
         renderStructureColumn(svg, `${record.patentNumber} AI Key Compound`, record.keyCompoundSmiles, {
           stopRowClick: true,
+          onClick: (event) => {
+            selectPatentForQuickView(
+              record,
+              event.currentTarget.closest('tr') as HTMLElement | null,
+            );
+          },
           pptLink: {
             url: getPatentListStructureLink(record.patentNumber, 'aiKeyCompound'),
             title: `${record.patentNumber} AI Key Compound`,
@@ -1723,7 +1751,7 @@ const PatentAnalysisList: React.FC = () => {
                     />
                   )}
                   disabled={isStructureSearchMode}
-                  onClick={() => setFavoriteOnly(prev => !prev)}
+                  onClick={handleFavoriteFilterToggle}
                   className="v-action-btn patent-analysis-favorite-toggle"
                 >
                   즐겨찾기 {favoriteOnly ? 'ON' : 'OFF'}
@@ -1864,7 +1892,7 @@ const PatentAnalysisList: React.FC = () => {
 
         <div className="v-table-card patent-analysis-table-card">
           <div className="v-table-header patent-analysis-table-header" style={{ flexWrap: 'wrap', gap: 12 }}>
-            <Text strong style={{ color: token.colorPrimary }}>
+            <Text strong style={{ color: token.colorPrimary, fontSize: 16 }}>
               {appliedStructureSmiles ? '구조 검색 Compound 목록' : '특허 분석 리스트'}
             </Text>
             <Text type="secondary">

@@ -131,6 +131,7 @@ export interface Compound {
   designSource?: string;
   properties1?: number[];
   properties2?: number[];
+  molecularWeight?: number;
   requiredCalcs?: string[];
   chemaxonCalculation?: ChemaxonCalculationResult;
   vpropCalculation?: VpropCalculationResult;
@@ -144,6 +145,7 @@ export interface Compound {
   synthesisExpansionLevel?: string;
   requestMemo?: string;
   synthesisOwner?: string;
+  synthesisStudyGroup?: string;
   synthesisAcceptedDate?: string;
   synthesisTargetDate?: string;
   progressMemo?: string;
@@ -407,6 +409,7 @@ const createMockCompound = (
     designSource: source,
     properties1: [45 + (seed % 5) * 8, 35 + (seed % 7) * 7, 50 + (seed % 6) * 6, 42 + (seed % 8) * 5],
     properties2: [52 + (seed % 6) * 6, 40 + (seed % 5) * 9, 48 + (seed % 7) * 6, 38 + (seed % 6) * 7],
+    molecularWeight: Number((280 + (seed % 19) * 13.7).toFixed(2)),
     requiredCalcs: seed % 2 === 0 ? ['3D PSA QM', 'Solubility QM'] : ['Permeability MD', '특허성'],
     designNo: designName,
     designMemo: `${memoBase} - ${source} 기반 ${seed % 2 === 0 ? '극성 조정' : '치환기 확장'} 후보`,
@@ -417,6 +420,7 @@ const createMockCompound = (
     synthesisExpansionLevel: seed % 3 === 0 ? '상' : seed % 3 === 1 ? '중' : '하',
     requestMemo: seed % 2 === 0 ? '우선 합성 후보' : '후속 SAR 확인용',
     synthesisOwner: synthesisOwners[seed % synthesisOwners.length],
+    synthesisStudyGroup: `합성 ${(seed % 3) + 1}그룹`,
     synthesisAcceptedDate: `2026.05.${String((seed % 18) + 2).padStart(2, '0')}`,
     synthesisTargetDate: `2026.06.${String((seed % 20) + 1).padStart(2, '0')}`,
     progressMemo: isCompleted ? '합성 완료, 분석 등록' : seed % 3 === 0 ? '중간체 확보' : 'route 검토 중',
@@ -462,6 +466,7 @@ const legacyMockCompounds: Compound[] = [
     synthesisExpansionLevel: '중',
     requestMemo: '우선 합성 후보',
     synthesisOwner: '문태훈',
+    synthesisStudyGroup: '합성 1그룹',
     synthesisAcceptedDate: '2026.05.03',
     synthesisTargetDate: '2026.05.24',
     progressMemo: '중간체 확보',
@@ -497,6 +502,7 @@ const legacyMockCompounds: Compound[] = [
     synthesisExpansionLevel: '하',
     requestMemo: '소량 스크리닝',
     synthesisOwner: '윤지수',
+    synthesisStudyGroup: '합성 2그룹',
     synthesisAcceptedDate: '2026.05.05',
     synthesisTargetDate: '2026.05.21',
     progressMemo: 'route 검토 중',
@@ -532,6 +538,7 @@ const legacyMockCompounds: Compound[] = [
     synthesisExpansionLevel: '상',
     requestMemo: '유도체 확장 가능성 확인',
     synthesisOwner: '문태훈',
+    synthesisStudyGroup: '합성 1그룹',
     synthesisAcceptedDate: '2026.05.07',
     synthesisTargetDate: '2026.05.29',
     progressMemo: '1단계 반응 완료',
@@ -567,6 +574,7 @@ const legacyMockCompounds: Compound[] = [
     synthesisExpansionLevel: '중',
     requestMemo: '후속 docking 결과 대기',
     synthesisOwner: '윤지수',
+    synthesisStudyGroup: '합성 2그룹',
     synthesisAcceptedDate: '2026.05.09',
     synthesisTargetDate: '2026.05.23',
     progressMemo: '합성 완료, 정제 중',
@@ -608,6 +616,7 @@ const legacyMockCompounds: Compound[] = [
     synthesisExpansionLevel: '하',
     requestMemo: 'mock group seed',
     synthesisOwner: '문태훈',
+    synthesisStudyGroup: '합성 1그룹',
     synthesisAcceptedDate: '2026.06.01',
     synthesisTargetDate: '2026.06.15',
     progressMemo: 'mock 등록',
@@ -647,6 +656,7 @@ const legacyMockCompounds: Compound[] = [
     synthesisExpansionLevel: '하',
     requestMemo: 'mock group seed',
     synthesisOwner: '윤지수',
+    synthesisStudyGroup: '합성 2그룹',
     synthesisAcceptedDate: '2026.06.01',
     synthesisTargetDate: '2026.06.15',
     progressMemo: 'mock 등록',
