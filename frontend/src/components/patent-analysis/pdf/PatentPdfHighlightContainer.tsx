@@ -20,6 +20,10 @@ const PatentPdfHighlightContainer: React.FC<PatentPdfHighlightContainerProps> = 
   const isSearchActive = highlightId.startsWith('active_search_highlight');
   const isSearchMatch = highlightId.startsWith('search_highlight');
   const isClickableHighlight = Boolean(onHighlightClick && (isCompoundActive || isDataBbox));
+  const highlightSource = (highlight as any).source;
+  const highlightCenterKey = highlightSource?.pageNumber && Array.isArray(highlightSource?.rect)
+    ? `${highlightSource.pageNumber}:${highlightSource.rect.map(Number).join(',')}`
+    : undefined;
 
   if (highlight.type === 'area') {
     // ... (tracing 로직 유지)
@@ -105,6 +109,7 @@ const PatentPdfHighlightContainer: React.FC<PatentPdfHighlightContainerProps> = 
       return (
         <div
           className="patent-pdf-clickable-highlight"
+          data-pdf-highlight-center-key={highlightCenterKey}
           onClick={handleClick}
           style={{ display: 'contents', pointerEvents: 'auto' }}
         >
@@ -130,6 +135,7 @@ const PatentPdfHighlightContainer: React.FC<PatentPdfHighlightContainerProps> = 
         {areaHighlight}
         <div
           className="patent-pdf-clickable-highlight"
+          data-pdf-highlight-center-key={highlightCenterKey}
           onClick={handleClick}
           style={overlayStyle}
         />

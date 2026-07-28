@@ -8,7 +8,7 @@ import {
   Typography,
 } from 'antd';
 import { Download, ExternalLink, RotateCcw, X } from 'lucide-react';
-import type { Patent } from '../../mocks/patents';
+import type { Patent } from '../../types/patent';
 import type { PatentDetailResponse } from '../../services/patentAnalysisApi';
 import { formatDisplayDate } from '../../utils/displayFormat';
 import {

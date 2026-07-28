@@ -276,7 +276,6 @@ const PatentPdfViewerComponent: React.FC<PatentPdfViewerProps> = ({
             display: thumbnailCollapsed ? 'none' : 'flex',
             flexDirection: 'column',
             background: backgroundColor,
-            transition: 'width 0.2s ease',
           }}
         >
           {!thumbnailCollapsed && pdfDoc && (

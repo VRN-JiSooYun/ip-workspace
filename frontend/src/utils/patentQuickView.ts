@@ -1,4 +1,4 @@
-import type { Patent } from '../mocks/patents';
+import type { Patent } from '../types/patent';
 import {
   mapPatentListItem,
   type PatentDetailResponse,

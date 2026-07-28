@@ -28,7 +28,7 @@ import {
   Star
 } from 'lucide-react';
 import BenzeneIcon from '../components/common/BenzeneIcon';
-import { Patent, mockPatents } from '../mocks/patents';
+import type { Patent } from '../types/patent';
 import ChemDrawModal from '../components/common/ChemDrawModal';
 import CompoundStructureView from '../components/common/CompoundStructureView';
 import StructurePreviewModal from '../components/common/StructurePreviewModal';
@@ -425,7 +425,6 @@ const PatentAnalysisList: React.FC = () => {
   const [pageSize, setPageSize] = useState(() => normalizePatentAnalysisPageSize(storedListState.pageSize));
   const [isLoadingPatents, setIsLoadingPatents] = useState(false);
   const [patentListError, setPatentListError] = useState<string | null>(null);
-  const [isUsingMockFallback, setIsUsingMockFallback] = useState(false);
   const [searchType, setSearchType] = useState<PatentSearchType>(() => storedListState.searchType ?? 'title');
   const [appliedSearchType, setAppliedSearchType] = useState<PatentSearchType>(() => storedListState.appliedSearchType ?? 'title');
   const [searchText, setSearchText] = useState(() => storedListState.searchText ?? '');
@@ -980,7 +979,6 @@ const PatentAnalysisList: React.FC = () => {
           setStructureCompounds([]);
           setPatents([]);
           setTotalPatents(0);
-          setIsUsingMockFallback(false);
           return;
         }
 
@@ -1055,7 +1053,6 @@ const PatentAnalysisList: React.FC = () => {
           })));
           setPatents([]);
           setTotalPatents(normalizedTotalCount);
-          setIsUsingMockFallback(false);
           if (response.raw?.proof) {
             const proof = response.raw.proof as {
               helperOperation?: string;
@@ -1076,20 +1073,11 @@ const PatentAnalysisList: React.FC = () => {
         setStructureCompounds([]);
         setPatents(mappedPatents);
         setTotalPatents(normalizedTotalCount);
-        setIsUsingMockFallback(false);
       } catch (error) {
         if (!ignore) {
           setStructureCompounds([]);
-          if (appliedSearchType === 'structure') {
-            setPatents([]);
-            setTotalPatents(0);
-            setIsUsingMockFallback(false);
-          } else {
-            const fallbackPatents = mockPatents.slice((currentPage - 1) * pageSize, currentPage * pageSize);
-            setPatents(fallbackPatents.map(applyFavoriteState));
-            setTotalPatents(mockPatents.length);
-            setIsUsingMockFallback(true);
-          }
+          setPatents([]);
+          setTotalPatents(0);
           const fallbackMessage = appliedStructureSmiles
             ? '구조 검색 API 요청에 실패했습니다.'
             : '특허 목록 API 요청에 실패했습니다.';
@@ -1927,12 +1915,12 @@ const PatentAnalysisList: React.FC = () => {
               )}
             </Space>
           )}
-          {isUsingMockFallback && patentListError && (
+          {patentListError && (
             <Alert
-              type="warning"
+              type="error"
               showIcon
               message={appliedStructureSmiles ? '구조 검색 API 연결 실패' : '특허 목록 API 연결 실패'}
-              description={`${patentListError} 현재 화면은 mock 데이터로 표시됩니다.`}
+              description={patentListError}
               style={{ margin: '12px 12px 0' }}
             />
           )}

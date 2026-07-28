@@ -1,4 +1,4 @@
-import { Patent } from '../mocks/patents';
+import type { Patent } from '../types/patent';
 import { notifyIfAuthRequired } from './authApi';
 
 type RuntimeWindow = Window & {

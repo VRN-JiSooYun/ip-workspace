@@ -140,7 +140,10 @@ export const usePatentPdfViewer = ({
   const lastRebumpTargetRef = React.useRef<string>('');
   const pdfNavigationFrameRef = React.useRef<number | null>(null);
   const pdfNavigationTimeoutsRef = React.useRef<number[]>([]);
+  const pdfHighlightCenterRequestRef = React.useRef(0);
+  const pdfHighlightCenterTimersRef = React.useRef<number[]>([]);
   const highlightLayoutTimerRef = React.useRef<number | null>(null);
+  const pdfPageSizeRequestsRef = React.useRef<Map<number, any>>(new Map());
 
   const [pdfCurrentPage, setPdfCurrentPage] = React.useState<number>(1);
   const [pdfTotalPages, setPdfTotalPages] = React.useState<number>(0);
@@ -175,9 +178,19 @@ export const usePatentPdfViewer = ({
   );
 
   const ensurePdfPageSize = React.useCallback((pageNumber: number) => {
-    if (!pageNumber || pdfPageSizes[pageNumber] || !pdfDocumentRef.current) return;
+    const pdfDocument = pdfDocumentRef.current;
+    if (
+      !pageNumber
+      || pdfPageSizes[pageNumber]
+      || !pdfDocument
+      || pdfPageSizeRequestsRef.current.get(pageNumber) === pdfDocument
+    ) {
+      return;
+    }
 
-    pdfDocumentRef.current.getPage(pageNumber).then((page: any) => {
+    pdfPageSizeRequestsRef.current.set(pageNumber, pdfDocument);
+    pdfDocument.getPage(pageNumber).then((page: any) => {
+      if (pdfDocumentRef.current !== pdfDocument) return;
       const viewport = page.getViewport({ scale: 1 });
       setPdfPageSizes((prev) => {
         if (prev[pageNumber]) return prev;
@@ -191,6 +204,10 @@ export const usePatentPdfViewer = ({
       });
     }).catch((error: unknown) => {
       console.warn(`Failed to get PDF page size for page ${pageNumber}`, error);
+    }).finally(() => {
+      if (pdfPageSizeRequestsRef.current.get(pageNumber) === pdfDocument) {
+        pdfPageSizeRequestsRef.current.delete(pageNumber);
+      }
     });
   }, [pdfPageSizes]);
 
@@ -374,6 +391,74 @@ export const usePatentPdfViewer = ({
     pdfNavigationTimeoutsRef.current = [];
   }, []);
 
+  const clearPdfHighlightCenterTimers = React.useCallback(() => {
+    pdfHighlightCenterRequestRef.current += 1;
+    pdfHighlightCenterTimersRef.current.forEach((timer) => window.clearTimeout(timer));
+    pdfHighlightCenterTimersRef.current = [];
+  }, []);
+
+  const schedulePdfHighlightCenter = React.useCallback((highlight: any) => {
+    const pageNumber = Number(highlight?.source?.pageNumber ?? highlight?.position?.pageNumber);
+    const rect = Array.isArray(highlight?.source?.rect)
+      ? highlight.source.rect.map(Number)
+      : [];
+    if (!pageNumber || rect.length < 4) return;
+
+    clearPdfHighlightCenterTimers();
+    const requestId = pdfHighlightCenterRequestRef.current;
+    const centerKey = `${pageNumber}:${rect.join(',')}`;
+    const utils = highlighterUtilsRef.current;
+
+    // 대상 페이지를 먼저 렌더 영역으로 가져온 후 실제 bbox DOM 좌표로 중앙을 보정한다.
+    utils?.scrollToHighlight(highlight);
+
+    let centered = false;
+    const centerWhenReady = () => {
+      if (centered || requestId !== pdfHighlightCenterRequestRef.current) return;
+
+      const viewerContainer = (highlighterUtilsRef.current as any)?.getViewer?.()?.container as HTMLElement | undefined;
+      if (!viewerContainer) return;
+
+      const highlightElements = pdfViewerContainerRef.current
+        ?.querySelectorAll<HTMLElement>('[data-pdf-highlight-center-key]');
+      const highlightElement = Array.from(highlightElements ?? []).find(
+        (element) => element.dataset.pdfHighlightCenterKey === centerKey,
+      );
+      if (!highlightElement) return;
+
+      const containerRect = viewerContainer.getBoundingClientRect();
+      const highlightRect = highlightElement.getBoundingClientRect();
+      if (containerRect.height <= 0 || highlightRect.height <= 0) return;
+
+      const highlightCenterY = highlightRect.top + (highlightRect.height / 2);
+      const viewportCenterY = containerRect.top + (containerRect.height / 2);
+      const maxScrollTop = Math.max(0, viewerContainer.scrollHeight - viewerContainer.clientHeight);
+      const nextScrollTop = clamp(
+        viewerContainer.scrollTop + highlightCenterY - viewportCenterY,
+        0,
+        maxScrollTop,
+      );
+      const prefersReducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+
+      viewerContainer.scrollTo({
+        top: nextScrollTop,
+        behavior: prefersReducedMotion ? 'auto' : 'smooth',
+      });
+      centered = true;
+      debugLog('compound-highlight-centered', {
+        pageNumber,
+        centerKey,
+        nextScrollTop,
+      });
+    };
+
+    pdfHighlightCenterTimersRef.current = [80, 180, 350, 650].map((delay) => (
+      window.setTimeout(() => {
+        window.requestAnimationFrame(centerWhenReady);
+      }, delay)
+    ));
+  }, [clearPdfHighlightCenterTimers, debugLog]);
+
   const runPdfPageNavigation = React.useCallback((targetPage: number) => {
     if (!targetPage) return;
 
@@ -414,6 +499,7 @@ export const usePatentPdfViewer = ({
     if (!targetPage) return;
 
     debugLog('handle-goto-pdf-start', { targetPage, bboxCoords });
+    clearPdfHighlightCenterTimers();
     setPdfCurrentPage(targetPage);
     // 우측 탭/카드에서 활성화하면 좌측 blue box 선택(red)은 해제 → red는 항상 하나만 유지
     setSelectedDataHighlightId((prev) => (prev ? null : prev));
@@ -435,7 +521,7 @@ export const usePatentPdfViewer = ({
     }
 
     schedulePdfPageNavigation(targetPage);
-  }, [debugLog, ensurePdfPageSize, schedulePdfPageNavigation]);
+  }, [clearPdfHighlightCenterTimers, debugLog, ensurePdfPageSize, schedulePdfPageNavigation]);
 
   // 좌측 blue box 클릭 시 우측 활성화로 생긴 active_compound_highlight(red)를 제거
   const clearActiveCompoundHighlight = React.useCallback(() => {
@@ -443,13 +529,15 @@ export const usePatentPdfViewer = ({
     setActiveBBox((prev) => (prev ? null : prev));
     setPendingHighlight((prev) => (prev ? null : prev));
     lastRebumpTargetRef.current = '';
-  }, []);
+    clearPdfHighlightCenterTimers();
+  }, [clearPdfHighlightCenterTimers]);
 
   React.useEffect(() => (
     () => {
       clearPdfNavigationTimers();
+      clearPdfHighlightCenterTimers();
     }
-  ), [clearPdfNavigationTimers]);
+  ), [clearPdfHighlightCenterTimers, clearPdfNavigationTimers]);
 
   React.useEffect(() => {
     if (!pendingHighlight) return;
@@ -477,7 +565,7 @@ export const usePatentPdfViewer = ({
       return;
     }
 
-    setSystemHighlights([{
+    const activeHighlight = {
       id: `active_compound_highlight_${activeHighlightRevision}_${pendingHighlight.pageNumber}`,
       type: 'area',
       content: { text: '' },
@@ -487,19 +575,32 @@ export const usePatentPdfViewer = ({
         rect: pendingHighlight.rect,
       },
       comment: { text: '', emoji: '' },
-    }]);
+    };
+    setSystemHighlights([activeHighlight]);
     setActiveBBox({
       pageNumber: pendingHighlight.pageNumber,
       rect: pendingHighlight.rect,
     });
     setActiveHighlightRevision((prev) => prev + 1);
     setPendingHighlight(null);
-  }, [activeHighlightRevision, bboxToPosition, debugLog, ensurePdfPageSize, pdfPageSizes, pendingHighlight]);
+    schedulePdfHighlightCenter(activeHighlight);
+  }, [
+    activeHighlightRevision,
+    bboxToPosition,
+    debugLog,
+    ensurePdfPageSize,
+    pdfPageSizes,
+    pendingHighlight,
+    schedulePdfHighlightCenter,
+  ]);
 
   React.useEffect(() => {
     if (!isPdfDocumentReady) return;
-    dataHighlightTargets.forEach((target) => {
-      ensurePdfPageSize(target.pageNumber);
+    const uniquePageNumbers = new Set(
+      dataHighlightTargets.map((target) => target.pageNumber).filter(Boolean),
+    );
+    uniquePageNumbers.forEach((pageNumber) => {
+      ensurePdfPageSize(pageNumber);
     });
   }, [dataHighlightTargets, ensurePdfPageSize, isPdfDocumentReady]);
 
@@ -580,6 +681,21 @@ export const usePatentPdfViewer = ({
     return [...base, ...dataHighlights, ...system, ...user];
   }, [currentHighlights, dataHighlights, highlightLayoutRevision, userHighlights, systemHighlights]);
 
+  const setPdfDocument = React.useCallback((pdfDocument: any) => {
+    const documentChanged = pdfDocumentRef.current !== pdfDocument;
+    pdfDocumentRef.current = pdfDocument;
+    if (documentChanged) {
+      pdfPageSizeRequestsRef.current.clear();
+      setPdfPageSizes({});
+    }
+    setIsPdfDocumentReady(Boolean(pdfDocument));
+  }, []);
+
+  const setHighlighterUtils = React.useCallback((utils: any) => {
+    highlighterUtilsRef.current = utils;
+    setIsHighlighterReady(Boolean(utils));
+  }, []);
+
   // Public API
   return {
     pdfViewerContainerRef,
@@ -601,14 +717,8 @@ export const usePatentPdfViewer = ({
     pdfCurrentPage,
     setPdfCurrentPage,
     setPdfRotation,
-    setPdfDocument: (doc: any) => {
-      pdfDocumentRef.current = doc;
-      setIsPdfDocumentReady(Boolean(doc));
-    },
-    setHighlighterUtils: (utils: any) => {
-      highlighterUtilsRef.current = utils;
-      setIsHighlighterReady(Boolean(utils));
-    },
+    setPdfDocument,
+    setHighlighterUtils,
     setPdfTotalPages,
     // Highlight Handlers
     userHighlights,

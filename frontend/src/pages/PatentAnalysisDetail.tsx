@@ -37,8 +37,7 @@ import {
   Download,
   Star,
 } from 'lucide-react';
-import { Patent } from '../mocks/patents';
-import { mergeEmbodimentPayload } from '../mocks/patentAnalysisMockApi';
+import type { Patent } from '../types/patent';
 import { getPatentAnalysisLayoutPreset } from '../config/patentAnalysisLayout';
 import { useUIStore } from '../store/useUIStore';
 import PageHeaderBreadcrumb from '../components/common/PageHeaderBreadcrumb';
@@ -55,6 +54,7 @@ import PatentPdfViewer from '../components/patent-analysis/pdf/PatentPdfViewer';
 import { usePatentPdfViewer } from '../hooks/usePatentPdfViewer';
 import { mapPatentListItem, patentAnalysisApi } from '../services/patentAnalysisApi';
 import { formatDisplayDate, formatNumberWithComma } from '../utils/displayFormat';
+import { mergeEmbodimentPayload } from '../utils/patentAnalysisData';
 import {
   downloadPatentPdfFile,
   resolvePatentPdfDocument,
@@ -78,6 +78,33 @@ const PATENT_ANALYSIS_FAVORITE_STATE_PREFIX = 'patent-analysis-favorite-state';
 const RAW_DATA_DEFAULT_PAGE_SIZE = 30;
 const RAW_DATA_PAGE_SIZE_OPTIONS = [10, 30, 50, 100];
 const PATENT_DATA_STRUCTURE_SIZE = 176;
+
+const useDeferredTableBinding = (active: boolean, bindingKey: string) => {
+  const [readyKey, setReadyKey] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    if (!active) {
+      setReadyKey(null);
+      return undefined;
+    }
+
+    let secondFrame = 0;
+    const firstFrame = window.requestAnimationFrame(() => {
+      secondFrame = window.requestAnimationFrame(() => {
+        setReadyKey(bindingKey);
+      });
+    });
+
+    return () => {
+      window.cancelAnimationFrame(firstFrame);
+      if (secondFrame) {
+        window.cancelAnimationFrame(secondFrame);
+      }
+    };
+  }, [active, bindingKey]);
+
+  return active && readyKey === bindingKey;
+};
 
 const getAvailableScaffoldRanks = (rows: any[]) => (
   Array.from(new Set(
@@ -616,8 +643,9 @@ const PatentAnalysisDetail: React.FC = () => {
   });
   const splitContainerRef = React.useRef<HTMLDivElement | null>(null);
   const splitRafRef = React.useRef<number | null>(null);
-  const lastSplitUpdateAtRef = React.useRef(0);
-  const lastSplitRatioRef = React.useRef(SPLIT_DEFAULT_PERCENT);
+  const pendingSplitRatioRef = React.useRef<number | null>(null);
+  const splitGuideRef = React.useRef<HTMLDivElement | null>(null);
+  const layoutResizeRafRef = React.useRef<number | null>(null);
   const autoCompoundHighlightRef = React.useRef('');
   const rawDataTableRef = React.useRef<any>(null);
   const rawDataTabContentRef = React.useRef<HTMLDivElement | null>(null);
@@ -648,6 +676,16 @@ const PatentAnalysisDetail: React.FC = () => {
       ? { x: 'max-content' as const }
       : { x: 'max-content' as const, y: cleanTableScrollY }
   ), [cleanTableScrollY]);
+  const rawTableDataBindingKey = `${displayedPatent?.patentNumber ?? ''}:${rawDataExcelRowCount}`;
+  const cleanTableDataBindingKey = `${displayedPatent?.patentNumber ?? ''}:${cleanDataExcelRowCount}`;
+  const isRawTableDataReady = useDeferredTableBinding(
+    activeTab === 'raw-data' && rawDataView === 'table',
+    rawTableDataBindingKey,
+  );
+  const isCleanTableDataReady = useDeferredTableBinding(
+    activeTab === 'clean-data' && cleanDataView === 'table',
+    cleanTableDataBindingKey,
+  );
   const paginationItemRender = React.useCallback((page: number, type: string, originalElement: React.ReactNode) => (
     type === 'page' ? <span>{formatNumberWithComma(page)}</span> : originalElement
   ), []);
@@ -720,33 +758,47 @@ const PatentAnalysisDetail: React.FC = () => {
   }, [cleanScaffoldRankFilter]);
 
   useEffect(() => {
-    const onResize = () => {
-      setViewportWidth(window.innerWidth);
-    };
-    window.addEventListener('resize', onResize);
-    return () => window.removeEventListener('resize', onResize);
-  }, []);
-
-  useEffect(() => {
     const container = splitContainerRef.current;
-    if (!container || typeof ResizeObserver === 'undefined') return;
+    if (!container) return undefined;
 
-    const resizeObserver = new ResizeObserver(([entry]) => {
-      setSplitContainerWidth(entry.contentRect.width);
-    });
-    resizeObserver.observe(container);
-    setSplitContainerWidth(container.getBoundingClientRect().width);
+    const updateLayoutWidths = () => {
+      layoutResizeRafRef.current = null;
+      const nextViewportWidth = window.innerWidth;
+      const nextContainerWidth = container.getBoundingClientRect().width;
 
-    return () => resizeObserver.disconnect();
-  }, []);
+      setViewportWidth((current) => (
+        Math.abs(current - nextViewportWidth) < 1 ? current : nextViewportWidth
+      ));
+      setSplitContainerWidth((current) => (
+        Math.abs(current - nextContainerWidth) < 1 ? current : nextContainerWidth
+      ));
+    };
+    const scheduleLayoutWidthUpdate = () => {
+      if (layoutResizeRafRef.current !== null) {
+        window.cancelAnimationFrame(layoutResizeRafRef.current);
+      }
+      layoutResizeRafRef.current = window.requestAnimationFrame(updateLayoutWidths);
+    };
 
-  useEffect(() => {
-    lastSplitRatioRef.current = splitRatio;
-  }, [splitRatio]);
+    const resizeObserver = typeof ResizeObserver === 'undefined'
+      ? null
+      : new ResizeObserver(scheduleLayoutWidthUpdate);
+    resizeObserver?.observe(container);
+    window.addEventListener('resize', scheduleLayoutWidthUpdate);
+    scheduleLayoutWidthUpdate();
+
+    return () => {
+      resizeObserver?.disconnect();
+      window.removeEventListener('resize', scheduleLayoutWidthUpdate);
+      if (layoutResizeRafRef.current !== null) {
+        window.cancelAnimationFrame(layoutResizeRafRef.current);
+        layoutResizeRafRef.current = null;
+      }
+    };
+  }, [displayedPatent?.patentNumber]);
 
   React.useLayoutEffect(() => {
     if (activeTab !== 'raw-data' || rawDataView !== 'table') {
-      setRawTableScrollY(undefined);
       return undefined;
     }
 
@@ -754,68 +806,84 @@ const PatentAnalysisDetail: React.FC = () => {
     const tableShell = rawDataTableShellRef.current;
     if (!tabContent || !tableShell) return undefined;
 
-    let animationFrame = 0;
-    const updateRawTableHeight = () => {
-      cancelAnimationFrame(animationFrame);
-      animationFrame = window.requestAnimationFrame(() => {
-        if (isStackedSplitLayout) {
-          setRawTableScrollY(undefined);
-          return;
-        }
+    let animationFrame: number | null = null;
+    const measureRawTableHeight = () => {
+      animationFrame = null;
 
-        const tableBody = tableShell.querySelector<HTMLElement>('.ant-table-body');
-        const tableContent = tableShell.querySelector<HTMLElement>('.ant-table-content');
-        const tableRows = tableShell.querySelector<HTMLElement>('.raw-data-embodiment-table .ant-table-tbody');
-        const tableMeasureElement = tableBody ?? tableContent ?? tableRows;
-        if (!tableMeasureElement || !tableRows) return;
+      const tabContentRect = tabContent.getBoundingClientRect();
+      const tableShellRect = tableShell.getBoundingClientRect();
+      const splitContainerBottom = splitContainerRef.current?.getBoundingClientRect().bottom;
+      const tableBody = tableShell.querySelector<HTMLElement>('.ant-table-body');
+      const tableContent = tableShell.querySelector<HTMLElement>('.ant-table-content');
+      const tableContainer = tableShell.querySelector<HTMLElement>('.ant-table-container');
+      const tableMeasureElement = tableBody ?? tableContent ?? tableContainer;
+      if (
+        tabContentRect.width <= 0
+        || tabContentRect.height <= 0
+        || tableShellRect.width <= 0
+        || tableShellRect.height <= 0
+        || !tableMeasureElement
+      ) {
+        return;
+      }
 
-        const pagination = tableShell.querySelector<HTMLElement>('.ant-pagination');
-        const paginationStyle = pagination ? window.getComputedStyle(pagination) : null;
-        const paginationReserve = pagination
-          ? Math.ceil(
-              pagination.getBoundingClientRect().height
-              + Number.parseFloat(paginationStyle?.marginTop || '0')
-              + Number.parseFloat(paginationStyle?.marginBottom || '0'),
-            )
-          : 48;
-        const maxBodyHeight = Math.max(
-          160,
-          Math.floor(
-            tabContent.getBoundingClientRect().bottom
-            - tableMeasureElement.getBoundingClientRect().top
-            - paginationReserve
-            - 16
-            - 2,
-          ),
-        );
-        const rowsHeight = Math.ceil(tableRows.getBoundingClientRect().height);
-        const nextHeight = rowsHeight <= maxBodyHeight ? undefined : maxBodyHeight;
+      const pagination = tableShell.querySelector<HTMLElement>('.ant-pagination');
+      const paginationStyle = pagination ? window.getComputedStyle(pagination) : null;
+      const paginationReserve = pagination
+        ? Math.ceil(
+            pagination.getBoundingClientRect().height
+            + Number.parseFloat(paginationStyle?.marginTop || '0')
+            + Number.parseFloat(paginationStyle?.marginBottom || '0'),
+          )
+        : 48;
+      const maxBodyHeight = isStackedSplitLayout
+        ? Math.min(560, Math.max(240, Math.floor(window.innerHeight * 0.45)))
+        : Math.max(
+            160,
+            Math.floor(
+              (splitContainerBottom ?? tabContentRect.bottom)
+              - tableMeasureElement.getBoundingClientRect().top
+              - paginationReserve
+              - 16
+              - 2,
+            ),
+          );
 
-        setRawTableScrollY((current) => (
-          current === nextHeight ? current : nextHeight
-        ));
-      });
+      setRawTableScrollY((current) => (
+        current === maxBodyHeight ? current : maxBodyHeight
+      ));
+    };
+    const scheduleRawTableHeightUpdate = () => {
+      if (animationFrame !== null) return;
+      animationFrame = window.requestAnimationFrame(measureRawTableHeight);
     };
 
-    const resizeObserver = new ResizeObserver(updateRawTableHeight);
-    const mutationObserver = new MutationObserver(updateRawTableHeight);
+    const resizeObserver = new ResizeObserver(scheduleRawTableHeightUpdate);
     resizeObserver.observe(tabContent);
     resizeObserver.observe(tableShell);
-    mutationObserver.observe(tableShell, { childList: true, subtree: true });
-    window.addEventListener('resize', updateRawTableHeight);
-    updateRawTableHeight();
+    window.addEventListener('resize', scheduleRawTableHeightUpdate);
+    scheduleRawTableHeightUpdate();
+
+    // rc-tabs와 rc-table이 최초 활성 탭의 너비/본문 DOM을 순차 생성하므로
+    // 짧고 제한된 재측정으로 첫 진입 레이아웃만 안정화한다.
+    const initialRetryTimers = [0, 50, 150, 300].map((delay) => (
+      window.setTimeout(scheduleRawTableHeightUpdate, delay)
+    ));
 
     return () => {
-      cancelAnimationFrame(animationFrame);
+      if (animationFrame !== null) {
+        window.cancelAnimationFrame(animationFrame);
+      }
+      initialRetryTimers.forEach((timer) => window.clearTimeout(timer));
       resizeObserver.disconnect();
-      mutationObserver.disconnect();
-      window.removeEventListener('resize', updateRawTableHeight);
+      window.removeEventListener('resize', scheduleRawTableHeightUpdate);
     };
   }, [
     activeTab,
     isStackedSplitLayout,
     rawDataExcelRowCount,
     rawDataView,
+    isRawTableDataReady,
     rawTableCurrentPage,
     rawTablePageSize,
     rGroupFilter,
@@ -825,7 +893,6 @@ const PatentAnalysisDetail: React.FC = () => {
 
   React.useLayoutEffect(() => {
     if (activeTab !== 'clean-data' || cleanDataView !== 'table') {
-      setCleanTableScrollY(undefined);
       return undefined;
     }
 
@@ -833,67 +900,81 @@ const PatentAnalysisDetail: React.FC = () => {
     const tableShell = cleanDataTableShellRef.current;
     if (!tabContent || !tableShell) return undefined;
 
-    let animationFrame = 0;
-    const updateCleanTableHeight = () => {
-      cancelAnimationFrame(animationFrame);
-      animationFrame = window.requestAnimationFrame(() => {
-        if (isStackedSplitLayout) {
-          setCleanTableScrollY(undefined);
-          return;
-        }
+    let animationFrame: number | null = null;
+    const measureCleanTableHeight = () => {
+      animationFrame = null;
 
-        const tableBody = tableShell.querySelector<HTMLElement>('.ant-table-body');
-        const tableContent = tableShell.querySelector<HTMLElement>('.ant-table-content');
-        const tableRows = tableShell.querySelector<HTMLElement>('.raw-data-embodiment-table .ant-table-tbody');
-        const tableMeasureElement = tableBody ?? tableContent ?? tableRows;
-        if (!tableMeasureElement || !tableRows) return;
+      const tabContentRect = tabContent.getBoundingClientRect();
+      const tableShellRect = tableShell.getBoundingClientRect();
+      const splitContainerBottom = splitContainerRef.current?.getBoundingClientRect().bottom;
+      const tableBody = tableShell.querySelector<HTMLElement>('.ant-table-body');
+      const tableContent = tableShell.querySelector<HTMLElement>('.ant-table-content');
+      const tableContainer = tableShell.querySelector<HTMLElement>('.ant-table-container');
+      const tableMeasureElement = tableBody ?? tableContent ?? tableContainer;
+      if (
+        tabContentRect.width <= 0
+        || tabContentRect.height <= 0
+        || tableShellRect.width <= 0
+        || tableShellRect.height <= 0
+        || !tableMeasureElement
+      ) {
+        return;
+      }
 
-        const pagination = tableShell.querySelector<HTMLElement>('.ant-pagination');
-        const paginationStyle = pagination ? window.getComputedStyle(pagination) : null;
-        const paginationReserve = pagination
-          ? Math.ceil(
-              pagination.getBoundingClientRect().height
-              + Number.parseFloat(paginationStyle?.marginTop || '0')
-              + Number.parseFloat(paginationStyle?.marginBottom || '0'),
-            )
-          : 48;
-        const maxBodyHeight = Math.max(
-          160,
-          Math.floor(
-            tabContent.getBoundingClientRect().bottom
-            - tableMeasureElement.getBoundingClientRect().top
-            - paginationReserve
-            - 16
-            - 2,
-          ),
-        );
-        const rowsHeight = Math.ceil(tableRows.getBoundingClientRect().height);
-        const nextHeight = rowsHeight <= maxBodyHeight ? undefined : maxBodyHeight;
+      const pagination = tableShell.querySelector<HTMLElement>('.ant-pagination');
+      const paginationStyle = pagination ? window.getComputedStyle(pagination) : null;
+      const paginationReserve = pagination
+        ? Math.ceil(
+            pagination.getBoundingClientRect().height
+            + Number.parseFloat(paginationStyle?.marginTop || '0')
+            + Number.parseFloat(paginationStyle?.marginBottom || '0'),
+          )
+        : 48;
+      const maxBodyHeight = isStackedSplitLayout
+        ? Math.min(560, Math.max(240, Math.floor(window.innerHeight * 0.45)))
+        : Math.max(
+            160,
+            Math.floor(
+              (splitContainerBottom ?? tabContentRect.bottom)
+              - tableMeasureElement.getBoundingClientRect().top
+              - paginationReserve
+              - 16
+              - 2,
+            ),
+          );
 
-        setCleanTableScrollY((current) => (
-          current === nextHeight ? current : nextHeight
-        ));
-      });
+      setCleanTableScrollY((current) => (
+        current === maxBodyHeight ? current : maxBodyHeight
+      ));
+    };
+    const scheduleCleanTableHeightUpdate = () => {
+      if (animationFrame !== null) return;
+      animationFrame = window.requestAnimationFrame(measureCleanTableHeight);
     };
 
-    const resizeObserver = new ResizeObserver(updateCleanTableHeight);
-    const mutationObserver = new MutationObserver(updateCleanTableHeight);
+    const resizeObserver = new ResizeObserver(scheduleCleanTableHeightUpdate);
     resizeObserver.observe(tabContent);
     resizeObserver.observe(tableShell);
-    mutationObserver.observe(tableShell, { childList: true, subtree: true });
-    window.addEventListener('resize', updateCleanTableHeight);
-    updateCleanTableHeight();
+    window.addEventListener('resize', scheduleCleanTableHeightUpdate);
+    scheduleCleanTableHeightUpdate();
+
+    const initialRetryTimers = [0, 50, 150, 300].map((delay) => (
+      window.setTimeout(scheduleCleanTableHeightUpdate, delay)
+    ));
 
     return () => {
-      cancelAnimationFrame(animationFrame);
+      if (animationFrame !== null) {
+        window.cancelAnimationFrame(animationFrame);
+      }
+      initialRetryTimers.forEach((timer) => window.clearTimeout(timer));
       resizeObserver.disconnect();
-      mutationObserver.disconnect();
-      window.removeEventListener('resize', updateCleanTableHeight);
+      window.removeEventListener('resize', scheduleCleanTableHeightUpdate);
     };
   }, [
     activeTab,
     cleanDataExcelRowCount,
     cleanDataView,
+    isCleanTableDataReady,
     cleanTableCurrentPage,
     cleanTablePageSize,
     cleanScaffoldRankFilter,
@@ -951,24 +1032,28 @@ const PatentAnalysisDetail: React.FC = () => {
     requestedCompoundId,
   ]);
 
-  const updateSplitRatioFromClientX = React.useCallback((clientX: number) => {
+  const previewSplitRatioFromClientX = React.useCallback((clientX: number) => {
     const container = splitContainerRef.current;
     if (!container) return;
     const rect = container.getBoundingClientRect();
     if (rect.width <= 0) return;
     const nextRatio = ((clientX - rect.left) / rect.width) * 100;
     const clampedRatio = clampSplitRatio(nextRatio);
-    const now = window.performance.now();
-    const isMeaningfulChange = Math.abs(clampedRatio - lastSplitRatioRef.current) >= 0.4;
-    const canUpdate = now - lastSplitUpdateAtRef.current >= 32;
-    if (!isMeaningfulChange || !canUpdate) return;
-
-    lastSplitUpdateAtRef.current = now;
-    lastSplitRatioRef.current = clampedRatio;
-    setSplitRatio(clampedRatio);
+    pendingSplitRatioRef.current = clampedRatio;
+    if (splitGuideRef.current) {
+      splitGuideRef.current.style.left = `${clampedRatio}%`;
+    }
   }, [clampSplitRatio]);
 
-  const stopSplitResize = React.useCallback(() => {
+  const stopSplitResize = React.useCallback((commit: boolean = true) => {
+    const pendingSplitRatio = pendingSplitRatioRef.current;
+    if (commit && pendingSplitRatio !== null) {
+      setSplitRatio(pendingSplitRatio);
+    }
+    pendingSplitRatioRef.current = null;
+    if (splitGuideRef.current) {
+      splitGuideRef.current.style.display = 'none';
+    }
     setIsResizingSplit(false);
     document.body.style.cursor = '';
     document.body.style.userSelect = '';
@@ -978,15 +1063,21 @@ const PatentAnalysisDetail: React.FC = () => {
     if (!isResizingSplit) return;
 
     const onMouseMove = (event: MouseEvent) => {
-      if (splitRafRef.current) {
+      if (splitRafRef.current !== null) {
         window.cancelAnimationFrame(splitRafRef.current);
       }
       splitRafRef.current = window.requestAnimationFrame(() => {
-        updateSplitRatioFromClientX(event.clientX);
+        splitRafRef.current = null;
+        previewSplitRatioFromClientX(event.clientX);
       });
     };
 
-    const onMouseUp = () => {
+    const onMouseUp = (event: MouseEvent) => {
+      if (splitRafRef.current !== null) {
+        window.cancelAnimationFrame(splitRafRef.current);
+        splitRafRef.current = null;
+      }
+      previewSplitRatioFromClientX(event.clientX);
       stopSplitResize();
     };
 
@@ -996,19 +1087,30 @@ const PatentAnalysisDetail: React.FC = () => {
     return () => {
       window.removeEventListener('mousemove', onMouseMove);
       window.removeEventListener('mouseup', onMouseUp);
-      if (splitRafRef.current) {
+      if (splitRafRef.current !== null) {
         window.cancelAnimationFrame(splitRafRef.current);
         splitRafRef.current = null;
       }
+      pendingSplitRatioRef.current = null;
+      if (splitGuideRef.current) {
+        splitGuideRef.current.style.display = 'none';
+      }
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
     };
-  }, [isResizingSplit, stopSplitResize, updateSplitRatioFromClientX]);
+  }, [isResizingSplit, previewSplitRatioFromClientX, stopSplitResize]);
 
   const handleSplitMouseDown = React.useCallback((event: React.MouseEvent<HTMLDivElement>) => {
     event.preventDefault();
+    pendingSplitRatioRef.current = splitRatio;
+    if (splitGuideRef.current) {
+      splitGuideRef.current.style.left = `${splitRatio}%`;
+      splitGuideRef.current.style.display = 'block';
+    }
     setIsResizingSplit(true);
     document.body.style.cursor = 'col-resize';
     document.body.style.userSelect = 'none';
-  }, []);
+  }, [splitRatio]);
 
   const handleSplitKeyDown = React.useCallback((event: React.KeyboardEvent<HTMLDivElement>) => {
     const step = 2;
@@ -1622,7 +1724,7 @@ const PatentAnalysisDetail: React.FC = () => {
             type="warning"
             showIcon
             message="특허 상세 API 연결 실패"
-            description="현재 화면은 mock 데이터로 표시됩니다."
+            description="특허 상세 데이터를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요."
             style={{ marginBottom: 12 }}
           />
         )}
@@ -1637,6 +1739,7 @@ const PatentAnalysisDetail: React.FC = () => {
             display: 'flex',
             flexDirection: isStackedSplitLayout ? 'column' : 'row',
             gap: isStackedSplitLayout ? 16 : 0,
+            position: 'relative',
           }}
         >
           {/* 좌측: PDF 뷰어 영역 */}
@@ -1691,7 +1794,7 @@ const PatentAnalysisDetail: React.FC = () => {
                 rotation={pdfViewer.pdfRotation}
                 viewerContainerRef={pdfViewer.pdfViewerContainerRef}
                 currentPage={pdfViewer.pdfCurrentPage}
-                onGoToPage={(page) => handleGoToPdf(page)}
+                onGoToPage={pdfViewer.handleGoToPdf}
                 pdfTotalPages={pdfViewer.pdfTotalPages}
                 activeBBox={pdfViewer.activeBBox}
                 dynamicHighlights={pdfViewer.dynamicHighlights}
@@ -1760,11 +1863,30 @@ const PatentAnalysisDetail: React.FC = () => {
                 width: 4,
                 height: 64,
                 borderRadius: 999,
-                background: isResizingSplit ? token.colorPrimary : token.colorBorder,
-                transition: 'background-color 0.2s ease'
+                background: token.colorBorder,
+                opacity: isResizingSplit ? 0 : 1,
+                transition: 'background-color 0.2s ease, opacity 0.12s ease'
               }}
             />
           </div>
+
+          <div
+            ref={splitGuideRef}
+            aria-hidden="true"
+            style={{
+              position: 'absolute',
+              top: 0,
+              bottom: 0,
+              left: `${splitRatio}%`,
+              width: 4,
+              borderRadius: 999,
+              background: token.colorPrimary,
+              transform: 'translateX(-50%)',
+              pointerEvents: 'none',
+              zIndex: 20,
+              display: 'none',
+            }}
+          />
 
           {/* 우측: 데이터 분석 영역 */}
           <div
@@ -1782,10 +1904,8 @@ const PatentAnalysisDetail: React.FC = () => {
                 className="patent-analysis-detail-tabs"
                 activeKey={activeTab}
                 onChange={(key) => {
-                  React.startTransition(() => {
-                    setActiveTab(key);
-                    if (key !== 'raw-data') setRGroupFilter(null);
-                  });
+                  setActiveTab(key);
+                  if (key !== 'raw-data') setRGroupFilter(null);
                 }}
                 destroyOnHidden={false}
                 animated={false}
@@ -2043,14 +2163,14 @@ const PatentAnalysisDetail: React.FC = () => {
                         ref={rawDataTabContentRef}
                         className="raw-data-tab-content"
                         style={{
-                          padding: rawDataView === 'table' ? '24px 24px 0' : '24px 24px 16px',
+                          padding: '24px 24px 16px',
                           flex: 1,
                           height: '100%',
                           minHeight: 0,
                           boxSizing: 'border-box',
                           display: 'flex',
                           flexDirection: 'column',
-                          overflowY: rawDataView === 'table' && !isStackedSplitLayout ? 'hidden' : 'auto',
+                          overflowY: rawDataView === 'table' ? 'hidden' : 'auto',
                         }}
                       >
                         <div className="patent-analysis-tab-heading-row" style={{ justifyContent: 'space-between' }}>
@@ -2322,14 +2442,18 @@ const PatentAnalysisDetail: React.FC = () => {
                                   background: token.colorBgContainer,
                                   borderRadius: 12,
                                   border: `1px solid ${token.colorBorderSecondary}`,
-                                  overflow: 'hidden'
+                                  overflow: 'hidden',
+                                  flex: 1,
+                                  minWidth: 0,
+                                  minHeight: 0,
                                 }}
                               >
                                 <Table
                                   ref={rawDataTableRef}
                                   className="raw-data-embodiment-table"
-                                  dataSource={rawPc}
+                                  dataSource={isRawTableDataReady ? rawPc : []}
                                   size="small"
+                                  loading={isLoadingPatentDetail || (!isRawTableDataReady && rawPc.length > 0)}
                                   rowKey={(record: any) => `${record.id}-${record.__rowIdx}`}
                                   scroll={rawTableScroll}
                                   columns={columns}
@@ -2458,14 +2582,14 @@ const PatentAnalysisDetail: React.FC = () => {
                         ref={cleanDataTabContentRef}
                         className="raw-data-tab-content"
                         style={{
-                          padding: cleanDataView === 'table' ? '24px 24px 0' : '24px 24px 16px',
+                          padding: '24px 24px 16px',
                           flex: 1,
                           height: '100%',
                           minHeight: 0,
                           boxSizing: 'border-box',
                           display: 'flex',
                           flexDirection: 'column',
-                          overflowY: cleanDataView === 'table' && !isStackedSplitLayout ? 'hidden' : 'auto',
+                          overflowY: cleanDataView === 'table' ? 'hidden' : 'auto',
                         }}
                       >
                         <div className="patent-analysis-tab-heading-row" style={{ justifyContent: 'space-between' }}>
@@ -2759,14 +2883,18 @@ const PatentAnalysisDetail: React.FC = () => {
                                   background: token.colorBgContainer,
                                   borderRadius: 12,
                                   border: `1px solid ${token.colorBorderSecondary}`,
-                                  overflow: 'hidden'
+                                  overflow: 'hidden',
+                                  flex: 1,
+                                  minWidth: 0,
+                                  minHeight: 0,
                                 }}
                               >
                                 <Table
                                   ref={cleanDataTableRef}
                                   className="raw-data-embodiment-table"
-                                  dataSource={cleanRows}
+                                  dataSource={isCleanTableDataReady ? cleanRows : []}
                                   size="small"
+                                  loading={isLoadingPatentDetail || (!isCleanTableDataReady && cleanRows.length > 0)}
                                   rowKey={(record: any) => record.__rowKey}
                                   scroll={cleanTableScroll}
                                   columns={columns as any}
@@ -3204,15 +3332,21 @@ const PatentAnalysisDetail: React.FC = () => {
         }
         .ant-tabs-content-holder {
           flex: 1;
+          min-height: 0;
+          min-width: 0;
           overflow: hidden;
           display: flex;
           flex-direction: column;
         }
         .ant-tabs-content {
           height: 100%;
+          min-height: 0;
+          min-width: 0;
         }
         .ant-tabs-tabpane {
           height: 100%;
+          min-height: 0;
+          min-width: 0;
           overflow-y: auto;
           overflow-x: hidden;
         }
@@ -3487,6 +3621,11 @@ const PatentAnalysisDetail: React.FC = () => {
         }
         .raw-data-tab-content .raw-data-embodiment-table .ant-table {
           background: transparent;
+        }
+        .raw-data-tab-content .raw-data-embodiment-table .ant-table-body {
+          overflow-x: auto !important;
+          overflow-y: auto !important;
+          overscroll-behavior: contain;
         }
         .raw-data-tab-content .raw-data-embodiment-table .ant-table-thead > tr > th,
         .raw-data-tab-content .raw-data-embodiment-table .ant-table-tbody > tr > td {
