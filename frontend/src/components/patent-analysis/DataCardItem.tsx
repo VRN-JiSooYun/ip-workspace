@@ -16,6 +16,8 @@ export interface DataCardItemProps {
   // ===== 헤더 영역 =====
   /** 헤더 왼쪽에 표시할 주요 텍스트 */
   title: string;
+  /** 기본 title/tag header를 대체하는 custom header */
+  headerContent?: React.ReactNode;
   /** 헤더 메타데이터 (compound_id 등) */
   subtitle?: string;
   /** 우측 상단 태그 배열 */
@@ -34,6 +36,8 @@ export interface DataCardItemProps {
   squareImage?: boolean;
   /** SVG의 전체 캔버스 배경을 투명하게 표시 */
   transparentImageBackground?: boolean;
+  /** 이미지 wrapper의 평상시 테두리를 제거 */
+  imageBorderless?: boolean;
   /** 이미지 클릭 시 콜백 */
   onImageClick?: () => void;
   /** 이미지 미리보기 버튼 클릭 콜백 */
@@ -66,6 +70,8 @@ export interface DataCardItemProps {
   // ===== 상태 =====
   /** 선택됨 표시 */
   isActive?: boolean;
+  /** 평상시 카드 테두리를 제거하고 선택 시에만 테두리와 음영 표시 */
+  selectionOnlyBorder?: boolean;
   /** 카드 클릭 콜백 */
   onClick?: () => void;
   /** 카드 크기 (Ant Design CardSize와 동일) */
@@ -84,6 +90,7 @@ export interface DataCardItemProps {
  */
 const DataCardItem: React.FC<DataCardItemProps> = ({
   title,
+  headerContent,
   subtitle,
   tags = [],
   cornerIcon,
@@ -92,6 +99,7 @@ const DataCardItem: React.FC<DataCardItemProps> = ({
   imageHeight = 130,
   squareImage = false,
   transparentImageBackground = false,
+  imageBorderless = false,
   onImageClick,
   onPreview,
   imageOverlayActions,
@@ -102,6 +110,7 @@ const DataCardItem: React.FC<DataCardItemProps> = ({
   footerText,
   pagination,
   isActive = false,
+  selectionOnlyBorder = false,
   onClick,
   size = 'small',
   hoverable = true,
@@ -191,12 +200,18 @@ const DataCardItem: React.FC<DataCardItemProps> = ({
       style={{
         height: '100%',
         cursor: onClick ? 'pointer' : 'default',
-        border: isActive ? `2px solid ${token.colorPrimary}` : undefined,
+        border: isActive
+          ? `2px solid ${token.colorPrimary}`
+          : selectionOnlyBorder
+            ? '2px solid transparent'
+            : undefined,
+        background: isActive && selectionOnlyBorder ? token.colorPrimaryBg : undefined,
         borderRadius: 12,
       }}
       onClick={onClick}
     >
       {/* 헤더 */}
+      {headerContent ?? (
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
         <div style={{ flex: 1 }}>
           <Text strong style={{ fontSize: 12 }}>
@@ -224,6 +239,7 @@ const DataCardItem: React.FC<DataCardItemProps> = ({
           )}
         </div>
       </div>
+      )}
 
       {/* 이미지 영역 */}
       <div
@@ -233,7 +249,7 @@ const DataCardItem: React.FC<DataCardItemProps> = ({
           height: squareImage ? undefined : imageHeight,
           aspectRatio: squareImage ? '1 / 1' : undefined,
           background: transparentImageBackground ? 'transparent' : token.colorBgContainer,
-          border: `1px solid ${token.colorBorderSecondary}`,
+          border: imageBorderless ? '1px solid transparent' : `1px solid ${token.colorBorderSecondary}`,
           borderRadius: 8,
           marginBottom: 8,
           position: 'relative',

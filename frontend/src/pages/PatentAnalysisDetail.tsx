@@ -14,7 +14,6 @@ import {
   theme,
   Empty,
   Table,
-  Badge,
   App,
   Alert,
   Pagination,
@@ -44,6 +43,9 @@ import { getPatentAnalysisLayoutPreset } from '../config/patentAnalysisLayout';
 import { useUIStore } from '../store/useUIStore';
 import PageHeaderBreadcrumb from '../components/common/PageHeaderBreadcrumb';
 import DataCardItem from '../components/patent-analysis/DataCardItem';
+import ScaffoldRankBadge, {
+  normalizeScaffoldRank,
+} from '../components/patent-analysis/ScaffoldRankBadge';
 import ChemDrawModal from '../components/common/ChemDrawModal';
 import BenzeneIcon from '../components/common/BenzeneIcon';
 import CompoundStructureView from '../components/common/CompoundStructureView';
@@ -75,6 +77,15 @@ const PATENT_ANALYSIS_OWNER_ID = '256';
 const PATENT_ANALYSIS_FAVORITE_STATE_PREFIX = 'patent-analysis-favorite-state';
 const RAW_DATA_DEFAULT_PAGE_SIZE = 30;
 const RAW_DATA_PAGE_SIZE_OPTIONS = [10, 30, 50, 100];
+const PATENT_DATA_STRUCTURE_SIZE = 176;
+
+const getAvailableScaffoldRanks = (rows: any[]) => (
+  Array.from(new Set(
+    rows
+      .map((row) => normalizeScaffoldRank(row?.scaffold_ranking))
+      .filter((rank): rank is number => rank !== null),
+  )).sort((a, b) => a - b)
+);
 
 const PatentDetailLoadingState: React.FC<{ description?: string }> = ({ description = '특허 상세 데이터를 불러오는 중입니다.' }) => (
   <div style={{ minHeight: 220, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -578,6 +589,11 @@ const PatentAnalysisDetail: React.FC = () => {
   const [cleanTablePageSize, setCleanTablePageSize] = React.useState(RAW_DATA_DEFAULT_PAGE_SIZE);
   const [downloadingExcelType, setDownloadingExcelType] = React.useState<'bioactivity' | 'modified_bioactivity' | null>(null);
   const [activeTab, setActiveTab] = React.useState<string>('summary');
+  const [selectedSummaryScaffoldRank, setSelectedSummaryScaffoldRank] = React.useState<number | null>(null);
+  const [rawScaffoldRankFilter, setRawScaffoldRankFilter] = React.useState<'all' | number>('all');
+  const [cleanScaffoldRankFilter, setCleanScaffoldRankFilter] = React.useState<'all' | number>('all');
+  const [rawShowFunctionalGroupColumns, setRawShowFunctionalGroupColumns] = React.useState(true);
+  const [cleanShowFunctionalGroupColumns, setCleanShowFunctionalGroupColumns] = React.useState(true);
   const [rGroupFilter, setRGroupFilter] = React.useState<{ key: string; smiles: string } | null>(null);
   const [previewSvg, setPreviewSvg] = React.useState<string | null>(null);
   const [previewStructureMeta, setPreviewStructureMeta] = React.useState<StructurePreviewMeta | null>(null);
@@ -611,6 +627,14 @@ const PatentAnalysisDetail: React.FC = () => {
   const cleanDataTableShellRef = React.useRef<HTMLDivElement | null>(null);
   const [rawTableScrollY, setRawTableScrollY] = React.useState<number | undefined>(undefined);
   const [cleanTableScrollY, setCleanTableScrollY] = React.useState<number | undefined>(undefined);
+  const rawScaffoldRanks = React.useMemo(
+    () => getAvailableScaffoldRanks(Array.isArray(patentResult.patent_compound) ? patentResult.patent_compound : []),
+    [patentResult.patent_compound],
+  );
+  const cleanScaffoldRanks = React.useMemo(
+    () => getAvailableScaffoldRanks(buildCleanRowsFromPatentResult(patentResult)),
+    [patentResult],
+  );
   const layoutPreset = React.useMemo(() => getPatentAnalysisLayoutPreset(viewportWidth), [viewportWidth]);
   const effectiveSplitWidth = splitContainerWidth || viewportWidth;
   const isStackedSplitLayout = effectiveSplitWidth <= DETAIL_STACK_BREAKPOINT;
@@ -660,9 +684,40 @@ const PatentAnalysisDetail: React.FC = () => {
     [patentResult, requestedCompoundId],
   );
 
+  React.useEffect(() => {
+    const availableRanks = summaryAnalysis?.scaffoldRanks
+      .map((rankData) => normalizeScaffoldRank(rankData.rank))
+      .filter((rank): rank is number => rank !== null) ?? [];
+    if (availableRanks.length === 0) {
+      setSelectedSummaryScaffoldRank(null);
+      return;
+    }
+    setSelectedSummaryScaffoldRank((current) => (
+      current !== null && availableRanks.includes(current) ? current : availableRanks[0]
+    ));
+  }, [summaryAnalysis]);
+
+  React.useEffect(() => {
+    if (rawScaffoldRankFilter !== 'all' && !rawScaffoldRanks.includes(rawScaffoldRankFilter)) {
+      setRawScaffoldRankFilter('all');
+    }
+  }, [rawScaffoldRankFilter, rawScaffoldRanks]);
+
+  React.useEffect(() => {
+    if (cleanScaffoldRankFilter !== 'all' && !cleanScaffoldRanks.includes(cleanScaffoldRankFilter)) {
+      setCleanScaffoldRankFilter('all');
+    }
+  }, [cleanScaffoldRankFilter, cleanScaffoldRanks]);
+
   useEffect(() => {
     setRawCardCurrentPage(1);
-  }, [rGroupFilter]);
+    setRawTableCurrentPage(1);
+  }, [rGroupFilter, rawScaffoldRankFilter]);
+
+  useEffect(() => {
+    setCleanCardCurrentPage(1);
+    setCleanTableCurrentPage(1);
+  }, [cleanScaffoldRankFilter]);
 
   useEffect(() => {
     const onResize = () => {
@@ -764,6 +819,8 @@ const PatentAnalysisDetail: React.FC = () => {
     rawTableCurrentPage,
     rawTablePageSize,
     rGroupFilter,
+    rawScaffoldRankFilter,
+    rawShowFunctionalGroupColumns,
   ]);
 
   React.useLayoutEffect(() => {
@@ -839,6 +896,8 @@ const PatentAnalysisDetail: React.FC = () => {
     cleanDataView,
     cleanTableCurrentPage,
     cleanTablePageSize,
+    cleanScaffoldRankFilter,
+    cleanShowFunctionalGroupColumns,
     isStackedSplitLayout,
   ]);
 
@@ -1080,18 +1139,32 @@ const PatentAnalysisDetail: React.FC = () => {
   useEffect(() => {
     if (displayedPatent) {
       setHeaderContent(
-        <PageHeaderBreadcrumb 
+        <PageHeaderBreadcrumb
           items={[
             { label: 'Documents' },
             { label: 'Patents' },
             { label: 'My 특허 분석', onClick: () => navigate('/patents/analysis') },
-            { label: displayedPatent.patentNumber }
+            {
+              label: (
+                <>
+                  <span>{displayedPatent.patentNumber}</span>
+                  <span style={{ color: token.colorTextSecondary, fontWeight: 400 }}>
+                    {' | '}
+                    {formatDisplayDate(displayedPatent.publicationDate)}
+                    {' | '}
+                    {displayedPatent.applicant}
+                    {' | '}
+                    {displayedPatent.title}
+                  </span>
+                </>
+              ),
+            },
           ]}
         />
       );
     }
     return () => setHeaderContent(null);
-  }, [displayedPatent, setHeaderContent, navigate]);
+  }, [displayedPatent, setHeaderContent, navigate, token.colorTextSecondary]);
 
   if (!displayedPatent) {
     return (
@@ -1126,6 +1199,7 @@ const PatentAnalysisDetail: React.FC = () => {
     const compId = comp.id.toString();
     const pageArray = Array.isArray(comp.page) ? comp.page : [comp.page];
     const bboxArray = Array.isArray((comp as any).bbox) ? (comp as any).bbox : [];
+    setActiveCompId(compId);
     if (pageArray.length === 0) return;
 
     const currentIndex = pageIndices[compId] ?? 0;
@@ -1137,7 +1211,6 @@ const PatentAnalysisDetail: React.FC = () => {
       targetBBox: bboxArray[currentIndex],
       allPages: pageArray,
     });
-    setActiveCompId(compId);
     handleGoToPdf(pageArray[currentIndex], bboxArray[currentIndex]);
   };
 
@@ -1544,35 +1617,6 @@ const PatentAnalysisDetail: React.FC = () => {
   return (
     <div className="patent-analysis-detail-page" style={{ maxWidth: layoutPreset.maxWidth, margin: '0 auto', padding: `0 ${layoutPreset.sidePadding}px`, flex: 1, width: '100%', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', overflow: isStackedSplitLayout ? 'auto' : 'hidden' }}>
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: isStackedSplitLayout ? 'visible' : 'hidden', animation: 'fadeIn 0.3s ease-out', paddingBottom: isStackedSplitLayout ? 24 : 8 }}>
-        
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 16, padding: '0 4px', flexShrink: 0 }}>
-          <Space size={16} style={{ minWidth: 0 }}>
-            <Button 
-              icon={<ChevronLeft size={20} />} 
-              onClick={() => navigate('/patents/analysis')}
-              style={{ borderRadius: '10px' }}
-            />
-            <div style={{ minWidth: 0 }}>
-              <Title level={4} style={{ margin: 0, lineHeight: '1.2', wordBreak: 'keep-all' }}>{displayedPatent.title}</Title>
-              <Text type="secondary" style={{ fontSize: '12px', display: 'block' }}>{displayedPatent.patentNumber} | {displayedPatent.applicant} | {formatDisplayDate(displayedPatent.publicationDate)}</Text>
-            </div>
-          </Space>
-          <Button
-            type={isFavoritePatent ? 'primary' : 'default'}
-            icon={isSavingFavoritePatent ? undefined : (
-              <Star
-                size={17}
-                fill={isFavoritePatent ? '#F8B84E' : 'none'}
-                color={isFavoritePatent ? '#D89116' : token.colorTextTertiary}
-              />
-            )}
-            loading={isSavingFavoritePatent}
-            onClick={() => void toggleFavoritePatent()}
-            className="v-action-btn"
-          >
-            즐겨찾기 {isFavoritePatent ? 'ON' : 'OFF'}
-          </Button>
-        </div>
         {patentDetailError && (
           <Alert
             type="warning"
@@ -1747,6 +1791,26 @@ const PatentAnalysisDetail: React.FC = () => {
                 animated={false}
                 style={{ height: isStackedSplitLayout ? 'auto' : '100%', display: 'flex', flexDirection: 'column' }}
                 tabBarStyle={{ margin: 0, flexShrink: 0 }}
+                tabBarExtraContent={{
+                  right: (
+                    <Button
+                      type={isFavoritePatent ? 'primary' : 'default'}
+                      size="small"
+                      icon={isSavingFavoritePatent ? undefined : (
+                        <Star
+                          size={15}
+                          fill={isFavoritePatent ? '#F8B84E' : 'none'}
+                          color={isFavoritePatent ? '#D89116' : token.colorTextTertiary}
+                        />
+                      )}
+                      loading={isSavingFavoritePatent}
+                      onClick={() => void toggleFavoritePatent()}
+                      className="v-action-btn patent-analysis-tab-favorite"
+                    >
+                      즐겨찾기 {isFavoritePatent ? 'ON' : 'OFF'}
+                    </Button>
+                  ),
+                }}
                 items={[
                   {
                     key: 'summary',
@@ -1762,109 +1826,6 @@ const PatentAnalysisDetail: React.FC = () => {
                         </div>
                         
                         <Row gutter={[16, 16]}>
-                          {hasSummaryAnalysis && summaryAnalysis ? (
-                            <>
-                          <Col span={24}>
-                            <Card size="small" title="Scaffold ranking" className="patent-summary-card patent-summary-scaffold-ranking-card">
-                              <div className="patent-summary-scaffold-scroll">
-                                <div className="patent-summary-scaffold-item">
-                                  <Card size="small" type="inner" title="Parent scaffold" className="patent-summary-structure-card">
-                                    <div className="patent-summary-structure-frame" style={{ width: '100%', aspectRatio: '1 / 1', background: token.colorBgContainer, border: `1px solid ${token.colorBorderSecondary}`, borderRadius: 8, position: 'relative', overflow: 'hidden' }}>
-                                      {renderPatentStructureView({
-                                        svg: summaryAnalysis.parentScaffold.svg,
-                                        title: 'Parent scaffold',
-                                        smiles: (summaryAnalysis.parentScaffold as any).smiles ?? (summaryAnalysis.scaffoldRanks?.[0] as any)?.smiles,
-                                        molblock: (summaryAnalysis.parentScaffold as any).molblock,
-                                      })}
-                                    </div>
-                                  </Card>
-                                </div>
-                                {summaryAnalysis.scaffoldRanks && summaryAnalysis.scaffoldRanks.map(rankData => (
-                                  <div className="patent-summary-scaffold-item" key={rankData.rank}>
-                                    <Card size="small" type="inner" className="patent-summary-structure-card" title={<><Badge count={rankData.rank} style={{ backgroundColor: rankData.rank === 1 ? '#f5222d' : rankData.rank === 2 ? '#fa8c16' : '#d9d9d9' }} /> Rank {rankData.rank}</>}>
-                                      <div className="patent-summary-structure-frame" style={{ width: '100%', aspectRatio: '1 / 1', background: token.colorBgContainer, border: `1px solid ${token.colorBorderSecondary}`, borderRadius: '8px', position: 'relative', overflow: 'hidden' }}>
-                                        {renderPatentStructureView({
-                                          svg: rankData.svg,
-                                          title: `Scaffold rank ${rankData.rank}`,
-                                          smiles: (rankData as any).smiles,
-                                        })}
-                                      </div>
-                                      <div style={{ marginTop: 8, textAlign: 'center' }}>
-                                        <Text type="secondary">Frequency: {rankData.frequency}</Text>
-                                      </div>
-                                    </Card>
-                                  </div>
-                                ))}
-                              </div>
-                            </Card>
-                          </Col>
-
-                          <Col span={24}>
-                            <Card size="small" title="Functional group analysis" className="patent-summary-card">
-                              <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-                                {/* Scaffold Rank 1 Image for Functional Group Context */}
-                                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
-                                  <Title level={5} style={{ marginTop: 0, marginBottom: 8, color: token.colorPrimary }}>Scaffold rank 1</Title>
-                                  <div className="patent-summary-structure-frame patent-functional-scaffold-frame" style={{ width: 220, height: 220, background: token.colorBgContainer, border: `1px solid ${token.colorBorderSecondary}`, borderRadius: '8px', padding: 0, position: 'relative', overflow: 'hidden' }}>
-                                    {renderPatentStructureView({
-                                      svg: summaryAnalysis.scaffoldRanks?.[0]?.svg ?? summaryAnalysis.parentScaffold.svg,
-                                      title: 'Functional group - scaffold rank 1',
-                                      smiles: (summaryAnalysis.scaffoldRanks?.[0] as any)?.smiles ?? (summaryAnalysis.parentScaffold as any)?.smiles,
-                                    })}
-                                  </div>
-                                </div>
-                                
-                                {/* R-Groups List */}
-                                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 24 }}>
-                                  {summaryAnalysis.rGroups.map(group => (
-                                    <div key={group.id}>
-                                      <Title level={5} style={{ marginTop: 0, marginBottom: 8, color: token.colorPrimary }}>{group.id}</Title>
-                                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16 }}>
-                                        {group.variants.map((v: any, idx: number) => (
-                                          <div key={idx} className="patent-rgroup-variant-item">
-                                            <Card size="small" type="inner" className="patent-rgroup-variant-card">
-                                              <div className="patent-summary-structure-frame patent-functional-rgroup-frame">
-                                                {renderPatentStructureView({
-                                                  svg: v.svg,
-                                                  title: `${group.id} Variant ${idx + 1}`,
-                                                  smiles: v.smiles,
-                                                  iconSize: 10,
-                                                })}
-                                              </div>
-                                            </Card>
-                                            <Button
-                                              type="link"
-                                              size="small"
-                                              className="patent-rgroup-frequency-button"
-                                              onClick={() => {
-                                                setRGroupFilter({ key: group.id, smiles: v.smiles });
-                                                React.startTransition(() => setActiveTab('raw-data'));
-                                              }}
-                                            >
-                                              Freq: {v.frequency}
-                                            </Button>
-                                          </div>
-                                        ))}
-                                      </div>
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                            </Card>
-                          </Col>
-                            </>
-                          ) : (
-                            <Col span={24}>
-                              <Card size="small">
-                                {isLoadingPatentDetail ? (
-                                  <PatentDetailLoadingState />
-                                ) : shouldShowPatentDetailEmpty ? (
-                                  <Empty description="Patent analysis summary 데이터가 없습니다." />
-                                ) : null}
-                              </Card>
-                            </Col>
-                          )}
-
                           <Col span={24}>
                             <Card size="small" title="추천 key compound (빈도수/중요도 기반)">
                               {recommendedKeyCompounds.length > 0 ? (
@@ -1889,18 +1850,29 @@ const PatentAnalysisDetail: React.FC = () => {
                                       <div key={`${comp.id}-${idx}`} style={{ width: 260 }}>
                                         <DataCardItem
                                           title={formatPatentExampleNumber(comp.example_number)}
-                                          tags={comp.ranking ? [{ label: `Rank ${comp.ranking}`, color: 'blue' }] : []}
-                                          cornerIcon={
-                                            comp.is_human_key_compound ? (
-                                              <span style={{ fontSize: 15, cursor: 'pointer' }} title="Key compound">🔑</span>
-                                            ) : undefined
-                                          }
+                                          headerContent={(
+                                            <div className="patent-key-compound-header">
+                                              <Text strong style={{ fontSize: 12 }}>
+                                                Rank {comp.ranking ?? '-'}
+                                              </Text>
+                                              <Space size={6}>
+                                                <Text type="secondary" style={{ fontSize: 11 }}>
+                                                  {comp.compound_id ?? '-'}
+                                                </Text>
+                                                {comp.is_human_key_compound && (
+                                                  <span style={{ fontSize: 14 }} title="Key compound">🔑</span>
+                                                )}
+                                              </Space>
+                                            </div>
+                                          )}
                                           imageUrl={comp.compound_svg}
                                           imageType="svg"
                                           imageHeight={220}
                                           squareImage
                                           transparentImageBackground
+                                          imageBorderless
                                           isActive={activeCompId === compKey}
+                                          selectionOnlyBorder
                                           onClick={() => handleCompoundCardClick(comp, comp.ranking)}
                                           onPreview={() => openSvgPreview(comp.compound_svg, `추천 key compound - ${comp.compound_id}`, {
                                             smiles: comp.smiles,
@@ -1936,6 +1908,125 @@ const PatentAnalysisDetail: React.FC = () => {
                               )}
                             </Card>
                           </Col>
+
+                          {hasSummaryAnalysis && summaryAnalysis ? (
+                            <Col span={24}>
+                              <Card
+                                size="small"
+                                title="Scaffold ranking"
+                                className="patent-summary-card patent-summary-scaffold-ranking-card"
+                              >
+                                <div className="patent-summary-scaffold-scroll">
+                                  <div className="patent-summary-scaffold-item patent-summary-scaffold-tile">
+                                    <div className="patent-summary-scaffold-tile-header">
+                                      <Text strong>Parent scaffold</Text>
+                                    </div>
+                                    <div className="patent-summary-structure-frame">
+                                      {renderPatentStructureView({
+                                        svg: summaryAnalysis.parentScaffold.svg,
+                                        title: 'Parent scaffold',
+                                        smiles: (summaryAnalysis.parentScaffold as any).smiles ?? (summaryAnalysis.scaffoldRanks?.[0] as any)?.smiles,
+                                        molblock: (summaryAnalysis.parentScaffold as any).molblock,
+                                      })}
+                                    </div>
+                                  </div>
+                                  {summaryAnalysis.scaffoldRanks.map((rankData) => {
+                                    const normalizedRank = normalizeScaffoldRank(rankData.rank);
+                                    const isSelected = normalizedRank !== null
+                                      && selectedSummaryScaffoldRank === normalizedRank;
+                                    return (
+                                      <div
+                                        role="button"
+                                        tabIndex={0}
+                                        className={`patent-summary-scaffold-item patent-summary-scaffold-tile patent-summary-scaffold-selectable${isSelected ? ' is-active' : ''}`}
+                                        key={rankData.rank}
+                                        onClick={() => {
+                                          if (normalizedRank !== null) setSelectedSummaryScaffoldRank(normalizedRank);
+                                        }}
+                                        onKeyDown={(event) => {
+                                          if (event.key !== 'Enter' && event.key !== ' ') return;
+                                          event.preventDefault();
+                                          if (normalizedRank !== null) setSelectedSummaryScaffoldRank(normalizedRank);
+                                        }}
+                                        aria-pressed={isSelected}
+                                      >
+                                        <div className="patent-summary-scaffold-tile-header">
+                                          <span className="patent-summary-rank-label">
+                                            <Text strong>Rank</Text>
+                                            <ScaffoldRankBadge rank={rankData.rank} />
+                                          </span>
+                                          <Text type="secondary">Freq. {rankData.frequency}</Text>
+                                        </div>
+                                        <div className="patent-summary-structure-frame">
+                                          {renderPatentStructureView({
+                                            svg: rankData.svg,
+                                            title: `Scaffold rank ${rankData.rank}`,
+                                            smiles: (rankData as any).smiles,
+                                          })}
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+
+                                <section className="patent-functional-group-section">
+                                  <div className="patent-functional-group-title">
+                                    <Title level={5} style={{ margin: 0 }}>Functional group analysis</Title>
+                                    {selectedSummaryScaffoldRank !== null && (
+                                      <span className="patent-summary-rank-label">
+                                        <Text strong>Rank</Text>
+                                        <ScaffoldRankBadge rank={selectedSummaryScaffoldRank} />
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div className="patent-functional-group-list">
+                                    {summaryAnalysis.rGroups.map((group) => (
+                                      <div key={group.id}>
+                                        <Title level={5} style={{ marginTop: 0, marginBottom: 8, color: token.colorPrimary }}>
+                                          {group.id}
+                                        </Title>
+                                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16 }}>
+                                          {group.variants.map((variant: any, index: number) => (
+                                            <div key={index} className="patent-rgroup-variant-item">
+                                              <div className="patent-summary-structure-frame patent-functional-rgroup-frame">
+                                                {renderPatentStructureView({
+                                                  svg: variant.svg,
+                                                  title: `${group.id} Variant ${index + 1}`,
+                                                  smiles: variant.smiles,
+                                                  iconSize: 10,
+                                                })}
+                                              </div>
+                                              <Button
+                                                type="link"
+                                                size="small"
+                                                className="patent-rgroup-frequency-button"
+                                                onClick={() => {
+                                                  setRGroupFilter({ key: group.id, smiles: variant.smiles });
+                                                  React.startTransition(() => setActiveTab('raw-data'));
+                                                }}
+                                              >
+                                                Freq. {variant.frequency}
+                                              </Button>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </section>
+                              </Card>
+                            </Col>
+                          ) : (
+                            <Col span={24}>
+                              <Card size="small">
+                                {isLoadingPatentDetail ? (
+                                  <PatentDetailLoadingState />
+                                ) : shouldShowPatentDetailEmpty ? (
+                                  <Empty description="Patent analysis summary 데이터가 없습니다." />
+                                ) : null}
+                              </Card>
+                            </Col>
+                          )}
                         </Row>
                       </div>
                     ) : null
@@ -2003,6 +2094,16 @@ const PatentAnalysisDetail: React.FC = () => {
                                 Card
                               </Button>
                             </div>
+                            {rawDataView === 'table' && (
+                              <Button
+                                size="small"
+                                type={rawShowFunctionalGroupColumns ? 'primary' : 'default'}
+                                onClick={() => setRawShowFunctionalGroupColumns((current) => !current)}
+                                aria-pressed={rawShowFunctionalGroupColumns}
+                              >
+                                작용기 {rawShowFunctionalGroupColumns ? 'On' : 'Off'}
+                              </Button>
+                            )}
                             <Button
                               size="small"
                               icon={<Download size={14} />}
@@ -2016,6 +2117,26 @@ const PatentAnalysisDetail: React.FC = () => {
                             <Button size="small" type="primary">Filter</Button>
                           </Space>
                         </div>
+                        <div className="patent-scaffold-filter-bar">
+                          <Text strong style={{ fontSize: 12 }}>Scaffold</Text>
+                          <Button
+                            size="small"
+                            type={rawScaffoldRankFilter === 'all' ? 'primary' : 'default'}
+                            onClick={() => setRawScaffoldRankFilter('all')}
+                          >
+                            All
+                          </Button>
+                          {rawScaffoldRanks.map((rank) => (
+                            <Button
+                              key={rank}
+                              size="small"
+                              type={rawScaffoldRankFilter === rank ? 'primary' : 'default'}
+                              icon={<ScaffoldRankBadge rank={rank} size="small" />}
+                              onClick={() => setRawScaffoldRankFilter(rank)}
+                              aria-label={`Scaffold rank ${rank}`}
+                            />
+                          ))}
+                        </div>
                         {rGroupFilter && (
                           <div style={{ marginBottom: 12, padding: '8px 12px', background: token.colorPrimaryBg, borderRadius: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
                             <Text style={{ fontSize: 12 }}>
@@ -2028,10 +2149,16 @@ const PatentAnalysisDetail: React.FC = () => {
                           (() => {
                             // patentResultRaw에서 실제 patent_compound 데이터 사용
                             const rawPcAll: any[] = patentResult.patent_compound ?? [];
-                            const rawPc = (rGroupFilter
-                              ? rawPcAll.filter((c: any) => c.r_groups?.[rGroupFilter.key] === rGroupFilter.smiles)
-                              : rawPcAll
-                            ).map((c: any, idx: number) => ({ ...c, __rowIdx: idx }));
+                            const rawPc = rawPcAll
+                              .map((compound: any, idx: number) => ({ ...compound, __rowIdx: idx }))
+                              .filter((compound: any) => (
+                                !rGroupFilter
+                                || compound.r_groups?.[rGroupFilter.key] === rGroupFilter.smiles
+                              ))
+                              .filter((compound: any) => (
+                                rawScaffoldRankFilter === 'all'
+                                || normalizeScaffoldRank(compound.scaffold_ranking) === rawScaffoldRankFilter
+                              ));
                             // 전체 r_group key 수집 (R1~R7 등 동적)
                             const allRGroupKeys = Array.from(
                               new Set(rawPc.flatMap((c: any) => Object.keys(c.r_groups ?? {})))
@@ -2042,6 +2169,7 @@ const PatentAnalysisDetail: React.FC = () => {
                               key: `rg_${key}`,
                               width: 190,
                               className: 'table-center-column raw-data-rgroup-column',
+                              align: 'center' as const,
                               render: (_: any, record: any) => {
                                 const smiles = record.r_groups?.[key];
                                 // frequency_analysis_result_json에서 SVG 찾기
@@ -2050,10 +2178,10 @@ const PatentAnalysisDetail: React.FC = () => {
                                 const match = variants.find((v: any) => v.smiles === smiles);
                                 const svg = match?._svg || record.r_group_svgs?.[key] || '';
                                 return (
-                                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                                     <div
                                       className="raw-data-svg-frame raw-data-rgroup-svg-frame"
-                                      style={{ width: 156, height: 156, background: token.colorBgContainer, border: `1px solid ${token.colorBorderSecondary}`, borderRadius: 6, position: 'relative', cursor: svg ? 'pointer' : 'default', overflow: 'hidden', boxSizing: 'border-box', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                      style={{ width: PATENT_DATA_STRUCTURE_SIZE, height: PATENT_DATA_STRUCTURE_SIZE, background: 'transparent', border: 0, borderRadius: 6, position: 'relative', cursor: svg ? 'pointer' : 'default', overflow: 'hidden', boxSizing: 'border-box', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                                       {svg ? (
                                         renderPatentStructureView({
                                           svg,
@@ -2067,25 +2195,48 @@ const PatentAnalysisDetail: React.FC = () => {
                                         <Text style={{ fontSize: 11, color: token.colorTextTertiary }}>no image</Text>
                                       )}
                                     </div>
-                                    <Text style={{ fontSize: 10, color: token.colorTextSecondary, maxWidth: 170, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={smiles}>
-                                      {smiles || '-'}
-                                    </Text>
                                   </div>
                                 );
                               }
                             }));
 
+                            const scaffoldColumn = {
+                              title: 'Scaffold',
+                              key: 'scaffold',
+                              width: 210,
+                              align: 'center' as const,
+                              className: 'table-center-column raw-data-scaffold-column',
+                              render: (_: any, record: any) => (
+                                <div className="raw-data-scaffold-cell">
+                                  <div
+                                    className="raw-data-svg-frame raw-data-scaffold-svg-frame"
+                                    style={{ width: PATENT_DATA_STRUCTURE_SIZE, height: PATENT_DATA_STRUCTURE_SIZE, background: 'transparent', border: 0, borderRadius: 8, cursor: record.scaffold_svg ? 'pointer' : 'default', position: 'relative', overflow: 'hidden', boxSizing: 'border-box', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                                  >
+                                    {record.scaffold_svg ? renderPatentStructureView({
+                                      svg: record.scaffold_svg,
+                                      title: `Scaffold - ${record.compound_id}`,
+                                      smiles: record.scaffold,
+                                      height: '100%',
+                                      iconSize: 11,
+                                      onClick: () => openSvgPreview(record.scaffold_svg, `Scaffold - ${record.compound_id}`),
+                                    }) : (
+                                      <Text style={{ fontSize: 11, color: token.colorTextTertiary }}>no image</Text>
+                                    )}
+                                  </div>
+                                </div>
+                              ),
+                            };
+
                             const columns = [
                               {
-                                title: 'pin',
+                                title: 'Pin',
                                 key: 'pin',
                                 width: 56,
-                                fixed: 'left' as const,
                                 align: 'center' as const,
                                 className: 'table-center-column',
                                 render: () => <Pin size={14} style={{ cursor: 'pointer', color: '#bfbfbf' }} />
                               },
-                              { title: 'Rank', dataIndex: 'ranking', key: 'ranking', width: 90, fixed: 'left' as const,
+                              { title: 'Rank', dataIndex: 'ranking', key: 'ranking', width: 90,
                                 align: 'center' as const,
                                 className: 'table-center-column',
                                 sorter: (a: any, b: any) => (a.ranking ?? 999) - (b.ranking ?? 999),
@@ -2103,17 +2254,6 @@ const PatentAnalysisDetail: React.FC = () => {
                                 }
                               },
                               {
-                                title: 'Example no.',
-                                dataIndex: 'example_number',
-                                key: 'example_number',
-                                width: 130,
-                                fixed: 'left' as const,
-                                align: 'center' as const,
-                                className: 'table-center-column',
-                                render: (exampleNumber: unknown) => formatPatentExampleNumber(exampleNumber),
-                              },
-                              { title: 'Scaffold rank', dataIndex: 'scaffold_ranking', key: 'scaffold_ranking', width: 120, align: 'center' as const, className: 'table-center-column', render: (v: any) => v ?? '-' },
-                              {
                                 title: 'Structure',
                                 key: 'structure',
                                 width: 240,
@@ -2128,7 +2268,7 @@ const PatentAnalysisDetail: React.FC = () => {
                                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
                                       <div
                                         className="raw-data-svg-frame"
-                                        style={{ width: 160, height: 160, background: token.colorBgContainer, border: `1px solid ${activeCompId === compKey ? 'red' : token.colorBorderSecondary}`, borderRadius: 8, position: 'relative', cursor: 'pointer', overflow: 'hidden', boxSizing: 'border-box', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                                        style={{ width: PATENT_DATA_STRUCTURE_SIZE, height: PATENT_DATA_STRUCTURE_SIZE, background: 'transparent', border: 0, borderRadius: 8, position: 'relative', cursor: 'pointer', overflow: 'hidden', boxSizing: 'border-box', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                                       >
                                         {renderPatentStructureView({
                                           svg: record.compound_svg,
@@ -2154,57 +2294,24 @@ const PatentAnalysisDetail: React.FC = () => {
                                 }
                               },
                               {
-                                title: 'Scaffold',
-                                key: 'scaffold',
-                                width: 220,
+                                title: 'Example no.',
+                                dataIndex: 'example_number',
+                                key: 'example_number',
+                                width: 130,
                                 align: 'center' as const,
-                                className: 'table-center-column raw-data-scaffold-column',
-                                render: (_: any, record: any) => record.scaffold_svg ? (
-                                  <div className="raw-data-scaffold-cell">
-                                    <div
-                                      className="raw-data-svg-frame raw-data-scaffold-svg-frame"
-                                      style={{ width: 184, height: 184, background: token.colorBgContainer, border: `1px solid ${token.colorBorderSecondary}`, borderRadius: 8, cursor: 'pointer', position: 'relative', overflow: 'hidden', boxSizing: 'border-box', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                                    >
-                                      {renderPatentStructureView({
-                                        svg: record.scaffold_svg,
-                                        title: `Scaffold - ${record.compound_id}`,
-                                        smiles: record.scaffold,
-                                        height: '100%',
-                                        iconSize: 11,
-                                        onClick: () => openSvgPreview(record.scaffold_svg, `Scaffold - ${record.compound_id}`),
-                                      })}
-                                    </div>
-                                  </div>
-                                ) : (
-                                  <div className="raw-data-scaffold-cell">
-                                    <div
-                                      className="raw-data-svg-frame raw-data-scaffold-svg-frame"
-                                      style={{ width: 184, height: 184, background: token.colorBgContainer, border: `1px solid ${token.colorBorderSecondary}`, borderRadius: 8, boxSizing: 'border-box', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                                    >
-                                      <Text style={{ fontSize: 11, color: token.colorTextTertiary }}>no image</Text>
-                                    </div>
-                                  </div>
-                                )
+                                className: 'table-center-column',
+                                render: (exampleNumber: unknown) => formatPatentExampleNumber(exampleNumber),
                               },
-                              ...rGroupColumns,
                               {
-                                title: 'SMILES',
-                                dataIndex: 'scaffold',
-                                key: 'smiles',
-                                ellipsis: true,
-                                width: 300,
-                                render: (_v: any, record: any) => {
-                                  const smilesText = typeof record.scaffold === 'string' ? record.scaffold.trim() : '';
-                                  if (!smilesText) {
-                                    return <Text type="secondary" style={{ fontSize: 10 }}>-</Text>;
-                                  }
-                                  return (
-                                    <Text style={{ fontSize: 10 }} copyable={{ text: smilesText }}>
-                                      {smilesText}
-                                    </Text>
-                                  );
-                                }
+                                title: 'Scaffold rank',
+                                dataIndex: 'scaffold_ranking',
+                                key: 'scaffold_ranking',
+                                width: 120,
+                                align: 'center' as const,
+                                className: 'table-center-column',
+                                render: (rank: unknown) => <ScaffoldRankBadge rank={rank} />,
                               },
+                              ...(rawShowFunctionalGroupColumns ? [scaffoldColumn, ...rGroupColumns] : []),
                             ];
 
                             return (
@@ -2248,10 +2355,15 @@ const PatentAnalysisDetail: React.FC = () => {
 
                         ) : (
                           (() => {
-                            const rawCardRows = (rGroupFilter
-                              ? (patentResult.patent_compound ?? []).filter((c: any) => c.r_groups?.[rGroupFilter.key] === rGroupFilter.smiles)
-                              : (patentResult.patent_compound ?? [])
-                            );
+                            const rawCardRows = (patentResult.patent_compound ?? [])
+                              .filter((compound: any) => (
+                                !rGroupFilter
+                                || compound.r_groups?.[rGroupFilter.key] === rGroupFilter.smiles
+                              ))
+                              .filter((compound: any) => (
+                                rawScaffoldRankFilter === 'all'
+                                || normalizeScaffoldRank(compound.scaffold_ranking) === rawScaffoldRankFilter
+                              ));
                             const currentPage = Math.min(rawCardCurrentPage, Math.max(1, Math.ceil(rawCardRows.length / rawCardPageSize)));
                             const pagedRawCardRows = rawCardRows.slice((currentPage - 1) * rawCardPageSize, currentPage * rawCardPageSize);
 
@@ -2298,7 +2410,6 @@ const PatentAnalysisDetail: React.FC = () => {
                                             comp.compound_id,
                                             `rawCompound:${comp.compound_id}`,
                                           )}
-                                          footerText={comp.scaffold}
                                           pagination={
                                             pageArr.length > 0
                                               ? {
@@ -2398,6 +2509,16 @@ const PatentAnalysisDetail: React.FC = () => {
                                 Card
                               </Button>
                             </div>
+                            {cleanDataView === 'table' && (
+                              <Button
+                                size="small"
+                                type={cleanShowFunctionalGroupColumns ? 'primary' : 'default'}
+                                onClick={() => setCleanShowFunctionalGroupColumns((current) => !current)}
+                                aria-pressed={cleanShowFunctionalGroupColumns}
+                              >
+                                작용기 {cleanShowFunctionalGroupColumns ? 'On' : 'Off'}
+                              </Button>
+                            )}
                             <Button
                               size="small"
                               icon={<Download size={14} />}
@@ -2412,10 +2533,33 @@ const PatentAnalysisDetail: React.FC = () => {
                             <Button size="small" type="default">Clean data 요청</Button>
                           </Space>
                         </div>
+                        <div className="patent-scaffold-filter-bar">
+                          <Text strong style={{ fontSize: 12 }}>Scaffold</Text>
+                          <Button
+                            size="small"
+                            type={cleanScaffoldRankFilter === 'all' ? 'primary' : 'default'}
+                            onClick={() => setCleanScaffoldRankFilter('all')}
+                          >
+                            All
+                          </Button>
+                          {cleanScaffoldRanks.map((rank) => (
+                            <Button
+                              key={rank}
+                              size="small"
+                              type={cleanScaffoldRankFilter === rank ? 'primary' : 'default'}
+                              icon={<ScaffoldRankBadge rank={rank} size="small" />}
+                              onClick={() => setCleanScaffoldRankFilter(rank)}
+                              aria-label={`Scaffold rank ${rank}`}
+                            />
+                          ))}
+                        </div>
                         {cleanDataView === 'table' ? (
                           (() => {
                             const modifiedBioKeys: string[] = (patentResult.data?.[0]?.modified_bioactivity_list ?? []) as string[];
-                            const cleanRows = buildCleanRows();
+                            const cleanRows = buildCleanRows().filter((compound: any) => (
+                              cleanScaffoldRankFilter === 'all'
+                              || normalizeScaffoldRank(compound.scaffold_ranking) === cleanScaffoldRankFilter
+                            ));
 
                             const allRGroupKeys = Array.from(
                               new Set(cleanRows.flatMap((c: any) => Object.keys(c.r_groups ?? {})))
@@ -2430,6 +2574,7 @@ const PatentAnalysisDetail: React.FC = () => {
                               key: `clean_rg_${key}`,
                               width: 210,
                               className: 'table-center-column raw-data-rgroup-column',
+                              align: 'center' as const,
                               render: (_: any, record: any) => {
                                 const smiles = record.r_groups?.[key];
                                 const faRGroups = frequencyAnalysis?.r_groups ?? {};
@@ -2437,10 +2582,10 @@ const PatentAnalysisDetail: React.FC = () => {
                                 const match = variants.find((v: any) => v.smiles === smiles);
                                 const svg = match?._svg || '';
                                 return (
-                                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                                     <div
                                       className="raw-data-svg-frame raw-data-rgroup-svg-frame"
-                                      style={{ width: 172, height: 172, background: token.colorBgContainer, border: `1px solid ${token.colorBorderSecondary}`, borderRadius: 6, position: 'relative', cursor: svg ? 'pointer' : 'default', overflow: 'hidden', boxSizing: 'border-box', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                      style={{ width: PATENT_DATA_STRUCTURE_SIZE, height: PATENT_DATA_STRUCTURE_SIZE, background: 'transparent', border: 0, borderRadius: 6, position: 'relative', cursor: svg ? 'pointer' : 'default', overflow: 'hidden', boxSizing: 'border-box', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                                       {svg ? (
                                         renderPatentStructureView({
                                           svg,
@@ -2454,9 +2599,6 @@ const PatentAnalysisDetail: React.FC = () => {
                                         <Text style={{ fontSize: 11, color: token.colorTextTertiary }}>no image</Text>
                                       )}
                                     </div>
-                                    <Text style={{ fontSize: 10, color: token.colorTextSecondary, maxWidth: 190, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={smiles}>
-                                      {smiles || '-'}
-                                    </Text>
                                   </div>
                                 );
                               }
@@ -2466,6 +2608,8 @@ const PatentAnalysisDetail: React.FC = () => {
                               title: bioKey,
                               key: `clean_bio_${bioKey}`,
                               width: 180,
+                              align: 'center' as const,
+                              className: 'table-center-column',
                               render: (_: any, record: any) => {
                                 const value = record.modified_bioactivity?.[bioKey];
                                 const arr = Array.isArray(value) ? value : value != null ? [value] : [];
@@ -2480,12 +2624,38 @@ const PatentAnalysisDetail: React.FC = () => {
                               }
                             }));
 
+                            const scaffoldColumn = {
+                              title: 'Scaffold',
+                              key: 'scaffold',
+                              width: 210,
+                              align: 'center' as const,
+                              className: 'table-center-column raw-data-scaffold-column',
+                              render: (_: any, record: any) => (
+                                <div className="raw-data-scaffold-cell">
+                                  <div
+                                    className="raw-data-svg-frame raw-data-scaffold-svg-frame"
+                                    style={{ width: PATENT_DATA_STRUCTURE_SIZE, height: PATENT_DATA_STRUCTURE_SIZE, background: 'transparent', border: 0, borderRadius: 8, cursor: record.scaffold_svg ? 'pointer' : 'default', position: 'relative', overflow: 'hidden', boxSizing: 'border-box', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                                  >
+                                    {record.scaffold_svg ? renderPatentStructureView({
+                                      svg: record.scaffold_svg,
+                                      title: `Scaffold - ${record.compound_id}`,
+                                      smiles: record.scaffold,
+                                      height: '100%',
+                                      iconSize: 11,
+                                      onClick: () => openSvgPreview(record.scaffold_svg, `Scaffold - ${record.compound_id}`),
+                                    }) : (
+                                      <Text style={{ fontSize: 11, color: token.colorTextTertiary }}>no image</Text>
+                                    )}
+                                  </div>
+                                </div>
+                              ),
+                            };
+
                             const columns = [
                               {
-                                title: 'pin',
+                                title: 'Pin',
                                 key: 'pin',
                                 width: 44,
-                                fixed: 'left' as const,
                                 align: 'center' as const,
                                 className: 'table-center-column',
                                 render: () => <Pin size={14} style={{ cursor: 'pointer', color: '#bfbfbf' }} />
@@ -2495,7 +2665,6 @@ const PatentAnalysisDetail: React.FC = () => {
                                 dataIndex: 'ranking',
                                 key: 'ranking',
                                 width: 76,
-                                fixed: 'left' as const,
                                 align: 'center' as const,
                                 className: 'table-center-column',
                                 render: (ranking: any) => (
@@ -2504,8 +2673,6 @@ const PatentAnalysisDetail: React.FC = () => {
                                   </div>
                                 )
                               },
-                              { title: 'Scaffold group', dataIndex: 'scaffold_ranking', key: 'scaffold_ranking', width: 118, align: 'center' as const, className: 'table-center-column', render: (v: any) => v ?? '-' },
-                              { title: 'Example no.', key: 'example_number', width: 132, align: 'center' as const, className: 'table-center-column', render: (_: any, record: any) => formatPatentExampleNumber(record.example_number) },
                               {
                                 title: 'Structure',
                                 key: 'structure',
@@ -2521,7 +2688,7 @@ const PatentAnalysisDetail: React.FC = () => {
                                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
                                       <div
                                         className="raw-data-svg-frame"
-                                        style={{ width: 176, height: 176, background: token.colorBgContainer, border: `1px solid ${activeCompId === compKey ? 'red' : token.colorBorderSecondary}`, borderRadius: 8, position: 'relative', cursor: 'pointer', overflow: 'hidden', boxSizing: 'border-box', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                                        style={{ width: PATENT_DATA_STRUCTURE_SIZE, height: PATENT_DATA_STRUCTURE_SIZE, background: 'transparent', border: 0, borderRadius: 8, position: 'relative', cursor: 'pointer', overflow: 'hidden', boxSizing: 'border-box', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                                       >
                                         {renderPatentStructureView({
                                           svg: record.compound_svg,
@@ -2547,38 +2714,23 @@ const PatentAnalysisDetail: React.FC = () => {
                                 }
                               },
                               {
-                                title: 'Scaffold',
-                                key: 'scaffold',
-                                width: 242,
+                                title: 'Example no.',
+                                key: 'example_number',
+                                width: 132,
                                 align: 'center' as const,
-                                className: 'table-center-column raw-data-scaffold-column',
-                                render: (_: any, record: any) => record.scaffold_svg ? (
-                                  <div className="raw-data-scaffold-cell">
-                                    <div
-                                      className="raw-data-svg-frame raw-data-scaffold-svg-frame"
-                                      style={{ width: 200, height: 200, background: token.colorBgContainer, border: `1px solid ${token.colorBorderSecondary}`, borderRadius: 8, cursor: 'pointer', position: 'relative', overflow: 'hidden', boxSizing: 'border-box', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                                    >
-                                      {renderPatentStructureView({
-                                        svg: record.scaffold_svg,
-                                        title: `Scaffold - ${record.compound_id}`,
-                                        smiles: record.scaffold,
-                                        height: '100%',
-                                        iconSize: 11,
-                                        onClick: () => openSvgPreview(record.scaffold_svg, `Scaffold - ${record.compound_id}`),
-                                      })}
-                                    </div>
-                                  </div>
-                                ) : (
-                                  <div className="raw-data-scaffold-cell">
-                                    <div
-                                      className="raw-data-svg-frame raw-data-scaffold-svg-frame"
-                                      style={{ width: 200, height: 200, background: token.colorBgContainer, border: `1px solid ${token.colorBorderSecondary}`, borderRadius: 8, boxSizing: 'border-box', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                                    >
-                                      <Text style={{ fontSize: 11, color: token.colorTextTertiary }}>no image</Text>
-                                    </div>
-                                  </div>
-                                )
+                                className: 'table-center-column',
+                                render: (_: any, record: any) => formatPatentExampleNumber(record.example_number),
                               },
+                              {
+                                title: 'Scaffold rank',
+                                dataIndex: 'scaffold_ranking',
+                                key: 'scaffold_ranking',
+                                width: 118,
+                                align: 'center' as const,
+                                className: 'table-center-column',
+                                render: (rank: unknown) => <ScaffoldRankBadge rank={rank} />,
+                              },
+                              ...(cleanShowFunctionalGroupColumns ? [scaffoldColumn, ...rGroupColumns] : []),
                               ...bioColumns,
                               {
                                 title: '관리',
@@ -2639,7 +2791,11 @@ const PatentAnalysisDetail: React.FC = () => {
                           })()
                         ) : (
                           (() => {
-                            const modifiedRows: any[] = patentResult.modified_patent_compound ?? [];
+                            const modifiedRows: any[] = (patentResult.modified_patent_compound ?? [])
+                              .filter((compound: any) => (
+                                cleanScaffoldRankFilter === 'all'
+                                || normalizeScaffoldRank(compound.scaffold_ranking) === cleanScaffoldRankFilter
+                              ));
                             if (modifiedRows.length === 0) {
                               if (isLoadingPatentDetail) return <PatentDetailLoadingState />;
                               return shouldShowPatentDetailEmpty ? <Empty description="Clean data 데이터가 없습니다." /> : null;
@@ -2692,7 +2848,6 @@ const PatentAnalysisDetail: React.FC = () => {
                                               </div>
                                             )
                                           }
-                                          footerText={comp.scaffold}
                                           pagination={
                                             pageArr.length > 0
                                               ? {
@@ -2932,6 +3087,14 @@ const PatentAnalysisDetail: React.FC = () => {
           padding: 6px 24px;
           box-sizing: border-box;
         }
+        .patent-analysis-detail-tabs > .ant-tabs-nav .ant-tabs-extra-content {
+          display: flex;
+          align-items: center;
+          padding-left: 12px;
+        }
+        .patent-analysis-tab-favorite {
+          white-space: nowrap;
+        }
         .patent-analysis-detail-tabs > .ant-tabs-nav .ant-tabs-nav-wrap,
         .patent-analysis-detail-tabs > .ant-tabs-nav .ant-tabs-nav-list {
           min-height: 36px;
@@ -2998,6 +3161,27 @@ const PatentAnalysisDetail: React.FC = () => {
           margin-bottom: 16px;
           display: flex;
           align-items: center;
+        }
+        .patent-scaffold-filter-bar {
+          min-height: 32px;
+          margin-bottom: 12px;
+          display: flex;
+          align-items: center;
+          flex-wrap: wrap;
+          gap: 6px;
+        }
+        .patent-scaffold-filter-bar .ant-btn {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+        }
+        .patent-key-compound-header {
+          min-height: 24px;
+          margin-bottom: 8px;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 8px;
         }
         .patent-analysis-fixed-card-list {
           min-width: 0;
@@ -3079,19 +3263,57 @@ const PatentAnalysisDetail: React.FC = () => {
           overflow: hidden !important;
         }
         .patent-summary-tab-content .patent-summary-scaffold-ranking-card > .ant-card-body {
-          overflow-x: auto !important;
-          overflow-y: hidden !important;
+          overflow: hidden !important;
           padding-bottom: 16px;
         }
         .patent-summary-tab-content .patent-summary-scaffold-scroll {
           display: flex;
           flex-wrap: nowrap;
           gap: 16px;
-          min-width: max-content;
+          width: 100%;
+          overflow-x: auto;
+          padding: 2px 2px 12px;
         }
         .patent-summary-tab-content .patent-summary-scaffold-item {
           flex: 0 0 260px;
           width: 260px;
+        }
+        .patent-summary-tab-content .patent-summary-scaffold-tile {
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+          padding: 10px;
+          border: 2px solid transparent;
+          border-radius: 12px;
+          background: transparent;
+          color: inherit;
+          text-align: left;
+          box-sizing: border-box;
+        }
+        .patent-summary-tab-content .patent-summary-scaffold-selectable {
+          appearance: none;
+          font: inherit;
+          cursor: pointer;
+          transition: border-color 0.2s ease, background-color 0.2s ease;
+        }
+        .patent-summary-tab-content .patent-summary-scaffold-selectable:hover {
+          background: ${token.colorFillTertiary};
+        }
+        .patent-summary-tab-content .patent-summary-scaffold-selectable.is-active {
+          border-color: ${token.colorPrimary};
+          background: ${token.colorPrimaryBg};
+        }
+        .patent-summary-tab-content .patent-summary-scaffold-tile-header {
+          min-height: 28px;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 8px;
+        }
+        .patent-summary-tab-content .patent-summary-rank-label {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
         }
         .patent-summary-tab-content .patent-summary-structure-card > .ant-card-body {
           height: auto !important;
@@ -3105,6 +3327,11 @@ const PatentAnalysisDetail: React.FC = () => {
           justify-content: center !important;
           border: 0 !important;
           overflow: hidden !important;
+          width: 100%;
+          aspect-ratio: 1 / 1;
+          border-radius: 8px;
+          position: relative;
+          background: transparent !important;
         }
         .patent-summary-tab-content .patent-functional-scaffold-frame {
           border: 1px solid ${token.colorBorderSecondary} !important;
@@ -3115,6 +3342,22 @@ const PatentAnalysisDetail: React.FC = () => {
           flex-direction: column;
           align-items: stretch;
           gap: 3px;
+        }
+        .patent-summary-tab-content .patent-functional-group-section {
+          margin-top: 16px;
+          padding-top: 16px;
+          border-top: 1px solid ${token.colorBorderSecondary};
+        }
+        .patent-summary-tab-content .patent-functional-group-title {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          margin-bottom: 16px;
+        }
+        .patent-summary-tab-content .patent-functional-group-list {
+          display: flex;
+          flex-direction: column;
+          gap: 24px;
         }
         .patent-summary-tab-content .patent-rgroup-variant-card {
           width: 152px !important;
@@ -3135,7 +3378,7 @@ const PatentAnalysisDetail: React.FC = () => {
           padding: 0 !important;
           border: 0 !important;
           border-radius: 6px !important;
-          background: ${token.colorBgContainer} !important;
+          background: transparent !important;
           position: relative !important;
           overflow: hidden !important;
         }
@@ -3244,6 +3487,10 @@ const PatentAnalysisDetail: React.FC = () => {
         }
         .raw-data-tab-content .raw-data-embodiment-table .ant-table {
           background: transparent;
+        }
+        .raw-data-tab-content .raw-data-embodiment-table .ant-table-thead > tr > th,
+        .raw-data-tab-content .raw-data-embodiment-table .ant-table-tbody > tr > td {
+          text-align: center;
         }
         .raw-data-tab-content .raw-data-embodiment-table .ant-table-tbody > tr > td {
           vertical-align: middle;

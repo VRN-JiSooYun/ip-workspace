@@ -5,7 +5,7 @@ import { ChevronRight } from 'lucide-react';
 const { Text } = Typography;
 
 interface BreadcrumbItem {
-  label: string;
+  label: React.ReactNode;
   onClick?: () => void;
 }
 
