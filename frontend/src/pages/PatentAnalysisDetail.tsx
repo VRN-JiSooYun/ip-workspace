@@ -1424,7 +1424,7 @@ const PatentAnalysisDetail: React.FC = () => {
       return;
     }
 
-    message.warning('선택한 PDF 하이라이트에 연결된 Raw Data row를 찾을 수 없습니다.');
+    message.warning('선택한 PDF 하이라이트에 연결된 Raw data row를 찾을 수 없습니다.');
   }, [
     buildCleanRows,
     cleanTablePageSize,
@@ -1735,6 +1735,7 @@ const PatentAnalysisDetail: React.FC = () => {
           >
             <div className="v-table-card" style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: isStackedSplitLayout ? 640 : 0 }}>
               <Tabs
+                className="patent-analysis-detail-tabs"
                 activeKey={activeTab}
                 onChange={(key) => {
                   React.startTransition(() => {
@@ -1745,7 +1746,7 @@ const PatentAnalysisDetail: React.FC = () => {
                 destroyOnHidden={false}
                 animated={false}
                 style={{ height: isStackedSplitLayout ? 'auto' : '100%', display: 'flex', flexDirection: 'column' }}
-                tabBarStyle={{ padding: '0 24px', margin: 0, height: 50, flexShrink: 0 }}
+                tabBarStyle={{ margin: 0, flexShrink: 0 }}
                 items={[
                   {
                     key: 'summary',
@@ -1756,20 +1757,22 @@ const PatentAnalysisDetail: React.FC = () => {
                     ),
                     children: activeTab === 'summary' ? (
                       <div className="raw-data-tab-content patent-summary-tab-content" style={{ padding: 24, flex: 1, overflowY: 'auto' }}>
-                        <Title level={5}>Patent Analysis Summary</Title>
+                        <div className="patent-analysis-tab-heading-row">
+                          <Title level={5} style={{ margin: 0 }}>Patent analysis summary</Title>
+                        </div>
                         
                         <Row gutter={[16, 16]}>
                           {hasSummaryAnalysis && summaryAnalysis ? (
                             <>
                           <Col span={24}>
-                            <Card size="small" title="Scaffold Ranking" className="patent-summary-card patent-summary-scaffold-ranking-card">
+                            <Card size="small" title="Scaffold ranking" className="patent-summary-card patent-summary-scaffold-ranking-card">
                               <div className="patent-summary-scaffold-scroll">
                                 <div className="patent-summary-scaffold-item">
-                                  <Card size="small" type="inner" title="Parent Scaffold" className="patent-summary-structure-card">
+                                  <Card size="small" type="inner" title="Parent scaffold" className="patent-summary-structure-card">
                                     <div className="patent-summary-structure-frame" style={{ width: '100%', aspectRatio: '1 / 1', background: token.colorBgContainer, border: `1px solid ${token.colorBorderSecondary}`, borderRadius: 8, position: 'relative', overflow: 'hidden' }}>
                                       {renderPatentStructureView({
                                         svg: summaryAnalysis.parentScaffold.svg,
-                                        title: 'Parent Scaffold',
+                                        title: 'Parent scaffold',
                                         smiles: (summaryAnalysis.parentScaffold as any).smiles ?? (summaryAnalysis.scaffoldRanks?.[0] as any)?.smiles,
                                         molblock: (summaryAnalysis.parentScaffold as any).molblock,
                                       })}
@@ -1782,7 +1785,7 @@ const PatentAnalysisDetail: React.FC = () => {
                                       <div className="patent-summary-structure-frame" style={{ width: '100%', aspectRatio: '1 / 1', background: token.colorBgContainer, border: `1px solid ${token.colorBorderSecondary}`, borderRadius: '8px', position: 'relative', overflow: 'hidden' }}>
                                         {renderPatentStructureView({
                                           svg: rankData.svg,
-                                          title: `Scaffold Rank ${rankData.rank}`,
+                                          title: `Scaffold rank ${rankData.rank}`,
                                           smiles: (rankData as any).smiles,
                                         })}
                                       </div>
@@ -1797,15 +1800,15 @@ const PatentAnalysisDetail: React.FC = () => {
                           </Col>
 
                           <Col span={24}>
-                            <Card size="small" title="Functional Group Analysis" className="patent-summary-card">
+                            <Card size="small" title="Functional group analysis" className="patent-summary-card">
                               <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
                                 {/* Scaffold Rank 1 Image for Functional Group Context */}
                                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
-                                  <Title level={5} style={{ marginTop: 0, marginBottom: 8, color: token.colorPrimary }}>Scaffold Rank 1</Title>
+                                  <Title level={5} style={{ marginTop: 0, marginBottom: 8, color: token.colorPrimary }}>Scaffold rank 1</Title>
                                   <div className="patent-summary-structure-frame patent-functional-scaffold-frame" style={{ width: 220, height: 220, background: token.colorBgContainer, border: `1px solid ${token.colorBorderSecondary}`, borderRadius: '8px', padding: 0, position: 'relative', overflow: 'hidden' }}>
                                     {renderPatentStructureView({
                                       svg: summaryAnalysis.scaffoldRanks?.[0]?.svg ?? summaryAnalysis.parentScaffold.svg,
-                                      title: 'Functional Group - Scaffold Rank 1',
+                                      title: 'Functional group - scaffold rank 1',
                                       smiles: (summaryAnalysis.scaffoldRanks?.[0] as any)?.smiles ?? (summaryAnalysis.parentScaffold as any)?.smiles,
                                     })}
                                   </div>
@@ -1856,14 +1859,14 @@ const PatentAnalysisDetail: React.FC = () => {
                                 {isLoadingPatentDetail ? (
                                   <PatentDetailLoadingState />
                                 ) : shouldShowPatentDetailEmpty ? (
-                                  <Empty description="Patent Analysis Summary 데이터가 없습니다." />
+                                  <Empty description="Patent analysis summary 데이터가 없습니다." />
                                 ) : null}
                               </Card>
                             </Col>
                           )}
 
                           <Col span={24}>
-                            <Card size="small" title="추천 Key Compound (빈도수/중요도 기반)">
+                            <Card size="small" title="추천 key compound (빈도수/중요도 기반)">
                               {recommendedKeyCompounds.length > 0 ? (
                                 <div
                                   style={{
@@ -1889,7 +1892,7 @@ const PatentAnalysisDetail: React.FC = () => {
                                           tags={comp.ranking ? [{ label: `Rank ${comp.ranking}`, color: 'blue' }] : []}
                                           cornerIcon={
                                             comp.is_human_key_compound ? (
-                                              <span style={{ fontSize: 15, cursor: 'pointer' }} title="Key Compound">🔑</span>
+                                              <span style={{ fontSize: 15, cursor: 'pointer' }} title="Key compound">🔑</span>
                                             ) : undefined
                                           }
                                           imageUrl={comp.compound_svg}
@@ -1899,14 +1902,14 @@ const PatentAnalysisDetail: React.FC = () => {
                                           transparentImageBackground
                                           isActive={activeCompId === compKey}
                                           onClick={() => handleCompoundCardClick(comp, comp.ranking)}
-                                          onPreview={() => openSvgPreview(comp.compound_svg, `추천 Key Compound - ${comp.compound_id}`, {
+                                          onPreview={() => openSvgPreview(comp.compound_svg, `추천 key compound - ${comp.compound_id}`, {
                                             smiles: comp.smiles,
                                             molblock: comp.molblock,
                                           })}
                                           smiles={comp.smiles}
                                           molblock={comp.molblock}
                                           linkedImageCopy={getPatentDetailStructureLinkedImageCopy(
-                                            `추천 Key Compound - ${comp.compound_id}`,
+                                            `추천 key compound - ${comp.compound_id}`,
                                             `recommendedKeyCompound:${comp.compound_id}`,
                                           )}
                                           pagination={
@@ -1916,7 +1919,6 @@ const PatentAnalysisDetail: React.FC = () => {
                                                   totalCount: pageArr.length,
                                                   onPrev: () => handlePageChange(compKey, -1, pageArr, bboxArr),
                                                   onNext: () => handlePageChange(compKey, 1, pageArr, bboxArr),
-                                                  pageLabel: () => `p.${pageArr[curIdx] ?? '-'} (총 ${formatNumberWithComma(pageArr.length)}개)`,
                                                 }
                                               : undefined
                                           }
@@ -1929,7 +1931,7 @@ const PatentAnalysisDetail: React.FC = () => {
                                 isLoadingPatentDetail ? (
                                   <PatentDetailLoadingState />
                                 ) : shouldShowPatentDetailEmpty ? (
-                                  <Empty description="추천 Key Compound 데이터가 없습니다." />
+                                  <Empty description="추천 key compound 데이터가 없습니다." />
                                 ) : null
                               )}
                             </Card>
@@ -1942,7 +1944,7 @@ const PatentAnalysisDetail: React.FC = () => {
                     key: 'raw-data',
                     label: (
                       <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <FileSpreadsheet size={16} /> Raw Data
+                        <FileSpreadsheet size={16} /> Raw data
                       </span>
                     ),
                     children: activeTab === 'raw-data' ? (
@@ -1960,19 +1962,18 @@ const PatentAnalysisDetail: React.FC = () => {
                           overflowY: rawDataView === 'table' && !isStackedSplitLayout ? 'hidden' : 'auto',
                         }}
                       >
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                        <div className="patent-analysis-tab-heading-row" style={{ justifyContent: 'space-between' }}>
                           <Title level={5} style={{ margin: 0 }}>Embodiment 화합물 목록</Title>
                           <Space>
                             <div
+                              className="patent-analysis-view-toggle"
                               style={{
                                 background: token.colorBgLayout,
-                                padding: '2px',
-                                borderRadius: 8,
-                                display: 'flex',
                                 border: `1px solid ${token.colorBorderSecondary}`
                               }}
                             >
                               <Button
+                                className="patent-analysis-view-toggle-button"
                                 type="text"
                                 size="small"
                                 icon={<TableIcon size={14} />}
@@ -1981,13 +1982,13 @@ const PatentAnalysisDetail: React.FC = () => {
                                   background: rawDataView === 'table' ? token.colorPrimaryBg : 'transparent',
                                   border: `1px solid ${rawDataView === 'table' ? token.colorPrimary : 'transparent'}`,
                                   color: rawDataView === 'table' ? token.colorPrimary : token.colorTextSecondary,
-                                  borderRadius: 6,
                                   fontWeight: rawDataView === 'table' ? 600 : 500
                                 }}
                               >
                                 Table
                               </Button>
                               <Button
+                                className="patent-analysis-view-toggle-button"
                                 type="text"
                                 size="small"
                                 icon={<LayoutGrid size={14} />}
@@ -1996,7 +1997,6 @@ const PatentAnalysisDetail: React.FC = () => {
                                   background: rawDataView === 'card' ? token.colorPrimaryBg : 'transparent',
                                   border: `1px solid ${rawDataView === 'card' ? token.colorPrimary : 'transparent'}`,
                                   color: rawDataView === 'card' ? token.colorPrimary : token.colorTextSecondary,
-                                  borderRadius: 6,
                                   fontWeight: rawDataView === 'card' ? 600 : 500
                                 }}
                               >
@@ -2008,7 +2008,7 @@ const PatentAnalysisDetail: React.FC = () => {
                               icon={<Download size={14} />}
                               loading={downloadingExcelType === 'bioactivity'}
                               disabled={rawDataExcelRowCount === 0 || downloadingExcelType !== null}
-                              title={rawDataExcelRowCount === 0 ? '다운로드할 Raw Data가 없습니다.' : undefined}
+                              title={rawDataExcelRowCount === 0 ? '다운로드할 Raw data가 없습니다.' : undefined}
                               onClick={() => void handleEmbodimentsExcelDownload('bioactivity')}
                             >
                               Excel
@@ -2103,7 +2103,7 @@ const PatentAnalysisDetail: React.FC = () => {
                                 }
                               },
                               {
-                                title: 'Example No.',
+                                title: 'Example no.',
                                 dataIndex: 'example_number',
                                 key: 'example_number',
                                 width: 130,
@@ -2112,7 +2112,7 @@ const PatentAnalysisDetail: React.FC = () => {
                                 className: 'table-center-column',
                                 render: (exampleNumber: unknown) => formatPatentExampleNumber(exampleNumber),
                               },
-                              { title: 'Scaffold Rank', dataIndex: 'scaffold_ranking', key: 'scaffold_ranking', width: 120, align: 'center' as const, className: 'table-center-column', render: (v: any) => v ?? '-' },
+                              { title: 'Scaffold rank', dataIndex: 'scaffold_ranking', key: 'scaffold_ranking', width: 120, align: 'center' as const, className: 'table-center-column', render: (v: any) => v ?? '-' },
                               {
                                 title: 'Structure',
                                 key: 'structure',
@@ -2144,7 +2144,7 @@ const PatentAnalysisDetail: React.FC = () => {
                                         <Button size="small" type="text" icon={<ChevronLeft size={12} />}
                                           onClick={(event) => { event.stopPropagation(); setActiveCompId(compKey); handlePageChange(compKey, -1, pageArr, bboxArr); }} />
                                         <Text style={{ fontSize: 10 }}>
-                                          p.{pageArr[curIdx] ?? '-'} (총 {formatNumberWithComma(pageArr.length)}개)
+                                          {curIdx + 1} / {pageArr.length}
                                         </Text>
                                         <Button size="small" type="text" style={{ transform: 'scaleX(-1)' }} icon={<ChevronLeft size={12} />}
                                           onClick={(event) => { event.stopPropagation(); setActiveCompId(compKey); handlePageChange(compKey, 1, pageArr, bboxArr); }} />
@@ -2213,7 +2213,7 @@ const PatentAnalysisDetail: React.FC = () => {
                                 className="raw-data-table-shell"
                                 style={{
                                   background: token.colorBgContainer,
-                                  borderRadius: 20,
+                                  borderRadius: 12,
                                   border: `1px solid ${token.colorBorderSecondary}`,
                                   overflow: 'hidden'
                                 }}
@@ -2257,25 +2257,25 @@ const PatentAnalysisDetail: React.FC = () => {
 
                             if (rawCardRows.length === 0) {
                               if (isLoadingPatentDetail) return <PatentDetailLoadingState />;
-                              return shouldShowPatentDetailEmpty ? <Empty description="Raw Data 데이터가 없습니다." /> : null;
+                              return shouldShowPatentDetailEmpty ? <Empty description="Raw data 데이터가 없습니다." /> : null;
                             }
 
                             return (
                               <div className="patent-analysis-card-view">
-                                <Row className="patent-analysis-card-grid" gutter={[16, 16]}>
+                                <div className="patent-analysis-fixed-card-list">
                                   {pagedRawCardRows.map((comp: any, idx: number) => {
                                     const compKey = String(comp.id);
                                     const pageArr: number[] = Array.isArray(comp.page) ? comp.page : [];
                                     const bboxArr: any[] = Array.isArray(comp.bbox) ? comp.bbox : [];
                                     const curIdx = pageIndices[compKey] ?? 0;
                                     return (
-                                      <Col span={24} md={12} lg={8} key={`${comp.id}-${idx}`}>
+                                      <div className="patent-analysis-fixed-card-item" key={`${comp.id}-${idx}`}>
                                         <DataCardItem
                                           title={formatPatentExampleNumber(comp.example_number)}
                                           tags={comp.ranking ? [{ label: `Rank ${comp.ranking}`, color: 'blue' }] : []}
                                           cornerIcon={
                                             comp.is_human_key_compound ? (
-                                              <span style={{ fontSize: 15, cursor: 'pointer' }} title="Key Compound">🔑</span>
+                                              <span style={{ fontSize: 15, cursor: 'pointer' }} title="Key compound">🔑</span>
                                             ) : undefined
                                           }
                                           imageUrl={comp.compound_svg}
@@ -2306,15 +2306,14 @@ const PatentAnalysisDetail: React.FC = () => {
                                                   totalCount: pageArr.length,
                                                   onPrev: () => handlePageChange(compKey, -1, pageArr, bboxArr),
                                                   onNext: () => handlePageChange(compKey, 1, pageArr, bboxArr),
-                                                  pageLabel: () => `p.${pageArr[curIdx] ?? '-'} (총 ${formatNumberWithComma(pageArr.length)}개)`,
                                                 }
                                               : undefined
                                           }
                                         />
-                                      </Col>
+                                      </div>
                                     );
                                   })}
-                                </Row>
+                                </div>
                                 <Pagination
                                   className="v-common-pagination"
                                   size="small"
@@ -2340,7 +2339,7 @@ const PatentAnalysisDetail: React.FC = () => {
                     key: 'clean-data',
                     label: (
                       <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <Activity size={16} /> Clean Data
+                        <Activity size={16} /> Clean data
                       </span>
                     ),
                     children: activeTab === 'clean-data' ? (
@@ -2358,19 +2357,18 @@ const PatentAnalysisDetail: React.FC = () => {
                           overflowY: cleanDataView === 'table' && !isStackedSplitLayout ? 'hidden' : 'auto',
                         }}
                       >
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-                          <Title level={5} style={{ margin: 0 }}>Clean Data 화합물 목록</Title>
+                        <div className="patent-analysis-tab-heading-row" style={{ justifyContent: 'space-between' }}>
+                          <Title level={5} style={{ margin: 0 }}>Clean data 화합물 목록</Title>
                           <Space>
                             <div
+                              className="patent-analysis-view-toggle"
                               style={{
                                 background: token.colorBgLayout,
-                                padding: '2px',
-                                borderRadius: 8,
-                                display: 'flex',
                                 border: `1px solid ${token.colorBorderSecondary}`
                               }}
                             >
                               <Button
+                                className="patent-analysis-view-toggle-button"
                                 type="text"
                                 size="small"
                                 icon={<TableIcon size={14} />}
@@ -2379,13 +2377,13 @@ const PatentAnalysisDetail: React.FC = () => {
                                   background: cleanDataView === 'table' ? token.colorPrimaryBg : 'transparent',
                                   border: `1px solid ${cleanDataView === 'table' ? token.colorPrimary : 'transparent'}`,
                                   color: cleanDataView === 'table' ? token.colorPrimary : token.colorTextSecondary,
-                                  borderRadius: 6,
                                   fontWeight: cleanDataView === 'table' ? 600 : 500
                                 }}
                               >
                                 Table
                               </Button>
                               <Button
+                                className="patent-analysis-view-toggle-button"
                                 type="text"
                                 size="small"
                                 icon={<LayoutGrid size={14} />}
@@ -2394,7 +2392,6 @@ const PatentAnalysisDetail: React.FC = () => {
                                   background: cleanDataView === 'card' ? token.colorPrimaryBg : 'transparent',
                                   border: `1px solid ${cleanDataView === 'card' ? token.colorPrimary : 'transparent'}`,
                                   color: cleanDataView === 'card' ? token.colorPrimary : token.colorTextSecondary,
-                                  borderRadius: 6,
                                   fontWeight: cleanDataView === 'card' ? 600 : 500
                                 }}
                               >
@@ -2406,13 +2403,13 @@ const PatentAnalysisDetail: React.FC = () => {
                               icon={<Download size={14} />}
                               loading={downloadingExcelType === 'modified_bioactivity'}
                               disabled={cleanDataExcelRowCount === 0 || downloadingExcelType !== null}
-                              title={cleanDataExcelRowCount === 0 ? '다운로드할 Clean Data가 없습니다.' : undefined}
+                              title={cleanDataExcelRowCount === 0 ? '다운로드할 Clean data가 없습니다.' : undefined}
                               onClick={() => void handleEmbodimentsExcelDownload('modified_bioactivity')}
                             >
                               Excel
                             </Button>
                             <Button size="small" type="primary">Filter</Button>
-                            <Button size="small" type="default">Clean Data 요청</Button>
+                            <Button size="small" type="default">Clean data 요청</Button>
                           </Space>
                         </div>
                         {cleanDataView === 'table' ? (
@@ -2507,8 +2504,8 @@ const PatentAnalysisDetail: React.FC = () => {
                                   </div>
                                 )
                               },
-                              { title: 'Scaffold Group', dataIndex: 'scaffold_ranking', key: 'scaffold_ranking', width: 118, align: 'center' as const, className: 'table-center-column', render: (v: any) => v ?? '-' },
-                              { title: 'Example No.', key: 'example_number', width: 132, align: 'center' as const, className: 'table-center-column', render: (_: any, record: any) => formatPatentExampleNumber(record.example_number) },
+                              { title: 'Scaffold group', dataIndex: 'scaffold_ranking', key: 'scaffold_ranking', width: 118, align: 'center' as const, className: 'table-center-column', render: (v: any) => v ?? '-' },
+                              { title: 'Example no.', key: 'example_number', width: 132, align: 'center' as const, className: 'table-center-column', render: (_: any, record: any) => formatPatentExampleNumber(record.example_number) },
                               {
                                 title: 'Structure',
                                 key: 'structure',
@@ -2540,7 +2537,7 @@ const PatentAnalysisDetail: React.FC = () => {
                                         <Button size="small" type="text" icon={<ChevronLeft size={12} />}
                                           onClick={(event) => { event.stopPropagation(); setActiveCompId(compKey); handlePageChange(compKey, -1, pageArr, bboxArr); }} />
                                         <Text style={{ fontSize: 10 }}>
-                                          p.{pageArr[curIdx] ?? '-'} (총 {formatNumberWithComma(pageArr.length)}개)
+                                          {curIdx + 1} / {pageArr.length}
                                         </Text>
                                         <Button size="small" type="text" style={{ transform: 'scaleX(-1)' }} icon={<ChevronLeft size={12} />}
                                           onClick={(event) => { event.stopPropagation(); setActiveCompId(compKey); handlePageChange(compKey, 1, pageArr, bboxArr); }} />
@@ -2599,7 +2596,7 @@ const PatentAnalysisDetail: React.FC = () => {
 
                             if (cleanRows.length === 0) {
                               if (isLoadingPatentDetail) return <PatentDetailLoadingState />;
-                              return shouldShowPatentDetailEmpty ? <Empty description="Clean Data 데이터가 없습니다." /> : null;
+                              return shouldShowPatentDetailEmpty ? <Empty description="Clean data 데이터가 없습니다." /> : null;
                             }
 
                             return (
@@ -2608,7 +2605,7 @@ const PatentAnalysisDetail: React.FC = () => {
                                 className="raw-data-table-shell"
                                 style={{
                                   background: token.colorBgContainer,
-                                  borderRadius: 20,
+                                  borderRadius: 12,
                                   border: `1px solid ${token.colorBorderSecondary}`,
                                   overflow: 'hidden'
                                 }}
@@ -2645,14 +2642,14 @@ const PatentAnalysisDetail: React.FC = () => {
                             const modifiedRows: any[] = patentResult.modified_patent_compound ?? [];
                             if (modifiedRows.length === 0) {
                               if (isLoadingPatentDetail) return <PatentDetailLoadingState />;
-                              return shouldShowPatentDetailEmpty ? <Empty description="Clean Data 데이터가 없습니다." /> : null;
+                              return shouldShowPatentDetailEmpty ? <Empty description="Clean data 데이터가 없습니다." /> : null;
                             }
                             const currentPage = Math.min(cleanCardCurrentPage, Math.max(1, Math.ceil(modifiedRows.length / cleanCardPageSize)));
                             const pagedModifiedRows = modifiedRows.slice((currentPage - 1) * cleanCardPageSize, currentPage * cleanCardPageSize);
 
                             return (
                               <div className="patent-analysis-card-view">
-                                <Row className="patent-analysis-card-grid" gutter={[16, 16]}>
+                                <div className="patent-analysis-fixed-card-list">
                                   {pagedModifiedRows.map((comp: any, idx: number) => {
                                     const compKey = `clean-card-${comp.id}-${((currentPage - 1) * cleanCardPageSize) + idx}`;
                                     const pageArr: number[] = Array.isArray(comp.page) ? comp.page : [];
@@ -2660,7 +2657,7 @@ const PatentAnalysisDetail: React.FC = () => {
                                     const curIdx = pageIndices[compKey] ?? 0;
                                     const bioEntries = Object.entries(comp.modified_bioactivity ?? {}) as [string, any][];
                                     return (
-                                      <Col span={24} md={12} lg={8} key={compKey}>
+                                      <div className="patent-analysis-fixed-card-item" key={compKey}>
                                         <DataCardItem
                                           title={formatPatentExampleNumber(comp.example_number)}
                                           tags={comp.ranking ? [{ label: `Rank ${comp.ranking}`, color: 'blue' }] : []}
@@ -2703,15 +2700,14 @@ const PatentAnalysisDetail: React.FC = () => {
                                                   totalCount: pageArr.length,
                                                   onPrev: () => handlePageChange(compKey, -1, pageArr, bboxArr),
                                                   onNext: () => handlePageChange(compKey, 1, pageArr, bboxArr),
-                                                  pageLabel: () => `p.${pageArr[curIdx] ?? '-'} (총 ${formatNumberWithComma(pageArr.length)}개)`,
                                                 }
                                               : undefined
                                           }
                                         />
-                                      </Col>
+                                      </div>
                                     );
                                   })}
-                                </Row>
+                                </div>
                                 <Pagination
                                   className="v-common-pagination"
                                   size="small"
@@ -2742,7 +2738,9 @@ const PatentAnalysisDetail: React.FC = () => {
                     ),
                     children: activeTab === 'tables' ? (
                         <div style={{ padding: 24, flex: 1, overflowY: 'auto' }}>
-                          <Title level={5} style={{ marginTop: 0, marginBottom: 16 }}>Result Tables</Title>
+                          <div className="patent-analysis-tab-heading-row">
+                            <Title level={5} style={{ margin: 0 }}>Result tables</Title>
+                          </div>
                           {resultTables.length === 0 ? (
                               isLoadingPatentDetail ? (
                                 <PatentDetailLoadingState />
@@ -2750,7 +2748,7 @@ const PatentAnalysisDetail: React.FC = () => {
                                 <Empty description="result.tables 데이터가 없습니다." />
                               ) : null
                           ) : (
-                              <Row gutter={[16, 16]}>
+                              <div className="patent-analysis-fixed-card-list">
                                 {resultTables.map((tableItem: any, i: number) => {
                                   const cardKey = `table-${tableItem?.table_num ?? i}-${i}`;
                                   const base64List = Array.isArray(tableItem?.table_base64) ? tableItem.table_base64 : [];
@@ -2765,7 +2763,7 @@ const PatentAnalysisDetail: React.FC = () => {
                                       : null;
                                   
                                   return (
-                                    <Col span={24} md={12} lg={8} key={cardKey}>
+                                    <div className="patent-analysis-fixed-card-item" key={cardKey}>
                                       <DataCardItem
                                         title={`Table ${tableItem?.table_group ?? tableItem?.table_num ?? '?'}`}
                                         tags={[
@@ -2815,15 +2813,14 @@ const PatentAnalysisDetail: React.FC = () => {
                                                 totalCount: pageArray.length,
                                                 onPrev: () => handleTablePageChange(tableItem, i, -1),
                                                 onNext: () => handleTablePageChange(tableItem, i, 1),
-                                                pageLabel: () => `p.${pageArray[tableCurrentIndex] ?? '-'} (총 ${formatNumberWithComma(pageArray.length)}개)`,
                                               }
                                             : undefined
                                         }
                                       />
-                                    </Col>
+                                    </div>
                                   );
                                 })}
-                              </Row>
+                              </div>
                           )}
                         </div>
                     ) : null
@@ -2930,6 +2927,97 @@ const PatentAnalysisDetail: React.FC = () => {
           overflow: hidden !important;
         }
         .cdd-clipboard-icon-container, .CDW_Logo, .cdd-logo { display: none !important; }
+        .patent-analysis-detail-tabs > .ant-tabs-nav {
+          min-height: 50px;
+          padding: 6px 24px;
+          box-sizing: border-box;
+        }
+        .patent-analysis-detail-tabs > .ant-tabs-nav .ant-tabs-nav-wrap,
+        .patent-analysis-detail-tabs > .ant-tabs-nav .ant-tabs-nav-list {
+          min-height: 36px;
+          align-items: center;
+        }
+        .patent-analysis-detail-tabs > .ant-tabs-nav .ant-tabs-nav-list {
+          gap: 6px;
+        }
+        .patent-analysis-detail-tabs > .ant-tabs-nav .ant-tabs-tab {
+          height: 36px;
+          min-height: 36px;
+          margin: 0 !important;
+          padding: 0 14px !important;
+          border: 1px solid transparent;
+          border-radius: 10px;
+          box-sizing: border-box;
+          display: flex;
+          align-items: center;
+          transition:
+            color 0.2s ease,
+            border-color 0.2s ease,
+            background-color 0.2s ease;
+        }
+        .patent-analysis-detail-tabs > .ant-tabs-nav .ant-tabs-tab-btn,
+        .patent-analysis-detail-tabs > .ant-tabs-nav .ant-tabs-tab-btn > span {
+          height: 100%;
+          display: flex;
+          align-items: center;
+        }
+        .patent-analysis-detail-tabs > .ant-tabs-nav .ant-tabs-tab:hover {
+          border-color: ${token.colorBorder};
+          background: ${token.colorFillTertiary};
+        }
+        .patent-analysis-detail-tabs > .ant-tabs-nav .ant-tabs-tab-active {
+          border-color: ${token.colorPrimary};
+          background: ${token.colorPrimaryBg};
+        }
+        .patent-analysis-detail-tabs > .ant-tabs-nav .ant-tabs-ink-bar {
+          display: none;
+        }
+        .patent-analysis-view-toggle {
+          height: 34px;
+          padding: 2px;
+          border-radius: 10px;
+          box-sizing: border-box;
+          display: flex;
+          align-items: center;
+          gap: 2px;
+        }
+        .patent-analysis-view-toggle .patent-analysis-view-toggle-button {
+          width: 72px;
+          min-width: 72px;
+          height: 28px;
+          min-height: 28px;
+          padding: 0 10px;
+          border-radius: 7px !important;
+          box-sizing: border-box;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+        }
+        .patent-analysis-tab-heading-row {
+          min-height: 34px;
+          margin-bottom: 16px;
+          display: flex;
+          align-items: center;
+        }
+        .patent-analysis-fixed-card-list {
+          min-width: 0;
+          display: flex;
+          align-items: flex-start;
+          align-content: flex-start;
+          flex-wrap: wrap;
+          gap: 16px;
+          overflow-x: auto;
+          padding-bottom: 8px;
+        }
+        .patent-analysis-fixed-card-item {
+          width: 260px;
+          min-width: 260px;
+          max-width: 260px;
+          flex: 0 0 260px;
+        }
+        .patent-analysis-fixed-card-item > .ant-card {
+          width: 100%;
+        }
         .ant-tabs-content-holder {
           flex: 1;
           overflow: hidden;
