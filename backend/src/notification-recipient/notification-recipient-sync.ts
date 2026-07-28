@@ -23,14 +23,12 @@ export const syncNotificationRecipientForUser = async (
   const active = (user.status ?? 'ACTIVE') === 'ACTIVE';
 
   return prisma.$transaction(async (tx) => {
-    const [byEmail, byUser] = await Promise.all([
-      tx.notificationRecipient.findUnique({
-        where: { normalizedEmail },
-      }),
-      tx.notificationRecipient.findUnique({
-        where: { linkedUserId: user.id },
-      }),
-    ]);
+    const byEmail = await tx.notificationRecipient.findUnique({
+      where: { normalizedEmail },
+    });
+    const byUser = await tx.notificationRecipient.findUnique({
+      where: { linkedUserId: user.id },
+    });
 
     if (byUser && byUser.normalizedEmail !== normalizedEmail) {
       throw new NotificationRecipientSyncConflictError(
