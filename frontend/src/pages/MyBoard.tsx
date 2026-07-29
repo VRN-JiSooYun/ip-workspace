@@ -15,7 +15,7 @@ import {
   Row, Col, Card, Table, Button, Input,
   Space, Typography, Modal, Form, Tag, Select, DatePicker, Avatar, Divider, Upload, Segmented, Spin, theme, Tooltip, Dropdown, App as AntApp, Cascader, InputNumber
 } from 'antd';
-import type { MenuProps, UploadFile } from 'antd';
+import type { InputRef, MenuProps, UploadFile } from 'antd';
 import {
   Search, Plus, Filter, Settings, List as ListIcon,
   Image as ImageIcon, GitBranch, Info, ChevronDown, ChevronUp, Beaker,
@@ -582,6 +582,7 @@ const MyBoard: React.FC = () => {
   const { currentUser } = useUserStore();
   const [designForm] = Form.useForm();
   const [groupForm] = Form.useForm<{ name: string; target?: string }>();
+  const groupTitleInputRef = React.useRef<InputRef>(null);
   const designReferenceName = Form.useWatch('referenceName', designForm) as string | undefined;
   const [designFormInitialValues, setDesignFormInitialValues] = useState<DesignFormInitialValues>(
     () => ({ ...EMPTY_DESIGN_FORM_VALUES }),
@@ -4837,6 +4838,11 @@ const MyBoard: React.FC = () => {
         open={isGroupModalOpen}
         onCancel={closeGroupModal}
         onOk={saveGroup}
+        afterOpenChange={(open) => {
+          if (open && groupModalMode === 'create') {
+            groupTitleInputRef.current?.focus({ cursor: 'start' });
+          }
+        }}
         okText={groupModalMode === 'edit' ? '저장' : '생성'}
         cancelText="취소"
         destroyOnHidden
@@ -4850,7 +4856,7 @@ const MyBoard: React.FC = () => {
               { whitespace: true, message: '타이틀을 입력하세요.' },
             ]}
           >
-            <Input placeholder="타이틀을 입력하세요" />
+            <Input ref={groupTitleInputRef} placeholder="타이틀을 입력하세요" />
           </Form.Item>
           <Form.Item name="target" label="프로젝트">
             <Select placeholder="프로젝트를 선택하세요">
@@ -4937,7 +4943,7 @@ const MyBoard: React.FC = () => {
           disabled: !(selectedQuickAddCode || quickAddCode).trim() || !canAddCompound,
           loading: isQuickAddAdding,
         }}
-        width="min(920px, calc(100vw - 24px))"
+        width="min(640px, calc(100vw - 24px))"
         styles={{ body: { maxHeight: 'calc(100vh - 190px)', overflowY: 'auto' } }}
       >
         <Form layout="vertical" style={{ marginTop: 16 }}>
@@ -4970,7 +4976,7 @@ const MyBoard: React.FC = () => {
             loading={isQuickAddSearching}
             dataSource={quickAddResults}
             pagination={false}
-            scroll={{ x: 760, y: 440 }}
+            scroll={{ x: 540, y: 616 }}
             locale={{ emptyText: quickAddCode.trim() ? '조회 결과 없음' : 'compound code를 입력하세요' }}
             columns={[
               {
@@ -4989,7 +4995,7 @@ const MyBoard: React.FC = () => {
                 title: '화합물 구조',
                 dataIndex: 'compound_code',
                 key: 'structure',
-                width: 520,
+                width: 300,
                 align: 'center',
                 render: (compoundCode: string) => (
                   <QuickAddStructureCell
