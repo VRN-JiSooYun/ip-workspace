@@ -9,6 +9,7 @@ import { createRdkitSvgCacheKey, getRdkitStructureSourceKey, renderRdkitSvg } fr
 import { subscribeRdkitDrawOptionsChange } from '../../services/rdkitDrawOptions';
 import { installCanvasReadbackPatch } from '../../utils/canvasReadback';
 import { installPassiveWheelListenerPatch } from '../../utils/passiveWheelListenerPatch';
+import { normalizeMolBlockForClipboard } from '../../utils/structureClipboard';
 
 export interface CompoundStructureAction {
   key: string;
@@ -98,7 +99,7 @@ export const getCompoundStructureCopyText = (params: {
 }) => {
   const smiles = typeof params.smiles === 'string' ? params.smiles.trim() : '';
   const molBlockSource = params.molBlock ?? params.mol_block ?? params.molblock;
-  const molBlock = typeof molBlockSource === 'string' ? molBlockSource.trim() : '';
+  const molBlock = normalizeMolBlockForClipboard(molBlockSource);
   const cdxml = typeof params.cdxml === 'string' ? params.cdxml.trim() : '';
   const svg = typeof params.svg === 'string' ? params.svg.trim() : '';
 

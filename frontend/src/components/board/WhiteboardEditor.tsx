@@ -8,6 +8,7 @@ import {
 import ChemDrawModal, { type ChemDrawStructureData } from '../common/ChemDrawModal';
 import BenzeneIcon from '../common/BenzeneIcon';
 import { createRdkitDrawOptionPayload, readRdkitDrawOptions } from '../../services/rdkitDrawOptions';
+import { normalizeMolBlockForClipboard } from '../../utils/structureClipboard';
 
 interface WhiteboardEditorProps {
   height?: number;
@@ -53,7 +54,6 @@ const WhiteboardEditor: React.FC<WhiteboardEditorProps> = ({
   };
 
   const getCopyPayload = (data: ChemDrawStructureData) => {
-    const value = data.cdxml || data.molV2000 || data.molfile || data.molV3000 || data.smiles;
     const format = data.cdxml
       ? 'CDXML'
       : data.molV2000 || data.molfile
@@ -61,6 +61,10 @@ const WhiteboardEditor: React.FC<WhiteboardEditorProps> = ({
         : data.molV3000
           ? 'MOLV3000'
           : 'SMILES';
+    const rawValue = data.cdxml || data.molV2000 || data.molfile || data.molV3000 || data.smiles;
+    const value = format === 'MOLV2000' || format === 'MOLV3000'
+      ? normalizeMolBlockForClipboard(rawValue)
+      : rawValue;
 
     return value ? { value, format } : null;
   };
