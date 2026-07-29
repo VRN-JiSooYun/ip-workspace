@@ -407,10 +407,6 @@ export const usePatentPdfViewer = ({
     clearPdfHighlightCenterTimers();
     const requestId = pdfHighlightCenterRequestRef.current;
     const centerKey = `${pageNumber}:${rect.join(',')}`;
-    const utils = highlighterUtilsRef.current;
-
-    // 대상 페이지를 먼저 렌더 영역으로 가져온 후 실제 bbox DOM 좌표로 중앙을 보정한다.
-    utils?.scrollToHighlight(highlight);
 
     let centered = false;
     const centerWhenReady = () => {
@@ -438,11 +434,9 @@ export const usePatentPdfViewer = ({
         0,
         maxScrollTop,
       );
-      const prefersReducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-
       viewerContainer.scrollTo({
         top: nextScrollTop,
-        behavior: prefersReducedMotion ? 'auto' : 'smooth',
+        behavior: 'auto',
       });
       centered = true;
       debugLog('compound-highlight-centered', {
