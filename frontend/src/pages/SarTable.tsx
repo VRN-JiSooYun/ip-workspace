@@ -1500,6 +1500,7 @@ const SarTable: React.FC = () => {
     if (!isPresentSarValue(val)) return '-';
     const numericValue = typeof val === 'number' ? val : Number(val);
     const isNumeric = Number.isFinite(numericValue);
+    const fractionDigits = group === 'c' ? 4 : (group === 'p' || group === 'pk') ? 2 : 1;
 
     let bgColor = 'transparent';
     let textColor = 'inherit';
@@ -1524,7 +1525,7 @@ const SarTable: React.FC = () => {
         fontWeight: isColorActive && isNumeric && numericValue < 0.5 ? 600 : 400
       }}>
         {isNumeric
-          ? formatNumberWithComma(numericValue, { fractionDigits: 2 })
+          ? formatNumberWithComma(numericValue, { fractionDigits })
           : String(val)}
       </div>
     );
