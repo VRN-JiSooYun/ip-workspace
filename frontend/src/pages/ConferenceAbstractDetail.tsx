@@ -57,6 +57,8 @@ const DIRECT_EMAIL_DOMAINS: string[] = (
 
 const normalizeEmail = (value: string) => value.trim().toLowerCase();
 const directEmailValue = (email: string) => `${DIRECT_EMAIL_VALUE_PREFIX}${email}`;
+const DOMAIN_LABEL_PATTERN = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/i;
+const DOMAIN_SUFFIX_PATTERN = /^(?:[a-z]{2,63}|xn--[a-z0-9-]{2,59})$/i;
 
 const isRecord = (value: unknown): value is Record<string, unknown> => (
   typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -66,7 +68,15 @@ const isValidHttpUrl = (value: string): boolean => {
   if (!HTTP_URL_PATTERN.test(value)) return false;
   try {
     const url = new URL(value);
-    return ['http:', 'https:'].includes(url.protocol) && Boolean(url.hostname);
+    const hostnameLabels = url.hostname.split('.');
+    const domainSuffix = hostnameLabels[hostnameLabels.length - 1] || '';
+
+    return (
+      ['http:', 'https:'].includes(url.protocol)
+      && hostnameLabels.length >= 2
+      && hostnameLabels.every((label) => DOMAIN_LABEL_PATTERN.test(label))
+      && DOMAIN_SUFFIX_PATTERN.test(domainSuffix)
+    );
   } catch {
     return false;
   }
@@ -488,7 +498,6 @@ const ConferenceAbstractDetail: React.FC = () => {
   return (
     <div className="conference-detail-page">
       <div className="conference-detail-topbar">
-        <Button icon={<ArrowLeft size={16} />} onClick={returnToList}>목록</Button>
         <Space wrap>
           <Button
             type={detail.isFavorite ? 'primary' : 'default'}

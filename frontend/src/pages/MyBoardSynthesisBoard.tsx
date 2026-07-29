@@ -612,6 +612,7 @@ const MyBoardSynthesisBoard: React.FC = () => {
   const detailViewContentRef = React.useRef<HTMLDivElement | null>(null);
   const handledSynthesisRequestTargetIdRef = React.useRef<string | null>(null);
   const [groupTableScrollY, setGroupTableScrollY] = useState<number | undefined>(undefined);
+  const [groupTableHasVerticalScroll, setGroupTableHasVerticalScroll] = useState(false);
   const [detailTableScrollY, setDetailTableScrollY] = useState<number | undefined>(() => {
     if (typeof window === 'undefined') return undefined;
     return Math.max(160, window.innerHeight - 330);
@@ -827,12 +828,22 @@ const MyBoardSynthesisBoard: React.FC = () => {
       ? Math.min(availableContainerWidth, MYBOARD_GROUP_TABLE_MIN_WIDTH)
       : availableContainerWidth;
     const availableTitleWidth = Math.max(
-      containerWidth - MYBOARD_GROUP_FIXED_COLUMN_WIDTH - MYBOARD_GROUP_TABLE_WIDTH_BUFFER,
+      containerWidth
+        - MYBOARD_GROUP_FIXED_COLUMN_WIDTH
+        - (groupTableHasVerticalScroll ? MYBOARD_GROUP_TABLE_WIDTH_BUFFER : 0),
       MYBOARD_GROUP_TITLE_MIN_WIDTH
     );
 
     return Math.round(availableTitleWidth);
-  }, [getSplitWidthFromRatio, isStackedSplitLayout, layoutPreset.sidePadding, splitLeftWidth, splitRatio, viewportWidth]);
+  }, [
+    getSplitWidthFromRatio,
+    groupTableHasVerticalScroll,
+    isStackedSplitLayout,
+    layoutPreset.sidePadding,
+    splitLeftWidth,
+    splitRatio,
+    viewportWidth,
+  ]);
   const autoFitGroupTableWidth = React.useMemo(() => {
     return MYBOARD_GROUP_TABLE_MIN_WIDTH + MYBOARD_GROUP_SCROLL_WIDTH_TOLERANCE;
   }, []);
@@ -1563,6 +1574,24 @@ const MyBoardSynthesisBoard: React.FC = () => {
     return (
       <span className="my-board-multiline-text" title={text}>
         {text}
+      </span>
+    );
+  };
+
+  const renderSynthesisDateTime = (value: unknown) => {
+    const formattedValue = formatDisplayDate(value);
+    if (formattedValue === '-') return '-';
+
+    const date = formattedValue.match(/^(\d{4}\.\d{2}\.\d{2})/)?.[1] || formattedValue;
+    const timeMatch = String(value).match(/[T\s](\d{2}):(\d{2})(?::(\d{2}))?/);
+    const time = timeMatch
+      ? `${timeMatch[1]}:${timeMatch[2]}:${timeMatch[3] || '00'}`
+      : '00:00:00';
+
+    return (
+      <span className="my-board-synthesis-date-time" title={`${date} ${time}`}>
+        <span>{date}</span>
+        <span style={{ color: token.colorTextTertiary }}>{time}</span>
       </span>
     );
   };
@@ -3131,7 +3160,7 @@ const MyBoardSynthesisBoard: React.FC = () => {
     '필요량 (mg)': { title: '필요량 (mg)', dataIndex: 'requiredAmountMg', key: 'requiredAmountMg', width: 104, align: 'right' as const },
     '목적 (개선하고자 하는 assay)': { title: '목적 (개선하고자 하는 assay)', dataIndex: 'assayPurpose', key: 'assayPurpose', width: 260, render: renderMultilineText },
     '기대 개선 효과': { title: '기대 개선 효과', dataIndex: 'expectedEffect', key: 'expectedEffect', width: 180, render: renderDesignMemoPreview },
-    '합성 의뢰일': { title: '합성 의뢰일', dataIndex: 'requestDate', key: 'requestDate', width: 96, render: formatDisplayDate },
+    '합성 의뢰일': { title: '합성 의뢰일', dataIndex: 'requestDate', key: 'requestDate', width: 96, render: renderSynthesisDateTime },
     '합성 확장 필요 정도': { title: '합성 확장 필요 정도', dataIndex: 'synthesisExpansionLevel', key: 'synthesisExpansionLevel', width: 144 },
     '의뢰 비고': { title: '의뢰 비고', dataIndex: 'requestMemo', key: 'requestMemo', width: 180, render: renderDesignMemoPreview },
     '합성 담당자': {
@@ -3197,7 +3226,7 @@ const MyBoardSynthesisBoard: React.FC = () => {
       width: 124,
       align: 'center' as const,
       className: 'table-center-column',
-      render: formatDisplayDate,
+      render: renderSynthesisDateTime,
     },
     '합성 완료 목표일': {
       title: '합성 완료 목표일',
@@ -3206,7 +3235,7 @@ const MyBoardSynthesisBoard: React.FC = () => {
       width: 124,
       align: 'center' as const,
       className: 'table-center-column',
-      render: formatDisplayDate,
+      render: renderSynthesisDateTime,
     },
     '합성 진행 상황 비고': {
       title: '합성 진행 상황 비고',
@@ -3222,7 +3251,7 @@ const MyBoardSynthesisBoard: React.FC = () => {
       width: 96,
       align: 'center' as const,
       className: 'table-center-column',
-      render: formatDisplayDate,
+      render: renderSynthesisDateTime,
     },
     '연구노트': {
       title: '연구노트',
@@ -3354,13 +3383,11 @@ const MyBoardSynthesisBoard: React.FC = () => {
     const groupBody = groupTable?.querySelector<HTMLElement>('.ant-table-body');
     const groupTbody = groupTable?.querySelector<HTMLElement>('.my-board-group-table .ant-table-tbody');
     const groupMeasureElement = groupBody ?? groupTbody;
-    if (groupMeasureElement && groupTbody) {
-      const maxGroupBodyHeight = Math.max(
+    if (groupMeasureElement) {
+      const nextGroupScrollY = Math.max(
         minBodyHeight,
         Math.floor(window.innerHeight - groupMeasureElement.getBoundingClientRect().top - bottomGap - cardBottomInset)
       );
-      const groupRowsHeight = Math.ceil(groupTbody.getBoundingClientRect().height);
-      const nextGroupScrollY = groupRowsHeight <= maxGroupBodyHeight ? undefined : maxGroupBodyHeight;
 
       setGroupTableScrollY((current) => (
         current === nextGroupScrollY ? current : nextGroupScrollY
@@ -3424,6 +3451,42 @@ const MyBoardSynthesisBoard: React.FC = () => {
     showFilters,
     updateTableScrollHeights,
     viewMode,
+    visibleGroupRows.length,
+  ]);
+
+  React.useLayoutEffect(() => {
+    if (isStackedSplitLayout || isGroupListHidden) {
+      setGroupTableHasVerticalScroll(false);
+      return undefined;
+    }
+
+    const tableBody = groupListTableCardRef.current?.querySelector<HTMLElement>(
+      '.my-board-group-table .ant-table-body'
+    );
+    if (!tableBody) {
+      setGroupTableHasVerticalScroll(false);
+      return undefined;
+    }
+
+    const updateVerticalScrollState = () => {
+      const hasVerticalScroll = tableBody.scrollHeight - tableBody.clientHeight > 3;
+      setGroupTableHasVerticalScroll((current) => (
+        current === hasVerticalScroll ? current : hasVerticalScroll
+      ));
+    };
+    const frameId = window.requestAnimationFrame(updateVerticalScrollState);
+    const resizeObserver = new ResizeObserver(updateVerticalScrollState);
+    resizeObserver.observe(tableBody);
+
+    return () => {
+      window.cancelAnimationFrame(frameId);
+      resizeObserver.disconnect();
+    };
+  }, [
+    groupTableScrollY,
+    isGroupListHidden,
+    isGroupListStructureOnly,
+    isStackedSplitLayout,
     visibleGroupRows.length,
   ]);
 
@@ -3900,7 +3963,15 @@ const MyBoardSynthesisBoard: React.FC = () => {
             transition: isResizingSplit ? 'none' : 'width 0.2s ease, flex-basis 0.2s ease'
           }}
         >
-          <div className="v-table-card my-board-list-card" ref={groupListTableCardRef}>
+          <div
+            className="v-table-card my-board-list-card"
+            ref={groupListTableCardRef}
+            style={{
+              '--my-board-group-table-body-height': groupTableScrollY !== undefined
+                ? `${groupTableScrollY}px`
+                : undefined,
+            } as React.CSSProperties}
+          >
             <div className="v-table-header" style={{ padding: isGroupListStructureOnly ? '8px' : undefined, justifyContent: isGroupListStructureOnly ? 'center' : 'space-between' }}>
               {isGroupListStructureOnly ? (
                 <Space size={10}>
@@ -4005,6 +4076,7 @@ const MyBoardSynthesisBoard: React.FC = () => {
                 'my-board-group-table',
                 isGroupListStructureOnly ? 'my-board-group-table-structure-only' : undefined,
                 !shouldUseGroupTableHorizontalScroll ? 'my-board-group-table-no-horizontal-scroll' : undefined,
+                !groupTableHasVerticalScroll ? 'my-board-group-table-no-vertical-scroll' : undefined,
               ].filter(Boolean).join(' ')}
               dataSource={visibleGroupRows}
               columns={isGroupListStructureOnly ? styledStructureOnlyGroupColumns : styledGroupColumns}
@@ -4174,7 +4246,15 @@ const MyBoardSynthesisBoard: React.FC = () => {
                     }}
                   />
                 </Dropdown>
-                <div className="my-board-detail-table-wrapper" ref={detailTableWrapperRef}>
+                <div
+                  className="my-board-detail-table-wrapper"
+                  ref={detailTableWrapperRef}
+                  style={{
+                    '--my-board-detail-table-body-height': detailTableScrollY !== undefined
+                      ? `${detailTableScrollY}px`
+                      : undefined,
+                  } as React.CSSProperties}
+                >
                   <Table
                     className="my-board-table my-board-detail-table"
                     dataSource={selectedGroupIds.length > 0 ? filteredCompounds : []}
@@ -5776,9 +5856,50 @@ const MyBoardSynthesisBoard: React.FC = () => {
         .my-board-list-card {
           min-height: 0;
         }
+        .my-board-detail-panel {
+          display: flex;
+          flex-direction: column;
+        }
+        .my-board-detail-panel > .my-board-list-card {
+          display: flex;
+          flex: 1 1 auto;
+          flex-direction: column;
+          width: 100%;
+        }
         .my-board-list-card > .ant-table-wrapper,
         .my-board-detail-table-wrapper {
           min-height: 0;
+        }
+        .my-board-detail-table-wrapper {
+          display: flex;
+          flex: 1 1 auto;
+          flex-direction: column;
+          width: 100%;
+        }
+        .my-board-detail-table-wrapper > .ant-table-wrapper {
+          width: 100%;
+        }
+        .my-board-group-table .ant-table-body {
+          height: var(--my-board-group-table-body-height);
+          min-height: var(--my-board-group-table-body-height);
+          max-height: var(--my-board-group-table-body-height) !important;
+        }
+        .my-board-detail-table .ant-table-body {
+          height: var(--my-board-detail-table-body-height);
+          min-height: var(--my-board-detail-table-body-height);
+          max-height: var(--my-board-detail-table-body-height) !important;
+        }
+        .my-board-group-table .ant-table-content {
+          min-height: var(--my-board-group-table-body-height);
+        }
+        .my-board-detail-table .ant-table-content {
+          min-height: var(--my-board-detail-table-body-height);
+        }
+        .my-board-group-table .ant-table-placeholder > td {
+          height: var(--my-board-group-table-body-height);
+        }
+        .my-board-detail-table .ant-table-placeholder > td {
+          height: var(--my-board-detail-table-body-height);
         }
         .my-board-workspace-visual,
         .my-board-workspace-main-visual {
@@ -5858,6 +5979,14 @@ const MyBoardSynthesisBoard: React.FC = () => {
         .my-board-group-table-no-horizontal-scroll .ant-table {
           width: 100% !important;
           min-width: 0 !important;
+        }
+        .my-board-group-table-no-vertical-scroll col.ant-table-cell-scrollbar,
+        .my-board-group-table-no-vertical-scroll th.ant-table-cell-scrollbar {
+          display: none;
+        }
+        .my-board-group-table-no-vertical-scroll .ant-table-body {
+          overflow-y: hidden !important;
+          scrollbar-gutter: auto !important;
         }
         .my-board-detail-table .ant-table-body {
           overflow-x: auto !important;

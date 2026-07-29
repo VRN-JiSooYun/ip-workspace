@@ -834,7 +834,7 @@ const PatentAnalysisList: React.FC = () => {
         const tableContent = region.querySelector<HTMLElement>('.ant-table-content');
         const tableRows = region.querySelector<HTMLElement>('.patent-analysis-list-table .ant-table-tbody');
         const tableMeasureElement = tableBody ?? tableContent ?? tableRows;
-        if (!tableMeasureElement || !tableRows) return;
+        if (!tableMeasureElement) return;
 
         const tablePagination = region.querySelector<HTMLElement>('.ant-pagination');
         const paginationStyle = tablePagination
@@ -857,11 +857,8 @@ const PatentAnalysisList: React.FC = () => {
             - 2,
           ),
         );
-        const rowsHeight = Math.ceil(tableRows.getBoundingClientRect().height);
-        const nextHeight = rowsHeight <= maxBodyHeight ? undefined : maxBodyHeight;
-
         setPatentTableScrollY((current) => (
-          current === nextHeight ? current : nextHeight
+          current === maxBodyHeight ? current : maxBodyHeight
         ));
       });
     };
@@ -1927,10 +1924,15 @@ const PatentAnalysisList: React.FC = () => {
           <div
             ref={patentTableRegionRef}
             className="patent-analysis-table-region"
+            style={{
+              '--viewport-table-body-height': patentTableScrollY !== undefined
+                ? `${patentTableScrollY}px`
+                : undefined,
+            } as React.CSSProperties}
           >
             {appliedStructureSmiles ? (
               <Table
-                className="my-board-table patent-analysis-list-table patent-analysis-structure-table"
+                className="my-board-table patent-analysis-list-table patent-analysis-structure-table viewport-fill-table"
                 columns={structureSearchColumns}
                 dataSource={filteredStructureCompounds}
                 rowKey="compoundId"
@@ -1970,7 +1972,7 @@ const PatentAnalysisList: React.FC = () => {
               />
             ) : (
               <Table
-                className="my-board-table patent-analysis-list-table"
+                className="my-board-table patent-analysis-list-table viewport-fill-table"
                 columns={columns}
                 dataSource={filteredPatents}
                 rowKey="id"

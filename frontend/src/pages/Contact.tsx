@@ -28,6 +28,7 @@ import {
   type ContactInquiryStatus,
 } from '../mocks/contactInquiries';
 import { useUIStore } from '../store/useUIStore';
+import { useViewportTableHeight } from '../hooks/useViewportTableHeight';
 import { formatDisplayDate, formatNumberWithComma } from '../utils/displayFormat';
 import './Contact.css';
 
@@ -42,7 +43,11 @@ const Contact: React.FC = () => {
   const { message, modal } = AntApp.useApp();
   const session = useAuthSession();
   const { setHeaderContent } = useUIStore();
-  const tableWrapperRef = React.useRef<HTMLDivElement | null>(null);
+  const {
+    tableBodyHeight,
+    tableRegionRef: tableWrapperRef,
+    tableRegionStyle,
+  } = useViewportTableHeight();
   const [tableWidth, setTableWidth] = React.useState(0);
   const [inquiries, setInquiries] = React.useState<ContactInquiry[]>(() => (
     contactInquiryMocks.map((inquiry) => ({ ...inquiry }))
@@ -404,15 +409,15 @@ const Contact: React.FC = () => {
             />
           </Space>
         </div>
-        <div className="contact-table-wrapper" ref={tableWrapperRef}>
+        <div className="contact-table-wrapper" ref={tableWrapperRef} style={tableRegionStyle}>
           <Table<ContactInquiry>
-            className="contact-table"
+            className="contact-table viewport-fill-table"
             rowKey="id"
             size="small"
             dataSource={filteredInquiries}
             columns={columns}
             tableLayout="fixed"
-            scroll={{ x: tableScrollX }}
+            scroll={{ x: tableScrollX, y: tableBodyHeight }}
             pagination={{
               current: pagination.current,
               pageSize: pagination.pageSize,

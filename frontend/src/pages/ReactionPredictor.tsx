@@ -35,6 +35,7 @@ import oaProfile022 from '../assets/reaction_predictor/oa_profile_022.svg';
 import oaProfile028 from '../assets/reaction_predictor/oa_profile_028.svg';
 import oaProfileTriBromo from '../assets/reaction_predictor/oa_profile_tri_bromo.svg';
 import { useResponsiveLayout } from '../hooks/useResponsiveLayout';
+import { useViewportTableHeight } from '../hooks/useViewportTableHeight';
 import { useUIStore } from '../store/useUIStore';
 import {
   mockReactionPredictions,
@@ -80,6 +81,9 @@ const ReactionPredictor: React.FC = () => {
   const { token } = theme.useToken();
   const { setHeaderContent } = useUIStore();
   const { layoutPreset, isSmall } = useResponsiveLayout();
+  const { tableBodyHeight, tableRegionRef, tableRegionStyle } = useViewportTableHeight({
+    enabled: !isSmall,
+  });
   const [rows, setRows] = useState<ReactionPredictionRow[]>(mockReactionPredictions);
   const [reactionType, setReactionType] = useState<ReactionType>('oa');
   const [keyword, setKeyword] = useState('');
@@ -327,25 +331,28 @@ const ReactionPredictor: React.FC = () => {
                 Add prediction
               </Button>
             </div>
-            <Table<ReactionPredictionRow>
-              rowKey="id"
-              columns={columns}
-              dataSource={filteredRows}
-              size="small"
-              pagination={{
-                defaultPageSize: 10,
-                showSizeChanger: true,
-                pageSizeOptions: [10, 30, 50, 100],
-                itemRender: (page, type, originalElement) => (
-                  type === 'page' ? <span>{formatNumberWithComma(page)}</span> : originalElement
-                ),
-              }}
-              scroll={{ x: 850 }}
-              rowClassName={(row) => (row.id === selectedRow?.id ? 'row-selected' : '')}
-              onRow={(row) => ({
-                onClick: () => setSelectedRowId(row.id),
-              })}
-            />
+            <div ref={tableRegionRef} style={tableRegionStyle}>
+              <Table<ReactionPredictionRow>
+                className="viewport-fill-table"
+                rowKey="id"
+                columns={columns}
+                dataSource={filteredRows}
+                size="small"
+                pagination={{
+                  defaultPageSize: 10,
+                  showSizeChanger: true,
+                  pageSizeOptions: [10, 30, 50, 100],
+                  itemRender: (page, type, originalElement) => (
+                    type === 'page' ? <span>{formatNumberWithComma(page)}</span> : originalElement
+                  ),
+                }}
+                scroll={{ x: 850, y: tableBodyHeight }}
+                rowClassName={(row) => (row.id === selectedRow?.id ? 'row-selected' : '')}
+                onRow={(row) => ({
+                  onClick: () => setSelectedRowId(row.id),
+                })}
+              />
+            </div>
           </div>
         </Col>
         <Col xs={24} xl={8}>

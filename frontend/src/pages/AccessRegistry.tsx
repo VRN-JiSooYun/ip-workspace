@@ -27,6 +27,7 @@ import {
 } from '../services/adminAccessApi';
 import { AUTH_REQUIRED_EVENT } from '../services/authApi';
 import { useUIStore } from '../store/useUIStore';
+import { useViewportTableHeight } from '../hooks/useViewportTableHeight';
 import { formatDisplayDate } from '../utils/displayFormat';
 
 const { Text, Title } = Typography;
@@ -56,6 +57,7 @@ const AccessRegistry: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [editingUser, setEditingUser] = useState<AdminUser | null>(null);
+  const { tableBodyHeight, tableRegionRef, tableRegionStyle } = useViewportTableHeight();
   const isAdmin = session.user.role === 'ADMIN';
 
   useEffect(() => {
@@ -253,23 +255,25 @@ const AccessRegistry: React.FC = () => {
           placeholder="이메일 또는 이름 검색"
           style={{ width: 'min(360px, 100%)' }}
         />
-        <Table<AdminUser>
-          className="access-registry-table"
-          rowKey="id"
-          columns={columns}
-          dataSource={filteredUsers}
-          loading={loading}
-          size="small"
-          scroll={{ x: 900 }}
-          pagination={{
-            current: pagination.current,
-            pageSize: pagination.pageSize,
-            pageSizeOptions: [10, 30, 50, 100],
-            showSizeChanger: true,
-            position: ['bottomRight'],
-            onChange: (current, pageSize) => setPagination({ current, pageSize }),
-          }}
-        />
+        <div ref={tableRegionRef} style={tableRegionStyle}>
+          <Table<AdminUser>
+            className="access-registry-table viewport-fill-table"
+            rowKey="id"
+            columns={columns}
+            dataSource={filteredUsers}
+            loading={loading}
+            size="small"
+            scroll={{ x: 900, y: tableBodyHeight }}
+            pagination={{
+              current: pagination.current,
+              pageSize: pagination.pageSize,
+              pageSizeOptions: [10, 30, 50, 100],
+              showSizeChanger: true,
+              position: ['bottomRight'],
+              onChange: (current, pageSize) => setPagination({ current, pageSize }),
+            }}
+          />
+        </div>
       </div>
 
       <Modal

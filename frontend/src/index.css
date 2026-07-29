@@ -104,6 +104,20 @@ span.ant-typography {
   align-items: center;
 }
 
+.viewport-fill-table .ant-table-body {
+  height: var(--viewport-table-body-height);
+  min-height: var(--viewport-table-body-height);
+  max-height: var(--viewport-table-body-height) !important;
+}
+
+.viewport-fill-table .ant-table-content {
+  min-height: var(--viewport-table-body-height);
+}
+
+.viewport-fill-table .ant-table-placeholder > td {
+  height: var(--viewport-table-body-height);
+}
+
 /* MyBoard Tree View */
 .my-board-tree-view {
   display: flex;
@@ -831,6 +845,19 @@ span.ant-typography {
 .my-board-group-title-column .my-board-multiline-text {
   -webkit-line-clamp: 4;
   line-clamp: 4;
+}
+
+.my-board-synthesis-date-time {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  line-height: 1.35;
+  white-space: nowrap;
+}
+
+.my-board-synthesis-date-time > span:last-child {
+  margin-top: 2px;
+  font-size: 10px;
 }
 
 .table-center-column {

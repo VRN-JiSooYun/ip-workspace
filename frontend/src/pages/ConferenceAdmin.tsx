@@ -48,6 +48,7 @@ import {
   type NotificationRecipientImportRun,
 } from '../services/conferenceAdminApi';
 import { useUIStore } from '../store/useUIStore';
+import { useViewportTableHeight } from '../hooks/useViewportTableHeight';
 import { formatDisplayDate, formatNumberWithComma } from '../utils/displayFormat';
 
 const { Paragraph, Text, Title } = Typography;
@@ -127,6 +128,10 @@ const ConferenceAdmin: React.FC = () => {
   const [startingRecipientMode, setStartingRecipientMode] =
     useState<'DRY_RUN' | 'APPLY' | 'RECONCILE' | null>(null);
   const [retryingMailIds, setRetryingMailIds] = useState<Set<string>>(new Set());
+  const [activeTabKey, setActiveTabKey] = useState('import');
+  const importTable = useViewportTableHeight({ enabled: activeTabKey === 'import' });
+  const recipientTable = useViewportTableHeight({ enabled: activeTabKey === 'recipients' });
+  const mailTable = useViewportTableHeight({ enabled: activeTabKey === 'mail-outbox' });
   const isAdmin = session.user.role === 'ADMIN';
 
   useEffect(() => {
@@ -835,14 +840,15 @@ const ConferenceAdmin: React.FC = () => {
             : 'Excel metadata와 legacy media URL만 DB에 반영하며 media binary는 복사하지 않습니다.'}
         />
       </Card>
-      <div className="v-table-card">
+      <div className="v-table-card" ref={importTable.tableRegionRef} style={importTable.tableRegionStyle}>
         <Table
+          className="viewport-fill-table"
           rowKey="id"
           size="small"
           columns={runColumns}
           dataSource={runs}
           loading={loading}
-          scroll={{ x: 1100 }}
+          scroll={{ x: 1100, y: importTable.tableBodyHeight }}
           pagination={{ pageSize: 10, showSizeChanger: true, pageSizeOptions: [10, 30, 50, 100] }}
         />
       </div>
@@ -994,14 +1000,15 @@ const ConferenceAdmin: React.FC = () => {
           description="APPLY는 같은 batch checksum의 오류·충돌 없는 Dry-run 후에만 활성화됩니다. 이메일이 없는 구성원은 SKIPPED_NO_EMAIL로 제외하며 인증 User는 생성하지 않습니다."
         />
       </Card>
-      <div className="v-table-card">
+      <div className="v-table-card" ref={recipientTable.tableRegionRef} style={recipientTable.tableRegionStyle}>
         <Table
+          className="viewport-fill-table"
           rowKey="id"
           size="small"
           columns={recipientRunColumns}
           dataSource={recipientRuns}
           loading={loading}
-          scroll={{ x: 1300 }}
+          scroll={{ x: 1300, y: recipientTable.tableBodyHeight }}
           pagination={{
             pageSize: 10,
             showSizeChanger: true,
@@ -1037,14 +1044,15 @@ const ConferenceAdmin: React.FC = () => {
           새로고침
         </Button>
       </Card>
-      <div className="v-table-card">
+      <div className="v-table-card" ref={mailTable.tableRegionRef} style={mailTable.tableRegionStyle}>
         <Table
+          className="viewport-fill-table"
           rowKey="id"
           size="small"
           columns={mailOutboxColumns}
           dataSource={mailOutboxes}
           loading={loading}
-          scroll={{ x: 1150 }}
+          scroll={{ x: 1150, y: mailTable.tableBodyHeight }}
           pagination={{
             pageSize: 10,
             showSizeChanger: true,
@@ -1114,6 +1122,8 @@ const ConferenceAdmin: React.FC = () => {
         <Paragraph type="secondary">Metadata import와 신규 Conference/Abstract를 관리합니다.</Paragraph>
       </div>
       <Tabs
+        activeKey={activeTabKey}
+        onChange={setActiveTabKey}
         items={[
           { key: 'import', label: <Space><FileSpreadsheet size={15} />Import</Space>, children: importTab },
           {

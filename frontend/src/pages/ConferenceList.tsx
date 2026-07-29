@@ -275,7 +275,7 @@ const ConferenceList: React.FC = () => {
         const content = region.querySelector<HTMLElement>('.ant-table-content');
         const rows = region.querySelector<HTMLElement>('.ant-table-tbody');
         const measureElement = body ?? content ?? rows;
-        if (!measureElement || !rows) return;
+        if (!measureElement) return;
         const tablePagination = region.querySelector<HTMLElement>('.ant-pagination');
         const paginationStyle = tablePagination
           ? window.getComputedStyle(tablePagination)
@@ -297,9 +297,7 @@ const ConferenceList: React.FC = () => {
             - 2,
           ),
         );
-        const rowsHeight = Math.ceil(rows.getBoundingClientRect().height);
-        const nextHeight = rowsHeight <= maxBodyHeight ? undefined : maxBodyHeight;
-        setTableScrollY((current) => current === nextHeight ? current : nextHeight);
+        setTableScrollY((current) => current === maxBodyHeight ? current : maxBodyHeight);
       });
     };
     const resizeObserver = new ResizeObserver(updateTableHeight);
@@ -791,9 +789,15 @@ const ConferenceList: React.FC = () => {
         {error && (
           <Alert className="conference-list-alert" type="error" showIcon message={error} />
         )}
-        <div ref={tableRegionRef} className="conference-unified-table-region">
+        <div
+          ref={tableRegionRef}
+          className="conference-unified-table-region"
+          style={{
+            '--viewport-table-body-height': tableScrollY !== undefined ? `${tableScrollY}px` : undefined,
+          } as React.CSSProperties}
+        >
           <Table
-            className="conference-table conference-unified-table"
+            className="conference-table conference-unified-table viewport-fill-table"
             rowKey="id"
             size="small"
             loading={loading}

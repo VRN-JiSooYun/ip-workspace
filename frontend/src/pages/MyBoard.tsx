@@ -13,7 +13,7 @@ import {
 } from '@xyflow/react';
 import {
   Row, Col, Card, Table, Button, Input,
-  Space, Typography, Modal, Form, Tag, List, Select, DatePicker, Avatar, Divider, Upload, Segmented, Spin, theme, Tooltip, Dropdown, App as AntApp, Cascader, InputNumber
+  Space, Typography, Modal, Form, Tag, Select, DatePicker, Avatar, Divider, Upload, Segmented, Spin, theme, Tooltip, Dropdown, App as AntApp, Cascader, InputNumber
 } from 'antd';
 import type { MenuProps, UploadFile } from 'antd';
 import {
@@ -226,6 +226,70 @@ const EMPTY_DESIGN_FORM_VALUES: DesignFormInitialValues = {
 type DesignMemoPreviewBlock =
   | { type: 'text'; text: string }
   | { type: 'image'; src: string };
+
+type QuickAddStructureEntry = {
+  status: 'loading' | 'loaded' | 'error';
+  compound?: CompoundPermissionResult;
+  error?: string;
+};
+
+const QuickAddStructureCell: React.FC<{
+  compoundCode: string;
+  entry?: QuickAddStructureEntry;
+  onVisible: (compoundCode: string) => void;
+  onPreview: (compound: CompoundPermissionResult, svg: string) => void;
+}> = ({ compoundCode, entry, onPreview, onVisible }) => {
+  const cellRef = React.useRef<HTMLDivElement | null>(null);
+
+  React.useEffect(() => {
+    const element = cellRef.current;
+    if (!element || entry) return undefined;
+
+    const observer = new IntersectionObserver(([intersection]) => {
+      if (!intersection?.isIntersecting) return;
+      onVisible(compoundCode);
+      observer.disconnect();
+    }, { rootMargin: '120px 0px' });
+    observer.observe(element);
+
+    return () => observer.disconnect();
+  }, [compoundCode, entry, onVisible]);
+
+  return (
+    <div ref={cellRef} className="my-board-quick-add-structure-cell">
+      {!entry || entry.status === 'loading' ? <Spin size="small" /> : null}
+      {entry?.status === 'error' ? (
+        <Text type="secondary" className="my-board-quick-add-structure-message">
+          {entry.error || '구조를 불러오지 못했습니다.'}
+        </Text>
+      ) : null}
+      {entry?.status === 'loaded' && entry.compound ? (
+        <CompoundStructureView
+          title={entry.compound.compound_code}
+          smiles={entry.compound.smiles}
+          width={220}
+          height={104}
+          iconSize={32}
+          gap={0}
+          frameless
+          actionPlacement="overlay"
+          actionOverlayAnchor="container"
+          actionOverlayPlacement="bottom-right"
+          preferRdkitSvg
+          transparentBackground
+          showPreviewAction
+          showCopyAction
+          showCopyImageAction
+          showChemDrawAction={false}
+          onPreview={(svg) => {
+            if (svg) onPreview(entry.compound!, svg);
+          }}
+          frameStyle={{ border: 0, background: 'transparent', boxShadow: 'none' }}
+        />
+      ) : null}
+    </div>
+  );
+};
 
 const IDEA_COMPOUND_COUNTER_STORAGE_PREFIX = 'my-board:idea-compound-counter';
 const IDEA_COMPOUND_PREFIX = 'LYH';
@@ -525,6 +589,7 @@ const MyBoard: React.FC = () => {
   const [isGroupModalOpen, setIsGroupModalOpen] = useState(false);
   const [groupModalMode, setGroupModalMode] = useState<'create' | 'edit'>('create');
   const [isDesignModalOpen, setIsDesignModalOpen] = useState(false);
+  const [ideaCompoundModalBodyHeight, setIdeaCompoundModalBodyHeight] = useState<number>();
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [isStructureModalOpen, setIsStructureModalOpen] = useState(false);
   const [isQuickAddModalOpen, setIsQuickAddModalOpen] = useState(false);
@@ -536,8 +601,9 @@ const MyBoard: React.FC = () => {
   const [quickAddResults, setQuickAddResults] = useState<CompoundSearchResult[]>([]);
   const [selectedQuickAddCode, setSelectedQuickAddCode] = useState('');
   const [quickAddPreview, setQuickAddPreview] = useState<CompoundPermissionResult | null>(null);
-  const [quickAddPreviewError, setQuickAddPreviewError] = useState<string | null>(null);
-  const [isQuickAddPreviewLoading, setIsQuickAddPreviewLoading] = useState(false);
+  const [quickAddStructures, setQuickAddStructures] = useState<Record<string, QuickAddStructureEntry>>({});
+  const quickAddStructureControllersRef = React.useRef<Map<string, AbortController>>(new Map());
+  const quickAddRequestedCodesRef = React.useRef<Set<string>>(new Set());
   const [isQuickAddSearching, setIsQuickAddSearching] = useState(false);
   const [isQuickAddAdding, setIsQuickAddAdding] = useState(false);
   const [isChemaxonCalculating, setIsChemaxonCalculating] = useState(false);
@@ -609,6 +675,7 @@ const MyBoard: React.FC = () => {
   const detailTableWrapperRef = React.useRef<HTMLDivElement | null>(null);
   const detailViewContentRef = React.useRef<HTMLDivElement | null>(null);
   const [groupTableScrollY, setGroupTableScrollY] = useState<number | undefined>(undefined);
+  const [groupTableHasVerticalScroll, setGroupTableHasVerticalScroll] = useState(false);
   const [detailTableScrollY, setDetailTableScrollY] = useState<number | undefined>(() => {
     if (typeof window === 'undefined') return undefined;
     return Math.max(160, window.innerHeight - 330);
@@ -663,43 +730,51 @@ const MyBoard: React.FC = () => {
     };
   }, [isQuickAddModalOpen, quickAddCode]);
 
-  useEffect(() => {
-    const compoundCode = selectedQuickAddCode.trim();
-    if (!isQuickAddModalOpen || !compoundCode) {
-      setQuickAddPreview(null);
-      setQuickAddPreviewError(null);
-      setIsQuickAddPreviewLoading(false);
-      return;
-    }
+  const loadQuickAddStructure = React.useCallback((compoundCode: string) => {
+    const normalizedCode = compoundCode.trim().toLowerCase();
+    if (!normalizedCode || quickAddRequestedCodesRef.current.has(normalizedCode)) return;
+
+    quickAddRequestedCodesRef.current.add(normalizedCode);
+    setQuickAddStructures((current) => ({
+      ...current,
+      [normalizedCode]: { status: 'loading' },
+    }));
 
     const controller = new AbortController();
-    setQuickAddPreview(null);
-    setQuickAddPreviewError(null);
-    setIsQuickAddPreviewLoading(true);
-
+    quickAddStructureControllersRef.current.set(normalizedCode, controller);
     compoundApi.getCompounds([compoundCode], { signal: controller.signal })
       .then((response) => {
         const compound = response.compounds.find((item) => (
-          item.compound_code.toLowerCase() === compoundCode.toLowerCase()
+          item.compound_code.toLowerCase() === normalizedCode
         )) ?? response.compounds[0];
         const smiles = compound?.smiles?.trim() ?? '';
-
-        if (!compound || !smiles || smiles.toLowerCase() === 'no permission') {
-          setQuickAddPreviewError('화합물 구조를 조회할 권한이 없습니다.');
-          return;
-        }
-        setQuickAddPreview(compound);
+        const entry: QuickAddStructureEntry = (
+          compound && smiles && smiles.toLowerCase() !== 'no permission'
+            ? { status: 'loaded', compound }
+            : { status: 'error', error: '구조 조회 권한이 없습니다.' }
+        );
+        setQuickAddStructures((current) => ({ ...current, [normalizedCode]: entry }));
       })
       .catch((error) => {
         if (controller.signal.aborted) return;
-        setQuickAddPreviewError(error instanceof Error ? error.message : '화합물 구조를 불러오지 못했습니다.');
+        setQuickAddStructures((current) => ({
+          ...current,
+          [normalizedCode]: {
+            status: 'error',
+            error: error instanceof Error ? error.message : '구조를 불러오지 못했습니다.',
+          },
+        }));
       })
       .finally(() => {
-        if (!controller.signal.aborted) setIsQuickAddPreviewLoading(false);
+        quickAddStructureControllersRef.current.delete(normalizedCode);
       });
+  }, []);
 
-    return () => controller.abort();
-  }, [isQuickAddModalOpen, selectedQuickAddCode]);
+  useEffect(() => () => {
+    quickAddStructureControllersRef.current.forEach((controller) => controller.abort());
+    quickAddStructureControllersRef.current.clear();
+    quickAddRequestedCodesRef.current.clear();
+  }, []);
 
   useEffect(() => {
     if (externalCompoundRows.length === 0) return;
@@ -854,12 +929,22 @@ const MyBoard: React.FC = () => {
       ? Math.min(availableContainerWidth, MYBOARD_GROUP_TABLE_MIN_WIDTH)
       : availableContainerWidth;
     const availableTitleWidth = Math.max(
-      containerWidth - MYBOARD_GROUP_FIXED_COLUMN_WIDTH - MYBOARD_GROUP_TABLE_WIDTH_BUFFER,
+      containerWidth
+        - MYBOARD_GROUP_FIXED_COLUMN_WIDTH
+        - (groupTableHasVerticalScroll ? MYBOARD_GROUP_TABLE_WIDTH_BUFFER : 0),
       MYBOARD_GROUP_TITLE_MIN_WIDTH
     );
 
     return Math.round(availableTitleWidth);
-  }, [getSplitWidthFromRatio, isStackedSplitLayout, layoutPreset.sidePadding, splitLeftWidth, splitRatio, viewportWidth]);
+  }, [
+    getSplitWidthFromRatio,
+    groupTableHasVerticalScroll,
+    isStackedSplitLayout,
+    layoutPreset.sidePadding,
+    splitLeftWidth,
+    splitRatio,
+    viewportWidth,
+  ]);
   const autoFitGroupTableWidth = React.useMemo(() => {
     return MYBOARD_GROUP_TABLE_MIN_WIDTH + MYBOARD_GROUP_SCROLL_WIDTH_TOLERANCE;
   }, []);
@@ -2786,9 +2871,12 @@ const MyBoard: React.FC = () => {
     setIsQuickAddAdding(true);
 
     try {
-      const cachedCompound = quickAddPreview?.compound_code.toLowerCase() === compoundCode.toLowerCase()
-        ? quickAddPreview
-        : null;
+      const tableCompound = quickAddStructures[compoundCode.toLowerCase()]?.compound;
+      const cachedCompound = (
+        quickAddPreview?.compound_code.toLowerCase() === compoundCode.toLowerCase()
+          ? quickAddPreview
+          : tableCompound
+      ) ?? null;
       const response = cachedCompound ? null : await compoundApi.getCompounds([compoundCode]);
       const compoundData = cachedCompound ?? response?.compounds.find((compound) => (
         compound.compound_code.toLowerCase() === compoundCode.toLowerCase()
@@ -2851,6 +2939,11 @@ const MyBoard: React.FC = () => {
       setQuickAddCode('');
       setSelectedQuickAddCode('');
       setQuickAddResults([]);
+      setQuickAddPreview(null);
+      setQuickAddStructures({});
+      quickAddStructureControllersRef.current.forEach((controller) => controller.abort());
+      quickAddStructureControllersRef.current.clear();
+      quickAddRequestedCodesRef.current.clear();
       setIsQuickAddModalOpen(false);
     } catch (error) {
       modal.error({
@@ -2868,6 +2961,7 @@ const MyBoard: React.FC = () => {
     modal,
     quickAddCode,
     quickAddPreview,
+    quickAddStructures,
     selectedGroupIds,
     selectedQuickAddCode,
   ]);
@@ -3564,13 +3658,11 @@ const MyBoard: React.FC = () => {
     const groupBody = groupTable?.querySelector<HTMLElement>('.ant-table-body');
     const groupTbody = groupTable?.querySelector<HTMLElement>('.my-board-group-table .ant-table-tbody');
     const groupMeasureElement = groupBody ?? groupTbody;
-    if (groupMeasureElement && groupTbody) {
-      const maxGroupBodyHeight = Math.max(
+    if (groupMeasureElement) {
+      const nextGroupScrollY = Math.max(
         minBodyHeight,
         Math.floor(window.innerHeight - groupMeasureElement.getBoundingClientRect().top - bottomGap - cardBottomInset)
       );
-      const groupRowsHeight = Math.ceil(groupTbody.getBoundingClientRect().height);
-      const nextGroupScrollY = groupRowsHeight <= maxGroupBodyHeight ? undefined : maxGroupBodyHeight;
 
       setGroupTableScrollY((current) => (
         current === nextGroupScrollY ? current : nextGroupScrollY
@@ -3634,6 +3726,42 @@ const MyBoard: React.FC = () => {
     showFilters,
     updateTableScrollHeights,
     viewMode,
+    visibleGroupRows.length,
+  ]);
+
+  React.useLayoutEffect(() => {
+    if (isStackedSplitLayout || isGroupListHidden) {
+      setGroupTableHasVerticalScroll(false);
+      return undefined;
+    }
+
+    const tableBody = groupListTableCardRef.current?.querySelector<HTMLElement>(
+      '.my-board-group-table .ant-table-body'
+    );
+    if (!tableBody) {
+      setGroupTableHasVerticalScroll(false);
+      return undefined;
+    }
+
+    const updateVerticalScrollState = () => {
+      const hasVerticalScroll = tableBody.scrollHeight - tableBody.clientHeight > 3;
+      setGroupTableHasVerticalScroll((current) => (
+        current === hasVerticalScroll ? current : hasVerticalScroll
+      ));
+    };
+    const frameId = window.requestAnimationFrame(updateVerticalScrollState);
+    const resizeObserver = new ResizeObserver(updateVerticalScrollState);
+    resizeObserver.observe(tableBody);
+
+    return () => {
+      window.cancelAnimationFrame(frameId);
+      resizeObserver.disconnect();
+    };
+  }, [
+    groupTableScrollY,
+    isGroupListHidden,
+    isGroupListStructureOnly,
+    isStackedSplitLayout,
     visibleGroupRows.length,
   ]);
 
@@ -4112,7 +4240,15 @@ const MyBoard: React.FC = () => {
             transition: isResizingSplit ? 'none' : 'width 0.2s ease, flex-basis 0.2s ease'
           }}
         >
-          <div className="v-table-card my-board-list-card" ref={groupListTableCardRef}>
+          <div
+            className="v-table-card my-board-list-card"
+            ref={groupListTableCardRef}
+            style={{
+              '--my-board-group-table-body-height': groupTableScrollY !== undefined
+                ? `${groupTableScrollY}px`
+                : undefined,
+            } as React.CSSProperties}
+          >
             <div className="v-table-header" style={{ padding: isGroupListStructureOnly ? '8px' : undefined, justifyContent: isGroupListStructureOnly ? 'center' : 'space-between' }}>
               {isGroupListStructureOnly ? (
                 <Space size={10}>
@@ -4255,6 +4391,7 @@ const MyBoard: React.FC = () => {
                 'my-board-group-table',
                 isGroupListStructureOnly ? 'my-board-group-table-structure-only' : undefined,
                 !shouldUseGroupTableHorizontalScroll ? 'my-board-group-table-no-horizontal-scroll' : undefined,
+                !groupTableHasVerticalScroll ? 'my-board-group-table-no-vertical-scroll' : undefined,
               ].filter(Boolean).join(' ')}
               dataSource={visibleGroupRows}
               columns={isGroupListStructureOnly ? styledStructureOnlyGroupColumns : styledGroupColumns}
@@ -4371,11 +4508,12 @@ const MyBoard: React.FC = () => {
                 <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
                   <Space wrap size={8}>
                     <Button
-                      type="primary"
+                      type="default"
                       size="small"
                       icon={<Plus size={14} />}
                       disabled={!canAddCompound}
-                      style={getCompoundActionButtonStyle(canAddCompound)}
+                      className="my-board-outline-action-button"
+                      style={getOutlineActionButtonStyle(canAddCompound)}
                       onClick={() => setIsQuickAddModalOpen(true)}
                     >
                       Quick add
@@ -4413,6 +4551,7 @@ const MyBoard: React.FC = () => {
                     >
                       Del
                     </Button>
+                    <Divider type="vertical" className="my-board-detail-toolbar-divider" />
                     <Button
                       type="default"
                       size="small"
@@ -4570,7 +4709,15 @@ const MyBoard: React.FC = () => {
                     }}
                   />
                 </Dropdown>
-                <div className="my-board-detail-table-wrapper" ref={detailTableWrapperRef}>
+                <div
+                  className="my-board-detail-table-wrapper"
+                  ref={detailTableWrapperRef}
+                  style={{
+                    '--my-board-detail-table-body-height': detailTableScrollY !== undefined
+                      ? `${detailTableScrollY}px`
+                      : undefined,
+                  } as React.CSSProperties}
+                >
                   <Table
                     className="my-board-table my-board-detail-table"
                     dataSource={selectedGroupIds.length > 0 ? sortedDetailCompounds : []}
@@ -4768,6 +4915,7 @@ const MyBoard: React.FC = () => {
       </Modal>
 
       <Modal
+        className="my-board-quick-add-modal"
         title="Quick add"
         open={isQuickAddModalOpen}
         onCancel={() => {
@@ -4777,8 +4925,10 @@ const MyBoard: React.FC = () => {
           setQuickAddResults([]);
           setQuickAddError(null);
           setQuickAddPreview(null);
-          setQuickAddPreviewError(null);
-          setIsQuickAddPreviewLoading(false);
+          setQuickAddStructures({});
+          quickAddStructureControllersRef.current.forEach((controller) => controller.abort());
+          quickAddStructureControllersRef.current.clear();
+          quickAddRequestedCodesRef.current.clear();
         }}
         onOk={handleQuickAddCompound}
         okText="추가"
@@ -4787,9 +4937,11 @@ const MyBoard: React.FC = () => {
           disabled: !(selectedQuickAddCode || quickAddCode).trim() || !canAddCompound,
           loading: isQuickAddAdding,
         }}
+        width="min(920px, calc(100vw - 24px))"
+        styles={{ body: { maxHeight: 'calc(100vh - 190px)', overflowY: 'auto' } }}
       >
         <Form layout="vertical" style={{ marginTop: 16 }}>
-          <Form.Item label="내부 화합물 코드 번호" required>
+          <Form.Item label="내부 화합물 코드 번호">
             <Input
               autoFocus
               placeholder="예: VNA-G01-001"
@@ -4810,79 +4962,65 @@ const MyBoard: React.FC = () => {
               {quickAddError}
             </Text>
           ) : null}
-          <List
-            className="my-board-quick-add-list"
+          <Table<CompoundSearchResult>
+            className="my-board-quick-add-table"
+            rowKey="compound_code"
             size="small"
+            virtual
             loading={isQuickAddSearching}
             dataSource={quickAddResults}
+            pagination={false}
+            scroll={{ x: 760, y: 440 }}
             locale={{ emptyText: quickAddCode.trim() ? '조회 결과 없음' : 'compound code를 입력하세요' }}
-            style={{ marginTop: 12, maxHeight: 220, overflowY: 'auto' }}
-            renderItem={(item) => {
-              const isSelected = selectedQuickAddCode === item.compound_code;
-              return (
-                <List.Item
-                  onClick={() => {
-                    setSelectedQuickAddCode(item.compound_code);
-                    setQuickAddCode(item.compound_code);
-                  }}
-                  style={{
-                    cursor: 'pointer',
-                    borderRadius: 6,
-                    paddingInline: 8,
-                    background: isSelected ? token.colorPrimaryBg : undefined,
-                  }}
-                >
-                  <Text strong={isSelected}>{item.compound_code}</Text>
-                </List.Item>
-              );
-            }}
-          />
-          {selectedQuickAddCode ? (
-            <div style={{ marginTop: 16 }}>
-              <Text strong style={{ display: 'block', marginBottom: 8, fontSize: 12 }}>
-                화합물 구조
-              </Text>
-              <div
-                style={{
-                  minHeight: 200,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  border: `1px solid ${token.colorBorderSecondary}`,
-                  borderRadius: token.borderRadius,
-                  background: token.colorBgContainer,
-                  overflow: 'hidden',
-                }}
-              >
-                {isQuickAddPreviewLoading ? <Spin size="small" /> : null}
-                {!isQuickAddPreviewLoading && quickAddPreviewError ? (
-                  <Text type="secondary" style={{ fontSize: 12 }}>
-                    {quickAddPreviewError}
-                  </Text>
-                ) : null}
-                {!isQuickAddPreviewLoading && quickAddPreview ? (
-                  <CompoundStructureView
-                    key={quickAddPreview.compound_code}
-                    title={quickAddPreview.compound_code}
-                    smiles={quickAddPreview.smiles}
-                    width="100%"
-                    height={200}
-                    iconSize={40}
-                    gap={0}
-                    fullWidth
-                    frameless
-                    preferRdkitSvg
-                    transparentBackground
-                    showPreviewAction={false}
-                    showCopyAction={false}
-                    showCopyImageAction={false}
-                    showChemDrawAction={false}
-                    frameStyle={{ border: 0, background: 'transparent', boxShadow: 'none' }}
+            columns={[
+              {
+                title: '코드 번호',
+                dataIndex: 'compound_code',
+                key: 'compound_code',
+                width: 240,
+                align: 'center',
+                render: (compoundCode: string) => (
+                  <div className="my-board-quick-add-code-cell">
+                    <Text strong={selectedQuickAddCode === compoundCode}>{compoundCode}</Text>
+                  </div>
+                ),
+              },
+              {
+                title: '화합물 구조',
+                dataIndex: 'compound_code',
+                key: 'structure',
+                width: 520,
+                align: 'center',
+                render: (compoundCode: string) => (
+                  <QuickAddStructureCell
+                    compoundCode={compoundCode}
+                    entry={quickAddStructures[compoundCode.toLowerCase()]}
+                    onVisible={loadQuickAddStructure}
+                    onPreview={(compound, svg) => {
+                      setStructurePreview({
+                        title: compound.compound_code,
+                        svg,
+                        smiles: compound.smiles,
+                      });
+                    }}
                   />
-                ) : null}
-              </div>
-            </div>
-          ) : null}
+                ),
+              },
+            ]}
+            rowClassName={(record) => (
+              selectedQuickAddCode === record.compound_code
+                ? 'row-selected my-board-quick-add-row-selected'
+                : ''
+            )}
+            onRow={(record) => ({
+              onClick: () => {
+                const entry = quickAddStructures[record.compound_code.toLowerCase()];
+                setSelectedQuickAddCode(record.compound_code);
+                setQuickAddPreview(entry?.compound ?? null);
+              },
+              style: { cursor: 'pointer' },
+            })}
+          />
         </Form>
       </Modal>
 
@@ -4918,7 +5056,25 @@ const MyBoard: React.FC = () => {
         cancelText="취소"
         width="min(1200px, calc(100vw - 24px))"
         style={{ top: 18 }}
-        styles={{ body: { maxHeight: 'calc(100vh - 132px)', overflowX: 'hidden', overflowY: 'auto', paddingTop: 12 } }}
+        styles={{
+          body: {
+            height: ideaCompoundModalBodyHeight,
+            maxHeight: 'calc(100vh - 132px)',
+            overflowX: 'hidden',
+            overflowY: 'auto',
+            paddingTop: 12,
+          },
+        }}
+        afterOpenChange={(open) => {
+          if (!open || ideaCompoundModalBodyHeight !== undefined) return;
+
+          window.requestAnimationFrame(() => {
+            const modalBody = document.querySelector('.idea-compound-modal .ant-modal-body');
+            if (!(modalBody instanceof HTMLElement)) return;
+
+            setIdeaCompoundModalBodyHeight(Math.ceil(modalBody.getBoundingClientRect().height));
+          });
+        }}
         destroyOnHidden
       >
         <Form
@@ -5582,8 +5738,9 @@ const MyBoard: React.FC = () => {
           display: none;
         }
         .idea-design-memo-editor .ql-container {
-          height: 64px;
+          height: auto;
           min-height: 64px;
+          overflow: visible;
           border: 1px solid ${token.colorBorder};
           border-radius: var(--idea-control-radius);
           background: ${token.colorBgContainer};
@@ -5592,16 +5749,22 @@ const MyBoard: React.FC = () => {
           font-size: var(--idea-font-size);
         }
         .idea-design-memo-editor .ql-editor {
-          height: 62px;
+          display: flex;
+          flex-direction: column;
+          justify-content: center;
+          height: auto;
           min-height: 62px;
-          max-height: 62px;
+          max-height: none;
+          box-sizing: border-box;
           padding: 6px 10px;
           line-height: 1.45;
-          overflow-y: auto;
+          overflow-y: visible;
         }
         .idea-design-memo-editor .ql-editor.ql-blank::before {
+          top: 50%;
           left: 10px;
           right: 10px;
+          transform: translateY(-50%);
           color: ${token.colorTextTertiary};
           font-style: normal;
         }
@@ -5952,9 +6115,50 @@ const MyBoard: React.FC = () => {
         .my-board-list-card {
           min-height: 0;
         }
+        .my-board-detail-panel {
+          display: flex;
+          flex-direction: column;
+        }
+        .my-board-detail-panel > .my-board-list-card {
+          display: flex;
+          flex: 1 1 auto;
+          flex-direction: column;
+          width: 100%;
+        }
         .my-board-list-card > .ant-table-wrapper,
         .my-board-detail-table-wrapper {
           min-height: 0;
+        }
+        .my-board-detail-table-wrapper {
+          display: flex;
+          flex: 1 1 auto;
+          flex-direction: column;
+          width: 100%;
+        }
+        .my-board-detail-table-wrapper > .ant-table-wrapper {
+          width: 100%;
+        }
+        .my-board-group-table .ant-table-body {
+          height: var(--my-board-group-table-body-height);
+          min-height: var(--my-board-group-table-body-height);
+          max-height: var(--my-board-group-table-body-height) !important;
+        }
+        .my-board-detail-table .ant-table-body {
+          height: var(--my-board-detail-table-body-height);
+          min-height: var(--my-board-detail-table-body-height);
+          max-height: var(--my-board-detail-table-body-height) !important;
+        }
+        .my-board-group-table .ant-table-content {
+          min-height: var(--my-board-group-table-body-height);
+        }
+        .my-board-detail-table .ant-table-content {
+          min-height: var(--my-board-detail-table-body-height);
+        }
+        .my-board-group-table .ant-table-placeholder > td {
+          height: var(--my-board-group-table-body-height);
+        }
+        .my-board-detail-table .ant-table-placeholder > td {
+          height: var(--my-board-detail-table-body-height);
         }
         .my-board-workspace-visual,
         .my-board-workspace-main-visual {
@@ -6035,6 +6239,14 @@ const MyBoard: React.FC = () => {
           width: 100% !important;
           min-width: 0 !important;
         }
+        .my-board-group-table-no-vertical-scroll col.ant-table-cell-scrollbar,
+        .my-board-group-table-no-vertical-scroll th.ant-table-cell-scrollbar {
+          display: none;
+        }
+        .my-board-group-table-no-vertical-scroll .ant-table-body {
+          overflow-y: hidden !important;
+          scrollbar-gutter: auto !important;
+        }
         .my-board-detail-table .ant-table-body {
           overflow-x: auto !important;
         }
@@ -6045,7 +6257,7 @@ const MyBoard: React.FC = () => {
         .my-board-page,
         .my-board-page .ant-table-body,
         .my-board-page .ant-table-content,
-        .my-board-quick-add-list,
+        .my-board-quick-add-table .ant-table-body,
         .quick-viewer-body {
           scrollbar-width: thin;
           scrollbar-color: ${token.colorBorder} ${token.colorBgContainer};
@@ -6053,7 +6265,7 @@ const MyBoard: React.FC = () => {
         .my-board-page::-webkit-scrollbar,
         .my-board-page .ant-table-body::-webkit-scrollbar,
         .my-board-page .ant-table-content::-webkit-scrollbar,
-        .my-board-quick-add-list::-webkit-scrollbar,
+        .my-board-quick-add-table .ant-table-body::-webkit-scrollbar,
         .quick-viewer-body::-webkit-scrollbar {
           width: 10px;
           height: 10px;
@@ -6061,14 +6273,14 @@ const MyBoard: React.FC = () => {
         .my-board-page::-webkit-scrollbar-track,
         .my-board-page .ant-table-body::-webkit-scrollbar-track,
         .my-board-page .ant-table-content::-webkit-scrollbar-track,
-        .my-board-quick-add-list::-webkit-scrollbar-track,
+        .my-board-quick-add-table .ant-table-body::-webkit-scrollbar-track,
         .quick-viewer-body::-webkit-scrollbar-track {
           background: ${token.colorBgContainer};
         }
         .my-board-page::-webkit-scrollbar-thumb,
         .my-board-page .ant-table-body::-webkit-scrollbar-thumb,
         .my-board-page .ant-table-content::-webkit-scrollbar-thumb,
-        .my-board-quick-add-list::-webkit-scrollbar-thumb,
+        .my-board-quick-add-table .ant-table-body::-webkit-scrollbar-thumb,
         .quick-viewer-body::-webkit-scrollbar-thumb {
           background: ${token.colorBorder};
           border: 2px solid ${token.colorBgContainer};
@@ -6077,9 +6289,37 @@ const MyBoard: React.FC = () => {
         .my-board-page::-webkit-scrollbar-thumb:hover,
         .my-board-page .ant-table-body::-webkit-scrollbar-thumb:hover,
         .my-board-page .ant-table-content::-webkit-scrollbar-thumb:hover,
-        .my-board-quick-add-list::-webkit-scrollbar-thumb:hover,
+        .my-board-quick-add-table .ant-table-body::-webkit-scrollbar-thumb:hover,
         .quick-viewer-body::-webkit-scrollbar-thumb:hover {
           background: ${token.colorTextTertiary};
+        }
+        .my-board-quick-add-table .ant-table-thead > tr > th {
+          text-align: center;
+        }
+        .my-board-quick-add-table .ant-table-tbody > tr > td {
+          padding: 4px 12px;
+          text-align: center;
+          vertical-align: middle;
+        }
+        .my-board-quick-add-table .ant-table-tbody > tr.my-board-quick-add-row-selected > td {
+          background-color: var(--table-row-selected-bg) !important;
+        }
+        .my-board-quick-add-table .ant-table-tbody > tr.my-board-quick-add-row-selected:hover > td {
+          background-color: var(--table-row-selected-hover-bg) !important;
+        }
+        .my-board-quick-add-code-cell,
+        .my-board-quick-add-structure-cell {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          width: 100%;
+          min-height: 112px;
+        }
+        .my-board-quick-add-structure-cell .compound-structure-view {
+          position: relative;
+        }
+        .my-board-quick-add-structure-message {
+          font-size: 11px;
         }
         .my-board-data-tags {
           display: flex;

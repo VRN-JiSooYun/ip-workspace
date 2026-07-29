@@ -386,6 +386,8 @@ const SarTable: React.FC = () => {
     return window.innerWidth;
   });
   const [sarTableBodyHeight, setSarTableBodyHeight] = useState(SAR_TABLE_BODY_MIN_HEIGHT);
+  const [sarGroupTableBodyHeight, setSarGroupTableBodyHeight] = useState(SAR_TABLE_BODY_MIN_HEIGHT);
+  const [sarGroupTableHasVerticalScroll, setSarGroupTableHasVerticalScroll] = useState(false);
   const [clusterSvgByCompoundId, setClusterSvgByCompoundId] = useState<Record<string, string>>({});
   const [clusterRGroupsByCompoundId, setClusterRGroupsByCompoundId] = useState<Record<string, Record<string, RdkitClusterRGroup>>>({});
   const [clusterCommonSubstructureSmiles, setClusterCommonSubstructureSmiles] = useState('');
@@ -399,6 +401,7 @@ const SarTable: React.FC = () => {
   const [quickViewerWidth, setQuickViewerWidth] = useState(SAR_QUICK_VIEWER_DEFAULT_WIDTH);
   const [isResizingQuickViewer, setIsResizingQuickViewer] = useState(false);
   const sarTableCardRef = React.useRef<HTMLDivElement | null>(null);
+  const sarGroupTableCardRef = React.useRef<HTMLDivElement | null>(null);
   const clusterRequestSeqRef = React.useRef(0);
   const quickViewerPaneRef = React.useRef<HTMLDivElement | null>(null);
   const quickViewerResizeRafRef = React.useRef<number | null>(null);
@@ -839,6 +842,20 @@ const SarTable: React.FC = () => {
         setSarTableBodyHeight((currentHeight) => (
           currentHeight === nextHeight ? currentHeight : nextHeight
         ));
+
+        const groupTableCard = sarGroupTableCardRef.current;
+        const groupMeasureElement = groupTableCard?.querySelector<HTMLElement>(
+          '.ant-table-body, .ant-table-content, .ant-table-tbody'
+        );
+        if (groupMeasureElement) {
+          const nextGroupHeight = Math.max(
+            SAR_TABLE_BODY_MIN_HEIGHT,
+            Math.floor(tableContentBottom - groupMeasureElement.getBoundingClientRect().top)
+          );
+          setSarGroupTableBodyHeight((currentHeight) => (
+            currentHeight === nextGroupHeight ? currentHeight : nextGroupHeight
+          ));
+        }
       });
     };
 
@@ -854,6 +871,9 @@ const SarTable: React.FC = () => {
       if (sarTableCardRef.current?.parentElement) {
         resizeObserver.observe(sarTableCardRef.current.parentElement);
       }
+      if (sarGroupTableCardRef.current) {
+        resizeObserver.observe(sarGroupTableCardRef.current);
+      }
     }
 
     return () => {
@@ -867,6 +887,41 @@ const SarTable: React.FC = () => {
     isCompoundStructureCollapsed,
     isGroupStructureCollapsed,
     showFilters,
+    viewportWidth,
+  ]);
+
+  React.useLayoutEffect(() => {
+    if (viewportWidth <= 900 || isGroupStructureCollapsed) {
+      setSarGroupTableHasVerticalScroll(false);
+      return undefined;
+    }
+
+    const tableBody = sarGroupTableCardRef.current?.querySelector<HTMLElement>(
+      '.sar-group-structure-table .ant-table-body'
+    );
+    if (!tableBody) {
+      setSarGroupTableHasVerticalScroll(false);
+      return undefined;
+    }
+
+    const updateVerticalScrollState = () => {
+      const hasVerticalScroll = tableBody.scrollHeight - tableBody.clientHeight > 3;
+      setSarGroupTableHasVerticalScroll((current) => (
+        current === hasVerticalScroll ? current : hasVerticalScroll
+      ));
+    };
+    const frameId = window.requestAnimationFrame(updateVerticalScrollState);
+    const resizeObserver = new ResizeObserver(updateVerticalScrollState);
+    resizeObserver.observe(tableBody);
+
+    return () => {
+      window.cancelAnimationFrame(frameId);
+      resizeObserver.disconnect();
+    };
+  }, [
+    isGroupStructureCollapsed,
+    sarGroupTableBodyHeight,
+    sortedGroupStructureRows.length,
     viewportWidth,
   ]);
 
@@ -2139,7 +2194,7 @@ const SarTable: React.FC = () => {
 
       <div className="sar-board-layout">
         {!isGroupStructureCollapsed && (
-        <div className="v-table-card sar-group-structure-card">
+        <div ref={sarGroupTableCardRef} className="v-table-card sar-group-structure-card">
           <div className="v-table-header" style={{ minHeight: 40, justifyContent: 'center' }}>
             <Tooltip title="그룹 영역 접기">
               <Button
@@ -2152,13 +2207,18 @@ const SarTable: React.FC = () => {
             </Tooltip>
           </div>
           <Table
-            className="sar-group-structure-table"
+            className={[
+              'sar-group-structure-table',
+              !sarGroupTableHasVerticalScroll
+                ? 'sar-group-structure-table-no-vertical-scroll'
+                : undefined,
+            ].filter(Boolean).join(' ')}
             dataSource={sortedGroupStructureRows}
             columns={groupStructureColumns}
             rowKey="id"
             size="small"
             pagination={false}
-            scroll={undefined}
+            scroll={viewportWidth > 900 ? { y: sarGroupTableBodyHeight } : undefined}
             tableLayout="fixed"
             onRow={(record) => ({
               onMouseDown: (event) => {
@@ -3173,6 +3233,26 @@ const SarTable: React.FC = () => {
         .sar-group-structure-table .ant-table-content,
         .sar-group-structure-table .ant-table-body {
           overflow-x: visible !important;
+        }
+        .sar-group-structure-table .ant-table-body {
+          height: ${viewportWidth > 900 ? `${sarGroupTableBodyHeight}px` : 'auto'};
+          min-height: ${viewportWidth > 900 ? `${sarGroupTableBodyHeight}px` : '0'};
+          max-height: ${viewportWidth > 900 ? `${sarGroupTableBodyHeight}px` : 'none'} !important;
+          overflow-y: auto !important;
+        }
+        .sar-group-structure-table-no-vertical-scroll col.ant-table-cell-scrollbar,
+        .sar-group-structure-table-no-vertical-scroll th.ant-table-cell-scrollbar {
+          display: none;
+        }
+        .sar-group-structure-table-no-vertical-scroll .ant-table-body {
+          overflow-y: hidden !important;
+          scrollbar-gutter: auto !important;
+        }
+        .sar-group-structure-table .ant-table-content {
+          min-height: ${viewportWidth > 900 ? `${sarGroupTableBodyHeight}px` : '0'};
+        }
+        .sar-group-structure-table .ant-table-placeholder > td {
+          height: ${viewportWidth > 900 ? `${sarGroupTableBodyHeight}px` : 'auto'};
         }
         .sar-group-structure-table .ant-table-tbody > tr > td {
           padding: 1px 4px !important;
