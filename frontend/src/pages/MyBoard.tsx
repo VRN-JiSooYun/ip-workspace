@@ -5576,7 +5576,7 @@ const MyBoard: React.FC = () => {
           min-width: 42px;
           color: ${token.colorTextSecondary};
           font-size: 10px;
-          font-weight: 600;
+          font-weight: 700;
           line-height: 18px;
           text-align: left;
           white-space: nowrap;
@@ -6758,7 +6758,7 @@ const MyBoard: React.FC = () => {
           min-width: 42px;
           color: ${token.colorTextSecondary};
           font-size: 10px;
-          font-weight: 600;
+          font-weight: 700;
           line-height: 18px;
           text-align: left;
           user-select: none;
