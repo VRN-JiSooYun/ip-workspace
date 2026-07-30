@@ -10,6 +10,7 @@ import {
   Spin,
   Switch,
   Tag,
+  Tooltip,
   Typography,
   theme,
 } from 'antd';
@@ -48,6 +49,7 @@ const PatentNotificationSettingsModal: React.FC<PatentNotificationSettingsModalP
   const [mutatingTarget, setMutatingTarget] = React.useState<string | null>(null);
   const [requestingTarget, setRequestingTarget] = React.useState(false);
   const [searchValue, setSearchValue] = React.useState('');
+  const targetMutationLockRef = React.useRef(false);
 
   const loadPreferences = React.useCallback(async (signal?: AbortSignal) => {
     setLoading(true);
@@ -100,14 +102,32 @@ const PatentNotificationSettingsModal: React.FC<PatentNotificationSettingsModalP
       }));
   }, [preferences?.availableTargets, searchValue, selectedTargetKeys]);
 
-  const searchTargetExists = React.useMemo(() => {
+  const enterTarget = React.useMemo(() => {
     const query = normalizeTargetName(searchValue);
-    if (!query) return true;
-    return [
-      ...(preferences?.availableTargets ?? []),
-      ...(preferences?.selectedTargets ?? []),
-    ].some((target) => normalizeTargetName(target.targetName) === query);
+    if (!query || !preferences) return null;
+    const selectableTargets = preferences.availableTargets.filter(
+      (target) => !selectedTargetKeys.has(normalizeTargetName(target.targetName)),
+    );
+    const exactTarget = selectableTargets.find(
+      (target) => normalizeTargetName(target.targetName) === query,
+    );
+    if (exactTarget) return exactTarget.targetName;
+    return availableOptions.length === 1 ? availableOptions[0].value : null;
+  }, [availableOptions, preferences, searchValue, selectedTargetKeys]);
+
+  const canRequestNewTarget = React.useMemo(() => {
+    const query = normalizeTargetName(searchValue);
+    if (!query || !preferences) return false;
+    return ![
+      ...preferences.availableTargets,
+      ...preferences.selectedTargets,
+    ].some((target) => targetSearchText(target).includes(query));
   }, [preferences, searchValue]);
+
+  const mutationDisabled = !preferences?.enabled
+    || updatingEnabled
+    || Boolean(mutatingTarget)
+    || requestingTarget;
 
   const handleEnabledChange = async (enabled: boolean) => {
     if (!preferences || updatingEnabled) return;
@@ -126,7 +146,8 @@ const PatentNotificationSettingsModal: React.FC<PatentNotificationSettingsModalP
   };
 
   const handleAddTarget = async (targetName: string) => {
-    if (!preferences?.enabled || mutatingTarget) return;
+    if (!preferences?.enabled || targetMutationLockRef.current) return;
+    targetMutationLockRef.current = true;
     setMutatingTarget(targetName);
     try {
       const result = await patentAnalysisApi.addNotificationTarget(targetName);
@@ -136,25 +157,35 @@ const PatentNotificationSettingsModal: React.FC<PatentNotificationSettingsModalP
     } catch (error) {
       void message.error(errorMessage(error, '관심 타겟을 추가하지 못했습니다.'));
     } finally {
+      targetMutationLockRef.current = false;
       setMutatingTarget(null);
     }
   };
 
-  const handleRemoveTarget = async (targetName: string) => {
-    if (!preferences?.enabled || mutatingTarget) return;
-    setMutatingTarget(targetName);
+  const handleRemoveTarget = async (target: PatentNotificationTarget) => {
+    if (!preferences?.enabled || targetMutationLockRef.current) return;
+    targetMutationLockRef.current = true;
+    setMutatingTarget(target.targetName);
     try {
-      const result = await patentAnalysisApi.removeNotificationTarget(targetName);
+      const result = await patentAnalysisApi.removeNotificationTarget(target.targetName);
       setPreferences(result);
-      void message.success(`${targetName} 타겟을 제거했습니다.`);
+      void message.success(target.pending
+        ? `${target.targetName} 신규 타겟 요청을 취소했습니다.`
+        : `${target.targetName} 타겟을 제거했습니다.`);
     } catch (error) {
-      void message.error(errorMessage(error, '관심 타겟을 제거하지 못했습니다.'));
+      void message.error(errorMessage(
+        error,
+        target.pending
+          ? '신규 타겟 요청을 취소하지 못했습니다.'
+          : '관심 타겟을 제거하지 못했습니다.',
+      ));
     } finally {
+      targetMutationLockRef.current = false;
       setMutatingTarget(null);
     }
   };
 
-  const requestNewTarget = async (targetName: string) => {
+  const requestNewTarget = async (targetName: string, rethrowOnError = false) => {
     setRequestingTarget(true);
     try {
       const result = await patentAnalysisApi.requestNotificationTarget(targetName);
@@ -163,7 +194,7 @@ const PatentNotificationSettingsModal: React.FC<PatentNotificationSettingsModalP
       void message.success(`${targetName} 타겟 승인을 요청했습니다.`);
     } catch (error) {
       void message.error(errorMessage(error, '신규 타겟을 요청하지 못했습니다.'));
-      throw error;
+      if (rethrowOnError) throw error;
     } finally {
       setRequestingTarget(false);
     }
@@ -171,7 +202,7 @@ const PatentNotificationSettingsModal: React.FC<PatentNotificationSettingsModalP
 
   const handleRequestNewTarget = () => {
     const targetName = searchValue.trim();
-    if (!targetName || searchTargetExists || requestingTarget) return;
+    if (!targetName || !canRequestNewTarget || requestingTarget) return;
     modal.confirm({
       title: '신규 타겟 요청',
       content: (
@@ -181,21 +212,28 @@ const PatentNotificationSettingsModal: React.FC<PatentNotificationSettingsModalP
       ),
       okText: '요청',
       cancelText: '취소',
-      onOk: () => requestNewTarget(targetName),
+      onOk: () => requestNewTarget(targetName, true),
     });
   };
 
-  const mutationDisabled = !preferences?.enabled
-    || updatingEnabled
-    || Boolean(mutatingTarget)
-    || requestingTarget;
+  const handleTargetInputKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (event.key !== 'Enter' || mutationDisabled) return;
+    if (!enterTarget && !canRequestNewTarget) return;
+    event.preventDefault();
+    event.stopPropagation();
+    if (enterTarget) {
+      void handleAddTarget(enterTarget);
+      return;
+    }
+    void requestNewTarget(searchValue.trim());
+  };
 
   return (
     <Modal
       title={(
-        <Space size={8}>
-          <Mail size={18} />
-          <span>신규 특허 메일 받기</span>
+        <Space size={8} align="center">
+          <Mail size={18} style={{ display: 'block', flexShrink: 0 }} />
+          <span style={{ lineHeight: 1.2 }}>신규 특허 메일 받기</span>
         </Space>
       )}
       open={open}
@@ -286,6 +324,7 @@ const PatentNotificationSettingsModal: React.FC<PatentNotificationSettingsModalP
                 onSearch={setSearchValue}
                 onClear={() => setSearchValue('')}
                 onChange={(value) => void handleAddTarget(value)}
+                onInputKeyDown={handleTargetInputKeyDown}
                 filterOption={false}
                 options={availableOptions}
                 disabled={mutationDisabled}
@@ -301,7 +340,7 @@ const PatentNotificationSettingsModal: React.FC<PatentNotificationSettingsModalP
                 )}
                 style={{ width: '100%' }}
               />
-              {!searchTargetExists && searchValue.trim() && (
+              {canRequestNewTarget && (
                 <Button
                   type="link"
                   icon={<Plus size={15} />}
@@ -333,18 +372,22 @@ const PatentNotificationSettingsModal: React.FC<PatentNotificationSettingsModalP
               {preferences.selectedTargets.length > 0 ? (
                 <Space size={[6, 8]} wrap>
                   {preferences.selectedTargets.map((target) => (
-                    <Tag
+                    <Tooltip
                       key={normalizeTargetName(target.targetName)}
-                      color={target.pending ? 'gold' : 'blue'}
-                      closable={!target.pending && !mutationDisabled}
-                      onClose={(event) => {
-                        event.preventDefault();
-                        void handleRemoveTarget(target.targetName);
-                      }}
+                      title={target.pending ? '신규 타겟 요청 취소' : '관심 타겟 제거'}
                     >
-                      {target.targetName}
-                      {target.pending ? ' · 승인 대기' : ''}
-                    </Tag>
+                      <Tag
+                        color={target.pending ? 'gold' : 'blue'}
+                        closable={!mutationDisabled}
+                        onClose={(event) => {
+                          event.preventDefault();
+                          void handleRemoveTarget(target);
+                        }}
+                      >
+                        {target.targetName}
+                        {target.pending ? ' · 승인 대기' : ''}
+                      </Tag>
+                    </Tooltip>
                   ))}
                 </Space>
               ) : (

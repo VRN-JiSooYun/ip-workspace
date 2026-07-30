@@ -357,8 +357,8 @@ const PatentAnalysisAdmin: React.FC = () => {
 
   const pendingColumns: TableColumnsType<PatentTargetRequest> = [
     { title: '요청일', dataIndex: 'createdAt', width: 145, align: 'center', render: formatDisplayDate },
-    { title: '요청자', width: 190, render: (_, row) => `${row.requester.name} (${row.requesterMemberId})` },
-    { title: '요청 타겟명', dataIndex: 'requestedTargetName', width: 190 },
+    { title: '요청자', width: 190, align: 'center', render: (_, row) => `${row.requester.name} (${row.requesterMemberId})` },
+    { title: '요청 타겟명', dataIndex: 'requestedTargetName', width: 190, align: 'center' },
     { title: '키워드', dataIndex: 'keywords', render: (values: string[]) => <Space wrap>{values.map((value) => <Tag key={value}>{value}</Tag>)}</Space> },
     {
       title: '관리', width: 160, align: 'center',
@@ -373,12 +373,13 @@ const PatentAnalysisAdmin: React.FC = () => {
 
   const activeColumns: TableColumnsType<ActivePatentTarget> = [
     { title: '수정일', dataIndex: 'date_updated', width: 150, align: 'center', render: formatDisplayDate },
-    { title: '등록 타겟명', dataIndex: 'target_name', width: 220 },
+    { title: '등록 타겟명', dataIndex: 'target_name', width: 220, align: 'center' },
     { title: '키워드', dataIndex: 'keyword', render: (values?: string[]) => <Space wrap>{(values ?? []).map((value) => <Tag key={value}>{value}</Tag>)}</Space> },
     {
       title: '등록자',
       dataIndex: 'email',
       width: 220,
+      align: 'center',
       render: (value?: string | null) => value || <Text type="secondary">확인 불가</Text>,
     },
     {
