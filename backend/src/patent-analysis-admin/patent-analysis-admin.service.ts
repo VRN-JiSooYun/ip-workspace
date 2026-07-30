@@ -19,6 +19,23 @@ import { PatentMemberService } from './patent-member.service';
 
 type UploadFile = { buffer: Buffer; originalname: string; mimetype: string };
 type TargetRow = Record<string, unknown>;
+type TargetListResult = {
+  rows?: unknown[];
+  selected_rows?: unknown[];
+  user_to_alarm?: unknown[] | Record<string, unknown>;
+};
+
+type PatentNotificationTarget = {
+  targetName: string;
+  keywords: string[];
+  pending: boolean;
+};
+
+type PatentNotificationPreferences = {
+  enabled: boolean;
+  availableTargets: PatentNotificationTarget[];
+  selectedTargets: PatentNotificationTarget[];
+};
 
 const totalCount = (value: unknown): number => {
   if (typeof value === 'number') return value;
@@ -71,6 +88,15 @@ const normalizeMemberId = (value: unknown): number | null => {
   return Number.isInteger(memberId) && memberId > 0 ? memberId : null;
 };
 
+const normalizeBoolean = (value: unknown): boolean => {
+  if (value === true || value === 1) return true;
+  const normalized = String(value ?? '').trim().toLowerCase();
+  return normalized === 'true' || normalized === '1';
+};
+
+const normalizeTargetName = (row: TargetRow): string =>
+  String(row.target_name ?? row.targetName ?? '').trim();
+
 const targetKey = (memberId: number, targetName: string) =>
   Buffer.from(JSON.stringify({ memberId, targetName })).toString('base64url');
 
@@ -103,13 +129,70 @@ export class PatentAnalysisAdminService {
     const targetName = body.targetName.trim();
     if (!targetName) throw new BadRequestException('targetName is required');
     this.assertSafeTargetValue(targetName);
-    return this.helper.call({
+    await this.helper.call({
       operation: 'ADD-NEW-TARGET',
       actionType: 'ADD-NEW-TARGET',
       origin_target_name: targetName,
       owner_id: member.memberId,
       email: member.email,
     });
+    return this.getCanonicalNotificationPreferences(member.memberId);
+  }
+
+  async getNotificationPreferences(userId: string) {
+    const member = await this.members.resolve(userId);
+    const result = await this.getTargetList(member.memberId);
+    return this.normalizeNotificationPreferences(result);
+  }
+
+  async updateNotificationPreference(userId: string, enabled: boolean) {
+    const member = await this.members.resolve(userId);
+    await this.helper.call({
+      operation: enabled ? 'ENABLE-EMAIL-ALARM' : 'DISABLE-EMAIL-ALARM',
+      actionType: enabled ? 'ENABLE-EMAIL-ALARM' : 'DISABLE-EMAIL-ALARM',
+      owner_id: member.memberId,
+      email: enabled ? member.email : undefined,
+    });
+    return this.getCanonicalNotificationPreferences(member.memberId);
+  }
+
+  async addNotificationTarget(userId: string, targetNameValue: string) {
+    const member = await this.members.resolve(userId);
+    const targetName = this.validateNotificationTargetName(targetNameValue);
+    const current = await this.getTargetList(member.memberId);
+    const preferences = this.normalizeNotificationPreferences(current);
+    const selected = this.findTarget(preferences.selectedTargets, targetName);
+    if (selected) return preferences;
+
+    const active = this.findTarget(preferences.availableTargets, targetName);
+    if (!active) {
+      throw new BadRequestException('PATENT_NOTIFICATION_TARGET_NOT_ACTIVE');
+    }
+    await this.helper.call({
+      operation: 'ADD-TARGET-USER',
+      actionType: 'ADD-TARGET-USER',
+      owner_id: member.memberId,
+      target_name: active.targetName,
+      email: member.email,
+    });
+    return this.getCanonicalNotificationPreferences(member.memberId);
+  }
+
+  async removeNotificationTarget(userId: string, targetNameValue: string) {
+    const member = await this.members.resolve(userId);
+    const targetName = this.validateNotificationTargetName(targetNameValue);
+    const current = await this.getTargetList(member.memberId);
+    const preferences = this.normalizeNotificationPreferences(current);
+    const selected = this.findTarget(preferences.selectedTargets, targetName);
+    if (!selected) return preferences;
+
+    await this.helper.call({
+      operation: 'REMOVE-TARGET-USER',
+      actionType: 'REMOVE-TARGET-USER',
+      owner_id: member.memberId,
+      target_name: selected.targetName,
+    });
+    return this.getCanonicalNotificationPreferences(member.memberId);
   }
 
   async listPatents(adminUserId: string, query: AdminPatentListQueryDto) {
@@ -360,11 +443,76 @@ export class PatentAnalysisAdminService {
   }
 
   private getTargetList(memberId: number) {
-    return this.helper.call<{ rows?: unknown[]; selected_rows?: unknown[] }>({
+    return this.helper.call<TargetListResult>({
       operation: 'GET-TARGET-LIST',
       actionType: 'GET-TARGET-LIST',
       owner_id: memberId,
     });
+  }
+
+  private async getCanonicalNotificationPreferences(memberId: number) {
+    const result = await this.getTargetList(memberId);
+    return this.normalizeNotificationPreferences(result);
+  }
+
+  private normalizeNotificationPreferences(
+    result: TargetListResult,
+  ): PatentNotificationPreferences {
+    const alarmRows = Array.isArray(result.user_to_alarm)
+      ? result.user_to_alarm
+      : result.user_to_alarm
+        ? [result.user_to_alarm]
+        : [];
+    const firstAlarm = alarmRows[0] as TargetRow | undefined;
+
+    return {
+      enabled: normalizeBoolean(firstAlarm?.mail),
+      availableTargets: this.normalizeNotificationTargets(result.rows, false),
+      selectedTargets: this.normalizeNotificationTargets(result.selected_rows, true),
+    };
+  }
+
+  private normalizeNotificationTargets(
+    value: unknown,
+    preservePending: boolean,
+  ): PatentNotificationTarget[] {
+    if (!Array.isArray(value)) return [];
+    const targets = new Map<string, PatentNotificationTarget>();
+    value.forEach((item) => {
+      if (!item || typeof item !== 'object') return;
+      const row = item as TargetRow;
+      const targetName = normalizeTargetName(row);
+      if (!targetName) return;
+      const key = targetName.toLowerCase();
+      const existing = targets.get(key);
+      const keywords = normalizeStringList(row.keyword ?? row.keywords);
+      targets.set(key, {
+        targetName: existing?.targetName ?? targetName,
+        keywords: [...new Set([...(existing?.keywords ?? []), ...keywords])],
+        pending: preservePending
+          ? Boolean(existing?.pending || normalizeBoolean(row.pending))
+          : false,
+      });
+    });
+    return [...targets.values()].sort((left, right) =>
+      left.targetName.localeCompare(right.targetName));
+  }
+
+  private findTarget(targets: PatentNotificationTarget[], targetName: string) {
+    const normalized = targetName.toLowerCase();
+    return targets.find((target) => target.targetName.toLowerCase() === normalized);
+  }
+
+  private validateNotificationTargetName(value: string) {
+    const targetName = String(value ?? '').trim();
+    if (
+      !targetName
+      || targetName.length > 200
+      || /['"\\\u0000-\u001f]/.test(targetName)
+    ) {
+      throw new BadRequestException('PATENT_NOTIFICATION_TARGET_INVALID');
+    }
+    return targetName;
   }
 
   private decodeTargetKey(value: string): { memberId: number; targetName: string } {

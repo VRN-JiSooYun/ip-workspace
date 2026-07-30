@@ -24,6 +24,7 @@ import {
   ChevronDown,
   ChevronUp,
   RotateCcw,
+  Mail,
   Share2,
   Star
 } from 'lucide-react';
@@ -33,6 +34,7 @@ import ChemDrawModal from '../components/common/ChemDrawModal';
 import CompoundStructureView from '../components/common/CompoundStructureView';
 import StructurePreviewModal from '../components/common/StructurePreviewModal';
 import PatentQuickViewerPanel from '../components/patent-analysis/PatentQuickViewerPanel';
+import PatentNotificationSettingsModal from '../components/patent-analysis/PatentNotificationSettingsModal';
 import { getPatentAnalysisLayoutPreset } from '../config/patentAnalysisLayout';
 import { useUIStore } from '../store/useUIStore';
 import PageHeaderBreadcrumb from '../components/common/PageHeaderBreadcrumb';
@@ -57,6 +59,8 @@ const PATENT_LIST_STRUCTURE_IMAGE_WIDTH = 168;
 const PATENT_LIST_STRUCTURE_IMAGE_HEIGHT = 168;
 const PATENT_LIST_TABLE_SCROLL_X = 2050;
 const PATENT_ANALYSIS_OWNER_ID = '256';
+const SHOW_PATENT_FAVORITE_SHARE = false;
+const SHOW_PATENT_REGISTRATION = false;
 const PATENT_ANALYSIS_FAVORITE_STATE_PREFIX = 'patent-analysis-favorite-state';
 const STRUCTURE_SEARCH_MAX_RESULT_WINDOW = 10000;
 const PATENT_ANALYSIS_PAGE_SIZE_OPTIONS = [10, 30, 50, 100] as const;
@@ -421,6 +425,7 @@ const PatentAnalysisList: React.FC = () => {
   const [favoritePatentNumbers, setFavoritePatentNumbers] = useState<Set<string>>(() => new Set());
   const [savingFavoritePatentNumbers, setSavingFavoritePatentNumbers] = useState<string[]>([]);
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+  const [isNotificationModalOpen, setIsNotificationModalOpen] = useState(false);
   const [shareCc, setShareCc] = useState('');
   const [isSharingFavorites, setIsSharingFavorites] = useState(false);
   const [showFilters, setShowFilters] = useState(() => storedListState.showFilters ?? false);
@@ -1736,30 +1741,45 @@ const PatentAnalysisList: React.FC = () => {
               </div>
             </Col>
             <Col flex={isResponsiveToolbar ? '1 1 100%' : 'none'}>
-              <Button
-                type="primary"
-                icon={<Share2 size={18} />}
-                className="v-action-btn"
-                style={{
-                  width: isResponsiveToolbar ? '100%' : undefined,
-                  marginRight: isResponsiveToolbar ? 0 : 8,
-                }}
-                onClick={() => setIsShareModalOpen(true)}
+              <Space
+                direction={isResponsiveToolbar ? 'vertical' : 'horizontal'}
+                size={8}
+                style={{ width: isResponsiveToolbar ? '100%' : undefined }}
               >
-                즐겨찾기 공유
-              </Button>
-              <Button
-                type="primary"
-                icon={<Plus size={18} />} 
-                className="v-action-btn"
-                style={{
-                  background: '#F87C63',
-                  borderColor: '#F87C63',
-                  width: isResponsiveToolbar ? '100%' : undefined,
-                }}
-              >
-                신규 특허 등록
-              </Button>
+                <Button
+                  icon={<Mail size={18} />}
+                  className="v-action-btn"
+                  style={{ width: isResponsiveToolbar ? '100%' : undefined }}
+                  onClick={() => setIsNotificationModalOpen(true)}
+                >
+                  신규 특허 메일 받기
+                </Button>
+                {SHOW_PATENT_FAVORITE_SHARE && (
+                  <Button
+                    type="primary"
+                    icon={<Share2 size={18} />}
+                    className="v-action-btn"
+                    style={{ width: isResponsiveToolbar ? '100%' : undefined }}
+                    onClick={() => setIsShareModalOpen(true)}
+                  >
+                    즐겨찾기 공유
+                  </Button>
+                )}
+                {SHOW_PATENT_REGISTRATION && (
+                  <Button
+                    type="primary"
+                    icon={<Plus size={18} />}
+                    className="v-action-btn"
+                    style={{
+                      background: '#F87C63',
+                      borderColor: '#F87C63',
+                      width: isResponsiveToolbar ? '100%' : undefined,
+                    }}
+                  >
+                    신규 특허 등록
+                  </Button>
+                )}
+              </Space>
             </Col>
           </Row>
           {showFilters && (
@@ -2048,6 +2068,10 @@ const PatentAnalysisList: React.FC = () => {
         svg={previewStructure?.svg}
         smiles={previewStructure?.smiles}
         className="patent-analysis-structure-preview"
+      />
+      <PatentNotificationSettingsModal
+        open={isNotificationModalOpen}
+        onClose={() => setIsNotificationModalOpen(false)}
       />
       <Modal
         title="즐겨찾기 공유"

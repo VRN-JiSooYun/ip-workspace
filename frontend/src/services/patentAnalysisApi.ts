@@ -81,6 +81,18 @@ export type PatentFavoriteListResponse = {
   publicationNumbers: string[];
 };
 
+export type PatentNotificationTarget = {
+  targetName: string;
+  keywords: string[];
+  pending: boolean;
+};
+
+export type PatentNotificationPreferences = {
+  enabled: boolean;
+  availableTargets: PatentNotificationTarget[];
+  selectedTargets: PatentNotificationTarget[];
+};
+
 type RequestOptions = {
   timeoutMs?: number;
   signal?: AbortSignal;
@@ -175,7 +187,7 @@ const requestJson = async <T>(
 
 const requestJsonBody = async <T>(
   path: string,
-  method: 'POST',
+  method: 'POST' | 'PATCH' | 'DELETE',
   body?: Record<string, unknown>,
   options?: RequestOptions,
 ): Promise<T> => {
@@ -504,6 +516,48 @@ export const patentAnalysisApi = {
     `/patents/${publicationNumber}/bioactivity-requests`,
     'POST',
     { quality },
+    options,
+  ),
+  getNotificationPreferences: (options?: RequestOptions) =>
+    requestJson<PatentNotificationPreferences>(
+      '/patents/me/notification-preferences',
+      undefined,
+      options,
+    ),
+  updateNotificationPreference: (
+    enabled: boolean,
+    options?: RequestOptions,
+  ) => requestJsonBody<PatentNotificationPreferences>(
+    '/patents/me/notification-preferences',
+    'PATCH',
+    { enabled },
+    options,
+  ),
+  addNotificationTarget: (
+    targetName: string,
+    options?: RequestOptions,
+  ) => requestJsonBody<PatentNotificationPreferences>(
+    `/patents/me/notification-targets/${encodeURIComponent(targetName)}`,
+    'POST',
+    undefined,
+    options,
+  ),
+  removeNotificationTarget: (
+    targetName: string,
+    options?: RequestOptions,
+  ) => requestJsonBody<PatentNotificationPreferences>(
+    `/patents/me/notification-targets/${encodeURIComponent(targetName)}`,
+    'DELETE',
+    undefined,
+    options,
+  ),
+  requestNotificationTarget: (
+    targetName: string,
+    options?: RequestOptions,
+  ) => requestJsonBody<PatentNotificationPreferences>(
+    '/patents/target-requests',
+    'POST',
+    { targetName },
     options,
   ),
 };

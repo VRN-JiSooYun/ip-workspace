@@ -1,6 +1,7 @@
 import { Transform, Type } from 'class-transformer';
 import {
   IsArray,
+  IsBoolean,
   IsIn,
   IsInt,
   IsOptional,
@@ -81,6 +82,11 @@ export class CreatePatentTargetRequestDto {
   @IsOptional() @IsArray() @IsString({ each: true })
   @MaxLength(200, { each: true })
   keywords: string[] = [];
+}
+
+export class UpdatePatentNotificationPreferenceDto {
+  @IsBoolean()
+  enabled!: boolean;
 }
 
 export class PatentTargetDecisionDto {

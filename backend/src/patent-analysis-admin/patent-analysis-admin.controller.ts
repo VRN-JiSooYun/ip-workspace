@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Patch,
@@ -18,6 +19,7 @@ import {
   ModifyAdminPatentDto,
   PatentTargetDecisionDto,
   PatentTargetListQueryDto,
+  UpdatePatentNotificationPreferenceDto,
 } from './dto/patent-analysis-admin.dto';
 import { PatentAnalysisAdminService } from './patent-analysis-admin.service';
 
@@ -26,6 +28,35 @@ type UploadFile = { buffer: Buffer; originalname: string; mimetype: string };
 @Controller('api/patents')
 export class PatentAnalysisRequestController {
   constructor(private readonly service: PatentAnalysisAdminService) {}
+
+  @Get('me/notification-preferences')
+  getNotificationPreferences(@Session() session: UserSession) {
+    return this.service.getNotificationPreferences(session.user.id);
+  }
+
+  @Patch('me/notification-preferences')
+  updateNotificationPreference(
+    @Session() session: UserSession,
+    @Body() body: UpdatePatentNotificationPreferenceDto,
+  ) {
+    return this.service.updateNotificationPreference(session.user.id, body.enabled);
+  }
+
+  @Post('me/notification-targets/:targetName')
+  addNotificationTarget(
+    @Session() session: UserSession,
+    @Param('targetName') targetName: string,
+  ) {
+    return this.service.addNotificationTarget(session.user.id, targetName);
+  }
+
+  @Delete('me/notification-targets/:targetName')
+  removeNotificationTarget(
+    @Session() session: UserSession,
+    @Param('targetName') targetName: string,
+  ) {
+    return this.service.removeNotificationTarget(session.user.id, targetName);
+  }
 
   @Post(':publicationNumber/bioactivity-requests')
   createBioactivityRequest(

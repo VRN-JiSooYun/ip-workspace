@@ -481,7 +481,19 @@ const ConferenceList: React.FC = () => {
       ellipsis: true,
       render: (value: string | null, record) => (
         <HighlightedText
-          text={value || record.sessionType || record.track || '-'}
+          text={value || record.track || '-'}
+          query={filter.q}
+        />
+      ),
+    },
+    {
+      title: 'Session Type',
+      dataIndex: 'sessionType',
+      width: 190,
+      ellipsis: true,
+      render: (value: string | null) => (
+        <HighlightedText
+          text={value || '-'}
           query={filter.q}
         />
       ),
@@ -599,7 +611,7 @@ const ConferenceList: React.FC = () => {
               className="conference-filter-layout"
               gutter={[12, 12]}
             >
-              <Col flex="450px">
+              <Col flex="320px">
                 <div className="conference-filter-section conference-filter-section-compact conference-filter-conference-section">
                   <Text strong>Conference</Text>
                   <Select
@@ -805,7 +817,7 @@ const ConferenceList: React.FC = () => {
             dataSource={items}
             tableLayout="fixed"
             scroll={{
-              x: 1_676,
+              x: 1_866,
               ...(tableScrollY ? { y: tableScrollY } : {}),
             }}
             locale={{ emptyText: <Empty description="조회된 Abstract가 없습니다." /> }}
