@@ -16,6 +16,7 @@ import {
   Table,
   App,
   Alert,
+  Badge,
   Pagination,
   Spin
 } from 'antd';
@@ -35,6 +36,7 @@ import {
   FileSpreadsheet,
   Copy,
   Download,
+  Sparkles,
   Star,
 } from 'lucide-react';
 import type { Patent } from '../types/patent';
@@ -42,6 +44,12 @@ import { getPatentAnalysisLayoutPreset } from '../config/patentAnalysisLayout';
 import { useUIStore } from '../store/useUIStore';
 import PageHeaderBreadcrumb from '../components/common/PageHeaderBreadcrumb';
 import DataCardItem from '../components/patent-analysis/DataCardItem';
+import CleanDataRequestModal, {
+  type CleanDataQuality,
+} from '../components/patent-analysis/CleanDataRequestModal';
+import PatentAnalysisDataFilter, {
+  countPatentDataFilters,
+} from '../components/patent-analysis/PatentAnalysisDataFilter';
 import ScaffoldRankBadge, {
   normalizeScaffoldRank,
 } from '../components/patent-analysis/ScaffoldRankBadge';
@@ -52,9 +60,13 @@ import StructurePreviewModal from '../components/common/StructurePreviewModal';
 import PatentPdfToolbar from '../components/patent-analysis/pdf/PatentPdfToolbar';
 import PatentPdfViewer from '../components/patent-analysis/pdf/PatentPdfViewer';
 import { usePatentPdfViewer } from '../hooks/usePatentPdfViewer';
-import { mapPatentListItem, patentAnalysisApi } from '../services/patentAnalysisApi';
+import {
+  mapPatentListItem,
+  patentAnalysisApi,
+  type EmbodimentSearchResponse,
+  type PatentDataFilterValue,
+} from '../services/patentAnalysisApi';
 import { formatDisplayDate, formatNumberWithComma } from '../utils/displayFormat';
-import { mergeEmbodimentPayload } from '../utils/patentAnalysisData';
 import {
   downloadPatentPdfFile,
   resolvePatentPdfDocument,
@@ -269,6 +281,43 @@ const buildCleanRowsFromPatentResult = (patentResult: Record<string, any>) => {
       return row ? { ...row, __rowKey: `${row.id}-${idx}` } : null;
     }).filter(Boolean)
     : modifiedRows.map((row: any, idx: number) => ({ ...row, __rowKey: `${row.id}-${idx}` }));
+};
+
+type EmbodimentSearchState = {
+  items: Array<Record<string, any> | string | number>;
+  totalCount: number;
+  loading: boolean;
+  error: string | null;
+};
+
+const EMPTY_EMBODIMENT_SEARCH_STATE: EmbodimentSearchState = {
+  items: [],
+  totalCount: 0,
+  loading: false,
+  error: null,
+};
+
+const buildRowsFromSearchResult = (
+  detailRows: any[],
+  searchItems: Array<Record<string, any> | string | number>,
+) => {
+  const rowById = new Map<string, any>();
+  detailRows.forEach((row) => {
+    const rowId = row?.id;
+    if (rowId === undefined || rowId === null) return;
+    const key = String(rowId);
+    if (!rowById.has(key)) rowById.set(key, row);
+  });
+
+  return searchItems
+    .map((item, index) => {
+      const rowId = typeof item === 'object' ? item?.id : item;
+      const row = rowById.get(String(rowId));
+      return row
+        ? { ...row, __rowKey: `${String(rowId)}-${index}` }
+        : null;
+    })
+    .filter(Boolean);
 };
 
 type PdfDataHighlightTarget = {
@@ -555,43 +604,30 @@ const PatentAnalysisDetail: React.FC = () => {
     dataHighlightTargets: pdfDataHighlightTargets,
   });
 
-  useEffect(() => {
+  const loadPatentDetail = React.useCallback(async (clearCurrent = true) => {
     if (!selectedPatent?.patentNumber) return;
-    let ignore = false;
-
-    const loadPatentDetail = async () => {
-      const publicationNumber = normalizePublicationNumber(selectedPatent.patentNumber);
-      setIsLoadingPatentDetail(true);
+    const publicationNumber = normalizePublicationNumber(selectedPatent.patentNumber);
+    setIsLoadingPatentDetail(true);
+    if (clearCurrent) {
       setHasPatentDetailLoaded(false);
       setApiPatentResult(null);
-      setPatentDetailError(null);
-      try {
-        const [detail, embodiments] = await Promise.all([
-          patentAnalysisApi.getPatentDetail(publicationNumber),
-          patentAnalysisApi.getEmbodiments(publicationNumber, { page: 1, pageSize: 100 }),
-        ]);
-        if (!ignore) {
-          setApiPatentResult(mergeEmbodimentPayload(detail.raw, embodiments.raw));
-        }
-      } catch (error) {
-        if (!ignore) {
-          setApiPatentResult(null);
-          setPatentDetailError(error instanceof Error ? error.message : '특허 상세 API 요청에 실패했습니다.');
-        }
-      } finally {
-        if (!ignore) {
-          setIsLoadingPatentDetail(false);
-          setHasPatentDetailLoaded(true);
-        }
-      }
-    };
-
-    void loadPatentDetail();
-
-    return () => {
-      ignore = true;
-    };
+    }
+    setPatentDetailError(null);
+    try {
+      const detail = await patentAnalysisApi.getPatentDetail(publicationNumber);
+      setApiPatentResult(detail.raw);
+    } catch (error) {
+      if (clearCurrent) setApiPatentResult(null);
+      setPatentDetailError(error instanceof Error ? error.message : '특허 상세 API 요청에 실패했습니다.');
+    } finally {
+      setIsLoadingPatentDetail(false);
+      setHasPatentDetailLoaded(true);
+    }
   }, [selectedPatent?.patentNumber]);
+
+  useEffect(() => {
+    void loadPatentDetail();
+  }, [loadPatentDetail]);
 
   const clampSplitRatio = React.useCallback((value: number) => {
     return Math.min(Math.max(value, SPLIT_MIN_PERCENT), SPLIT_MAX_PERCENT);
@@ -606,16 +642,26 @@ const PatentAnalysisDetail: React.FC = () => {
   const [activeCompId, setActiveCompId] = React.useState<string | null>(null);
   const [rawDataView, setRawDataView] = React.useState<'table' | 'card'>('table');
   const [cleanDataView, setCleanDataView] = React.useState<'table' | 'card'>('table');
-  const [rawCardCurrentPage, setRawCardCurrentPage] = React.useState(1);
-  const [rawCardPageSize, setRawCardPageSize] = React.useState(RAW_DATA_DEFAULT_PAGE_SIZE);
   const [rawTableCurrentPage, setRawTableCurrentPage] = React.useState(1);
   const [rawTablePageSize, setRawTablePageSize] = React.useState(RAW_DATA_DEFAULT_PAGE_SIZE);
-  const [cleanCardCurrentPage, setCleanCardCurrentPage] = React.useState(1);
-  const [cleanCardPageSize, setCleanCardPageSize] = React.useState(RAW_DATA_DEFAULT_PAGE_SIZE);
   const [cleanTableCurrentPage, setCleanTableCurrentPage] = React.useState(1);
   const [cleanTablePageSize, setCleanTablePageSize] = React.useState(RAW_DATA_DEFAULT_PAGE_SIZE);
   const [downloadingExcelType, setDownloadingExcelType] = React.useState<'bioactivity' | 'modified_bioactivity' | null>(null);
   const [activeTab, setActiveTab] = React.useState<string>('summary');
+  const [rawFilterOpen, setRawFilterOpen] = React.useState(false);
+  const [cleanFilterOpen, setCleanFilterOpen] = React.useState(false);
+  const [rawDataFilter, setRawDataFilter] = React.useState<PatentDataFilterValue>({});
+  const [cleanDataFilter, setCleanDataFilter] = React.useState<PatentDataFilterValue>({});
+  const [rawSearchState, setRawSearchState] = React.useState<EmbodimentSearchState>(
+    EMPTY_EMBODIMENT_SEARCH_STATE,
+  );
+  const [cleanSearchState, setCleanSearchState] = React.useState<EmbodimentSearchState>(
+    EMPTY_EMBODIMENT_SEARCH_STATE,
+  );
+  const [rawSearchRevision, setRawSearchRevision] = React.useState(0);
+  const [cleanSearchRevision, setCleanSearchRevision] = React.useState(0);
+  const [cleanDataRequestOpen, setCleanDataRequestOpen] = React.useState(false);
+  const [cleanDataRequestLoading, setCleanDataRequestLoading] = React.useState(false);
   const [selectedSummaryScaffoldRank, setSelectedSummaryScaffoldRank] = React.useState<number | null>(null);
   const [rawScaffoldRankFilter, setRawScaffoldRankFilter] = React.useState<'all' | number>('all');
   const [cleanScaffoldRankFilter, setCleanScaffoldRankFilter] = React.useState<'all' | number>('all');
@@ -663,6 +709,37 @@ const PatentAnalysisDetail: React.FC = () => {
     () => getAvailableScaffoldRanks(buildCleanRowsFromPatentResult(patentResult)),
     [patentResult],
   );
+  const rawBioactivityOptions = React.useMemo(
+    () => Array.isArray(patentResult.data?.[0]?.bioactivity_list)
+      ? patentResult.data[0].bioactivity_list.map(String)
+      : [],
+    [patentResult],
+  );
+  const cleanBioactivityOptions = React.useMemo(
+    () => Array.isArray(patentResult.data?.[0]?.modified_bioactivity_list)
+      ? patentResult.data[0].modified_bioactivity_list.map(String)
+      : [],
+    [patentResult],
+  );
+  const rawSearchRows = React.useMemo(
+    () => buildRowsFromSearchResult(
+      Array.isArray(patentResult.patent_compound) ? patentResult.patent_compound : [],
+      rawSearchState.items,
+    ),
+    [patentResult.patent_compound, rawSearchState.items],
+  );
+  const cleanSearchRows = React.useMemo(
+    () => buildRowsFromSearchResult(
+      Array.isArray(patentResult.modified_patent_compound)
+        ? patentResult.modified_patent_compound
+        : [],
+      cleanSearchState.items,
+    ),
+    [cleanSearchState.items, patentResult.modified_patent_compound],
+  );
+  const rawAppliedFilterCount = countPatentDataFilters(rawDataFilter)
+    + Number(Boolean(rGroupFilter));
+  const cleanAppliedFilterCount = countPatentDataFilters(cleanDataFilter);
   const layoutPreset = React.useMemo(() => getPatentAnalysisLayoutPreset(viewportWidth), [viewportWidth]);
   const effectiveSplitWidth = splitContainerWidth || viewportWidth;
   const isStackedSplitLayout = effectiveSplitWidth <= DETAIL_STACK_BREAKPOINT;
@@ -676,8 +753,8 @@ const PatentAnalysisDetail: React.FC = () => {
       ? { x: 'max-content' as const }
       : { x: 'max-content' as const, y: cleanTableScrollY }
   ), [cleanTableScrollY]);
-  const rawTableDataBindingKey = `${displayedPatent?.patentNumber ?? ''}:${rawDataExcelRowCount}`;
-  const cleanTableDataBindingKey = `${displayedPatent?.patentNumber ?? ''}:${cleanDataExcelRowCount}`;
+  const rawTableDataBindingKey = `${displayedPatent?.patentNumber ?? ''}:${rawTableCurrentPage}:${rawSearchRows.map((row: any) => row.__rowKey).join(',')}`;
+  const cleanTableDataBindingKey = `${displayedPatent?.patentNumber ?? ''}:${cleanTableCurrentPage}:${cleanSearchRows.map((row: any) => row.__rowKey).join(',')}`;
   const isRawTableDataReady = useDeferredTableBinding(
     activeTab === 'raw-data' && rawDataView === 'table',
     rawTableDataBindingKey,
@@ -692,6 +769,7 @@ const PatentAnalysisDetail: React.FC = () => {
   const rawDataTablePagination = React.useMemo(() => ({
     current: rawTableCurrentPage,
     pageSize: rawTablePageSize,
+    total: rawSearchState.totalCount,
     showSizeChanger: true,
     pageSizeOptions: RAW_DATA_PAGE_SIZE_OPTIONS,
     position: ['bottomRight' as const],
@@ -700,10 +778,11 @@ const PatentAnalysisDetail: React.FC = () => {
       setRawTableCurrentPage(page);
       setRawTablePageSize(pageSize);
     },
-  }), [paginationItemRender, rawTableCurrentPage, rawTablePageSize]);
+  }), [paginationItemRender, rawSearchState.totalCount, rawTableCurrentPage, rawTablePageSize]);
   const cleanDataTablePagination = React.useMemo(() => ({
     current: cleanTableCurrentPage,
     pageSize: cleanTablePageSize,
+    total: cleanSearchState.totalCount,
     showSizeChanger: true,
     pageSizeOptions: RAW_DATA_PAGE_SIZE_OPTIONS,
     position: ['bottomRight' as const],
@@ -712,7 +791,7 @@ const PatentAnalysisDetail: React.FC = () => {
       setCleanTableCurrentPage(page);
       setCleanTablePageSize(pageSize);
     },
-  }), [cleanTableCurrentPage, cleanTablePageSize, paginationItemRender]);
+  }), [cleanSearchState.totalCount, cleanTableCurrentPage, cleanTablePageSize, paginationItemRender]);
   const resultTables = React.useMemo(() => {
     const tables = patentResult?.tables;
     return Array.isArray(tables) ? tables : [];
@@ -738,24 +817,144 @@ const PatentAnalysisDetail: React.FC = () => {
   React.useEffect(() => {
     if (rawScaffoldRankFilter !== 'all' && !rawScaffoldRanks.includes(rawScaffoldRankFilter)) {
       setRawScaffoldRankFilter('all');
+      setRawDataFilter((current) => ({ ...current, scaffoldRanking: undefined }));
     }
   }, [rawScaffoldRankFilter, rawScaffoldRanks]);
 
   React.useEffect(() => {
     if (cleanScaffoldRankFilter !== 'all' && !cleanScaffoldRanks.includes(cleanScaffoldRankFilter)) {
       setCleanScaffoldRankFilter('all');
+      setCleanDataFilter((current) => ({ ...current, scaffoldRanking: undefined }));
     }
   }, [cleanScaffoldRankFilter, cleanScaffoldRanks]);
 
   useEffect(() => {
-    setRawCardCurrentPage(1);
     setRawTableCurrentPage(1);
-  }, [rGroupFilter, rawScaffoldRankFilter]);
+  }, [rawDataFilter, rGroupFilter, rawScaffoldRankFilter]);
 
   useEffect(() => {
-    setCleanCardCurrentPage(1);
     setCleanTableCurrentPage(1);
-  }, [cleanScaffoldRankFilter]);
+  }, [cleanDataFilter, cleanScaffoldRankFilter]);
+
+  useEffect(() => {
+    if (
+      activeTab !== 'raw-data'
+      || !displayedPatent?.patentNumber
+      || !apiPatentResult
+    ) {
+      return undefined;
+    }
+
+    let ignore = false;
+    const controller = new AbortController();
+    setRawSearchState((current) => ({ ...current, loading: true, error: null }));
+
+    void patentAnalysisApi.searchEmbodiments(
+      normalizePublicationNumber(displayedPatent.patentNumber),
+      {
+        dataset: 'raw',
+        page: rawTableCurrentPage,
+        pageSize: rawTablePageSize,
+        ...rawDataFilter,
+        ...(rawScaffoldRankFilter !== 'all'
+          ? { scaffoldRanking: rawScaffoldRankFilter }
+          : {}),
+        ...(rGroupFilter
+          ? { rGroup: { key: rGroupFilter.key, value: rGroupFilter.smiles } }
+          : {}),
+      },
+      { signal: controller.signal },
+    ).then((response: EmbodimentSearchResponse) => {
+      if (ignore) return;
+      setRawSearchState({
+        items: response.items,
+        totalCount: response.totalCount,
+        loading: false,
+        error: null,
+      });
+    }).catch((error) => {
+      if (ignore) return;
+      setRawSearchState({
+        items: [],
+        totalCount: 0,
+        loading: false,
+        error: error instanceof Error ? error.message : 'Raw data Filter 요청에 실패했습니다.',
+      });
+    });
+
+    return () => {
+      ignore = true;
+      controller.abort();
+    };
+  }, [
+    activeTab,
+    apiPatentResult,
+    displayedPatent?.patentNumber,
+    rawDataFilter,
+    rawScaffoldRankFilter,
+    rawSearchRevision,
+    rawTableCurrentPage,
+    rawTablePageSize,
+    rGroupFilter,
+  ]);
+
+  useEffect(() => {
+    if (
+      activeTab !== 'clean-data'
+      || !displayedPatent?.patentNumber
+      || !apiPatentResult
+    ) {
+      return undefined;
+    }
+
+    let ignore = false;
+    const controller = new AbortController();
+    setCleanSearchState((current) => ({ ...current, loading: true, error: null }));
+
+    void patentAnalysisApi.searchEmbodiments(
+      normalizePublicationNumber(displayedPatent.patentNumber),
+      {
+        dataset: 'clean',
+        page: cleanTableCurrentPage,
+        pageSize: cleanTablePageSize,
+        ...cleanDataFilter,
+        ...(cleanScaffoldRankFilter !== 'all'
+          ? { scaffoldRanking: cleanScaffoldRankFilter }
+          : {}),
+      },
+      { signal: controller.signal },
+    ).then((response: EmbodimentSearchResponse) => {
+      if (ignore) return;
+      setCleanSearchState({
+        items: response.items,
+        totalCount: response.totalCount,
+        loading: false,
+        error: null,
+      });
+    }).catch((error) => {
+      if (ignore) return;
+      setCleanSearchState({
+        items: [],
+        totalCount: 0,
+        loading: false,
+        error: error instanceof Error ? error.message : 'Clean data Filter 요청에 실패했습니다.',
+      });
+    });
+
+    return () => {
+      ignore = true;
+      controller.abort();
+    };
+  }, [
+    activeTab,
+    apiPatentResult,
+    cleanDataFilter,
+    cleanScaffoldRankFilter,
+    cleanSearchRevision,
+    cleanTableCurrentPage,
+    cleanTablePageSize,
+    displayedPatent?.patentNumber,
+  ]);
 
   useEffect(() => {
     const container = splitContainerRef.current;
@@ -1208,6 +1407,35 @@ const PatentAnalysisDetail: React.FC = () => {
       setDownloadingExcelType(null);
     }
   }, [cleanDataExcelRowCount, displayedPatent?.patentNumber, downloadingExcelType, message, rawDataExcelRowCount]);
+
+  const handleCleanDataRequest = React.useCallback(async (quality: CleanDataQuality) => {
+    if (cleanDataRequestLoading) return;
+    const publicationNumber = displayedPatent?.patentNumber;
+    if (!publicationNumber) {
+      message.error('요청할 특허 번호가 없습니다.');
+      return;
+    }
+
+    setCleanDataRequestLoading(true);
+    try {
+      await patentAnalysisApi.requestCleanData(
+        normalizePublicationNumber(publicationNumber),
+        quality,
+      );
+      setCleanDataRequestOpen(false);
+      message.success('Clean data 요청이 완료되었습니다.');
+      await loadPatentDetail(false);
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : 'Clean data 요청에 실패했습니다.');
+    } finally {
+      setCleanDataRequestLoading(false);
+    }
+  }, [
+    cleanDataRequestLoading,
+    displayedPatent?.patentNumber,
+    loadPatentDetail,
+    message,
+  ]);
 
   const toggleFavoritePatent = React.useCallback(async () => {
     const publicationNumber = displayedPatent?.patentNumber;
@@ -1716,6 +1944,33 @@ const PatentAnalysisDetail: React.FC = () => {
     }
   }, [splitRatio, debugLog]);
 
+  const cleanDataEmptyState = (
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        gap: 12,
+        padding: '24px 0',
+      }}
+    >
+      <Empty
+        description={cleanDataExcelRowCount === 0
+          ? 'Clean data 데이터가 없습니다.'
+          : 'Filter 조건에 맞는 Clean data가 없습니다.'}
+      />
+      {cleanDataExcelRowCount === 0 && (
+        <Button
+          type="primary"
+          loading={cleanDataRequestLoading}
+          onClick={() => setCleanDataRequestOpen(true)}
+        >
+          Clean data 요청
+        </Button>
+      )}
+    </div>
+  );
+
   return (
     <div className="patent-analysis-detail-page" style={{ maxWidth: layoutPreset.maxWidth, margin: '0 auto', padding: `0 ${layoutPreset.sidePadding}px`, flex: 1, width: '100%', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', overflow: isStackedSplitLayout ? 'auto' : 'hidden' }}>
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: isStackedSplitLayout ? 'visible' : 'hidden', animation: 'fadeIn 0.3s ease-out', paddingBottom: isStackedSplitLayout ? 24 : 8 }}>
@@ -2214,6 +2469,11 @@ const PatentAnalysisDetail: React.FC = () => {
                                 Card
                               </Button>
                             </div>
+                            <Badge count={rawAppliedFilterCount} size="small">
+                              <Button size="small" type="primary" onClick={() => setRawFilterOpen(true)}>
+                                Filter
+                              </Button>
+                            </Badge>
                             {rawDataView === 'table' && (
                               <Button
                                 size="small"
@@ -2224,17 +2484,22 @@ const PatentAnalysisDetail: React.FC = () => {
                                 작용기 {rawShowFunctionalGroupColumns ? 'On' : 'Off'}
                               </Button>
                             )}
-                            <Button
-                              size="small"
-                              icon={<Download size={14} />}
-                              loading={downloadingExcelType === 'bioactivity'}
-                              disabled={rawDataExcelRowCount === 0 || downloadingExcelType !== null}
-                              title={rawDataExcelRowCount === 0 ? '다운로드할 Raw data가 없습니다.' : undefined}
-                              onClick={() => void handleEmbodimentsExcelDownload('bioactivity')}
+                            <Tooltip
+                              title={rawAppliedFilterCount > 0
+                                ? '현재 Filter와 관계없이 전체 Raw data를 다운로드합니다.'
+                                : undefined}
                             >
-                              Excel
-                            </Button>
-                            <Button size="small" type="primary">Filter</Button>
+                              <Button
+                                size="small"
+                                icon={<Download size={14} />}
+                                loading={downloadingExcelType === 'bioactivity'}
+                                disabled={rawDataExcelRowCount === 0 || downloadingExcelType !== null}
+                                title={rawDataExcelRowCount === 0 ? '다운로드할 Raw data가 없습니다.' : undefined}
+                                onClick={() => void handleEmbodimentsExcelDownload('bioactivity')}
+                              >
+                                Excel
+                              </Button>
+                            </Tooltip>
                           </Space>
                         </div>
                         <div className="patent-scaffold-filter-bar">
@@ -2242,7 +2507,13 @@ const PatentAnalysisDetail: React.FC = () => {
                           <Button
                             size="small"
                             type={rawScaffoldRankFilter === 'all' ? 'primary' : 'default'}
-                            onClick={() => setRawScaffoldRankFilter('all')}
+                            onClick={() => {
+                              setRawScaffoldRankFilter('all');
+                              setRawDataFilter((current) => ({
+                                ...current,
+                                scaffoldRanking: undefined,
+                              }));
+                            }}
                           >
                             All
                           </Button>
@@ -2252,7 +2523,10 @@ const PatentAnalysisDetail: React.FC = () => {
                               size="small"
                               type={rawScaffoldRankFilter === rank ? 'primary' : 'default'}
                               icon={<ScaffoldRankBadge rank={rank} size="small" />}
-                              onClick={() => setRawScaffoldRankFilter(rank)}
+                              onClick={() => {
+                                setRawScaffoldRankFilter(rank);
+                                setRawDataFilter((current) => ({ ...current, scaffoldRanking: rank }));
+                              }}
                               aria-label={`Scaffold rank ${rank}`}
                             />
                           ))}
@@ -2265,20 +2539,23 @@ const PatentAnalysisDetail: React.FC = () => {
                             <Button size="small" type="text" danger onClick={() => setRGroupFilter(null)}>해제</Button>
                           </div>
                         )}
+                        {rawSearchState.error && (
+                          <Alert
+                            type="error"
+                            showIcon
+                            message="Raw data Filter 요청에 실패했습니다."
+                            description={rawSearchState.error}
+                            action={(
+                              <Button size="small" onClick={() => setRawSearchRevision((value) => value + 1)}>
+                                재시도
+                              </Button>
+                            )}
+                            style={{ marginBottom: 12 }}
+                          />
+                        )}
                         {rawDataView === 'table' ? (
                           (() => {
-                            // patentResultRaw에서 실제 patent_compound 데이터 사용
-                            const rawPcAll: any[] = patentResult.patent_compound ?? [];
-                            const rawPc = rawPcAll
-                              .map((compound: any, idx: number) => ({ ...compound, __rowIdx: idx }))
-                              .filter((compound: any) => (
-                                !rGroupFilter
-                                || compound.r_groups?.[rGroupFilter.key] === rGroupFilter.smiles
-                              ))
-                              .filter((compound: any) => (
-                                rawScaffoldRankFilter === 'all'
-                                || normalizeScaffoldRank(compound.scaffold_ranking) === rawScaffoldRankFilter
-                              ));
+                            const rawPc = rawSearchRows;
                             // 전체 r_group key 수집 (R1~R7 등 동적)
                             const allRGroupKeys = Array.from(
                               new Set(rawPc.flatMap((c: any) => Object.keys(c.r_groups ?? {})))
@@ -2453,8 +2730,8 @@ const PatentAnalysisDetail: React.FC = () => {
                                   className="raw-data-embodiment-table"
                                   dataSource={isRawTableDataReady ? rawPc : []}
                                   size="small"
-                                  loading={isLoadingPatentDetail || (!isRawTableDataReady && rawPc.length > 0)}
-                                  rowKey={(record: any) => `${record.id}-${record.__rowIdx}`}
+                                  loading={isLoadingPatentDetail || rawSearchState.loading || (!isRawTableDataReady && rawPc.length > 0)}
+                                  rowKey={(record: any) => record.__rowKey}
                                   scroll={rawTableScroll}
                                   columns={columns}
                                   rowClassName={(record: any) => activeCompId === String(record.id) ? 'raw-data-row-active' : ''}
@@ -2479,33 +2756,25 @@ const PatentAnalysisDetail: React.FC = () => {
 
                         ) : (
                           (() => {
-                            const rawCardRows = (patentResult.patent_compound ?? [])
-                              .filter((compound: any) => (
-                                !rGroupFilter
-                                || compound.r_groups?.[rGroupFilter.key] === rGroupFilter.smiles
-                              ))
-                              .filter((compound: any) => (
-                                rawScaffoldRankFilter === 'all'
-                                || normalizeScaffoldRank(compound.scaffold_ranking) === rawScaffoldRankFilter
-                              ));
-                            const currentPage = Math.min(rawCardCurrentPage, Math.max(1, Math.ceil(rawCardRows.length / rawCardPageSize)));
-                            const pagedRawCardRows = rawCardRows.slice((currentPage - 1) * rawCardPageSize, currentPage * rawCardPageSize);
+                            const rawCardRows = rawSearchRows;
 
                             if (rawCardRows.length === 0) {
-                              if (isLoadingPatentDetail) return <PatentDetailLoadingState />;
+                              if (isLoadingPatentDetail || rawSearchState.loading) {
+                                return <PatentDetailLoadingState description="Raw data를 불러오는 중입니다." />;
+                              }
                               return shouldShowPatentDetailEmpty ? <Empty description="Raw data 데이터가 없습니다." /> : null;
                             }
 
                             return (
                               <div className="patent-analysis-card-view">
                                 <div className="patent-analysis-fixed-card-list">
-                                  {pagedRawCardRows.map((comp: any, idx: number) => {
+                                  {rawCardRows.map((comp: any) => {
                                     const compKey = String(comp.id);
                                     const pageArr: number[] = Array.isArray(comp.page) ? comp.page : [];
                                     const bboxArr: any[] = Array.isArray(comp.bbox) ? comp.bbox : [];
                                     const curIdx = pageIndices[compKey] ?? 0;
                                     return (
-                                      <div className="patent-analysis-fixed-card-item" key={`${comp.id}-${idx}`}>
+                                      <div className="patent-analysis-fixed-card-item" key={comp.__rowKey}>
                                         <DataCardItem
                                           title={formatPatentExampleNumber(comp.example_number)}
                                           tags={comp.ranking ? [{ label: `Rank ${comp.ranking}`, color: 'blue' }] : []}
@@ -2552,15 +2821,15 @@ const PatentAnalysisDetail: React.FC = () => {
                                 <Pagination
                                   className="v-common-pagination"
                                   size="small"
-                                  current={currentPage}
-                                  pageSize={rawCardPageSize}
-                                  total={rawCardRows.length}
+                                  current={rawTableCurrentPage}
+                                  pageSize={rawTablePageSize}
+                                  total={rawSearchState.totalCount}
                                   showSizeChanger
                                   pageSizeOptions={RAW_DATA_PAGE_SIZE_OPTIONS}
                                   itemRender={paginationItemRender}
                                   onChange={(page, pageSize) => {
-                                    setRawCardCurrentPage(page);
-                                    setRawCardPageSize(pageSize);
+                                    setRawTableCurrentPage(page);
+                                    setRawTablePageSize(pageSize);
                                   }}
                                 />
                               </div>
@@ -2633,6 +2902,11 @@ const PatentAnalysisDetail: React.FC = () => {
                                 Card
                               </Button>
                             </div>
+                            <Badge count={cleanAppliedFilterCount} size="small">
+                              <Button size="small" type="primary" onClick={() => setCleanFilterOpen(true)}>
+                                Filter
+                              </Button>
+                            </Badge>
                             {cleanDataView === 'table' && (
                               <Button
                                 size="small"
@@ -2643,18 +2917,31 @@ const PatentAnalysisDetail: React.FC = () => {
                                 작용기 {cleanShowFunctionalGroupColumns ? 'On' : 'Off'}
                               </Button>
                             )}
+                            <Tooltip
+                              title={cleanAppliedFilterCount > 0
+                                ? '현재 Filter와 관계없이 전체 Clean data를 다운로드합니다.'
+                                : undefined}
+                            >
+                              <Button
+                                size="small"
+                                icon={<Download size={14} />}
+                                loading={downloadingExcelType === 'modified_bioactivity'}
+                                disabled={cleanDataExcelRowCount === 0 || downloadingExcelType !== null}
+                                title={cleanDataExcelRowCount === 0 ? '다운로드할 Clean data가 없습니다.' : undefined}
+                                onClick={() => void handleEmbodimentsExcelDownload('modified_bioactivity')}
+                              >
+                                Excel
+                              </Button>
+                            </Tooltip>
                             <Button
                               size="small"
-                              icon={<Download size={14} />}
-                              loading={downloadingExcelType === 'modified_bioactivity'}
-                              disabled={cleanDataExcelRowCount === 0 || downloadingExcelType !== null}
-                              title={cleanDataExcelRowCount === 0 ? '다운로드할 Clean data가 없습니다.' : undefined}
-                              onClick={() => void handleEmbodimentsExcelDownload('modified_bioactivity')}
+                              type="default"
+                              icon={<Sparkles size={14} />}
+                              loading={cleanDataRequestLoading}
+                              onClick={() => setCleanDataRequestOpen(true)}
                             >
-                              Excel
+                              Clean data 요청
                             </Button>
-                            <Button size="small" type="primary">Filter</Button>
-                            <Button size="small" type="default">Clean data 요청</Button>
                           </Space>
                         </div>
                         <div className="patent-scaffold-filter-bar">
@@ -2662,7 +2949,13 @@ const PatentAnalysisDetail: React.FC = () => {
                           <Button
                             size="small"
                             type={cleanScaffoldRankFilter === 'all' ? 'primary' : 'default'}
-                            onClick={() => setCleanScaffoldRankFilter('all')}
+                            onClick={() => {
+                              setCleanScaffoldRankFilter('all');
+                              setCleanDataFilter((current) => ({
+                                ...current,
+                                scaffoldRanking: undefined,
+                              }));
+                            }}
                           >
                             All
                           </Button>
@@ -2672,18 +2965,35 @@ const PatentAnalysisDetail: React.FC = () => {
                               size="small"
                               type={cleanScaffoldRankFilter === rank ? 'primary' : 'default'}
                               icon={<ScaffoldRankBadge rank={rank} size="small" />}
-                              onClick={() => setCleanScaffoldRankFilter(rank)}
+                              onClick={() => {
+                                setCleanScaffoldRankFilter(rank);
+                                setCleanDataFilter((current) => ({
+                                  ...current,
+                                  scaffoldRanking: rank,
+                                }));
+                              }}
                               aria-label={`Scaffold rank ${rank}`}
                             />
                           ))}
                         </div>
+                        {cleanSearchState.error && (
+                          <Alert
+                            type="error"
+                            showIcon
+                            message="Clean data Filter 요청에 실패했습니다."
+                            description={cleanSearchState.error}
+                            action={(
+                              <Button size="small" onClick={() => setCleanSearchRevision((value) => value + 1)}>
+                                재시도
+                              </Button>
+                            )}
+                            style={{ marginBottom: 12 }}
+                          />
+                        )}
                         {cleanDataView === 'table' ? (
                           (() => {
                             const modifiedBioKeys: string[] = (patentResult.data?.[0]?.modified_bioactivity_list ?? []) as string[];
-                            const cleanRows = buildCleanRows().filter((compound: any) => (
-                              cleanScaffoldRankFilter === 'all'
-                              || normalizeScaffoldRank(compound.scaffold_ranking) === cleanScaffoldRankFilter
-                            ));
+                            const cleanRows = cleanSearchRows;
 
                             const allRGroupKeys = Array.from(
                               new Set(cleanRows.flatMap((c: any) => Object.keys(c.r_groups ?? {})))
@@ -2871,8 +3181,10 @@ const PatentAnalysisDetail: React.FC = () => {
                             ];
 
                             if (cleanRows.length === 0) {
-                              if (isLoadingPatentDetail) return <PatentDetailLoadingState />;
-                              return shouldShowPatentDetailEmpty ? <Empty description="Clean data 데이터가 없습니다." /> : null;
+                              if (isLoadingPatentDetail || cleanSearchState.loading) {
+                                return <PatentDetailLoadingState description="Clean data를 불러오는 중입니다." />;
+                              }
+                              return shouldShowPatentDetailEmpty ? cleanDataEmptyState : null;
                             }
 
                             return (
@@ -2894,7 +3206,7 @@ const PatentAnalysisDetail: React.FC = () => {
                                   className="raw-data-embodiment-table"
                                   dataSource={isCleanTableDataReady ? cleanRows : []}
                                   size="small"
-                                  loading={isLoadingPatentDetail || (!isCleanTableDataReady && cleanRows.length > 0)}
+                                  loading={isLoadingPatentDetail || cleanSearchState.loading || (!isCleanTableDataReady && cleanRows.length > 0)}
                                   rowKey={(record: any) => record.__rowKey}
                                   scroll={cleanTableScroll}
                                   columns={columns as any}
@@ -2919,23 +3231,19 @@ const PatentAnalysisDetail: React.FC = () => {
                           })()
                         ) : (
                           (() => {
-                            const modifiedRows: any[] = (patentResult.modified_patent_compound ?? [])
-                              .filter((compound: any) => (
-                                cleanScaffoldRankFilter === 'all'
-                                || normalizeScaffoldRank(compound.scaffold_ranking) === cleanScaffoldRankFilter
-                              ));
+                            const modifiedRows = cleanSearchRows;
                             if (modifiedRows.length === 0) {
-                              if (isLoadingPatentDetail) return <PatentDetailLoadingState />;
-                              return shouldShowPatentDetailEmpty ? <Empty description="Clean data 데이터가 없습니다." /> : null;
+                              if (isLoadingPatentDetail || cleanSearchState.loading) {
+                                return <PatentDetailLoadingState description="Clean data를 불러오는 중입니다." />;
+                              }
+                              return shouldShowPatentDetailEmpty ? cleanDataEmptyState : null;
                             }
-                            const currentPage = Math.min(cleanCardCurrentPage, Math.max(1, Math.ceil(modifiedRows.length / cleanCardPageSize)));
-                            const pagedModifiedRows = modifiedRows.slice((currentPage - 1) * cleanCardPageSize, currentPage * cleanCardPageSize);
 
                             return (
                               <div className="patent-analysis-card-view">
                                 <div className="patent-analysis-fixed-card-list">
-                                  {pagedModifiedRows.map((comp: any, idx: number) => {
-                                    const compKey = `clean-card-${comp.id}-${((currentPage - 1) * cleanCardPageSize) + idx}`;
+                                  {modifiedRows.map((comp: any) => {
+                                    const compKey = `clean-card-${comp.__rowKey}`;
                                     const pageArr: number[] = Array.isArray(comp.page) ? comp.page : [];
                                     const bboxArr: any[] = Array.isArray(comp.bbox) ? comp.bbox : [];
                                     const curIdx = pageIndices[compKey] ?? 0;
@@ -2994,15 +3302,15 @@ const PatentAnalysisDetail: React.FC = () => {
                                 <Pagination
                                   className="v-common-pagination"
                                   size="small"
-                                  current={currentPage}
-                                  pageSize={cleanCardPageSize}
-                                  total={modifiedRows.length}
+                                  current={cleanTableCurrentPage}
+                                  pageSize={cleanTablePageSize}
+                                  total={cleanSearchState.totalCount}
                                   showSizeChanger
                                   pageSizeOptions={RAW_DATA_PAGE_SIZE_OPTIONS}
                                   itemRender={paginationItemRender}
                                   onChange={(page, pageSize) => {
-                                    setCleanCardCurrentPage(page);
-                                    setCleanCardPageSize(pageSize);
+                                    setCleanTableCurrentPage(page);
+                                    setCleanTablePageSize(pageSize);
                                   }}
                                 />
                               </div>
@@ -3718,6 +4026,45 @@ const PatentAnalysisDetail: React.FC = () => {
           transform-origin: center;
         }
       `}</style>
+
+      <PatentAnalysisDataFilter
+        open={rawFilterOpen}
+        dataset="raw"
+        initialValue={rawDataFilter}
+        bioactivityOptions={rawBioactivityOptions}
+        scaffoldRanks={rawScaffoldRanks}
+        onCancel={() => setRawFilterOpen(false)}
+        onApply={(value) => {
+          setRawDataFilter(value);
+          setRawScaffoldRankFilter(value.scaffoldRanking ?? 'all');
+          setRawTableCurrentPage(1);
+          setRawFilterOpen(false);
+        }}
+      />
+
+      <PatentAnalysisDataFilter
+        open={cleanFilterOpen}
+        dataset="clean"
+        initialValue={cleanDataFilter}
+        bioactivityOptions={cleanBioactivityOptions}
+        scaffoldRanks={cleanScaffoldRanks}
+        onCancel={() => setCleanFilterOpen(false)}
+        onApply={(value) => {
+          setCleanDataFilter(value);
+          setCleanScaffoldRankFilter(value.scaffoldRanking ?? 'all');
+          setCleanTableCurrentPage(1);
+          setCleanFilterOpen(false);
+        }}
+      />
+
+      <CleanDataRequestModal
+        open={cleanDataRequestOpen}
+        loading={cleanDataRequestLoading}
+        onCancel={() => {
+          if (!cleanDataRequestLoading) setCleanDataRequestOpen(false);
+        }}
+        onSubmit={(quality) => void handleCleanDataRequest(quality)}
+      />
 
       <StructurePreviewModal
         title={previewTitle}

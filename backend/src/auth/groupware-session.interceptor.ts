@@ -36,12 +36,22 @@ export class GroupwareSessionInterceptor {
         status: true,
         team: true,
         fullname: true,
+        notificationRecipient: {
+          select: { memberId: true, status: true },
+        },
         accounts: { where: { providerId: 'groupware' }, take: 1 },
       },
     });
     if (!user || user.status !== 'ACTIVE') {
       await this.prisma.client.session.deleteMany({ where: { userId } });
       throw new UnauthorizedException('AUTH_USER_INACTIVE');
+    }
+    if (
+      !user.notificationRecipient?.memberId
+      || user.notificationRecipient.status !== 'ACTIVE'
+    ) {
+      await this.prisma.client.session.deleteMany({ where: { userId } });
+      throw new UnauthorizedException('AUTH_MEMBER_ID_NOT_LINKED');
     }
     const account = user.accounts[0];
     if (!account) {

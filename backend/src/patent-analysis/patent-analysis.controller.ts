@@ -2,6 +2,7 @@ import { Body, Controller, Get, Param, Post, Query, Res } from '@nestjs/common';
 import { Response } from 'express';
 import { CompoundSearchQueryDto } from './dto/compound-search-query.dto';
 import { EmbodimentListQueryDto } from './dto/embodiment-list-query.dto';
+import { EmbodimentSearchDto } from './dto/embodiment-search.dto';
 import { PatentFavoriteDto, PatentFavoriteShareDto } from './dto/patent-favorite.dto';
 import { PatentDetailQueryDto } from './dto/patent-detail-query.dto';
 import { PatentInsightStatisticsDto } from './dto/patent-insight-statistics.dto';
@@ -104,6 +105,14 @@ export class PatentAnalysisController {
     @Query() query: EmbodimentListQueryDto,
   ) {
     return this.patentAnalysisService.getEmbodiments(publicationNumber, query);
+  }
+
+  @Post(':publicationNumber/embodiments/search')
+  searchEmbodiments(
+    @Param('publicationNumber') publicationNumber: string,
+    @Body() body: EmbodimentSearchDto,
+  ) {
+    return this.patentAnalysisService.searchEmbodiments(publicationNumber, body);
   }
 
   @Get(':publicationNumber')

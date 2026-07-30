@@ -19,6 +19,7 @@ import { ConferenceInteractionModule } from './conference-interaction/conference
 import { ConferenceAdminModule } from './conference-admin/conference-admin.module';
 import { NotificationRecipientModule } from './notification-recipient/notification-recipient.module';
 import { ConferenceMailModule } from './conference-mail/conference-mail.module';
+import { PatentAnalysisAdminModule } from './patent-analysis-admin/patent-analysis-admin.module';
 
 @Module({
   imports: [
@@ -42,6 +43,7 @@ import { ConferenceMailModule } from './conference-mail/conference-mail.module';
     AdminModule,
     HealthModule,
     PatentAnalysisModule,
+    PatentAnalysisAdminModule,
     ConformerModule,
     CompoundApiModule,
     CalculationsModule,

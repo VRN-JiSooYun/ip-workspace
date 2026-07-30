@@ -8,5 +8,6 @@ import { PatentAnalysisService } from './patent-analysis.service';
   imports: [HttpModule],
   controllers: [PatentAnalysisController],
   providers: [PatentAnalysisHelperClient, PatentAnalysisService],
+  exports: [PatentAnalysisHelperClient],
 })
 export class PatentAnalysisModule {}

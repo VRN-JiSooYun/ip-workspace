@@ -3,6 +3,16 @@ export type PatentAnalysisHelperResult<T = unknown> = {
   result?: T;
 };
 
+export type PatentAnalysisLegacyResult<T = unknown> = [
+  success: boolean,
+  completed: boolean,
+  result: T,
+];
+
+export type PatentAnalysisHelperResponse<T = unknown> =
+  | PatentAnalysisHelperResult<T>
+  | PatentAnalysisLegacyResult<T>;
+
 export type PatentListResult = {
   partial_rows?: unknown[];
   data?: unknown[];

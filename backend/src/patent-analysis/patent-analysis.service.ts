@@ -3,6 +3,7 @@ import { HttpService } from '@nestjs/axios';
 import { ConfigService } from '@nestjs/config';
 import { CompoundSearchQueryDto } from './dto/compound-search-query.dto';
 import { EmbodimentListQueryDto } from './dto/embodiment-list-query.dto';
+import { EmbodimentSearchDto } from './dto/embodiment-search.dto';
 import { PatentFavoriteDto, PatentFavoriteShareDto } from './dto/patent-favorite.dto';
 import { PatentDetailQueryDto } from './dto/patent-detail-query.dto';
 import { PatentInsightStatisticsDto } from './dto/patent-insight-statistics.dto';
@@ -85,6 +86,14 @@ const splitCsv = (value: string | undefined): string[] => {
 };
 
 const escapeFilterValue = (value: string): string => value.replace(/'/g, "''");
+
+const assertSafeDynamicFilterKey = (value: string, label: string): string => {
+  const normalized = value.trim();
+  if (!normalized || /["'\\\u0000-\u001f]/.test(normalized)) {
+    throw new BadRequestException(`${label} is invalid`);
+  }
+  return normalized;
+};
 
 const asRecord = (value: unknown): Record<string, unknown> | null => {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
@@ -510,6 +519,140 @@ export class PatentAnalysisService {
       modifiedItems: result.modified_partial_rows ?? [],
       modifiedTotalCount: getTotalCount(result.modified_total_rows),
       raw: result,
+    };
+  }
+
+  async searchEmbodiments(
+    publicationNumber: string,
+    body: EmbodimentSearchDto,
+  ) {
+    if (!/^[A-Za-z0-9_-]+$/.test(publicationNumber)) {
+      throw new BadRequestException('publicationNumber is invalid');
+    }
+    if (
+      body.rankingMin !== undefined
+      && body.rankingMax !== undefined
+      && body.rankingMin > body.rankingMax
+    ) {
+      throw new BadRequestException('rankingMin must be less than or equal to rankingMax');
+    }
+    if (
+      body.bioactivity?.min !== undefined
+      && body.bioactivity.max !== undefined
+      && body.bioactivity.min > body.bioactivity.max
+    ) {
+      throw new BadRequestException('bioactivity.min must be less than or equal to bioactivity.max');
+    }
+    if (
+      body.bioactivity
+      && body.bioactivity.min === undefined
+      && body.bioactivity.max === undefined
+    ) {
+      throw new BadRequestException('A bioactivity minimum or maximum value is required');
+    }
+
+    const ownerId = this.getOwnerId();
+    if (body.bioactivity) {
+      const detail = await this.helperClient.call<PatentDetailResult>({
+        operation: 'GET-PATENT-DATA',
+        publication_number: publicationNumber,
+        owner_id: ownerId,
+      });
+      const metadata = detail.data?.[0] ?? {};
+      const allowedBioactivityKeys = body.dataset === 'clean'
+        ? metadata.modified_bioactivity_list
+        : metadata.bioactivity_list;
+      const bioactivityKey = assertSafeDynamicFilterKey(body.bioactivity.key, 'bioactivity.key');
+      if (
+        !Array.isArray(allowedBioactivityKeys)
+        || !allowedBioactivityKeys.some((value) => String(value) === bioactivityKey)
+      ) {
+        throw new BadRequestException('bioactivity.key is not available for this patent');
+      }
+    }
+
+    const filters: HelperFilter[] = [];
+    const addFilter = (
+      filterColumn: string,
+      filterCondition: string,
+      filterValue: string,
+    ) => {
+      filters.push({
+        filter_column: filterColumn,
+        filter_condition: filterCondition,
+        filter_value: filterValue,
+        filter_conjunction: 'and',
+        filter_group_condition: '',
+      });
+    };
+
+    if (body.humanKeyCompound !== undefined) {
+      addFilter(
+        'bool#is_human_key_compound',
+        '%s = %s',
+        body.humanKeyCompound ? 'true' : 'false',
+      );
+    }
+    if (body.rankingMin !== undefined) {
+      addFilter('num#ranking', '%s >= %s', String(body.rankingMin));
+    }
+    if (body.rankingMax !== undefined) {
+      addFilter('num#ranking', '%s <= %s', String(body.rankingMax));
+    }
+    if (body.scaffoldRanking !== undefined) {
+      addFilter('num#scaffold_ranking', '%s = %s', String(body.scaffoldRanking));
+    }
+    if (body.pageNumber !== undefined) {
+      addFilter('num#page', '%s @> ARRAY[%s]', String(body.pageNumber));
+    }
+    if (body.bioactivity) {
+      const key = assertSafeDynamicFilterKey(body.bioactivity.key, 'bioactivity.key');
+      const column = body.dataset === 'clean' ? 'modified_bioactivity' : 'bioactivity';
+      if (body.bioactivity.min !== undefined) {
+        addFilter(`num#${column};;${key}`, '>=', String(body.bioactivity.min));
+      }
+      if (body.bioactivity.max !== undefined) {
+        addFilter(`num#${column};;${key}`, '<=', String(body.bioactivity.max));
+      }
+    }
+    if (body.scaffold?.trim()) {
+      addFilter('str#scaffold', "%s ilike '%s'", escapeFilterValue(body.scaffold.trim()));
+    }
+    if (body.rGroup) {
+      const rGroupKey = assertSafeDynamicFilterKey(body.rGroup.key, 'rGroup.key');
+      addFilter(
+        `str#r_group;;${rGroupKey}`,
+        "%s ilike '%s'",
+        escapeFilterValue(body.rGroup.value.trim()),
+      );
+    }
+
+    const result = await this.helperClient.call<EmbodimentListResult>({
+      operation: 'GET-EMBODIMENT-LIST',
+      publication_number: publicationNumber,
+      owner_id: ownerId,
+      filter_dict: JSON.stringify(filters.length > 0 ? { preset: filters } : {}),
+      ligand_filter_dict: '[]',
+      order_dict: '[]',
+      filter_group_conjunction_list: '[]',
+      'num-rows-per-page': body.pageSize,
+      'page-no': body.page,
+      whose: 'my',
+    });
+
+    const items = body.dataset === 'clean'
+      ? result.modified_partial_rows ?? []
+      : result.partial_rows ?? [];
+    const totalRows = body.dataset === 'clean'
+      ? result.modified_total_rows
+      : result.total_rows;
+
+    return {
+      dataset: body.dataset,
+      page: body.page,
+      pageSize: body.pageSize,
+      items,
+      totalCount: getTotalCount(totalRows),
     };
   }
 

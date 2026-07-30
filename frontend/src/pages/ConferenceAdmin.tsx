@@ -1125,15 +1125,34 @@ const ConferenceAdmin: React.FC = () => {
         activeKey={activeTabKey}
         onChange={setActiveTabKey}
         items={[
-          { key: 'import', label: <Space><FileSpreadsheet size={15} />Import</Space>, children: importTab },
+          {
+            key: 'import',
+            label: (
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: 20, lineHeight: '20px' }}>
+                <FileSpreadsheet size={15} style={{ display: 'block', flexShrink: 0 }} />
+                <span>Import</span>
+              </span>
+            ),
+            children: importTab,
+          },
           {
             key: 'recipients',
-            label: <Space><UsersRound size={15} />메일 대상</Space>,
+            label: (
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: 20, lineHeight: '20px' }}>
+                <UsersRound size={15} style={{ display: 'block', flexShrink: 0 }} />
+                <span>메일 대상</span>
+              </span>
+            ),
             children: recipientImportTab,
           },
           {
             key: 'mail-outbox',
-            label: <Space><Mail size={15} />메일 발송</Space>,
+            label: (
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: 20, lineHeight: '20px' }}>
+                <Mail size={15} style={{ display: 'block', flexShrink: 0 }} />
+                <span>메일 발송</span>
+              </span>
+            ),
             children: mailOutboxTab,
           },
           { key: 'conference', label: 'Conference 등록', children: conferenceTab },
@@ -1142,6 +1161,7 @@ const ConferenceAdmin: React.FC = () => {
       />
 
       <Modal
+        rootClassName="conference-admin-modal"
         width={1100}
         title="Conference import 상세"
         open={Boolean(selectedRun)}
@@ -1180,6 +1200,7 @@ const ConferenceAdmin: React.FC = () => {
       </Modal>
 
       <Modal
+        rootClassName="conference-admin-modal"
         width={1000}
         title="사용자 이메일 이관 상세"
         open={Boolean(selectedRecipientRun)}

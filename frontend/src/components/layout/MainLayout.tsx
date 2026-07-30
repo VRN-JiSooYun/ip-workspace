@@ -196,6 +196,12 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
         icon: <Database size={22} />,
         onClick: () => navigate('/workspace/conference-admin'),
       },
+      {
+        key: 'patent-analysis-admin',
+        label: '특허 분석 관리',
+        icon: <FileText size={22} />,
+        onClick: () => navigate('/workspace/patent-analysis-admin'),
+      },
     ] : []),
     {
       key: 'monitoring',
@@ -240,6 +246,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
     if (path === '/development-status') return 'development-status';
     if (path === '/workspace/access-registry') return 'access-registry';
     if (path === '/workspace/conference-admin') return 'conference-admin';
+    if (path === '/workspace/patent-analysis-admin') return 'patent-analysis-admin';
     if (path === '/contact') return 'contact';
     return 'dashboard';
   };
@@ -524,6 +531,11 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                 icon: renderSidebarIcon(<Database size={22} />),
                 label: <span style={{ fontWeight: 600 }}>Conference 관리</span>,
                 onClick: () => navigate('/workspace/conference-admin')
+              }, {
+                key: 'patent-analysis-admin',
+                icon: renderSidebarIcon(<FileText size={22} />),
+                label: <span style={{ fontWeight: 600 }}>특허 분석 관리</span>,
+                onClick: () => navigate('/workspace/patent-analysis-admin')
               }] : []),
               {
                 key: 'monitoring',

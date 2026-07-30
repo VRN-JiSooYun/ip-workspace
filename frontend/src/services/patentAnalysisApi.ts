@@ -30,6 +30,38 @@ export type EmbodimentListResponse = {
   raw: Record<string, any>;
 };
 
+export type PatentDataFilterValue = {
+  humanKeyCompound?: boolean;
+  rankingMin?: number;
+  rankingMax?: number;
+  scaffoldRanking?: number;
+  pageNumber?: number;
+  bioactivity?: {
+    key: string;
+    min?: number;
+    max?: number;
+  };
+};
+
+export type EmbodimentSearchRequest = PatentDataFilterValue & {
+  dataset: 'raw' | 'clean';
+  page: number;
+  pageSize: number;
+  scaffold?: string;
+  rGroup?: {
+    key: string;
+    value: string;
+  };
+};
+
+export type EmbodimentSearchResponse = {
+  dataset: 'raw' | 'clean';
+  page: number;
+  pageSize: number;
+  items: Array<Record<string, any> | string | number>;
+  totalCount: number;
+};
+
 export type CompoundSearchResponse = {
   items: Record<string, any>[];
   totalCount: number;
@@ -454,4 +486,24 @@ export const patentAnalysisApi = {
     publicationNumber: string,
     params?: { page?: number; pageSize?: number; ownerId?: string },
   ) => requestJson<EmbodimentListResponse>(`/patents/${publicationNumber}/embodiments`, params),
+  searchEmbodiments: (
+    publicationNumber: string,
+    body: EmbodimentSearchRequest,
+    options?: RequestOptions,
+  ) => requestJsonBody<EmbodimentSearchResponse>(
+    `/patents/${publicationNumber}/embodiments/search`,
+    'POST',
+    { ...body },
+    options,
+  ),
+  requestCleanData: (
+    publicationNumber: string,
+    quality: 0 | 30 | 50 | 70 | 100,
+    options?: RequestOptions,
+  ) => requestJsonBody<Record<string, unknown>>(
+    `/patents/${publicationNumber}/bioactivity-requests`,
+    'POST',
+    { quality },
+    options,
+  ),
 };

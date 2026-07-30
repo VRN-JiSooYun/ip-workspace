@@ -23,6 +23,7 @@ import Contact from './pages/Contact';
 import ConferenceList from './pages/ConferenceList';
 import ConferenceAbstractDetail from './pages/ConferenceAbstractDetail';
 import ConferenceAdmin from './pages/ConferenceAdmin';
+import PatentAnalysisAdmin from './pages/PatentAnalysisAdmin';
 
 const App: React.FC = () => {
   const { isDarkMode } = useTheme();
@@ -115,6 +116,7 @@ const App: React.FC = () => {
               <Route path="/development-status" element={<DevelopmentStatus />} />
               <Route path="/workspace/access-registry" element={<AccessRegistry />} />
               <Route path="/workspace/conference-admin" element={<ConferenceAdmin />} />
+              <Route path="/workspace/patent-analysis-admin" element={<PatentAnalysisAdmin />} />
               <Route path="/contact" element={<Contact />} />
               <Route path="*" element={<Navigate to="/dashboard" replace />} />
             </Routes>

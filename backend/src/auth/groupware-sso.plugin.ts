@@ -68,6 +68,14 @@ export const groupwareSsoPlugin = () => ({
           await ctx.context.internalAdapter.deleteUserSessions(session.user.id);
           throw new APIError('FORBIDDEN', { code: 'AUTH_USER_INACTIVE' });
         }
+        const recipient = await prisma.notificationRecipient.findUnique({
+          where: { linkedUserId: session.user.id },
+          select: { memberId: true, status: true },
+        });
+        if (!recipient?.memberId || recipient.status !== 'ACTIVE') {
+          await ctx.context.internalAdapter.deleteUserSessions(session.user.id);
+          throw new APIError('FORBIDDEN', { code: 'AUTH_MEMBER_ID_NOT_LINKED' });
+        }
 
         const account = (await ctx.context.internalAdapter.findAccounts(session.user.id))
           .find((candidate) => candidate.providerId === GROUPWARE_PROVIDER_ID);
@@ -241,12 +249,16 @@ export const groupwareSsoPlugin = () => ({
         } as never);
 
         try {
-          await syncNotificationRecipientForUser(prisma, {
+          const recipient = await syncNotificationRecipientForUser(prisma, {
             id: user.id,
             name: user.name,
             email: user.email,
             status: (user as { status?: string }).status,
           });
+          if (!recipient.memberId || recipient.status !== 'ACTIVE') {
+            await ctx.context.internalAdapter.deleteUserSessions(user.id);
+            throw new APIError('FORBIDDEN', { code: 'AUTH_MEMBER_ID_NOT_LINKED' });
+          }
         } catch {
           await audit({
             eventType: 'NOTIFICATION_RECIPIENT_SYNC',
@@ -259,6 +271,8 @@ export const groupwareSsoPlugin = () => ({
             ipAddress,
             userAgent,
           }).catch(() => undefined);
+          await ctx.context.internalAdapter.deleteUserSessions(user.id);
+          throw new APIError('FORBIDDEN', { code: 'AUTH_MEMBER_ID_NOT_LINKED' });
         }
 
         const createdSession = await ctx.context.internalAdapter.createSession(user.id, false);
