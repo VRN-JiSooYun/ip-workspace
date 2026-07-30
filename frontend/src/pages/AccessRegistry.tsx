@@ -4,6 +4,7 @@ import {
   Alert,
   App as AntApp,
   Button,
+  Checkbox,
   Form,
   Input,
   Modal,
@@ -18,19 +19,32 @@ import type { TableColumnsType } from 'antd';
 import { RefreshCw, Search, ShieldCheck } from 'lucide-react';
 import PageHeaderBreadcrumb from '../components/common/PageHeaderBreadcrumb';
 import { useAuthSession } from '../contexts/AuthSessionContext';
+import { useAccessContext } from '../contexts/AccessContext';
 import {
   adminAccessApi,
   type AdminUser,
-  type AdminUserRole,
   type AdminUserStatus,
+  type WorkspaceAdminRole,
+  type TeamAccessItem,
+  type TeamModuleAccess,
+  type WorkspaceModuleCode,
   type UpdateAdminUserAccess,
 } from '../services/adminAccessApi';
 import { AUTH_REQUIRED_EVENT } from '../services/authApi';
 import { useUIStore } from '../store/useUIStore';
 import { useViewportTableHeight } from '../hooks/useViewportTableHeight';
-import { formatDisplayDate } from '../utils/displayFormat';
+import { formatDisplayDate, formatNumberWithComma } from '../utils/displayFormat';
 
 const { Text, Title } = Typography;
+
+const moduleLabels: Record<WorkspaceModuleCode, string> = {
+  CONFERENCE: 'Conference',
+  PATENT_ANALYSIS: '특허 분석',
+  SAR_TABLE: 'SAR Table',
+  DESIGN: 'Design',
+  SYNTHESIS: '합성 관리',
+};
+const moduleCodes = Object.keys(moduleLabels) as WorkspaceModuleCode[];
 
 type AccessFormValues = UpdateAdminUserAccess;
 
@@ -46,6 +60,7 @@ const getErrorMessage = (error: unknown) => {
 
 const AccessRegistry: React.FC = () => {
   const session = useAuthSession();
+  const { hasPermission } = useAccessContext();
   const { token } = theme.useToken();
   const { message } = AntApp.useApp();
   const { setHeaderContent } = useUIStore();
@@ -57,8 +72,15 @@ const AccessRegistry: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [editingUser, setEditingUser] = useState<AdminUser | null>(null);
+  const [teams, setTeams] = useState<TeamAccessItem[]>([]);
+  const [teamAccessOpen, setTeamAccessOpen] = useState(false);
+  const [selectedTeamId, setSelectedTeamId] = useState<string>();
+  const [teamAccessDraft, setTeamAccessDraft] =
+    useState<Record<WorkspaceModuleCode, TeamModuleAccess> | null>(null);
+  const [savingTeamAccess, setSavingTeamAccess] = useState(false);
+  const [syncingTeams, setSyncingTeams] = useState(false);
   const { tableBodyHeight, tableRegionRef, tableRegionStyle } = useViewportTableHeight();
-  const isAdmin = session.user.role === 'ADMIN';
+  const canManageUsers = hasPermission('userAccess.manage');
 
   useEffect(() => {
     setHeaderContent(
@@ -68,17 +90,22 @@ const AccessRegistry: React.FC = () => {
   }, [setHeaderContent]);
 
   const loadUsers = useCallback(async () => {
-    if (!isAdmin) return;
+    if (!canManageUsers) return;
     setLoading(true);
     setError('');
     try {
-      setUsers(await adminAccessApi.listUsers());
+      const [nextUsers, teamAccess] = await Promise.all([
+        adminAccessApi.listUsers(),
+        adminAccessApi.listTeamAccess(),
+      ]);
+      setUsers(nextUsers);
+      setTeams(teamAccess.teams);
     } catch (loadError) {
       setError(getErrorMessage(loadError));
     } finally {
       setLoading(false);
     }
-  }, [isAdmin]);
+  }, [canManageUsers]);
 
   useEffect(() => {
     void loadUsers();
@@ -96,7 +123,7 @@ const AccessRegistry: React.FC = () => {
   const openAccessModal = (user: AdminUser) => {
     setEditingUser(user);
     form.setFieldsValue({
-      role: user.role,
+      adminRoles: user.adminRoles,
       status: user.status,
       reason: '',
     });
@@ -108,6 +135,79 @@ const AccessRegistry: React.FC = () => {
     form.resetFields();
   };
 
+  const selectTeamAccess = (teamId: string) => {
+    const team = teams.find((candidate) => candidate.id === teamId);
+    setSelectedTeamId(teamId);
+    setTeamAccessDraft(team ? structuredClone(team.modules) : null);
+  };
+
+  const openTeamAccess = () => {
+    const initialTeamId = selectedTeamId ?? teams[0]?.id;
+    setTeamAccessOpen(true);
+    if (initialTeamId) selectTeamAccess(initialTeamId);
+  };
+
+  const updateTeamAccessDraft = (
+    module: WorkspaceModuleCode,
+    field: keyof TeamModuleAccess,
+    checked: boolean,
+  ) => {
+    setTeamAccessDraft((current) => {
+      if (!current) return current;
+      const nextAccess = { ...current[module], [field]: checked };
+      if (field === 'canManage' && checked) {
+        nextAccess.canRead = true;
+        nextAccess.canWrite = true;
+      }
+      if (field === 'canWrite' && checked) nextAccess.canRead = true;
+      if (field === 'canRead' && !checked) {
+        nextAccess.canWrite = false;
+        nextAccess.canManage = false;
+      }
+      if (field === 'canWrite' && !checked) nextAccess.canManage = false;
+      return {
+        ...current,
+        [module]: nextAccess,
+      };
+    });
+  };
+
+  const saveTeamAccess = async () => {
+    if (!selectedTeamId || !teamAccessDraft) return;
+    setSavingTeamAccess(true);
+    try {
+      const updated = await adminAccessApi.updateTeamModules(
+        selectedTeamId,
+        teamAccessDraft,
+      );
+      setTeams((current) => current.map((team) =>
+        team.id === updated.id ? { ...team, modules: updated.modules } : team));
+      setTeamAccessOpen(false);
+      void message.success('팀별 모듈 접근 권한을 변경했습니다.');
+    } catch (saveError) {
+      void message.error(getErrorMessage(saveError));
+    } finally {
+      setSavingTeamAccess(false);
+    }
+  };
+
+  const reconcileTeams = async () => {
+    setSyncingTeams(true);
+    try {
+      const result = await adminAccessApi.reconcileTeamAccess();
+      setTeams(result.teams);
+      if (selectedTeamId && !result.teams.some((team) => team.id === selectedTeamId)) {
+        setSelectedTeamId(undefined);
+        setTeamAccessDraft(null);
+      }
+      void message.success('Groupware 팀 정보를 동기화했습니다.');
+    } catch (syncError) {
+      void message.error(getErrorMessage(syncError));
+    } finally {
+      setSyncingTeams(false);
+    }
+  };
+
   const saveAccess = async () => {
     if (!editingUser) return;
     let values: AccessFormValues;
@@ -116,7 +216,9 @@ const AccessRegistry: React.FC = () => {
     } catch {
       return;
     }
-    if (values.role === editingUser.role && values.status === editingUser.status) {
+    const currentRoles = [...editingUser.adminRoles].sort().join(',');
+    const nextRoles = [...values.adminRoles].sort().join(',');
+    if (nextRoles === currentRoles && values.status === editingUser.status) {
       void message.info('변경된 권한이나 상태가 없습니다.');
       return;
     }
@@ -156,12 +258,16 @@ const AccessRegistry: React.FC = () => {
     },
     {
       title: '역할',
-      dataIndex: 'role',
-      width: 110,
+      dataIndex: 'adminRoles',
+      width: 260,
       align: 'center',
-      render: (role: AdminUserRole) => (
-        <Tag color={role === 'ADMIN' ? 'orange' : 'default'}>{role}</Tag>
-      ),
+      render: (roles: WorkspaceAdminRole[], user) => roles.length > 0
+        ? (
+          <Space size={[4, 4]} wrap>
+            {roles.map((role) => <Tag key={role} color="orange">{role}</Tag>)}
+          </Space>
+        )
+        : <Tag>USER</Tag>,
     },
     {
       title: '상태',
@@ -200,7 +306,7 @@ const AccessRegistry: React.FC = () => {
     },
   ];
 
-  if (!isAdmin) return <Navigate to="/dashboard" replace />;
+  if (!canManageUsers) return <Navigate to="/dashboard" replace />;
 
   return (
     <div
@@ -226,9 +332,17 @@ const AccessRegistry: React.FC = () => {
             <Text type="secondary">사용자 역할과 서비스 접근 상태를 관리합니다.</Text>
           </div>
         </div>
-        <Button icon={<RefreshCw size={15} />} onClick={() => void loadUsers()} loading={loading}>
-          새로고침
-        </Button>
+        <Space>
+          <Button onClick={() => void reconcileTeams()} loading={syncingTeams}>
+            팀 동기화
+          </Button>
+          <Button onClick={openTeamAccess} disabled={teams.length === 0}>
+            팀별 접근 설정
+          </Button>
+          <Button icon={<RefreshCw size={15} />} onClick={() => void loadUsers()} loading={loading}>
+            새로고침
+          </Button>
+        </Space>
       </div>
 
       {error && <Alert type="error" showIcon message={error} closable onClose={() => setError('')} />}
@@ -296,11 +410,15 @@ const AccessRegistry: React.FC = () => {
           />
         )}
         <Form form={form} layout="vertical" requiredMark={false}>
-          <Form.Item name="role" label="역할" rules={[{ required: true, message: '역할을 선택해주세요.' }]}>
+          <Form.Item name="adminRoles" label="관리 역할">
             <Select
+              mode="multiple"
+              allowClear
+              placeholder="일반 사용자는 관리 역할을 선택하지 않습니다."
               options={[
-                { value: 'USER', label: 'USER' },
-                { value: 'ADMIN', label: 'ADMIN' },
+                { value: 'SUPER_ADMIN', label: 'Super Admin' },
+                { value: 'CONFERENCE_ADMIN', label: 'Conference 관리자' },
+                { value: 'PATENT_ANALYSIS_ADMIN', label: '특허 분석 관리자' },
               ]}
             />
           </Form.Item>
@@ -323,6 +441,59 @@ const AccessRegistry: React.FC = () => {
             <Input.TextArea rows={4} maxLength={500} showCount placeholder="감사 로그에 기록할 변경 사유" />
           </Form.Item>
         </Form>
+      </Modal>
+
+      <Modal
+        title="팀별 모듈 접근 설정"
+        open={teamAccessOpen}
+        width={760}
+        onCancel={() => !savingTeamAccess && setTeamAccessOpen(false)}
+        onOk={() => void saveTeamAccess()}
+        okText="저장"
+        cancelText="취소"
+        confirmLoading={savingTeamAccess}
+        okButtonProps={{ disabled: !selectedTeamId || !teamAccessDraft }}
+      >
+        <Select
+          value={selectedTeamId}
+          onChange={selectTeamAccess}
+          options={teams.map((team) => ({
+            value: team.id,
+            label: `${team.name} (${formatNumberWithComma(team.memberCount)}명)`,
+          }))}
+          placeholder="팀 선택"
+          style={{ width: 'min(360px, 100%)', marginBottom: 16 }}
+        />
+        <Table
+          rowKey="module"
+          size="small"
+          pagination={false}
+          dataSource={moduleCodes.map((module) => ({ module }))}
+          columns={[
+            {
+              title: '모듈',
+              dataIndex: 'module',
+              render: (module: WorkspaceModuleCode) => moduleLabels[module],
+            },
+            ...([
+              ['canRead', '조회'],
+              ['canWrite', '작성/수정'],
+              ['canManage', '관리'],
+            ] as const).map(([field, label]) => ({
+              title: label,
+              key: field,
+              align: 'center' as const,
+              width: 120,
+              render: (_: unknown, row: { module: WorkspaceModuleCode }) => (
+                <Checkbox
+                  checked={teamAccessDraft?.[row.module][field] ?? false}
+                  onChange={(event) =>
+                    updateTeamAccessDraft(row.module, field, event.target.checked)}
+                />
+              ),
+            })),
+          ]}
+        />
       </Modal>
     </div>
   );

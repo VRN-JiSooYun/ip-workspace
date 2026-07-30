@@ -33,7 +33,7 @@ import {
   UsersRound,
 } from 'lucide-react';
 import PageHeaderBreadcrumb from '../components/common/PageHeaderBreadcrumb';
-import { useAuthSession } from '../contexts/AuthSessionContext';
+import { useAccessContext } from '../contexts/AccessContext';
 import {
   conferenceAdminApi,
   type AdminConferenceOption,
@@ -93,7 +93,7 @@ const runStatusColor: Record<string, string> = {
 };
 
 const ConferenceAdmin: React.FC = () => {
-  const session = useAuthSession();
+  const { hasPermission } = useAccessContext();
   const { message } = App.useApp();
   const { setHeaderContent } = useUIStore();
   const [conferenceForm] = Form.useForm<ConferenceFormValues>();
@@ -131,7 +131,7 @@ const ConferenceAdmin: React.FC = () => {
   const importTable = useViewportTableHeight({ enabled: activeTabKey === 'import' });
   const recipientTable = useViewportTableHeight({ enabled: activeTabKey === 'recipients' });
   const mailTable = useViewportTableHeight({ enabled: activeTabKey === 'mail-outbox' });
-  const isAdmin = session.user.role === 'ADMIN';
+  const canManageConference = hasPermission('conference.manage');
 
   useEffect(() => {
     setHeaderContent(
@@ -145,7 +145,7 @@ const ConferenceAdmin: React.FC = () => {
   }, [setHeaderContent]);
 
   const loadAdminData = useCallback(async () => {
-    if (!isAdmin) return;
+    if (!canManageConference) return;
     setLoading(true);
     try {
       const [
@@ -187,7 +187,7 @@ const ConferenceAdmin: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [isAdmin, message]);
+  }, [canManageConference, message]);
 
   useEffect(() => {
     void loadAdminData();
@@ -717,7 +717,7 @@ const ConferenceAdmin: React.FC = () => {
     },
   ];
 
-  if (!isAdmin) return <Navigate to="/dashboard" replace />;
+  if (!canManageConference) return <Navigate to="/dashboard" replace />;
 
   const importTab = (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>

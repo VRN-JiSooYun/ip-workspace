@@ -525,6 +525,7 @@ export class PatentAnalysisService {
   async searchEmbodiments(
     publicationNumber: string,
     body: EmbodimentSearchDto,
+    resolvedOwnerId: string,
   ) {
     if (!/^[A-Za-z0-9_-]+$/.test(publicationNumber)) {
       throw new BadRequestException('publicationNumber is invalid');
@@ -551,7 +552,7 @@ export class PatentAnalysisService {
       throw new BadRequestException('A bioactivity minimum or maximum value is required');
     }
 
-    const ownerId = this.getOwnerId();
+    const ownerId = this.getOwnerId(resolvedOwnerId);
     if (body.bioactivity) {
       const detail = await this.helperClient.call<PatentDetailResult>({
         operation: 'GET-PATENT-DATA',

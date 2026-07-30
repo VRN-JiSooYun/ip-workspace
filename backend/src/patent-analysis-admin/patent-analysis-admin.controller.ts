@@ -11,7 +11,7 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { Roles, Session, type UserSession } from '@thallesp/nestjs-better-auth';
+import { Session, type UserSession } from '@thallesp/nestjs-better-auth';
 import {
   AdminPatentListQueryDto,
   CreateBioactivityRequestDto,
@@ -22,9 +22,11 @@ import {
   UpdatePatentNotificationPreferenceDto,
 } from './dto/patent-analysis-admin.dto';
 import { PatentAnalysisAdminService } from './patent-analysis-admin.service';
+import { RequirePermissions } from '../authorization/require-permissions.decorator';
 
 type UploadFile = { buffer: Buffer; originalname: string; mimetype: string };
 
+@RequirePermissions('patentAnalysis.read')
 @Controller('api/patents')
 export class PatentAnalysisRequestController {
   constructor(private readonly service: PatentAnalysisAdminService) {}
@@ -76,7 +78,7 @@ export class PatentAnalysisRequestController {
   }
 }
 
-@Roles(['ADMIN'])
+@RequirePermissions('patentAnalysis.manage')
 @Controller('api/admin/patent-analysis')
 export class PatentAnalysisAdminController {
   constructor(private readonly service: PatentAnalysisAdminService) {}

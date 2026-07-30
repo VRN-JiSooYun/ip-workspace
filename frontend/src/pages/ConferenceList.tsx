@@ -44,7 +44,7 @@ import {
   type ConferenceOption,
 } from '../services/conferenceApi';
 import { useUIStore } from '../store/useUIStore';
-import { formatDisplayDateOnly, formatNumberWithComma } from '../utils/displayFormat';
+import { formatNumberWithComma } from '../utils/displayFormat';
 import './Conference.css';
 
 const { Text } = Typography;
@@ -142,13 +142,6 @@ const HighlightedText: React.FC<{ text: string; query: string }> = ({ text, quer
       ))}
     </>
   );
-};
-
-const formatConferencePeriod = (conference: ConferenceOption) => {
-  if (!conference.dateStart && !conference.dateEnd) return '-';
-  const start = conference.dateStart ? formatDisplayDateOnly(conference.dateStart) : '-';
-  const end = conference.dateEnd ? formatDisplayDateOnly(conference.dateEnd) : '-';
-  return `${start} ~ ${end}`;
 };
 
 const pagination = (
@@ -431,15 +424,6 @@ const ConferenceList: React.FC = () => {
       align: 'center',
     },
     {
-      title: 'Period',
-      key: 'period',
-      width: 210,
-      align: 'center',
-      render: (_, record) => (
-        <span className="conference-period">{formatConferencePeriod(record.conference)}</span>
-      ),
-    },
-    {
       title: 'Abstract No.',
       dataIndex: 'abstractNumber',
       width: 118,
@@ -497,13 +481,6 @@ const ConferenceList: React.FC = () => {
           query={filter.q}
         />
       ),
-    },
-    {
-      title: '공개일',
-      dataIndex: 'dateOpen',
-      width: 112,
-      align: 'center',
-      render: (value: string | null) => value ? formatDisplayDateOnly(value) : '-',
     },
     {
       title: '자료',
@@ -817,7 +794,7 @@ const ConferenceList: React.FC = () => {
             dataSource={items}
             tableLayout="fixed"
             scroll={{
-              x: 1_866,
+              x: 1_544,
               ...(tableScrollY ? { y: tableScrollY } : {}),
             }}
             locale={{ emptyText: <Empty description="조회된 Abstract가 없습니다." /> }}

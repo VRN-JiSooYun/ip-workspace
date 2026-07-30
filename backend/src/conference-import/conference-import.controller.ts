@@ -9,8 +9,9 @@ import {
   UploadedFiles,
   UseInterceptors,
 } from '@nestjs/common';
-import { Roles, Session, type UserSession } from '@thallesp/nestjs-better-auth';
+import { Session, type UserSession } from '@thallesp/nestjs-better-auth';
 import { FilesInterceptor } from '@nestjs/platform-express';
+import { RequirePermissions } from '../authorization/require-permissions.decorator';
 import { SkipTimeout } from '../common/decorators/skip-timeout.decorator';
 import { ConferenceImportService } from './conference-import.service';
 import {
@@ -25,7 +26,7 @@ import {
 import { CreateConferenceImportDto } from './dto/create-conference-import.dto';
 import { ConferenceImportListQueryDto } from './dto/conference-import-list-query.dto';
 
-@Roles(['ADMIN'])
+@RequirePermissions('conference.manage')
 @Controller('api/admin/conference-imports')
 export class ConferenceImportController {
   constructor(

@@ -8,8 +8,9 @@ import {
   UploadedFile,
   UseInterceptors,
 } from '@nestjs/common';
-import { Roles, Session, type UserSession } from '@thallesp/nestjs-better-auth';
+import { Session, type UserSession } from '@thallesp/nestjs-better-auth';
 import { FileInterceptor } from '@nestjs/platform-express';
+import { RequirePermissions } from '../authorization/require-permissions.decorator';
 import { SkipTimeout } from '../common/decorators/skip-timeout.decorator';
 import { CreateNotificationRecipientImportDto } from './dto/create-notification-recipient-import.dto';
 import { NotificationRecipientImportService } from './notification-recipient-import.service';
@@ -23,7 +24,7 @@ import {
 } from './notification-recipient-import-upload.service';
 import { NotificationRecipientSyncService } from './notification-recipient-sync.service';
 
-@Roles(['ADMIN'])
+@RequirePermissions('conference.manage')
 @Controller('api/admin/notification-recipient-imports')
 export class NotificationRecipientImportController {
   constructor(

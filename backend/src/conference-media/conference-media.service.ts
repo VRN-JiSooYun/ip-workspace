@@ -67,13 +67,20 @@ export class ConferenceMediaService {
     );
   }
 
-  async getContentTarget(assetId: string): Promise<{ url: string }> {
-    const asset = await this.findAsset(assetId);
+  async getContentTarget(
+    assetId: string,
+    organizationId?: string,
+  ): Promise<{ url: string }> {
+    const asset = await this.findAsset(assetId, organizationId);
     return { url: this.resolveAssetUrl(asset).toString() };
   }
 
-  async pipeDownload(assetId: string, response: Response): Promise<void> {
-    const asset = await this.findAsset(assetId);
+  async pipeDownload(
+    assetId: string,
+    response: Response,
+    organizationId?: string,
+  ): Promise<void> {
+    const asset = await this.findAsset(assetId, organizationId);
     if (asset.kind === 'VIDEO') {
       throw new UnprocessableEntityException('CONFERENCE_VIDEO_DOWNLOAD_NOT_SUPPORTED');
     }
@@ -120,13 +127,16 @@ export class ConferenceMediaService {
     }
   }
 
-  private async findAsset(assetId: string): Promise<ResolvedAsset> {
+  private async findAsset(
+    assetId: string,
+    organizationId?: string,
+  ): Promise<ResolvedAsset> {
     const abstractAsset = await this.prisma.client.conferenceAbstractAsset.findFirst({
       where: {
         id: assetId,
         abstract: {
           deletedAt: null,
-          conference: { deletedAt: null },
+          conference: { deletedAt: null, organizationId },
         },
       },
       select: {
@@ -143,7 +153,7 @@ export class ConferenceMediaService {
     const conferenceAsset = await this.prisma.client.conferenceAsset.findFirst({
       where: {
         id: assetId,
-        conference: { deletedAt: null },
+        conference: { deletedAt: null, organizationId },
       },
       select: {
         kind: true,

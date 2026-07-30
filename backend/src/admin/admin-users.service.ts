@@ -1,4 +1,9 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  getWorkspaceAdminRoles,
+  isSuperAdminRole,
+  serializeWorkspaceAdminRoles,
+} from '../authorization/workspace-permissions';
 import { PrismaService } from '../database/prisma.service';
 import { UpdateUserAccessDto } from './dto/update-user-access.dto';
 
@@ -6,8 +11,8 @@ import { UpdateUserAccessDto } from './dto/update-user-access.dto';
 export class AdminUsersService {
   constructor(private readonly prisma: PrismaService) {}
 
-  listUsers() {
-    return this.prisma.client.user.findMany({
+  async listUsers() {
+    const users = await this.prisma.client.user.findMany({
       select: {
         id: true, name: true, email: true, team: true, fullname: true,
         role: true, status: true,
@@ -15,6 +20,7 @@ export class AdminUsersService {
       },
       orderBy: { createdAt: 'desc' },
     });
+    return users.map((user) => this.toAdminUser(user));
   }
 
   async updateAccess(
@@ -26,17 +32,25 @@ export class AdminUsersService {
     return this.prisma.client.$transaction(async (tx) => {
       const target = await tx.user.findUnique({ where: { id: targetUserId } });
       if (!target) throw new NotFoundException('USER_NOT_FOUND');
-      const nextRole = body.role ?? target.role;
+      const nextRole = body.adminRoles
+        ? serializeWorkspaceAdminRoles(body.adminRoles)
+        : target.role;
       const nextStatus = body.status ?? target.status;
       const accessChanged = nextRole !== target.role || nextStatus !== target.status;
       const removesActiveAdmin =
-        target.role === 'ADMIN' && target.status === 'ACTIVE' &&
-        (nextRole !== 'ADMIN' || nextStatus !== 'ACTIVE');
+        isSuperAdminRole(target.role) && target.status === 'ACTIVE' &&
+        (!isSuperAdminRole(nextRole) || nextStatus !== 'ACTIVE');
       if (removesActiveAdmin) {
-        const activeAdminCount = await tx.user.count({
-          where: { role: 'ADMIN', status: 'ACTIVE' },
+        const activeAdminUsers = await tx.user.findMany({
+          where: { status: 'ACTIVE' },
+          select: { role: true },
         });
-        if (activeAdminCount <= 1) throw new ConflictException('LAST_ACTIVE_ADMIN');
+        const activeSuperAdminCount = activeAdminUsers
+          .filter((user) => isSuperAdminRole(user.role))
+          .length;
+        if (activeSuperAdminCount <= 1) {
+          throw new ConflictException('LAST_ACTIVE_ADMIN');
+        }
       }
 
       const updated = await tx.user.update({
@@ -63,13 +77,30 @@ export class AdminUsersService {
           result: 'success',
           requestId,
           metadata: {
-            before: { role: target.role, status: target.status },
-            after: { role: nextRole, status: nextStatus },
+            before: {
+              role: target.role,
+              adminRoles: getWorkspaceAdminRoles(target.role),
+              status: target.status,
+            },
+            after: {
+              role: nextRole,
+              adminRoles: getWorkspaceAdminRoles(nextRole),
+              status: nextStatus,
+            },
             reason: body.reason ?? null,
           },
         },
       });
-      return updated;
-    });
+      return this.toAdminUser(updated);
+    }, { isolationLevel: 'Serializable' });
+  }
+
+  private toAdminUser<T extends { role: string }>(user: T) {
+    const adminRoles = getWorkspaceAdminRoles(user.role);
+    return {
+      ...user,
+      role: adminRoles.length > 0 ? 'ADMIN' as const : 'USER' as const,
+      adminRoles,
+    };
   }
 }

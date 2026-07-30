@@ -184,12 +184,6 @@
   background: rgba(248, 124, 99, 0.46);
 }
 
-.conference-period {
-  white-space: nowrap;
-  font-size: 11px;
-  line-height: 1.45;
-}
-
 .conference-asset-summary svg {
   color: var(--text-secondary);
 }

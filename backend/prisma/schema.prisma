@@ -17,6 +17,9 @@ model User {
   fullname      String?
   role          String         @default("USER")
   status        String         @default("ACTIVE")
+  banned        Boolean        @default(false)
+  banReason     String?
+  banExpires    DateTime?
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
   sessions      Session[]
@@ -31,6 +34,11 @@ model User {
   notificationRecipientImportRuns NotificationRecipientImportRun[]
   auditActions  AuthAuditLog[] @relation("AuditActor")
   auditTargets  AuthAuditLog[] @relation("AuditTarget")
+  organizationMembers Member[]
+  organizationInvitations Invitation[] @relation("InvitationInviter")
+  teamMembers    TeamMember[]
+  groupwareTeamAssignment GroupwareTeamAssignment?
+  updatedTeamModuleAccess TeamModuleAccess[] @relation("TeamModuleAccessUpdater")
 
   @@index([role, status])
   @@index([team])
@@ -39,6 +47,138 @@ model User {
 
 enum CalculationProvider {
   THREE_D_PSA
+}
+
+enum WorkspaceModule {
+  CONFERENCE
+  PATENT_ANALYSIS
+  SAR_TABLE
+  DESIGN
+  SYNTHESIS
+}
+
+model Organization {
+  id          String       @id @default(uuid()) @db.Uuid
+  name        String
+  slug        String       @unique
+  logo        String?
+  metadata    String?
+  createdAt   DateTime     @default(now())
+  members     Member[]
+  invitations Invitation[]
+  teams       Team[]
+  teamAliases TeamAlias[]
+  conferences Conference[]
+
+  @@map("organization")
+}
+
+model Member {
+  id             String       @id @default(uuid()) @db.Uuid
+  organizationId String       @db.Uuid
+  userId         String       @db.Uuid
+  role           String       @default("member")
+  createdAt      DateTime     @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, userId])
+  @@index([userId])
+  @@map("member")
+}
+
+model Invitation {
+  id             String       @id @default(uuid()) @db.Uuid
+  organizationId String       @db.Uuid
+  email          String
+  role           String?
+  teamId         String?      @db.Uuid
+  status         String       @default("pending")
+  expiresAt      DateTime
+  inviterId      String       @db.Uuid
+  createdAt      DateTime     @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  inviter        User         @relation("InvitationInviter", fields: [inviterId], references: [id], onDelete: Cascade)
+  team           Team?        @relation(fields: [teamId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId])
+  @@index([email])
+  @@map("invitation")
+}
+
+model Team {
+  id             String       @id @default(uuid()) @db.Uuid
+  name           String
+  organizationId String       @db.Uuid
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime?    @updatedAt
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  members        TeamMember[]
+  aliases        TeamAlias[]
+  moduleAccess   TeamModuleAccess[]
+  groupwareAssignments GroupwareTeamAssignment[]
+  invitations    Invitation[]
+
+  @@index([organizationId])
+  @@map("team")
+}
+
+model TeamMember {
+  id        String   @id @default(uuid()) @db.Uuid
+  teamId    String   @db.Uuid
+  userId    String   @db.Uuid
+  createdAt DateTime @default(now())
+  team      Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([teamId, userId])
+  @@index([userId])
+  @@map("team_member")
+}
+
+model TeamAlias {
+  id              String       @id @default(uuid()) @db.Uuid
+  organizationId  String       @db.Uuid
+  teamId          String       @db.Uuid
+  normalizedAlias String
+  displayAlias    String
+  createdAt       DateTime     @default(now())
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  team            Team         @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, normalizedAlias])
+  @@index([teamId])
+  @@map("team_alias")
+}
+
+model GroupwareTeamAssignment {
+  userId      String   @id @db.Uuid
+  teamId      String   @db.Uuid
+  rawTeamName String
+  syncedAt    DateTime @default(now())
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  team        Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@index([teamId])
+  @@map("groupware_team_assignment")
+}
+
+model TeamModuleAccess {
+  id          String          @id @default(uuid()) @db.Uuid
+  teamId      String          @db.Uuid
+  module      WorkspaceModule
+  canRead     Boolean         @default(false)
+  canWrite    Boolean         @default(false)
+  canManage   Boolean         @default(false)
+  updatedById String?         @db.Uuid
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  team        Team            @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  updatedBy   User?           @relation("TeamModuleAccessUpdater", fields: [updatedById], references: [id], onDelete: SetNull)
+
+  @@unique([teamId, module])
+  @@index([module, canRead])
+  @@map("team_module_access")
 }
 
 enum CalculationJobType {
@@ -186,6 +326,7 @@ model CalculationJob {
 
 model Conference {
   id            String           @id @default(uuid()) @db.Uuid
+  organizationId String          @db.Uuid
   legacyId      Int?
   sourceSystem  String           @default("LEGACY_DJANGO")
   status        ConferenceStatus @default(OPEN)
@@ -199,12 +340,14 @@ model Conference {
   createdAt     DateTime         @default(now())
   updatedAt     DateTime         @updatedAt
   deletedAt     DateTime?
+  organization  Organization     @relation(fields: [organizationId], references: [id], onDelete: Restrict)
   abstracts     ConferenceAbstract[]
   assets        ConferenceAsset[]
 
   @@unique([sourceSystem, legacyId])
   @@unique([abbreviation, year])
   @@index([dateStart, dateEnd, deletedAt])
+  @@index([organizationId, deletedAt])
   @@index([year, deletedAt])
   @@index([status, deletedAt])
   @@map("conference")
@@ -570,6 +713,9 @@ model Session {
   updatedAt DateTime @updatedAt
   ipAddress String?
   userAgent String?
+  impersonatedBy String?
+  activeOrganizationId String? @db.Uuid
+  activeTeamId String? @db.Uuid
   userId    String   @db.Uuid
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 

@@ -37,9 +37,9 @@ const assetDto = (asset: {
 export class ConferenceReadService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async getConference(conferenceId: string) {
+  async getConference(conferenceId: string, organizationId?: string) {
     const conference = await this.prisma.client.conference.findFirst({
-      where: { id: conferenceId, deletedAt: null },
+      where: { id: conferenceId, deletedAt: null, organizationId },
       include: {
         assets: {
           orderBy: { createdAt: 'asc' },
@@ -73,6 +73,7 @@ export class ConferenceReadService {
   async searchAbstracts(
     userId: string,
     query: ConferenceAbstractSearchQueryDto,
+    organizationId?: string,
   ) {
     assertDateRange(query.dateFrom, query.dateTo);
     const q = query.q?.trim();
@@ -80,6 +81,7 @@ export class ConferenceReadService {
     const dateTo = parseDate(query.dateTo);
     const conferenceWhere: Prisma.ConferenceWhereInput = {
       deletedAt: null,
+      organizationId,
       ...(query.conferenceIds?.length ? { id: { in: query.conferenceIds } } : {}),
       ...(query.years?.length ? { year: { in: query.years } } : {}),
       ...(query.dateField === 'conferencePeriod' && dateFrom
@@ -209,6 +211,7 @@ export class ConferenceReadService {
       this.prisma.client.conference.findMany({
         where: {
           deletedAt: null,
+          organizationId,
           abstracts: { some: { deletedAt: null } },
         },
         select: {
@@ -263,12 +266,12 @@ export class ConferenceReadService {
     };
   }
 
-  async getAbstract(userId: string, abstractId: string) {
+  async getAbstract(userId: string, abstractId: string, organizationId?: string) {
     const abstract = await this.prisma.client.conferenceAbstract.findFirst({
       where: {
         id: abstractId,
         deletedAt: null,
-        conference: { deletedAt: null },
+        conference: { deletedAt: null, organizationId },
       },
       include: {
         conference: {

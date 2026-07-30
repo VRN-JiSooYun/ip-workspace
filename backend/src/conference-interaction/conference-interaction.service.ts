@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { randomUUID } from 'node:crypto';
+import { WorkspaceAuthorizationService } from '../authorization/workspace-authorization.service';
 import { PrismaService } from '../database/prisma.service';
 import { buildConferenceCommentMail } from '../conference-mail/conference-mail-template';
 import { normalizeRecipientEmail } from '../notification-recipient/notification-recipient-sync';
@@ -33,6 +34,7 @@ export class ConferenceInteractionService {
 
   constructor(
     private readonly prisma: PrismaService,
+    private readonly authorization: WorkspaceAuthorizationService,
     config: ConfigService,
   ) {
     this.publicAppBaseUrl = config.get<string>(
@@ -50,8 +52,13 @@ export class ConferenceInteractionService {
     );
   }
 
-  async setAbstractBookmark(userId: string, abstractId: string, bookmarked: boolean) {
-    await this.assertAbstract(abstractId);
+  async setAbstractBookmark(
+    userId: string,
+    abstractId: string,
+    bookmarked: boolean,
+    organizationId?: string,
+  ) {
+    await this.assertAbstract(abstractId, organizationId);
     if (bookmarked) {
       await this.prisma.client.abstractBookmark.upsert({
         where: { userId_abstractId: { userId, abstractId } },
@@ -92,13 +99,14 @@ export class ConferenceInteractionService {
     authorUserId: string,
     abstractId: string,
     body: CreateConferenceCommentDto,
+    organizationId?: string,
   ) {
     return this.prisma.client.$transaction(async (tx) => {
       const abstract = await tx.conferenceAbstract.findFirst({
         where: {
           id: abstractId,
           deletedAt: null,
-          conference: { deletedAt: null },
+          conference: { deletedAt: null, organizationId },
         },
         select: {
           id: true,
@@ -258,16 +266,27 @@ export class ConferenceInteractionService {
 
   async deleteComment(
     actorUserId: string,
-    actorRole: string,
     commentId: string,
+    organizationId?: string,
   ) {
+    const canModerate = await this.authorization.hasPermission(
+      actorUserId,
+      'conference.comment.moderate',
+    );
     return this.prisma.client.$transaction(async (tx) => {
       const comment = await tx.conferenceAbstractComment.findFirst({
-        where: { id: commentId, deletedAt: null },
+        where: {
+          id: commentId,
+          deletedAt: null,
+          abstract: {
+            deletedAt: null,
+            conference: { deletedAt: null, organizationId },
+          },
+        },
         select: { id: true, authorUserId: true },
       });
       if (!comment) throw new NotFoundException('CONFERENCE_ABSTRACT_COMMENT_NOT_FOUND');
-      if (comment.authorUserId !== actorUserId && actorRole !== 'ADMIN') {
+      if (comment.authorUserId !== actorUserId && !canModerate) {
         throw new ForbiddenException('COMMENT_DELETE_FORBIDDEN');
       }
       await tx.conferenceAbstractComment.update({
@@ -278,12 +297,15 @@ export class ConferenceInteractionService {
     });
   }
 
-  private async assertAbstract(abstractId: string): Promise<void> {
+  private async assertAbstract(
+    abstractId: string,
+    organizationId?: string,
+  ): Promise<void> {
     const abstract = await this.prisma.client.conferenceAbstract.findFirst({
       where: {
         id: abstractId,
         deletedAt: null,
-        conference: { deletedAt: null },
+        conference: { deletedAt: null, organizationId },
       },
       select: { id: true },
     });

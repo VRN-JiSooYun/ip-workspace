@@ -87,7 +87,6 @@ const SPLIT_MIN_PERCENT = 20;
 const SPLIT_MAX_PERCENT = 70;
 const SPLIT_DEFAULT_PERCENT = 45;
 const DETAIL_STACK_BREAKPOINT = 1280;
-const PATENT_ANALYSIS_OWNER_ID = '256';
 const PATENT_ANALYSIS_FAVORITE_STATE_PREFIX = 'patent-analysis-favorite-state';
 const RAW_DATA_DEFAULT_PAGE_SIZE = 30;
 const RAW_DATA_PAGE_SIZE_OPTIONS = [10, 30, 50, 100];
@@ -1377,7 +1376,6 @@ const PatentAnalysisDetail: React.FC = () => {
     setDownloadingExcelType(bioactivityType);
     try {
       const { blob, filename } = await patentAnalysisApi.downloadEmbodimentsExcel(normalizedPublicationNumber, {
-        ownerId: PATENT_ANALYSIS_OWNER_ID,
         bioactivityType,
       });
       const objectUrl = window.URL.createObjectURL(blob);
@@ -1435,12 +1433,10 @@ const PatentAnalysisDetail: React.FC = () => {
     try {
       if (nextFavorite) {
         await patentAnalysisApi.addPatentFavorite({
-          ownerId: PATENT_ANALYSIS_OWNER_ID,
           publicationNumber,
         });
       } else {
         await patentAnalysisApi.removePatentFavorite({
-          ownerId: PATENT_ANALYSIS_OWNER_ID,
           publicationNumber,
         });
       }

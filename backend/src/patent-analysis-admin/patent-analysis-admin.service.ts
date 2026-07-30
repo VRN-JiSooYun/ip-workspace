@@ -15,7 +15,7 @@ import {
   PatentTargetDecisionDto,
   PatentTargetListQueryDto,
 } from './dto/patent-analysis-admin.dto';
-import { PatentMemberService } from './patent-member.service';
+import { PatentMemberService } from '../patent-analysis/patent-member.service';
 
 type UploadFile = { buffer: Buffer; originalname: string; mimetype: string };
 type TargetRow = Record<string, unknown>;

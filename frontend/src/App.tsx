@@ -24,6 +24,7 @@ import ConferenceList from './pages/ConferenceList';
 import ConferenceAbstractDetail from './pages/ConferenceAbstractDetail';
 import ConferenceAdmin from './pages/ConferenceAdmin';
 import PatentAnalysisAdmin from './pages/PatentAnalysisAdmin';
+import RequirePermission from './components/auth/RequirePermission';
 
 const App: React.FC = () => {
   const { isDarkMode } = useTheme();
@@ -89,34 +90,55 @@ const App: React.FC = () => {
             <Routes>
               <Route path="/" element={<Navigate to="/dashboard" replace />} />
               <Route path="/dashboard" element={<Dashboard />} />
-              <Route path="/design" element={<MyBoard />} />
-              <Route path="/synthesis" element={<EmptyPage title="Synthesis" breadcrumb={[{ label: 'Synthesis' }]} />} />
-              <Route path="/myboard" element={<MyBoard />} />
+              <Route path="/design" element={<RequirePermission permission="design.read"><MyBoard /></RequirePermission>} />
+              <Route path="/synthesis" element={<RequirePermission permission="synthesis.read"><EmptyPage title="Synthesis" breadcrumb={[{ label: 'Synthesis' }]} /></RequirePermission>} />
+              <Route path="/myboard" element={<RequirePermission permission="design.read"><MyBoard /></RequirePermission>} />
               <Route path="/compounds/search" element={<EmptyPage title="Search" breadcrumb={[{ label: 'Compounds' }, { label: 'Search' }]} />} />
               <Route path="/my-tree" element={<EmptyPage title="My tree" breadcrumb={[{ label: 'Compounds' }, { label: 'My tree' }]} />} />
               <Route path="/chem-space" element={<ChemSpace />} />
               <Route path="/chem-space-3d" element={<ChemSpace3D />} />
               <Route path="/clustering" element={<EmptyPage title="Clustering" breadcrumb={[{ label: 'Compounds' }, { label: 'Clustering' }]} />} />
               <Route path="/reaction-predictor" element={<ReactionPredictor />} />
-              <Route path="/myboard/sar-table" element={<SarTable />} />
-              <Route path="/myboard/synthesis-board" element={<MyBoardSynthesisBoard />} />
+              <Route path="/myboard/sar-table" element={<RequirePermission permission="sarTable.read"><SarTable /></RequirePermission>} />
+              <Route path="/myboard/synthesis-board" element={<RequirePermission permission="synthesis.read"><MyBoardSynthesisBoard /></RequirePermission>} />
               <Route path="/sar-table" element={<Navigate to="/myboard/sar-table" replace />} />
               <Route path="/synthesis-board" element={<Navigate to="/myboard/synthesis-board" replace />} />
-              <Route path="/patents/write" element={<EmptyPage title="My 특허 쓰기" breadcrumb={[{ label: 'Documents' }, { label: 'Patents' }, { label: 'My 특허 쓰기' }]} />} />
-              <Route path="/patents/analysis" element={<PatentAnalysisList />} />
-              <Route path="/patents/analysis/:id" element={<PatentAnalysisDetail />} />
-              <Route path="/patents/insight" element={<PatentInsight />} />
-              <Route path="/patents/manage" element={<EmptyPage title="My 특허 관리" breadcrumb={[{ label: 'Documents' }, { label: 'Patents' }, { label: 'My 특허 관리' }]} />} />
+              <Route path="/patents/write" element={<RequirePermission permission="patentAnalysis.read"><EmptyPage title="My 특허 쓰기" breadcrumb={[{ label: 'Documents' }, { label: 'Patents' }, { label: 'My 특허 쓰기' }]} /></RequirePermission>} />
+              <Route path="/patents/analysis" element={<RequirePermission permission="patentAnalysis.read"><PatentAnalysisList /></RequirePermission>} />
+              <Route path="/patents/analysis/:id" element={<RequirePermission permission="patentAnalysis.read"><PatentAnalysisDetail /></RequirePermission>} />
+              <Route path="/patents/insight" element={<RequirePermission permission="patentAnalysis.read"><PatentInsight /></RequirePermission>} />
+              <Route path="/patents/manage" element={<RequirePermission permission="patentAnalysis.read"><EmptyPage title="My 특허 관리" breadcrumb={[{ label: 'Documents' }, { label: 'Patents' }, { label: 'My 특허 관리' }]} /></RequirePermission>} />
               <Route path="/papers/manage" element={<EmptyPage title="My 논문 관리" breadcrumb={[{ label: 'Documents' }, { label: 'Papers' }, { label: 'My 논문 관리' }]} />} />
-              <Route path="/conferences" element={<ConferenceList />} />
-              <Route path="/conferences/abstracts/:abstractId" element={<ConferenceAbstractDetail />} />
+              <Route path="/conferences" element={<RequirePermission permission="conference.read"><ConferenceList /></RequirePermission>} />
+              <Route path="/conferences/abstracts/:abstractId" element={<RequirePermission permission="conference.read"><ConferenceAbstractDetail /></RequirePermission>} />
               <Route path="/pdbs" element={<EmptyPage title="PDBs" breadcrumb={[{ label: 'PDBs' }]} />} />
               <Route path="/universal-search" element={<UniversalSearch />} />
               <Route path="/monitoring" element={<Monitoring />} />
               <Route path="/development-status" element={<DevelopmentStatus />} />
-              <Route path="/workspace/access-registry" element={<AccessRegistry />} />
-              <Route path="/workspace/conference-admin" element={<ConferenceAdmin />} />
-              <Route path="/workspace/patent-analysis-admin" element={<PatentAnalysisAdmin />} />
+              <Route
+                path="/workspace/access-registry"
+                element={(
+                  <RequirePermission permission="userAccess.manage">
+                    <AccessRegistry />
+                  </RequirePermission>
+                )}
+              />
+              <Route
+                path="/workspace/conference-admin"
+                element={(
+                  <RequirePermission permission="conference.manage">
+                    <ConferenceAdmin />
+                  </RequirePermission>
+                )}
+              />
+              <Route
+                path="/workspace/patent-analysis-admin"
+                element={(
+                  <RequirePermission permission="patentAnalysis.manage">
+                    <PatentAnalysisAdmin />
+                  </RequirePermission>
+                )}
+              />
               <Route path="/contact" element={<Contact />} />
               <Route path="*" element={<Navigate to="/dashboard" replace />} />
             </Routes>

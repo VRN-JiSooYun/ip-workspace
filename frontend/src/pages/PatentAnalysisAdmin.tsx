@@ -34,7 +34,7 @@ import {
 } from 'lucide-react';
 import PageHeaderBreadcrumb from '../components/common/PageHeaderBreadcrumb';
 import { getPatentAnalysisLayoutPreset } from '../config/patentAnalysisLayout';
-import { useAuthSession } from '../contexts/AuthSessionContext';
+import { useAccessContext } from '../contexts/AccessContext';
 import { useViewportTableHeight } from '../hooks/useViewportTableHeight';
 import {
   patentAnalysisAdminApi,
@@ -89,7 +89,8 @@ type PatentForm = {
 type TargetForm = { targetName: string; keywords: string[] };
 
 const PatentAnalysisAdmin: React.FC = () => {
-  const session = useAuthSession();
+  const { hasPermission } = useAccessContext();
+  const canManagePatentAnalysis = hasPermission('patentAnalysis.manage');
   const { message } = App.useApp();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -195,10 +196,10 @@ const PatentAnalysisAdmin: React.FC = () => {
   };
 
   React.useEffect(() => {
-    if (session.user.role !== 'ADMIN') return;
+    if (!canManagePatentAnalysis) return;
     if (activeTab === 'analysis') void loadPatents();
     else void loadTargets();
-  }, [activeTab, loadPatents, loadTargets, session.user.role]);
+  }, [activeTab, canManagePatentAnalysis, loadPatents, loadTargets]);
 
   const openPatentEdit = (record: AdminPatentRow) => {
     setEditingPatent(record);
@@ -399,7 +400,9 @@ const PatentAnalysisAdmin: React.FC = () => {
     },
   ];
 
-  if (session.user.role !== 'ADMIN') return <Navigate to="/dashboard" replace />;
+  if (!canManagePatentAnalysis) {
+    return <Navigate to="/dashboard" replace />;
+  }
 
   const analysisContent = (
     <div style={{ display: 'flex', flexDirection: 'column', minHeight: 0, height: '100%' }}>

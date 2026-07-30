@@ -58,7 +58,6 @@ const PATENT_LIST_STRUCTURE_COLUMN_WIDTH = 212;
 const PATENT_LIST_STRUCTURE_IMAGE_WIDTH = 168;
 const PATENT_LIST_STRUCTURE_IMAGE_HEIGHT = 168;
 const PATENT_LIST_TABLE_SCROLL_X = 2050;
-const PATENT_ANALYSIS_OWNER_ID = '256';
 const SHOW_PATENT_FAVORITE_SHARE = false;
 const SHOW_PATENT_REGISTRATION = false;
 const PATENT_ANALYSIS_FAVORITE_STATE_PREFIX = 'patent-analysis-favorite-state';
@@ -522,9 +521,7 @@ const PatentAnalysisList: React.FC = () => {
 
     setIsDownloadingQuickViewPdf(true);
     try {
-      await downloadPatentPdfFile(selectedQuickViewPatent.patentNumber, {
-        ownerId: PATENT_ANALYSIS_OWNER_ID,
-      });
+      await downloadPatentPdfFile(selectedQuickViewPatent.patentNumber);
     } catch (error) {
       void message.error(error instanceof Error ? error.message : 'OCR PDF 다운로드에 실패했습니다.');
     } finally {
@@ -772,7 +769,7 @@ const PatentAnalysisList: React.FC = () => {
 
     patentAnalysisApi.getPatentDetail(
       publicationNumber,
-      { ownerId: PATENT_ANALYSIS_OWNER_ID },
+      {},
       { signal: controller.signal },
     )
       .then((detail) => {
@@ -872,7 +869,7 @@ const PatentAnalysisList: React.FC = () => {
     const loadFavoritePatentNumbers = async () => {
       try {
         const response = await patentAnalysisApi.getPatentFavorites(
-          { ownerId: PATENT_ANALYSIS_OWNER_ID },
+          {},
           { signal: controller.signal },
         );
         if (ignore) return;
@@ -995,7 +992,6 @@ const PatentAnalysisList: React.FC = () => {
               timeoutMs: 60000,
             })
           : await patentAnalysisApi.getMyPatents({
-            ownerId: PATENT_ANALYSIS_OWNER_ID,
             page: currentPage,
             pageSize,
             order: DEFAULT_PATENT_ORDER,
@@ -1197,12 +1193,10 @@ const PatentAnalysisList: React.FC = () => {
     try {
       if (nextFavorite) {
         await patentAnalysisApi.addPatentFavorite({
-          ownerId: PATENT_ANALYSIS_OWNER_ID,
           publicationNumber,
         });
       } else {
         await patentAnalysisApi.removePatentFavorite({
-          ownerId: PATENT_ANALYSIS_OWNER_ID,
           publicationNumber,
         });
       }
@@ -1248,7 +1242,6 @@ const PatentAnalysisList: React.FC = () => {
     setIsSharingFavorites(true);
     try {
       await patentAnalysisApi.sharePatentFavorites({
-        ownerId: PATENT_ANALYSIS_OWNER_ID,
         cc: trimmedCc,
       });
       void message.success('즐겨찾기 공유 설정을 저장했습니다.');
@@ -2084,7 +2077,7 @@ const PatentAnalysisList: React.FC = () => {
       >
         <Space direction="vertical" size={12} style={{ width: '100%' }}>
           <Text type="secondary">
-            기본 즐겨찾기 폴더 /myworkspace/{PATENT_ANALYSIS_OWNER_ID}/ 를 공유합니다.
+            로그인 사용자에게 연결된 기본 즐겨찾기 폴더를 공유합니다.
           </Text>
           <Input
             value={shareCc}

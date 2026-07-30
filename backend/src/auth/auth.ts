@@ -1,5 +1,10 @@
 import { prismaAdapter } from '@better-auth/prisma-adapter';
 import { betterAuth } from 'better-auth';
+import { admin, organization } from 'better-auth/plugins';
+import {
+  betterAuthWorkspaceRoles,
+  workspaceAccessControl,
+} from '../authorization/workspace-access-control';
 import { prisma } from '../database/prisma.client';
 import { authRuntimeConfig, loadVersionedSecrets } from './auth-config';
 import { groupwareSsoPlugin } from './groupware-sso.plugin';
@@ -29,11 +34,25 @@ export const auth = betterAuth({
   },
   user: {
     additionalFields: {
-      role: { type: 'string', required: true, defaultValue: 'USER', input: false },
       status: { type: 'string', required: true, defaultValue: 'ACTIVE', input: false },
       team: { type: 'string', required: false, input: false },
       fullname: { type: 'string', required: false, input: false },
     },
   },
-  plugins: [groupwareSsoPlugin()],
+  plugins: [
+    admin({
+      ac: workspaceAccessControl,
+      roles: betterAuthWorkspaceRoles,
+      defaultRole: 'USER',
+      adminRoles: ['ADMIN', 'SUPER_ADMIN'],
+    }),
+    organization({
+      allowUserToCreateOrganization: false,
+      teams: {
+        enabled: true,
+        allowRemovingAllTeams: false,
+      },
+    }),
+    groupwareSsoPlugin(),
+  ],
 });

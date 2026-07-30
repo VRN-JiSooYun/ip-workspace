@@ -3,6 +3,10 @@ import { AUTH_REQUIRED_EVENT, notifyIfAuthRequired } from './authApi';
 type RuntimeWindow = Window & { _env_?: { VITE_API_URL?: string } };
 
 export type AdminUserRole = 'USER' | 'ADMIN';
+export type WorkspaceAdminRole =
+  | 'SUPER_ADMIN'
+  | 'CONFERENCE_ADMIN'
+  | 'PATENT_ANALYSIS_ADMIN';
 export type AdminUserStatus = 'ACTIVE' | 'INACTIVE';
 
 export type AdminUser = {
@@ -12,15 +16,41 @@ export type AdminUser = {
   team: string | null;
   fullname: string | null;
   role: AdminUserRole;
+  adminRoles: WorkspaceAdminRole[];
   status: AdminUserStatus;
   createdAt: string;
   updatedAt: string;
 };
 
 export type UpdateAdminUserAccess = {
-  role: AdminUserRole;
+  adminRoles: WorkspaceAdminRole[];
   status: AdminUserStatus;
   reason: string;
+};
+
+export type WorkspaceModuleCode =
+  | 'CONFERENCE'
+  | 'PATENT_ANALYSIS'
+  | 'SAR_TABLE'
+  | 'DESIGN'
+  | 'SYNTHESIS';
+
+export type TeamModuleAccess = {
+  canRead: boolean;
+  canWrite: boolean;
+  canManage: boolean;
+};
+
+export type TeamAccessItem = {
+  id: string;
+  name: string;
+  memberCount: number;
+  modules: Record<WorkspaceModuleCode, TeamModuleAccess>;
+};
+
+export type TeamAccessList = {
+  organization: { id: string; name: string } | null;
+  teams: TeamAccessItem[];
 };
 
 export class AdminAccessApiError extends Error {
@@ -80,5 +110,36 @@ export const adminAccessApi = {
       body: JSON.stringify(data),
     });
     return parseResponse<AdminUser>(response);
+  },
+
+  async listTeamAccess(): Promise<TeamAccessList> {
+    const response = await fetch(buildApiUrl('/admin/access/teams'), {
+      credentials: 'include',
+    });
+    return parseResponse<TeamAccessList>(response);
+  },
+
+  async reconcileTeamAccess(): Promise<TeamAccessList> {
+    const response = await fetch(buildApiUrl('/admin/access/teams/reconcile'), {
+      method: 'POST',
+      credentials: 'include',
+    });
+    return parseResponse<TeamAccessList>(response);
+  },
+
+  async updateTeamModules(
+    teamId: string,
+    modules: Record<WorkspaceModuleCode, TeamModuleAccess>,
+  ): Promise<Pick<TeamAccessItem, 'id' | 'name' | 'modules'>> {
+    const response = await fetch(
+      buildApiUrl(`/admin/access/teams/${encodeURIComponent(teamId)}/modules`),
+      {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ modules }),
+      },
+    );
+    return parseResponse<Pick<TeamAccessItem, 'id' | 'name' | 'modules'>>(response);
   },
 };

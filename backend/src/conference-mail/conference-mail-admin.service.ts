@@ -14,11 +14,20 @@ export class ConferenceMailAdminService {
     private readonly provider: GmailMailProvider,
   ) {}
 
-  async health() {
+  async health(organizationId?: string) {
     const [provider, counts] = await Promise.all([
       this.provider.readiness(),
       this.prisma.client.conferenceMailOutbox.groupBy({
         by: ['status'],
+        where: organizationId
+          ? {
+            comment: {
+              abstract: {
+                conference: { organizationId },
+              },
+            },
+          }
+          : undefined,
         _count: { _all: true },
       }),
     ]);
@@ -30,9 +39,20 @@ export class ConferenceMailAdminService {
     };
   }
 
-  list(query: ConferenceMailOutboxListQueryDto) {
+  list(query: ConferenceMailOutboxListQueryDto, organizationId?: string) {
     return this.prisma.client.conferenceMailOutbox.findMany({
-      where: query.status ? { status: query.status } : undefined,
+      where: {
+        ...(query.status ? { status: query.status } : {}),
+        ...(organizationId
+          ? {
+            comment: {
+              abstract: {
+                conference: { organizationId },
+              },
+            },
+          }
+          : {}),
+      },
       orderBy: { createdAt: 'desc' },
       take: query.limit,
       select: {
@@ -64,9 +84,20 @@ export class ConferenceMailAdminService {
     });
   }
 
-  async retry(outboxId: string) {
-    const existing = await this.prisma.client.conferenceMailOutbox.findUnique({
-      where: { id: outboxId },
+  async retry(outboxId: string, organizationId?: string) {
+    const existing = await this.prisma.client.conferenceMailOutbox.findFirst({
+      where: {
+        id: outboxId,
+        ...(organizationId
+          ? {
+            comment: {
+              abstract: {
+                conference: { organizationId },
+              },
+            },
+          }
+          : {}),
+      },
       select: { id: true, status: true },
     });
     if (!existing) throw new NotFoundException('CONFERENCE_MAIL_OUTBOX_NOT_FOUND');

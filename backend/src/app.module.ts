@@ -20,6 +20,7 @@ import { ConferenceAdminModule } from './conference-admin/conference-admin.modul
 import { NotificationRecipientModule } from './notification-recipient/notification-recipient.module';
 import { ConferenceMailModule } from './conference-mail/conference-mail.module';
 import { PatentAnalysisAdminModule } from './patent-analysis-admin/patent-analysis-admin.module';
+import { AuthorizationModule } from './authorization/authorization.module';
 
 @Module({
   imports: [
@@ -40,6 +41,7 @@ import { PatentAnalysisAdminModule } from './patent-analysis-admin/patent-analys
       },
     }),
     MedichemAuthModule,
+    AuthorizationModule,
     AdminModule,
     HealthModule,
     PatentAnalysisModule,

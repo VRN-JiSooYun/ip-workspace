@@ -2,6 +2,10 @@ import { Button, Card, Result, Spin, Typography } from 'antd';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { AuthSessionProvider } from '../../contexts/AuthSessionContext';
+import {
+  AccessContextProvider,
+  useAccessContext,
+} from '../../contexts/AccessContext';
 import { AUTH_REQUIRED_EVENT, authApi, type AuthSession } from '../../services/authApi';
 
 type RuntimeWindow = Window & { _env_?: { VITE_GROUPWARE_ORIGIN?: string } };
@@ -72,6 +76,7 @@ const removeGroupwareQueryAuth = (): void => {
 
 const RouteSessionValidator: React.FC<React.PropsWithChildren> = ({ children }) => {
   const location = useLocation();
+  const { refresh } = useAccessContext();
   const initialPathRef = useRef(location.pathname);
 
   useEffect(() => {
@@ -82,8 +87,12 @@ const RouteSessionValidator: React.FC<React.PropsWithChildren> = ({ children }) 
     const validateSession = async () => {
       try {
         const currentSession = await authApi.getSession();
-        if (active && !currentSession) {
-          window.dispatchEvent(new Event(AUTH_REQUIRED_EVENT));
+        if (active) {
+          if (!currentSession) {
+            window.dispatchEvent(new Event(AUTH_REQUIRED_EVENT));
+          } else {
+            await refresh();
+          }
         }
       } catch {
         // 일시적인 통신 오류는 각 보호 API의 인증 처리에 맡기고 현재 화면을 유지한다.
@@ -94,7 +103,7 @@ const RouteSessionValidator: React.FC<React.PropsWithChildren> = ({ children }) 
     return () => {
       active = false;
     };
-  }, [location.pathname]);
+  }, [location.pathname, refresh]);
 
   return children;
 };
@@ -246,7 +255,9 @@ const AuthGate: React.FC<React.PropsWithChildren> = ({ children }) => {
   if (state === 'authenticated' && session) {
     return (
       <AuthSessionProvider session={session}>
-        <RouteSessionValidator>{children}</RouteSessionValidator>
+        <AccessContextProvider>
+          <RouteSessionValidator>{children}</RouteSessionValidator>
+        </AccessContextProvider>
       </AuthSessionProvider>
     );
   }

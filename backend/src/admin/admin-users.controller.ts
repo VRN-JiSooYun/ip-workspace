@@ -1,10 +1,11 @@
 import { Body, Controller, ForbiddenException, Get, Headers, Param, Patch } from '@nestjs/common';
-import { Roles, Session, type UserSession } from '@thallesp/nestjs-better-auth';
+import { Session, type UserSession } from '@thallesp/nestjs-better-auth';
 import { randomUUID } from 'node:crypto';
+import { RequirePermissions } from '../authorization/require-permissions.decorator';
 import { AdminUsersService } from './admin-users.service';
 import { UpdateUserAccessDto } from './dto/update-user-access.dto';
 
-@Roles(['ADMIN'])
+@RequirePermissions('userAccess.manage')
 @Controller('api/admin/users')
 export class AdminUsersController {
   constructor(private readonly users: AdminUsersService) {}

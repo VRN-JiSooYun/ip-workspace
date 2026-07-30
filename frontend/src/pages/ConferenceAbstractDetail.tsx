@@ -39,6 +39,7 @@ import {
   type ConferenceNotificationRecipient,
 } from '../services/conferenceApi';
 import { useAuthSession } from '../contexts/AuthSessionContext';
+import { useAccessContext } from '../contexts/AccessContext';
 import { useUIStore } from '../store/useUIStore';
 import { formatDisplayDate, formatNumberWithComma } from '../utils/displayFormat';
 import './Conference.css';
@@ -279,6 +280,7 @@ const ConferenceAbstractDetail: React.FC = () => {
   const navigate = useNavigate();
   const { message } = App.useApp();
   const session = useAuthSession();
+  const { hasPermission } = useAccessContext();
   const { setHeaderContent } = useUIStore();
   const [detail, setDetail] = useState<ConferenceAbstractDetailData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -767,7 +769,8 @@ const ConferenceAbstractDetail: React.FC = () => {
               renderItem={(comment) => (
                 <List.Item
                   actions={(
-                    comment.author.id === session.user.id || session.user.role === 'ADMIN'
+                    comment.author.id === session.user.id
+                      || hasPermission('conference.comment.moderate')
                       ? [
                         <Popconfirm
                           key="delete"

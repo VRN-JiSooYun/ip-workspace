@@ -25,6 +25,8 @@ import {
 import BenzeneIcon from '../common/BenzeneIcon';
 import RdkitDrawOptionsModal from '../common/RdkitDrawOptionsModal';
 import { useAuthSession } from '../../contexts/AuthSessionContext';
+import { useAccessContext } from '../../contexts/AccessContext';
+import type { WorkspacePermission } from '../../services/accessContextApi';
 
 const { Header, Sider, Content } = Layout;
 
@@ -54,6 +56,11 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
   const { isDarkMode, toggleTheme } = useTheme();
   const { headerContent } = useUIStore();
   const session = useAuthSession();
+  const { hasPermission } = useAccessContext();
+  const canAccessDesign = hasPermission('design.read');
+  const canAccessSynthesis = hasPermission('synthesis.read');
+  const canAccessPatentAnalysis = hasPermission('patentAnalysis.read');
+  const canAccessConference = hasPermission('conference.read');
   const navigate = useNavigate();
   const location = useLocation();
   const isStackedHeader = viewportWidth <= 900;
@@ -99,20 +106,20 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
       icon: <LayoutDashboard size={22} />,
       onClick: () => navigate('/dashboard'),
     },
-    {
+    ...(canAccessDesign ? [{
       key: 'design',
       label: 'Design',
       icon: <Palette size={22} />,
       activeKeys: ['design', 'myboard'],
       onClick: () => navigate('/design'),
-    },
-    {
+    }] : []),
+    ...(canAccessSynthesis ? [{
       key: 'synthesis',
       label: 'Synthesis',
       icon: <Microscope size={22} />,
       activeKeys: ['synthesis'],
       onClick: () => navigate('/synthesis'),
-    },
+    }] : []),
     {
       key: 'documents',
       label: 'Documents',
@@ -120,7 +127,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
       activeKeys: ['documents', 'patents', 'patent-write', 'patent-analysis', 'patent-insight', 'patent-manage', 'papers', 'paper-manage'],
       menu: {
         items: [
-          {
+          ...(canAccessPatentAnalysis ? [{
             key: 'patents',
             label: renderMiniDropdownLabel('Patents'),
             title: '',
@@ -131,7 +138,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
               { key: 'patent-insight', label: renderMiniDropdownLabel('Insight'), title: '', onClick: () => navigate('/patents/insight') },
               { key: 'patent-manage', label: renderMiniDropdownLabel('My 특허 관리'), title: '', onClick: () => navigate('/patents/manage') },
             ],
-          },
+          }] : []),
           {
             key: 'papers',
             label: renderMiniDropdownLabel('Papers'),
@@ -174,35 +181,51 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
       icon: <Search size={22} />,
       onClick: () => navigate('/universal-search'),
     },
-    {
+    ...(canAccessConference ? [{
       key: 'conferences',
       label: 'Conference',
       icon: <Presentation size={22} />,
       onClick: () => navigate('/conferences'),
-    },
+    }] : []),
   ];
 
+  const workspaceAdminMenuItems = ([
+    {
+      key: 'access-registry',
+      label: '사용자 접근 관리',
+      icon: <ShieldCheck size={22} />,
+      path: '/workspace/access-registry',
+      requiredPermission: 'userAccess.manage',
+    },
+    {
+      key: 'conference-admin',
+      label: 'Conference 관리',
+      icon: <Database size={22} />,
+      path: '/workspace/conference-admin',
+      requiredPermission: 'conference.manage',
+    },
+    {
+      key: 'patent-analysis-admin',
+      label: '특허 분석 관리',
+      icon: <FileText size={22} />,
+      path: '/workspace/patent-analysis-admin',
+      requiredPermission: 'patentAnalysis.manage',
+    },
+  ] satisfies Array<{
+    key: string;
+    label: string;
+    icon: React.ReactNode;
+    path: string;
+    requiredPermission: WorkspacePermission;
+  }>).filter((item) => hasPermission(item.requiredPermission));
+
   const bottomMiniMenuItems: MiniMenuItem[] = [
-    ...(session.user.role === 'ADMIN' ? [
-      {
-        key: 'access-registry',
-        label: '사용자 접근 관리',
-        icon: <ShieldCheck size={22} />,
-        onClick: () => navigate('/workspace/access-registry'),
-      },
-      {
-        key: 'conference-admin',
-        label: 'Conference 관리',
-        icon: <Database size={22} />,
-        onClick: () => navigate('/workspace/conference-admin'),
-      },
-      {
-        key: 'patent-analysis-admin',
-        label: '특허 분석 관리',
-        icon: <FileText size={22} />,
-        onClick: () => navigate('/workspace/patent-analysis-admin'),
-      },
-    ] : []),
+    ...workspaceAdminMenuItems.map((item) => ({
+      key: item.key,
+      label: item.label,
+      icon: item.icon,
+      onClick: () => navigate(item.path),
+    })),
     {
       key: 'monitoring',
       label: '모니터링',
@@ -422,25 +445,25 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                 label: <span style={{ fontWeight: 600 }}>Dashboard</span>,
                 onClick: () => navigate('/dashboard')
               },
-              {
+              ...(canAccessDesign ? [{
                 key: 'design',
                 icon: renderSidebarIcon(<Palette size={22} />),
                 label: <span style={{ fontWeight: 600 }}>Design</span>,
                 onClick: () => navigate('/design')
-              },
-              {
+              }] : []),
+              ...(canAccessSynthesis ? [{
                 key: 'synthesis',
                 icon: renderSidebarIcon(<Microscope size={22} />),
                 label: <span style={{ fontWeight: 600 }}>Synthesis</span>,
                 onClick: () => navigate('/synthesis')
-              },
+              }] : []),
               {
                 key: 'documents',
                 icon: renderSidebarIcon(<FileText size={22} />),
                 label: <span style={{ fontWeight: 600 }}>Documents</span>,
                 popupClassName: 'app-sidebar-popup-menu',
                 children: [
-                  {
+                  ...(canAccessPatentAnalysis ? [{
                     key: 'patents',
                     label: 'Patents',
                     popupClassName: 'app-sidebar-popup-menu',
@@ -450,7 +473,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                       { key: 'patent-insight', label: 'Insight', onClick: () => navigate('/patents/insight') },
                       { key: 'patent-manage', label: 'My 특허 관리', onClick: () => navigate('/patents/manage') },
                     ]
-                  },
+                  }] : []),
                   {
                     key: 'papers',
                     label: 'Papers',
@@ -487,12 +510,12 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                 label: <span style={{ fontWeight: 600 }}>통합검색</span>,
                 onClick: () => navigate('/universal-search')
               },
-              {
+              ...(canAccessConference ? [{
                 key: 'conferences',
                 icon: renderSidebarIcon(<Presentation size={22} />),
                 label: <span style={{ fontWeight: 600 }}>Conference</span>,
                 onClick: () => navigate('/conferences')
-              },
+              }] : []),
               ]}
             />
           )}
@@ -521,22 +544,12 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
               selectedKeys={[getSelectedKey()]}
               style={{ background: 'transparent', borderRight: 0 }}
               items={[
-              ...(session.user.role === 'ADMIN' ? [{
-                key: 'access-registry',
-                icon: renderSidebarIcon(<ShieldCheck size={22} />),
-                label: <span style={{ fontWeight: 600 }}>사용자 접근 관리</span>,
-                onClick: () => navigate('/workspace/access-registry')
-              }, {
-                key: 'conference-admin',
-                icon: renderSidebarIcon(<Database size={22} />),
-                label: <span style={{ fontWeight: 600 }}>Conference 관리</span>,
-                onClick: () => navigate('/workspace/conference-admin')
-              }, {
-                key: 'patent-analysis-admin',
-                icon: renderSidebarIcon(<FileText size={22} />),
-                label: <span style={{ fontWeight: 600 }}>특허 분석 관리</span>,
-                onClick: () => navigate('/workspace/patent-analysis-admin')
-              }] : []),
+              ...workspaceAdminMenuItems.map((item) => ({
+                key: item.key,
+                icon: renderSidebarIcon(item.icon),
+                label: <span style={{ fontWeight: 600 }}>{item.label}</span>,
+                onClick: () => navigate(item.path),
+              })),
               {
                 key: 'monitoring',
                 icon: renderSidebarIcon(<Monitor size={22} />),

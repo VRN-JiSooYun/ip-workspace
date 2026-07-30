@@ -323,7 +323,9 @@ const PatentNotificationSettingsModal: React.FC<PatentNotificationSettingsModalP
                 searchValue={searchValue}
                 onSearch={setSearchValue}
                 onClear={() => setSearchValue('')}
-                onChange={(value) => void handleAddTarget(value)}
+                onChange={(value) => {
+                  if (value) void handleAddTarget(value);
+                }}
                 onInputKeyDown={handleTargetInputKeyDown}
                 filterOption={false}
                 options={availableOptions}

@@ -5,11 +5,10 @@ import {
   PatentAnalysisRequestController,
 } from './patent-analysis-admin.controller';
 import { PatentAnalysisAdminService } from './patent-analysis-admin.service';
-import { PatentMemberService } from './patent-member.service';
 
 @Module({
   imports: [PatentAnalysisModule],
   controllers: [PatentAnalysisAdminController, PatentAnalysisRequestController],
-  providers: [PatentAnalysisAdminService, PatentMemberService],
+  providers: [PatentAnalysisAdminService],
 })
 export class PatentAnalysisAdminModule {}

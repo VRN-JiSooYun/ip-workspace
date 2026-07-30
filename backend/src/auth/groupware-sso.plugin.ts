@@ -181,7 +181,9 @@ export const groupwareSsoPlugin = () => ({
             });
           }
 
-          const role = authRuntimeConfig.bootstrapAdminEmails.has(email) ? 'ADMIN' : 'USER';
+          const role = authRuntimeConfig.bootstrapAdminEmails.has(email)
+            ? 'SUPER_ADMIN'
+            : 'USER';
           const encryptedToken = await setTokenUtil(ctx.body.loginToken, ctx.context);
           try {
             user = await ctx.context.internalAdapter.createUser({
@@ -219,7 +221,7 @@ export const groupwareSsoPlugin = () => ({
             await ctx.context.internalAdapter.deleteUser(user.id);
             throw error;
           }
-          if (role === 'ADMIN') {
+          if (role === 'SUPER_ADMIN') {
             await audit({
               eventType: 'BOOTSTRAP_ADMIN_CREATED', result: 'success', requestId,
               actorUserId: user.id, targetUserId: user.id, email, ipAddress, userAgent,

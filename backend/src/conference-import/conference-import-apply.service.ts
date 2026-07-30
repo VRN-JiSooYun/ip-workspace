@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { readFile } from 'node:fs/promises';
 import { basename, sep } from 'node:path';
 import { PrismaService } from '../database/prisma.service';
+import { DEFAULT_ORGANIZATION_ID } from '../authorization/team-membership-sync.service';
 import { ConferenceMediaService } from '../conference-media/conference-media.service';
 import {
   ConferenceExcelReaderService,
@@ -224,6 +225,7 @@ export class ConferenceImportApplyService {
           },
         },
         create: {
+          organizationId: DEFAULT_ORGANIZATION_ID,
           legacyId,
           sourceSystem: 'LEGACY_DJANGO',
           status: isNotOpened ? 'NOT_OPENED' : 'OPEN',

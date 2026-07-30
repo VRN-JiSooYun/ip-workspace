@@ -41,9 +41,9 @@ const assertDateRange = (dateStart?: string, dateEnd?: string): void => {
 export class ConferenceAdminService {
   constructor(private readonly prisma: PrismaService) {}
 
-  listConferenceOptions() {
+  listConferenceOptions(organizationId?: string) {
     return this.prisma.client.conference.findMany({
-      where: { deletedAt: null },
+      where: { deletedAt: null, organizationId },
       select: {
         id: true,
         title: true,
@@ -58,11 +58,12 @@ export class ConferenceAdminService {
     });
   }
 
-  async createConference(body: CreateAdminConferenceDto) {
+  async createConference(organizationId: string, body: CreateAdminConferenceDto) {
     assertDateRange(body.dateStart, body.dateEnd);
     try {
       return await this.prisma.client.conference.create({
         data: {
+          organizationId,
           sourceSystem: 'WORKSPACE_ADMIN',
           title: body.title.trim(),
           abbreviation: body.abbreviation.trim(),
@@ -79,9 +80,13 @@ export class ConferenceAdminService {
     }
   }
 
-  async updateConference(conferenceId: string, body: UpdateAdminConferenceDto) {
+  async updateConference(
+    conferenceId: string,
+    body: UpdateAdminConferenceDto,
+    organizationId?: string,
+  ) {
     const current = await this.prisma.client.conference.findFirst({
-      where: { id: conferenceId, deletedAt: null },
+      where: { id: conferenceId, deletedAt: null, organizationId },
     });
     if (!current) throw new NotFoundException('CONFERENCE_NOT_FOUND');
     const nextDateStart = body.dateStart ?? current.dateStart?.toISOString().slice(0, 10);
@@ -109,8 +114,9 @@ export class ConferenceAdminService {
   async createAbstract(
     conferenceId: string,
     body: CreateAdminConferenceAbstractDto,
+    organizationId?: string,
   ) {
-    await this.assertConference(conferenceId);
+    await this.assertConference(conferenceId, organizationId);
     return this.prisma.client.conferenceAbstract.create({
       data: {
         conferenceId,
@@ -124,9 +130,14 @@ export class ConferenceAdminService {
   async updateAbstract(
     abstractId: string,
     body: UpdateAdminConferenceAbstractDto,
+    organizationId?: string,
   ) {
     const abstract = await this.prisma.client.conferenceAbstract.findFirst({
-      where: { id: abstractId, deletedAt: null, conference: { deletedAt: null } },
+      where: {
+        id: abstractId,
+        deletedAt: null,
+        conference: { deletedAt: null, organizationId },
+      },
       select: { id: true },
     });
     if (!abstract) throw new NotFoundException('CONFERENCE_ABSTRACT_NOT_FOUND');
@@ -169,9 +180,12 @@ export class ConferenceAdminService {
     };
   }
 
-  private async assertConference(conferenceId: string): Promise<void> {
+  private async assertConference(
+    conferenceId: string,
+    organizationId?: string,
+  ): Promise<void> {
     const conference = await this.prisma.client.conference.findFirst({
-      where: { id: conferenceId, deletedAt: null },
+      where: { id: conferenceId, deletedAt: null, organizationId },
       select: { id: true },
     });
     if (!conference) throw new NotFoundException('CONFERENCE_NOT_FOUND');
