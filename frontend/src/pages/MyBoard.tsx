@@ -136,7 +136,7 @@ const shareForwardIconMaskUrl = createSvgMaskUrl(shareForwardIconRaw);
 const shareIconMaskUrl = createSvgMaskUrl(shareIconRaw);
 const bookmarkIconMaskUrl = createSvgMaskUrl(bookmarkIconRaw);
 const MYBOARD_RESPONSIVE_TEXT_COLUMN_KEYS = new Set([
-  'designMemo',
+  'ideaMemo',
   'assayPurpose',
   'expectedEffect',
   'requestMemo',
@@ -213,7 +213,7 @@ const EMPTY_DESIGN_FORM_VALUES: DesignFormInitialValues = {
   target: '',
   ideaNumber: '',
   smilesPreview: '',
-  designMemo: '',
+  ideaMemo: '',
   synthesisRequestNo: '',
   referenceName: '',
   assayPurpose: [],
@@ -231,6 +231,7 @@ type QuickAddStructureEntry = {
   status: 'loading' | 'loaded' | 'error';
   compound?: CompoundPermissionResult;
   error?: string;
+  errorKind?: 'permission' | 'request';
 };
 
 const QuickAddStructureCell: React.FC<{
@@ -400,7 +401,7 @@ const MYBOARD_CENTER_COLUMN_KEYS = new Set([
   'designSource',
   'props1',
   'props2',
-  'designNo',
+  'ideaNumber',
   'requestDate',
   'synthesisExpansionLevel',
   'synthesisOwner',
@@ -477,7 +478,7 @@ const MyBoardTreeFlowNode: React.FC<NodeProps<MyBoardTreeFlowNode>> = React.memo
           {data.changeLabel}
         </Tag>
         <Text strong ellipsis className="my-board-tree-compound-id">
-          {compound.compoundId || compound.designNo || compound.name}
+          {compound.compoundId || compound.ideaNumber || compound.name}
         </Text>
         <Button
           type="text"
@@ -583,6 +584,7 @@ const MyBoard: React.FC = () => {
   const [designForm] = Form.useForm();
   const [groupForm] = Form.useForm<{ name: string; target?: string }>();
   const groupTitleInputRef = React.useRef<InputRef>(null);
+  const quickAddInputRef = React.useRef<InputRef>(null);
   const designReferenceName = Form.useWatch('referenceName', designForm) as string | undefined;
   const [designFormInitialValues, setDesignFormInitialValues] = useState<DesignFormInitialValues>(
     () => ({ ...EMPTY_DESIGN_FORM_VALUES }),
@@ -600,8 +602,7 @@ const MyBoard: React.FC = () => {
   const [mergeGroupName, setMergeGroupName] = useState('');
   const [quickAddCode, setQuickAddCode] = useState('');
   const [quickAddResults, setQuickAddResults] = useState<CompoundSearchResult[]>([]);
-  const [selectedQuickAddCode, setSelectedQuickAddCode] = useState('');
-  const [quickAddPreview, setQuickAddPreview] = useState<CompoundPermissionResult | null>(null);
+  const [selectedQuickAddCodes, setSelectedQuickAddCodes] = useState<string[]>([]);
   const [quickAddStructures, setQuickAddStructures] = useState<Record<string, QuickAddStructureEntry>>({});
   const quickAddStructureControllersRef = React.useRef<Map<string, AbortController>>(new Map());
   const quickAddRequestedCodesRef = React.useRef<Set<string>>(new Set());
@@ -696,7 +697,6 @@ const MyBoard: React.FC = () => {
 
   useEffect(() => {
     const query = quickAddCode.trim();
-    setSelectedQuickAddCode((current) => current && current !== query ? '' : current);
 
     if (!isQuickAddModalOpen || !query) {
       setQuickAddResults([]);
@@ -752,7 +752,7 @@ const MyBoard: React.FC = () => {
         const entry: QuickAddStructureEntry = (
           compound && smiles && smiles.toLowerCase() !== 'no permission'
             ? { status: 'loaded', compound }
-            : { status: 'error', error: '구조 조회 권한이 없습니다.' }
+            : { status: 'error', error: '구조 조회 권한이 없습니다.', errorKind: 'permission' }
         );
         setQuickAddStructures((current) => ({ ...current, [normalizedCode]: entry }));
       })
@@ -763,6 +763,7 @@ const MyBoard: React.FC = () => {
           [normalizedCode]: {
             status: 'error',
             error: error instanceof Error ? error.message : '구조를 불러오지 못했습니다.',
+            errorKind: 'request',
           },
         }));
       })
@@ -861,6 +862,7 @@ const MyBoard: React.FC = () => {
   const [groupListTableWidth, setGroupListTableWidth] = useState(0);
   const groupSelectionAnchorRef = React.useRef<string | null>(null);
   const detailSelectionAnchorRef = React.useRef<string | null>(null);
+  const quickAddSelectionAnchorRef = React.useRef<string | null>(null);
   const bookmarkedGroupIdSet = React.useMemo(() => new Set(bookmarkedGroupIds), [bookmarkedGroupIds]);
   const pinnedGroupCount = React.useMemo(
     () => groups.reduce((count, group) => count + (bookmarkedGroupIdSet.has(group.id) ? 1 : 0), 0),
@@ -1261,8 +1263,8 @@ const MyBoard: React.FC = () => {
     'MolProp2',
     '프로젝트',
     '그룹 번호',
-    '디자인 번호',
-    '디자인 비고',
+    '아이디어 번호',
+    '아이디어 비고',
     '목적 (개선하고자 하는 assay)',
     '기대 개선 효과',
     '합성 확장 필요 정도',
@@ -1449,7 +1451,7 @@ const MyBoard: React.FC = () => {
         const matchesKeyword = keyword === 'Structure Search Result' || !normalizedKeyword || [
           compound.name,
           compound.compoundId,
-          compound.designNo,
+          compound.ideaNumber,
           compound.smiles,
           group?.name,
           group?.target,
@@ -2059,7 +2061,7 @@ const MyBoard: React.FC = () => {
               key={`${block.src.slice(0, 48)}-${index}`}
               className="my-board-design-memo-image"
               src={block.src}
-              alt={`디자인 비고 이미지 ${index + 1}`}
+              alt={`아이디어 비고 이미지 ${index + 1}`}
               loading="lazy"
             />
           )
@@ -2304,6 +2306,42 @@ const MyBoard: React.FC = () => {
 
   const hasSelectedDetailCompounds = selectedDetailCompoundIds.length > 0;
   const canAddCompound = selectedGroupIds.length === 1;
+  const registeredQuickAddCodeSet = React.useMemo(() => {
+    const targetGroupId = selectedGroupIds.length === 1 ? selectedGroupIds[0] : null;
+    if (!targetGroupId) return new Set<string>();
+
+    return new Set(
+      compoundRows
+        .filter((compound) => compound.groupId === targetGroupId)
+        .map((compound) => compound.compoundId.trim().toLowerCase())
+        .filter(Boolean),
+    );
+  }, [compoundRows, selectedGroupIds]);
+  const isQuickAddCodeSelectionBlocked = React.useCallback((compoundCode: string) => {
+    const normalizedCode = compoundCode.trim().toLowerCase();
+    if (!normalizedCode) return true;
+    if (registeredQuickAddCodeSet.has(normalizedCode)) return true;
+    return quickAddStructures[normalizedCode]?.errorKind === 'permission';
+  }, [quickAddStructures, registeredQuickAddCodeSet]);
+  const toggleQuickAddCode = React.useCallback((compoundCode: string) => {
+    const normalizedCode = compoundCode.trim().toLowerCase();
+    if (!normalizedCode || isQuickAddCodeSelectionBlocked(compoundCode)) return;
+
+    setSelectedQuickAddCodes((current) => (
+      current.some((code) => code.toLowerCase() === normalizedCode)
+        ? current.filter((code) => code.toLowerCase() !== normalizedCode)
+        : [...current, compoundCode]
+    ));
+  }, [isQuickAddCodeSelectionBlocked]);
+  React.useEffect(() => {
+    setSelectedQuickAddCodes((current) => current.filter((compoundCode) => (
+      !isQuickAddCodeSelectionBlocked(compoundCode)
+    )));
+    const anchorCode = quickAddSelectionAnchorRef.current;
+    if (anchorCode && isQuickAddCodeSelectionBlocked(anchorCode)) {
+      quickAddSelectionAnchorRef.current = null;
+    }
+  }, [isQuickAddCodeSelectionBlocked]);
   const canDeleteCompound = hasSelectedDetailCompounds;
   const canEditCompound = Boolean(
     selectedEditableCompound && !isCompoundEditLocked(selectedEditableCompound)
@@ -2660,8 +2698,8 @@ const MyBoard: React.FC = () => {
       vpropCalculation: synchronousResults.vpropCalculation,
       quantumCalculations,
       molecularWeight: synchronousResults.chemaxonCalculation?.data.molecular_weight,
-      designNo: ideaNumber,
-      designMemo: normalizeDesignMemoValue(values.designMemo),
+      ideaNumber: ideaNumber,
+      ideaMemo: normalizeDesignMemoValue(values.ideaMemo),
       requiredAmountMg: values.requiredAmountMg === undefined ||
         values.requiredAmountMg === null ||
         values.requiredAmountMg === ''
@@ -2802,9 +2840,9 @@ const MyBoard: React.FC = () => {
           vpropCalculation: synchronousResults.vpropCalculation,
           quantumCalculations,
           molecularWeight: synchronousResults.chemaxonCalculation?.data.molecular_weight,
-          designNo: values.ideaNumber || compound.designNo,
+          ideaNumber: values.ideaNumber || compound.ideaNumber,
           name: values.ideaNumber || compound.name,
-          designMemo: normalizeDesignMemoValue(values.designMemo),
+          ideaMemo: normalizeDesignMemoValue(values.ideaMemo),
           requiredAmountMg: values.requiredAmountMg === undefined ||
             values.requiredAmountMg === null ||
             values.requiredAmountMg === ''
@@ -2866,86 +2904,138 @@ const MyBoard: React.FC = () => {
   }, [canDeleteCompound, externalCompoundRows, modal, selectedDetailCompoundIds, setExternalCompoundRows]);
 
   const handleQuickAddCompound = React.useCallback(async () => {
-    const compoundCode = (selectedQuickAddCode || quickAddCode).trim();
     const targetGroupId = selectedGroupIds[0];
-    if (!canAddCompound || !compoundCode || !targetGroupId) return;
+    const selectedCodes = Array.from(new Map(
+      selectedQuickAddCodes
+        .map((code) => code.trim())
+        .filter(Boolean)
+        .map((code): [string, string] => [code.toLowerCase(), code]),
+    ).values());
+    if (!canAddCompound || selectedCodes.length === 0 || !targetGroupId) return;
+
+    const duplicateCodes = selectedCodes.filter((code) => (
+      registeredQuickAddCodeSet.has(code.toLowerCase())
+    ));
+    const addableCodes = selectedCodes.filter((code) => (
+      !registeredQuickAddCodeSet.has(code.toLowerCase())
+    ));
+    if (addableCodes.length === 0) {
+      modal.warning({
+        title: '추가할 수 있는 화합물이 없습니다.',
+        content: '선택한 화합물이 모두 현재 그룹에 이미 등록되어 있습니다.',
+      });
+      return;
+    }
+
     setIsQuickAddAdding(true);
 
     try {
-      const tableCompound = quickAddStructures[compoundCode.toLowerCase()]?.compound;
-      const cachedCompound = (
-        quickAddPreview?.compound_code.toLowerCase() === compoundCode.toLowerCase()
-          ? quickAddPreview
-          : tableCompound
-      ) ?? null;
-      const response = cachedCompound ? null : await compoundApi.getCompounds([compoundCode]);
-      const compoundData = cachedCompound ?? response?.compounds.find((compound) => (
-        compound.compound_code.toLowerCase() === compoundCode.toLowerCase()
-      )) ?? response?.compounds[0];
+      const resolvedCompoundMap = new Map<string, CompoundPermissionResult>();
+      addableCodes.forEach((code) => {
+        const cachedCompound = quickAddStructures[code.toLowerCase()]?.compound;
+        if (cachedCompound) {
+          resolvedCompoundMap.set(code.toLowerCase(), cachedCompound);
+        }
+      });
+      const uncachedCodes = addableCodes.filter((code) => (
+        !resolvedCompoundMap.has(code.toLowerCase())
+      ));
+      if (uncachedCodes.length > 0) {
+        const response = await compoundApi.getCompounds(uncachedCodes);
+        response.compounds.forEach((compound) => {
+          resolvedCompoundMap.set(compound.compound_code.trim().toLowerCase(), compound);
+        });
+      }
 
-      const compoundSmiles = compoundData?.smiles?.trim() ?? '';
-      if (!compoundData || !compoundSmiles || compoundSmiles.toLowerCase() === 'no permission') {
+      const unavailableCodes: string[] = [];
+      const timestamp = Date.now();
+      const targetGroup = groups.find((group) => group.id === targetGroupId);
+      const displayDate = formatDisplayDate(new Date().toISOString());
+      const resolvedCodeSet = new Set(registeredQuickAddCodeSet);
+      const newCompounds = addableCodes.flatMap((requestedCode, index): Compound[] => {
+        const compoundData = resolvedCompoundMap.get(requestedCode.toLowerCase());
+        const compoundSmiles = compoundData?.smiles?.trim() ?? '';
+        if (!compoundData || !compoundSmiles || compoundSmiles.toLowerCase() === 'no permission') {
+          unavailableCodes.push(requestedCode);
+          return [];
+        }
+
+        const resolvedCompoundCode = compoundData.compound_code || requestedCode;
+        const normalizedResolvedCode = resolvedCompoundCode.trim().toLowerCase();
+        if (resolvedCodeSet.has(normalizedResolvedCode)) {
+          duplicateCodes.push(requestedCode);
+          return [];
+        }
+        resolvedCodeSet.add(normalizedResolvedCode);
+
+        return [{
+          id: `quick-${targetGroupId}-${resolvedCompoundCode}-${timestamp}-${index}`,
+          groupId: targetGroupId,
+          compoundId: resolvedCompoundCode,
+          name: resolvedCompoundCode,
+          source: 'Manual',
+          externalSource: 'compound_api',
+          smiles: compoundSmiles,
+          creDate: displayDate,
+          manager: currentUser?.name ?? '문태훈',
+          status: '디자인',
+          project: targetGroup?.target && targetGroup.target !== '-' ? targetGroup.target : 'Unassigned',
+          shareStatus: '내 물질',
+          designSource: '',
+          properties1: [50, 50, 50, 50],
+          properties2: [50, 50, 50, 50],
+          requiredCalcs: [],
+          ideaNumber: `D-${resolvedCompoundCode}`,
+          ideaMemo: '',
+          requiredAmountMg: 10,
+          assayPurpose: '',
+          expectedEffect: '-',
+          requestDate: displayDate,
+          synthesisExpansionLevel: '',
+          requestMemo: '-',
+          synthesisOwner: currentUser?.name ?? '문태훈',
+          synthesisAcceptedDate: '-',
+          synthesisTargetDate: '-',
+          progressMemo: '',
+          isCompleted: false,
+          registeredDate: displayDate,
+          researchNote: '-',
+          reportData: '-',
+          synthesisEndReason: '-',
+          experimentStage: 1,
+          quickViewerAssets: [],
+        }];
+      });
+
+      if (newCompounds.length === 0) {
         modal.error({
-          title: '권한 없음',
-          content: `${compoundCode} compound의 구조 권한이 없어 그룹 상세 목록에 추가할 수 없습니다.`,
+          title: '화합물을 추가할 수 없습니다.',
+          content: '선택한 화합물의 구조 권한 또는 구조 데이터를 확인해주세요.',
         });
         return;
       }
 
-      const resolvedCompoundCode = compoundData.compound_code || compoundCode;
-      const timestamp = Date.now();
-      const targetGroup = groups.find((group) => group.id === targetGroupId);
-      const newCompound: Compound = {
-        id: `quick-${targetGroupId}-${resolvedCompoundCode}-${timestamp}`,
-        groupId: targetGroupId,
-        compoundId: resolvedCompoundCode,
-        name: resolvedCompoundCode,
-        source: 'Manual',
-        externalSource: 'compound_api',
-        smiles: compoundSmiles,
-        creDate: formatDisplayDate(new Date().toISOString()),
-        manager: currentUser?.name ?? '문태훈',
-        status: '디자인',
-        project: targetGroup?.target && targetGroup.target !== '-' ? targetGroup.target : 'Unassigned',
-        shareStatus: '내 물질',
-        designSource: '',
-        properties1: [50, 50, 50, 50],
-        properties2: [50, 50, 50, 50],
-        requiredCalcs: [],
-        designNo: `D-${resolvedCompoundCode}`,
-        designMemo: '',
-        requiredAmountMg: 10,
-        assayPurpose: '',
-        expectedEffect: '-',
-        requestDate: formatDisplayDate(new Date().toISOString()),
-        synthesisExpansionLevel: '',
-        requestMemo: '-',
-        synthesisOwner: currentUser?.name ?? '문태훈',
-        synthesisAcceptedDate: '-',
-        synthesisTargetDate: '-',
-        progressMemo: '',
-        isCompleted: false,
-        registeredDate: formatDisplayDate(new Date().toISOString()),
-        researchNote: '-',
-        reportData: '-',
-        synthesisEndReason: '-',
-        experimentStage: 1,
-        quickViewerAssets: [],
-      };
-
-      setCompoundRows((prev) => insertCompoundsAfterGroupTail(prev, [newCompound]));
-      addExternalCompoundRow(newCompound);
-      setSelectedDetailCompoundIds([newCompound.id]);
-      detailSelectionAnchorRef.current = newCompound.id;
+      setCompoundRows((prev) => insertCompoundsAfterGroupTail(prev, newCompounds));
+      newCompounds.forEach(addExternalCompoundRow);
+      setSelectedDetailCompoundIds(newCompounds.map((compound) => compound.id));
+      detailSelectionAnchorRef.current = newCompounds[newCompounds.length - 1]?.id ?? null;
       setQuickAddCode('');
-      setSelectedQuickAddCode('');
+      setSelectedQuickAddCodes([]);
+      quickAddSelectionAnchorRef.current = null;
       setQuickAddResults([]);
-      setQuickAddPreview(null);
       setQuickAddStructures({});
       quickAddStructureControllersRef.current.forEach((controller) => controller.abort());
       quickAddStructureControllersRef.current.clear();
       quickAddRequestedCodesRef.current.clear();
       setIsQuickAddModalOpen(false);
+
+      const skippedCodes = [...duplicateCodes, ...unavailableCodes];
+      if (skippedCodes.length > 0) {
+        modal.warning({
+          title: '일부 화합물은 추가되지 않았습니다.',
+          content: `${skippedCodes.join(', ')}: 이미 등록되었거나 구조 권한·데이터가 없습니다.`,
+        });
+      }
     } catch (error) {
       modal.error({
         title: 'Compound 추가 실패',
@@ -2960,11 +3050,10 @@ const MyBoard: React.FC = () => {
     currentUser?.name,
     groups,
     modal,
-    quickAddCode,
-    quickAddPreview,
     quickAddStructures,
+    registeredQuickAddCodeSet,
     selectedGroupIds,
-    selectedQuickAddCode,
+    selectedQuickAddCodes,
   ]);
 
   const handleOpenSarTable = React.useCallback(async () => {
@@ -3020,9 +3109,9 @@ const MyBoard: React.FC = () => {
     setDesignFormInitialValues({
       target: targetGroup?.target && targetGroup.target !== '-' ? targetGroup.target : '-',
       group: getGroupDisplayText(targetGroup),
-      ideaNumber: selectedEditableCompound.designNo || selectedEditableCompound.name || selectedEditableCompound.compoundId,
+      ideaNumber: selectedEditableCompound.ideaNumber || selectedEditableCompound.name || selectedEditableCompound.compoundId,
       smilesPreview: selectedEditableCompound.smiles || '',
-      designMemo: selectedEditableCompound.designMemo === '-' ? '' : selectedEditableCompound.designMemo,
+      ideaMemo: selectedEditableCompound.ideaMemo === '-' ? '' : selectedEditableCompound.ideaMemo,
       assayPurpose: selectedPurposePaths.map((path) => path.map(String)),
       requiredAmountMg: selectedEditableCompound.requiredAmountMg,
       synthesisStep: expansionPaths.map((path) => path.map(String)),
@@ -3035,6 +3124,55 @@ const MyBoard: React.FC = () => {
     setIsCompoundEditModalOpen(true);
     setCompoundContextMenu(null);
   }, [canEditCompound, designExpansionOptions, designPurposeOptions, getGroupDisplayText, groups, parseCascaderText, resetDesignModalState, selectedEditableCompound]);
+
+  const handleQuickAddRowSelection = React.useCallback((
+    compoundCode: string,
+    event: React.MouseEvent,
+  ) => {
+    if (isQuickAddCodeSelectionBlocked(compoundCode)) return;
+    const normalizedCode = compoundCode.trim().toLowerCase();
+
+    if (event.shiftKey) {
+      event.preventDefault();
+      const anchorCode = quickAddSelectionAnchorRef.current;
+      const anchorIndex = anchorCode
+        ? quickAddResults.findIndex((result) => (
+            result.compound_code.trim().toLowerCase() === anchorCode.trim().toLowerCase()
+          ))
+        : -1;
+      const targetIndex = quickAddResults.findIndex((result) => (
+        result.compound_code.trim().toLowerCase() === normalizedCode
+      ));
+      const rangeCodes = anchorIndex >= 0 && targetIndex >= 0
+        ? quickAddResults
+            .slice(Math.min(anchorIndex, targetIndex), Math.max(anchorIndex, targetIndex) + 1)
+            .map((result) => result.compound_code)
+            .filter((code) => !isQuickAddCodeSelectionBlocked(code))
+        : [compoundCode];
+
+      setSelectedQuickAddCodes((current) => (
+        event.ctrlKey || event.metaKey
+          ? Array.from(new Map(
+              [...current, ...rangeCodes].map((code): [string, string] => [
+                code.trim().toLowerCase(),
+                code,
+              ]),
+            ).values())
+          : rangeCodes
+      ));
+      quickAddSelectionAnchorRef.current = anchorCode ?? compoundCode;
+      return;
+    }
+
+    if (event.ctrlKey || event.metaKey) {
+      toggleQuickAddCode(compoundCode);
+      quickAddSelectionAnchorRef.current = compoundCode;
+      return;
+    }
+
+    setSelectedQuickAddCodes([compoundCode]);
+    quickAddSelectionAnchorRef.current = compoundCode;
+  }, [isQuickAddCodeSelectionBlocked, quickAddResults, toggleQuickAddCode]);
 
   const handleGroupRowSelection = React.useCallback((groupId: string, event: React.MouseEvent) => {
     if (isChemDrawModalEventTarget(event.target)) return;
@@ -3450,7 +3588,7 @@ const MyBoard: React.FC = () => {
       )
     },
     '출처': { title: '출처', dataIndex: 'designSource', key: 'designSource', width: 64 },
-    '디자인 비고': { title: '디자인 비고', dataIndex: 'designMemo', key: 'designMemo', width: 220, render: renderDesignMemoPreview },
+    '아이디어 비고': { title: '아이디어 비고', dataIndex: 'ideaMemo', key: 'ideaMemo', width: 220, render: renderDesignMemoPreview },
     'MolProp1': {
       title: 'MolProp1',
       dataIndex: 'properties1',
@@ -3465,7 +3603,7 @@ const MyBoard: React.FC = () => {
       width: 96,
       render: (props: number[]) => props ? <RadarChart data={props} size={56} color="#5856d6" /> : '-'
     },
-    '디자인 번호': { title: '디자인 번호', dataIndex: 'designNo', key: 'designNo', width: 112 },
+    '아이디어 번호': { title: '아이디어 번호', dataIndex: 'ideaNumber', key: 'ideaNumber', width: 112 },
     '필요량 (mg)': {
       title: '필요량 (mg)',
       dataIndex: 'requiredAmountMg',
@@ -4513,7 +4651,7 @@ const MyBoard: React.FC = () => {
                       size="small"
                       icon={<Plus size={14} />}
                       disabled={!canAddCompound}
-                      className="my-board-outline-action-button"
+                      className="my-board-outline-action-button my-board-quick-add-button"
                       style={getOutlineActionButtonStyle(canAddCompound)}
                       onClick={() => setIsQuickAddModalOpen(true)}
                     >
@@ -4924,23 +5062,29 @@ const MyBoard: React.FC = () => {
         className="my-board-quick-add-modal"
         title="Quick add"
         open={isQuickAddModalOpen}
+        afterOpenChange={(open) => {
+          if (!open) return;
+          window.requestAnimationFrame(() => quickAddInputRef.current?.focus());
+        }}
         onCancel={() => {
           setIsQuickAddModalOpen(false);
           setQuickAddCode('');
-          setSelectedQuickAddCode('');
+          setSelectedQuickAddCodes([]);
+          quickAddSelectionAnchorRef.current = null;
           setQuickAddResults([]);
           setQuickAddError(null);
-          setQuickAddPreview(null);
           setQuickAddStructures({});
           quickAddStructureControllersRef.current.forEach((controller) => controller.abort());
           quickAddStructureControllersRef.current.clear();
           quickAddRequestedCodesRef.current.clear();
         }}
         onOk={handleQuickAddCompound}
-        okText="추가"
+        okText={selectedQuickAddCodes.length > 0
+          ? `${formatNumberWithComma(selectedQuickAddCodes.length)}개 추가`
+          : '추가'}
         cancelText="취소"
         okButtonProps={{
-          disabled: !(selectedQuickAddCode || quickAddCode).trim() || !canAddCompound,
+          disabled: selectedQuickAddCodes.length === 0 || !canAddCompound,
           loading: isQuickAddAdding,
         }}
         width="min(640px, calc(100vw - 24px))"
@@ -4949,15 +5093,13 @@ const MyBoard: React.FC = () => {
         <Form layout="vertical" style={{ marginTop: 16 }}>
           <Form.Item label="내부 화합물 코드 번호">
             <Input
+              ref={quickAddInputRef}
               autoFocus
               placeholder="예: VNA-G01-001"
               value={quickAddCode}
-              onChange={(event) => {
-                setQuickAddCode(event.target.value);
-                setSelectedQuickAddCode('');
-              }}
+              onChange={(event) => setQuickAddCode(event.target.value)}
               onPressEnter={() => {
-                if ((selectedQuickAddCode || quickAddCode).trim() && canAddCompound) {
+                if (selectedQuickAddCodes.length > 0 && canAddCompound) {
                   void handleQuickAddCompound();
                 }
               }}
@@ -4985,11 +5127,26 @@ const MyBoard: React.FC = () => {
                 key: 'compound_code',
                 width: 240,
                 align: 'center',
-                render: (compoundCode: string) => (
-                  <div className="my-board-quick-add-code-cell">
-                    <Text strong={selectedQuickAddCode === compoundCode}>{compoundCode}</Text>
-                  </div>
-                ),
+                render: (compoundCode: string) => {
+                  const isSelected = selectedQuickAddCodes.some((code) => (
+                    code.toLowerCase() === compoundCode.toLowerCase()
+                  ));
+                  const isRegistered = registeredQuickAddCodeSet.has(
+                    compoundCode.trim().toLowerCase(),
+                  );
+                  const hasNoPermission = quickAddStructures[
+                    compoundCode.trim().toLowerCase()
+                  ]?.errorKind === 'permission';
+                  return (
+                    <div className="my-board-quick-add-code-cell">
+                      <Text strong={isSelected} type={isRegistered || hasNoPermission ? 'secondary' : undefined}>
+                        {compoundCode}
+                      </Text>
+                      {isRegistered ? <Tag>등록됨</Tag> : null}
+                      {hasNoPermission ? <Tag>권한 없음</Tag> : null}
+                    </div>
+                  );
+                },
               },
               {
                 title: '화합물 구조',
@@ -5013,20 +5170,67 @@ const MyBoard: React.FC = () => {
                 ),
               },
             ]}
-            rowClassName={(record) => (
-              selectedQuickAddCode === record.compound_code
-                ? 'row-selected my-board-quick-add-row-selected'
-                : ''
-            )}
+            rowClassName={(record) => {
+              const isSelected = selectedQuickAddCodes.some((code) => (
+                code.toLowerCase() === record.compound_code.toLowerCase()
+              ));
+              const isRegistered = registeredQuickAddCodeSet.has(
+                record.compound_code.trim().toLowerCase(),
+              );
+              const isBlocked = isQuickAddCodeSelectionBlocked(record.compound_code);
+              if (isRegistered || isBlocked) return 'my-board-quick-add-row-blocked';
+              return isSelected ? 'row-selected my-board-quick-add-row-selected' : '';
+            }}
             onRow={(record) => ({
-              onClick: () => {
-                const entry = quickAddStructures[record.compound_code.toLowerCase()];
-                setSelectedQuickAddCode(record.compound_code);
-                setQuickAddPreview(entry?.compound ?? null);
+              onMouseDown: (event) => {
+                if (!event.shiftKey) return;
+                const target = event.target as HTMLElement;
+                if (target.closest('button, a, input, textarea, .ant-select, .ant-dropdown')) return;
+                event.preventDefault();
               },
-              style: { cursor: 'pointer' },
+              onClick: (event) => {
+                const target = event.target as HTMLElement;
+                if (target.closest('button, a, input, textarea, .ant-select, .ant-dropdown')) return;
+                handleQuickAddRowSelection(record.compound_code, event);
+              },
+              style: {
+                cursor: isQuickAddCodeSelectionBlocked(record.compound_code)
+                  ? 'not-allowed'
+                  : 'pointer',
+              },
             })}
           />
+          {selectedQuickAddCodes.length > 0 ? (
+            <div className="my-board-quick-add-selection">
+              <div className="my-board-quick-add-selection-header">
+                <Text strong>선택 {formatNumberWithComma(selectedQuickAddCodes.length)}개</Text>
+                <Button
+                  type="link"
+                  size="small"
+                  onClick={() => {
+                    setSelectedQuickAddCodes([]);
+                    quickAddSelectionAnchorRef.current = null;
+                  }}
+                >
+                  전체 해제
+                </Button>
+              </div>
+              <Space className="my-board-quick-add-selection-list" size={[4, 4]} wrap>
+                {selectedQuickAddCodes.map((compoundCode) => (
+                  <Tag
+                    key={compoundCode.toLowerCase()}
+                    closable
+                    onClose={(event) => {
+                      event.preventDefault();
+                      toggleQuickAddCode(compoundCode);
+                    }}
+                  >
+                    {compoundCode}
+                  </Tag>
+                ))}
+              </Space>
+            </div>
+          ) : null}
         </Form>
       </Modal>
 
@@ -5146,8 +5350,8 @@ const MyBoard: React.FC = () => {
 
             <Col span={24}>
               <Form.Item
-                name="designMemo"
-                label="디자인 비고"
+                name="ideaMemo"
+                label="아이디어 비고"
                 className="idea-inline-form-item"
                 getValueFromEvent={(value) => (typeof value === 'string' ? value : '')}
               >
@@ -5574,10 +5778,11 @@ const MyBoard: React.FC = () => {
         }
         .my-board-detail-show-filter-label {
           min-width: 42px;
-          color: ${token.colorTextSecondary};
-          font-size: 10px;
+          color: ${token.colorText};
+          font-size: 11px;
           font-weight: 700;
           line-height: 18px;
+          letter-spacing: 0.02em;
           text-align: left;
           white-space: nowrap;
           user-select: none;
@@ -6082,6 +6287,13 @@ const MyBoard: React.FC = () => {
           background: transparent !important;
           box-shadow: none !important;
         }
+        .my-board-outline-action-button.my-board-quick-add-button.ant-btn {
+          background: ${token.colorPrimaryBg} !important;
+        }
+        .my-board-outline-action-button.my-board-quick-add-button.ant-btn:not(:disabled):hover,
+        .my-board-outline-action-button.my-board-quick-add-button.ant-btn:not(:disabled):active {
+          background: ${token.colorPrimaryBgHover} !important;
+        }
         .my-board-group-pin-filter {
           flex: 0 0 auto;
         }
@@ -6313,11 +6525,42 @@ const MyBoard: React.FC = () => {
         .my-board-quick-add-table .ant-table-tbody > tr.my-board-quick-add-row-selected:hover > td {
           background-color: var(--table-row-selected-hover-bg) !important;
         }
+        .my-board-quick-add-table .ant-table-tbody > tr.my-board-quick-add-row-blocked > td {
+          background: ${token.colorFillQuaternary};
+          opacity: 0.72;
+        }
+        .my-board-quick-add-selection {
+          margin: 12px 0 0;
+          padding: 8px 10px;
+          max-height: 100px;
+          display: flex;
+          flex-direction: column;
+          border: 1px solid ${token.colorPrimaryBorder};
+          border-radius: 8px;
+          background: ${token.colorPrimaryBg};
+          box-sizing: border-box;
+        }
+        .my-board-quick-add-selection-header {
+          flex: 0 0 auto;
+          margin-bottom: 4px;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+        }
+        .my-board-quick-add-selection-list {
+          flex: 1 1 auto;
+          width: 100%;
+          min-height: 0;
+          overflow-y: auto;
+          scrollbar-width: thin;
+          scrollbar-color: ${token.colorBorder} transparent;
+        }
         .my-board-quick-add-code-cell,
         .my-board-quick-add-structure-cell {
           display: flex;
           align-items: center;
           justify-content: center;
+          gap: 6px;
           width: 100%;
           min-height: 112px;
         }
@@ -6756,10 +6999,11 @@ const MyBoard: React.FC = () => {
         }
         .my-board-structure-setting-label {
           min-width: 42px;
-          color: ${token.colorTextSecondary};
-          font-size: 10px;
+          color: ${token.colorText};
+          font-size: 11px;
           font-weight: 700;
           line-height: 18px;
+          letter-spacing: 0.02em;
           text-align: left;
           user-select: none;
         }

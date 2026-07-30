@@ -62,7 +62,7 @@ const AccessRegistry: React.FC = () => {
 
   useEffect(() => {
     setHeaderContent(
-      <PageHeaderBreadcrumb items={[{ label: 'Workspace' }, { label: 'Access registry' }]} />,
+      <PageHeaderBreadcrumb items={[{ label: '사용자 접근 관리' }]} />,
     );
     return () => setHeaderContent(null);
   }, [setHeaderContent]);

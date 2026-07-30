@@ -54,12 +54,12 @@ export type SynthesisRequestTarget = {
   id: string;
   groupId: string;
   compoundId?: string;
-  designNo?: string;
+  ideaNumber?: string;
   name: string;
   smiles?: string;
   structureSvg?: string;
   project?: string;
-  designMemo?: string;
+  ideaMemo?: string;
   assayPurpose?: string;
   synthesisStep?: string;
   synthesisExpansionLevel?: string;
@@ -236,7 +236,7 @@ const SynthesisRequestModal: React.FC<SynthesisRequestModalProps> = ({
     if (!target) return;
     modal.confirm({
       title: '합성 요청을 취소할까요?',
-      content: `${target.designNo || target.name} 요청 완료 상태를 취소합니다.`,
+      content: `${target.ideaNumber || target.name} 요청 완료 상태를 취소합니다.`,
       okText: '요청 취소',
       cancelText: '닫기',
       okButtonProps: { danger: true },
@@ -281,7 +281,7 @@ const SynthesisRequestModal: React.FC<SynthesisRequestModalProps> = ({
                   <CompoundStructureView
                     className="synthesis-request-structure-view"
                     svg={target.structureSvg}
-                    title={target.designNo || target.name || 'Structure'}
+                    title={target.ideaNumber || target.name || 'Structure'}
                     smiles={target.smiles}
                     width={332}
                     height={236}
@@ -304,10 +304,10 @@ const SynthesisRequestModal: React.FC<SynthesisRequestModalProps> = ({
                 <Input disabled value={groupName || '-'} />
               </Form.Item>
               <Form.Item label="아이디어 번호" className="synthesis-request-inline-item">
-                <Input disabled value={target?.designNo || target?.name || '-'} />
+                <Input disabled value={target?.ideaNumber || target?.name || '-'} />
               </Form.Item>
-              <Form.Item label="디자인 비고" className="synthesis-request-inline-item synthesis-request-design-memo-item">
-                {memoPreview(target?.designMemo)}
+              <Form.Item label="아이디어 비고" className="synthesis-request-inline-item synthesis-request-design-memo-item">
+                {memoPreview(target?.ideaMemo)}
               </Form.Item>
             </div>
           </div>

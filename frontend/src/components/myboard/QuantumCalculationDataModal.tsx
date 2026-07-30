@@ -178,7 +178,7 @@ const QuantumCalculationDataModal: React.FC<QuantumCalculationDataModalProps> = 
                 {
                   key: 'ideaNumber',
                   label: '아이디어 번호',
-                  children: compound.designNo || compound.name || '-',
+                  children: compound.ideaNumber || compound.name || '-',
                 },
               ]}
             />

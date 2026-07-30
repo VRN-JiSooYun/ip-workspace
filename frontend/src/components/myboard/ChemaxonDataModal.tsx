@@ -72,7 +72,7 @@ const ChemaxonDataModal: React.FC<ChemaxonDataModalProps> = ({ compound, onClose
             bordered
             column={2}
             items={[
-              { key: 'ideaNumber', label: '아이디어 번호', children: compound.designNo || compound.name || '-' },
+              { key: 'ideaNumber', label: '아이디어 번호', children: compound.ideaNumber || compound.name || '-' },
               { key: 'calculatedAt', label: '계산 일시', children: formatDisplayDate(calculation.calculatedAt) },
               {
                 key: 'smiles',

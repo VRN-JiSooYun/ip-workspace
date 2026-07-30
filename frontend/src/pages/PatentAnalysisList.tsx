@@ -80,10 +80,9 @@ const PATENT_OFFICE_FILTER_OPTIONS = ['ALL', 'WIPO', 'USPTO', 'KIPO', 'EPO'];
 const STATUS_FILTER_OPTIONS = ['ALL', '분석중', '완료'];
 const RECENT_PROJECTS = ['EGFR', 'PD-1', 'PD-L1', 'KRAS', 'HER2', 'CD3', 'CD19', 'TNF', 'VEGF', 'BTK', 'AKT1', 'MET', 'FGFR3', 'PKMYT1', 'WEE1', 'VRK1', 'UBP1'];
 const PATENT_ANALYSIS_LIST_STATE_KEY = 'patent-analysis-list-state:v1';
-const PATENT_QUICK_VIEWER_STORAGE_KEY = 'patent-analysis-split:quick-viewer';
 const PATENT_QUICK_VIEWER_MIN_WIDTH = 380;
-const PATENT_QUICK_VIEWER_DEFAULT_WIDTH = 480;
-const PATENT_QUICK_VIEWER_MAX_WIDTH = 1080;
+const PATENT_QUICK_VIEWER_DEFAULT_WIDTH = 1000;
+const PATENT_QUICK_VIEWER_MAX_WIDTH = 1000;
 const PATENT_QUICK_VIEWER_RESIZE_STEP = 24;
 const SEARCH_TYPE_OPTIONS = [
   { label: '특허 제목', value: 'title' },
@@ -103,18 +102,6 @@ const clampPatentQuickViewerWidth = (value: number): number => (
     Math.max(PATENT_QUICK_VIEWER_MIN_WIDTH, value),
   )
 );
-
-const readPatentQuickViewerWidth = (): number => {
-  if (typeof window === 'undefined') return PATENT_QUICK_VIEWER_DEFAULT_WIDTH;
-  try {
-    const stored = Number(window.localStorage.getItem(PATENT_QUICK_VIEWER_STORAGE_KEY));
-    return Number.isFinite(stored)
-      ? clampPatentQuickViewerWidth(stored)
-      : PATENT_QUICK_VIEWER_DEFAULT_WIDTH;
-  } catch {
-    return PATENT_QUICK_VIEWER_DEFAULT_WIDTH;
-  }
-};
 
 type PatentSearchType = 'title' | 'applicant' | 'publicationNumber' | 'structure';
 
@@ -458,7 +445,7 @@ const PatentAnalysisList: React.FC = () => {
   const [quickViewLoading, setQuickViewLoading] = useState(false);
   const [quickViewError, setQuickViewError] = useState<string | null>(null);
   const [quickViewRetryKey, setQuickViewRetryKey] = useState(0);
-  const [quickViewerWidth, setQuickViewerWidth] = useState(readPatentQuickViewerWidth);
+  const [quickViewerWidth, setQuickViewerWidth] = useState(PATENT_QUICK_VIEWER_DEFAULT_WIDTH);
   const [isResizingQuickViewer, setIsResizingQuickViewer] = useState(false);
   const [isDownloadingQuickViewPdf, setIsDownloadingQuickViewPdf] = useState(false);
   const patentTableRegionRef = React.useRef<HTMLDivElement>(null);
@@ -726,17 +713,6 @@ const PatentAnalysisList: React.FC = () => {
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
   }, []);
-
-  useEffect(() => {
-    try {
-      window.localStorage.setItem(
-        PATENT_QUICK_VIEWER_STORAGE_KEY,
-        String(quickViewerWidth),
-      );
-    } catch {
-      // Viewer width persistence is best effort.
-    }
-  }, [quickViewerWidth]);
 
   useEffect(() => {
     if (!isResizingQuickViewer) return undefined;
@@ -2044,7 +2020,6 @@ const PatentAnalysisList: React.FC = () => {
                 error={quickViewError}
                 canDownloadPdf={hasPatentPdfSource(quickViewDetail?.metadata)}
                 downloadingPdf={isDownloadingQuickViewPdf}
-                fullscreen={isResponsiveToolbar}
                 onRetry={retryPatentQuickView}
                 onClose={closePatentQuickViewer}
                 onOpenAnalysis={handleOpenQuickViewAnalysis}
@@ -2113,6 +2088,7 @@ const PatentAnalysisList: React.FC = () => {
           flex: 1 1 auto;
           align-items: stretch;
           gap: 0;
+          overflow-x: auto;
         }
         .patent-analysis-list-workspace-main {
           min-width: 0;
@@ -2285,33 +2261,6 @@ const PatentAnalysisList: React.FC = () => {
         .patent-analysis-structure-preview svg {
           width: 94%;
           height: 94%;
-        }
-        @media (max-width: 1100px) {
-          .patent-analysis-list-workspace {
-            display: block;
-          }
-          .patent-analysis-list-workspace-main {
-            width: 100%;
-            height: 100%;
-          }
-          .patent-analysis-quick-viewer-resizer {
-            display: none;
-          }
-          .patent-analysis-quick-viewer-pane {
-            position: fixed;
-            inset: 0;
-            z-index: 1200;
-            width: 100vw !important;
-            max-width: none;
-            min-width: 0;
-            height: 100vh;
-            padding: 0;
-            background: ${token.colorBgContainer};
-          }
-          .patent-analysis-quick-viewer-pane .patent-quick-viewer-panel {
-            border: 0;
-            border-radius: 0;
-          }
         }
       `}</style>
     </div>

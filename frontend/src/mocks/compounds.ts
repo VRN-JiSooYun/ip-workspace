@@ -136,8 +136,8 @@ export interface Compound {
   chemaxonCalculation?: ChemaxonCalculationResult;
   vpropCalculation?: VpropCalculationResult;
   quantumCalculations?: QuantumCalculations;
-  designNo?: string;
-  designMemo?: string;
+  ideaNumber?: string;
+  ideaMemo?: string;
   requiredAmountMg?: number;
   assayPurpose?: string;
   expectedEffect?: string;
@@ -411,8 +411,8 @@ const createMockCompound = (
     properties2: [52 + (seed % 6) * 6, 40 + (seed % 5) * 9, 48 + (seed % 7) * 6, 38 + (seed % 6) * 7],
     molecularWeight: Number((280 + (seed % 19) * 13.7).toFixed(2)),
     requiredCalcs: seed % 2 === 0 ? ['3D PSA QM', 'Solubility QM'] : ['Permeability MD', '특허성'],
-    designNo: designName,
-    designMemo: `${memoBase} - ${source} 기반 ${seed % 2 === 0 ? '극성 조정' : '치환기 확장'} 후보`,
+    ideaNumber: designName,
+    ideaMemo: `${memoBase} - ${source} 기반 ${seed % 2 === 0 ? '극성 조정' : '치환기 확장'} 후보`,
     requiredAmountMg: 10 + (seed % 5) * 5,
     assayPurpose: `${project} 활성 및 ADME profile 확인`,
     expectedEffect: seed % 2 === 0 ? '세포 활성 유지 및 용해도 개선' : 'selectivity 개선 및 hERG risk 감소',
@@ -457,8 +457,8 @@ const legacyMockCompounds: Compound[] = [
     properties1: [100, 20, 40, 50],
     properties2: [80, 40, 60, 30],
     requiredCalcs: ['3D PSA QM', 'Solubility QM'],
-    designNo: 'D-cMET-001',
-    designMemo: 'Tepotinib hinge binder 변형안',
+    ideaNumber: 'D-cMET-001',
+    ideaMemo: 'Tepotinib hinge binder 변형안',
     requiredAmountMg: 20,
     assayPurpose: 'cMET wt 활성 개선',
     expectedEffect: '세포 활성 2배 개선',
@@ -493,8 +493,8 @@ const legacyMockCompounds: Compound[] = [
     properties1: [60, 80, 30, 90],
     properties2: [40, 60, 80, 50],
     requiredCalcs: ['Solubility DL', 'E-Sol QM'],
-    designNo: 'D-cMET-002',
-    designMemo: '특허 예시 구조 기반 극성 조정',
+    ideaNumber: 'D-cMET-002',
+    ideaMemo: '특허 예시 구조 기반 극성 조정',
     requiredAmountMg: 15,
     assayPurpose: '용해도 개선 후 활성 유지',
     expectedEffect: 'Solubility risk 감소',
@@ -529,8 +529,8 @@ const legacyMockCompounds: Compound[] = [
     properties1: [90, 30, 70, 40],
     properties2: [70, 50, 90, 60],
     requiredCalcs: ['Permeability MD', '특허성'],
-    designNo: 'D-cMET-003',
-    designMemo: 'sulfonamide linker SAR 확인',
+    ideaNumber: 'D-cMET-003',
+    ideaMemo: 'sulfonamide linker SAR 확인',
     requiredAmountMg: 30,
     assayPurpose: 'selectivity profile 확인',
     expectedEffect: 'off-target 감소',
@@ -565,8 +565,8 @@ const legacyMockCompounds: Compound[] = [
     properties1: [75, 55, 65, 45],
     properties2: [68, 58, 72, 52],
     requiredCalcs: ['3D PSA QM', '합성기능성'],
-    designNo: 'D-cMET-004',
-    designMemo: 'fragment merge 후보',
+    ideaNumber: 'D-cMET-004',
+    ideaMemo: 'fragment merge 후보',
     requiredAmountMg: 10,
     assayPurpose: 'early FBDD hit validation',
     expectedEffect: 'binding efficiency 개선',
@@ -607,8 +607,8 @@ const legacyMockCompounds: Compound[] = [
     properties1: [62, 48, 71, 54],
     properties2: [58, 45, 69, 51],
     requiredCalcs: ['3D PSA QM', '특허성'],
-    designNo: 'D-MB-001',
-    designMemo: 'C1CC1(C(=O)NC2=CC=C(C=C2)OC3=C4C=C(NC4=NC=C3)C(=O)NCCN5CCOCC5)C(=O)NC6=CC=C(C=C6)F',
+    ideaNumber: 'D-MB-001',
+    ideaMemo: 'C1CC1(C(=O)NC2=CC=C(C=C2)OC3=C4C=C(NC4=NC=C3)C(=O)NCCN5CCOCC5)C(=O)NC6=CC=C(C=C6)F',
     requiredAmountMg: 10,
     assayPurpose: '그룹 리스트 및 대표 구조 확인',
     expectedEffect: '목록 렌더링 확인용',
@@ -647,8 +647,8 @@ const legacyMockCompounds: Compound[] = [
     properties1: [57, 52, 66, 49],
     properties2: [61, 47, 64, 53],
     requiredCalcs: ['Permeability MD', '특허성'],
-    designNo: 'D-MB-002',
-    designMemo: 'CC1=CC(=C(C=C1N2CCC(CC2)N3CCN(CC3)C)OC)NC4=NC=C(C(=N4)NC5=C(C6=NC=CN=C6C=C5)P(=O)(C)C)Br',
+    ideaNumber: 'D-MB-002',
+    ideaMemo: 'CC1=CC(=C(C=C1N2CCC(CC2)N3CCN(CC3)C)OC)NC4=NC=C(C(=N4)NC5=C(C6=NC=CN=C6C=C5)P(=O)(C)C)Br',
     requiredAmountMg: 10,
     assayPurpose: '그룹 리스트 및 대표 구조 확인',
     expectedEffect: '목록 렌더링 확인용',

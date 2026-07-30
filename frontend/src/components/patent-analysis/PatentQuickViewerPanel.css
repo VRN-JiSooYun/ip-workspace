@@ -74,12 +74,12 @@
 }
 
 .patent-quick-viewer-detail-row {
-  min-height: 38px;
-  padding: 8px 10px;
+  min-height: 34px;
+  padding: 6px 8px;
   display: grid;
-  grid-template-columns: minmax(116px, 38%) minmax(0, 1fr);
+  grid-template-columns: 110px minmax(0, 1fr);
   align-items: start;
-  gap: 10px;
+  gap: 8px;
   border-bottom: 1px solid var(--c-card-border);
   box-sizing: border-box;
 }
@@ -97,6 +97,24 @@
   font-size: 12px;
   font-weight: 700;
   overflow-wrap: anywhere;
+}
+
+.patent-quick-viewer-publication-value {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.patent-quick-viewer-inline-download-wrap {
+  display: inline-flex;
+  flex: 0 0 auto;
+}
+
+.patent-quick-viewer-inline-download-wrap .ant-btn {
+  height: 24px;
+  padding: 0 8px;
+  font-size: 11px;
 }
 
 .patent-quick-viewer-section {
@@ -120,10 +138,23 @@
 }
 
 .patent-quick-viewer-structure {
-  min-height: 240px;
+  min-width: 0;
+  min-height: 300px;
   display: flex;
   align-items: center;
   justify-content: center;
+  overflow: hidden;
+}
+
+.patent-quick-viewer-structure-grid {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.patent-quick-viewer-structure-grid > .patent-quick-viewer-section {
+  min-width: 0;
 }
 
 .patent-quick-viewer-structure .compound-structure-frame {
@@ -144,27 +175,19 @@
 
 .patent-quick-viewer-loading .patent-quick-viewer-structure-skeleton {
   width: 100% !important;
-  height: 240px !important;
+  height: 300px !important;
 }
 
 .patent-quick-viewer-footer {
   padding: 12px 14px;
   display: grid;
   flex: 0 0 auto;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: 1fr;
   gap: 8px;
   border-top: 1px solid var(--c-card-border);
   background: var(--card-bg);
 }
 
-.patent-quick-viewer-footer .ant-btn,
-.patent-quick-viewer-download-wrap,
-.patent-quick-viewer-download-wrap .ant-btn {
+.patent-quick-viewer-footer .ant-btn {
   width: 100%;
-}
-
-@media (max-width: 560px) {
-  .patent-quick-viewer-footer {
-    grid-template-columns: 1fr;
-  }
 }

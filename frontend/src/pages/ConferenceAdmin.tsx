@@ -23,7 +23,6 @@ import {
 import type { TableColumnsType, UploadFile } from 'antd';
 import type { Dayjs } from 'dayjs';
 import {
-  Database,
   FileSpreadsheet,
   Mail,
   PlayCircle,
@@ -51,7 +50,7 @@ import { useUIStore } from '../store/useUIStore';
 import { useViewportTableHeight } from '../hooks/useViewportTableHeight';
 import { formatDisplayDate, formatNumberWithComma } from '../utils/displayFormat';
 
-const { Paragraph, Text, Title } = Typography;
+const { Text } = Typography;
 
 interface ConferenceFormValues {
   title: string;
@@ -138,7 +137,6 @@ const ConferenceAdmin: React.FC = () => {
     setHeaderContent(
       <PageHeaderBreadcrumb
         items={[
-          { label: 'Workspace' },
           { label: 'Conference 관리' },
         ]}
       />,
@@ -1114,13 +1112,6 @@ const ConferenceAdmin: React.FC = () => {
 
   return (
     <div className="conference-admin-page">
-      <div className="conference-admin-heading">
-        <Space>
-          <Database size={20} color="#F87C63" />
-          <Title level={4}>Conference 관리</Title>
-        </Space>
-        <Paragraph type="secondary">Metadata import와 신규 Conference/Abstract를 관리합니다.</Paragraph>
-      </div>
       <Tabs
         activeKey={activeTabKey}
         onChange={setActiveTabKey}
@@ -1263,9 +1254,6 @@ const ConferenceAdmin: React.FC = () => {
           height: 100%;
           overflow: auto;
           padding: 0 8px 20px;
-        }
-        .conference-admin-heading .ant-typography {
-          margin: 0;
         }
         .conference-admin-form-grid {
           display: grid;

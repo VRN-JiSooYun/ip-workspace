@@ -134,7 +134,6 @@ const PatentAnalysisAdmin: React.FC = () => {
 
   React.useEffect(() => {
     setHeaderContent(<PageHeaderBreadcrumb items={[
-      { label: 'Workspace' },
       { label: '특허 분석 관리' },
     ]} />);
     return () => setHeaderContent(null);

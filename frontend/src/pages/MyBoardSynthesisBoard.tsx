@@ -66,7 +66,7 @@ const shareForwardIconMaskUrl = createSvgMaskUrl(shareForwardIconRaw);
 const shareIconMaskUrl = createSvgMaskUrl(shareIconRaw);
 const bookmarkIconMaskUrl = createSvgMaskUrl(bookmarkIconRaw);
 const MYBOARD_RESPONSIVE_TEXT_COLUMN_KEYS = new Set([
-  'designMemo',
+  'ideaMemo',
   'assayPurpose',
   'expectedEffect',
   'requestMemo',
@@ -310,7 +310,7 @@ const MYBOARD_CENTER_COLUMN_KEYS = new Set([
   'designSource',
   'props1',
   'props2',
-  'designNo',
+  'ideaNumber',
   'requestDate',
   'synthesisExpansionLevel',
   'synthesisOwner',
@@ -388,7 +388,7 @@ const MyBoardTreeFlowNode: React.FC<NodeProps<MyBoardTreeFlowNode>> = React.memo
           {data.changeLabel}
         </Tag>
         <Text strong ellipsis className="my-board-tree-compound-id">
-          {compound.compoundId || compound.designNo || compound.name}
+          {compound.compoundId || compound.ideaNumber || compound.name}
         </Text>
         <Button
           type="text"
@@ -1160,7 +1160,7 @@ const MyBoardSynthesisBoard: React.FC = () => {
     '데이터',
     '단계',
     '출처',
-    '디자인 비고',
+    '아이디어 비고',
   ], [defaultActive]);
 
   // COLUMN STATES (Order & Visibility)
@@ -1674,7 +1674,7 @@ const MyBoardSynthesisBoard: React.FC = () => {
               key={`${block.src.slice(0, 48)}-${index}`}
               className="my-board-design-memo-image"
               src={block.src}
-              alt={`디자인 비고 이미지 ${index + 1}`}
+              alt={`아이디어 비고 이미지 ${index + 1}`}
               loading="lazy"
             />
           )
@@ -2423,7 +2423,7 @@ const MyBoardSynthesisBoard: React.FC = () => {
   const handleCancelSynthesisRequest = React.useCallback((compound: Compound, closeAfterCancel = false) => {
     modal.confirm({
       title: '합성 요청을 취소할까요?',
-      content: `${compound.designNo || compound.name} 요청 완료 상태를 취소합니다.`,
+      content: `${compound.ideaNumber || compound.name} 요청 완료 상태를 취소합니다.`,
       okText: '요청 취소',
       cancelText: '닫기',
       okButtonProps: { danger: true },
@@ -2469,8 +2469,8 @@ const MyBoardSynthesisBoard: React.FC = () => {
       properties1: [50, 50, 50, 50],
       properties2: [50, 50, 50, 50],
       requiredCalcs: selectedCalculations,
-      designNo: ideaNumber,
-      designMemo: normalizeDesignMemoValue(values.designMemo),
+      ideaNumber: ideaNumber,
+      ideaMemo: normalizeDesignMemoValue(values.ideaMemo),
       requiredAmountMg: Number(values.requiredAmountMg) || 0,
       assayPurpose: purposeText || '-',
       expectedEffect: normalizeDesignMemoValue(values.expectedEffect),
@@ -2528,9 +2528,9 @@ const MyBoardSynthesisBoard: React.FC = () => {
           smiles: designSmiles.trim(),
           designSource: nextSource,
           requiredCalcs: selectedCalculations,
-          designNo: values.ideaNumber || compound.designNo,
+          ideaNumber: values.ideaNumber || compound.ideaNumber,
           name: values.ideaNumber || compound.name,
-          designMemo: normalizeDesignMemoValue(values.designMemo),
+          ideaMemo: normalizeDesignMemoValue(values.ideaMemo),
           requiredAmountMg: Number(values.requiredAmountMg) || 0,
           assayPurpose: purposeText || '-',
           expectedEffect: normalizeDesignMemoValue(values.expectedEffect),
@@ -2625,8 +2625,8 @@ const MyBoardSynthesisBoard: React.FC = () => {
         properties1: [50, 50, 50, 50],
         properties2: [50, 50, 50, 50],
         requiredCalcs: [],
-        designNo: `D-${resolvedCompoundCode}`,
-        designMemo: '',
+        ideaNumber: `D-${resolvedCompoundCode}`,
+        ideaMemo: '',
         requiredAmountMg: 10,
         assayPurpose: '',
         expectedEffect: '-',
@@ -2725,9 +2725,9 @@ const MyBoardSynthesisBoard: React.FC = () => {
     setDesignFormInitialValues({
       target: targetGroup?.target && targetGroup.target !== '-' ? targetGroup.target : '-',
       group: getGroupDisplayText(targetGroup),
-      ideaNumber: selectedEditableCompound.designNo || selectedEditableCompound.name || selectedEditableCompound.compoundId,
+      ideaNumber: selectedEditableCompound.ideaNumber || selectedEditableCompound.name || selectedEditableCompound.compoundId,
       smilesPreview: selectedEditableCompound.smiles || '',
-      designMemo: selectedEditableCompound.designMemo === '-' ? '' : selectedEditableCompound.designMemo,
+      ideaMemo: selectedEditableCompound.ideaMemo === '-' ? '' : selectedEditableCompound.ideaMemo,
       assayPurpose: selectedPurposePaths.map((path) => path.map(String)),
       requiredAmountMg: selectedEditableCompound.requiredAmountMg ?? 0,
       synthesisStep: expansionPaths.map((path) => path.map(String)),
@@ -3141,7 +3141,7 @@ const MyBoardSynthesisBoard: React.FC = () => {
       )
     },
     '출처': { title: '출처', dataIndex: 'designSource', key: 'designSource', width: 64 },
-    '디자인 비고': { title: '디자인 비고', dataIndex: 'designMemo', key: 'designMemo', width: 220, render: renderDesignMemoPreview },
+    '아이디어 비고': { title: '아이디어 비고', dataIndex: 'ideaMemo', key: 'ideaMemo', width: 220, render: renderDesignMemoPreview },
     'MolProp1': {
       title: 'MolProp1',
       dataIndex: 'properties1',
@@ -3156,7 +3156,7 @@ const MyBoardSynthesisBoard: React.FC = () => {
       width: 96,
       render: (props: number[]) => props ? <RadarChart data={props} size={56} color="#5856d6" /> : '-'
     },
-    '디자인 번호': { title: '디자인 번호', dataIndex: 'designNo', key: 'designNo', width: 112 },
+    '아이디어 번호': { title: '아이디어 번호', dataIndex: 'ideaNumber', key: 'ideaNumber', width: 112 },
     '필요량 (mg)': { title: '필요량 (mg)', dataIndex: 'requiredAmountMg', key: 'requiredAmountMg', width: 104, align: 'right' as const },
     '목적 (개선하고자 하는 assay)': { title: '목적 (개선하고자 하는 assay)', dataIndex: 'assayPurpose', key: 'assayPurpose', width: 260, render: renderMultilineText },
     '기대 개선 효과': { title: '기대 개선 효과', dataIndex: 'expectedEffect', key: 'expectedEffect', width: 180, render: renderDesignMemoPreview },
@@ -4476,7 +4476,7 @@ const MyBoardSynthesisBoard: React.FC = () => {
             </div>
             <div>
               <Text type="secondary" style={{ fontSize: 11 }}>Selected Compound</Text><br />
-              <Text strong>{selectedSynthesisItem?.compoundId || selectedSynthesisItem?.designNo || '-'} ({selectedSynthesisItem?.name})</Text>
+              <Text strong>{selectedSynthesisItem?.compoundId || selectedSynthesisItem?.ideaNumber || '-'} ({selectedSynthesisItem?.name})</Text>
             </div>
           </div>
           <Text strong>연구원 선택</Text>
@@ -4530,7 +4530,7 @@ const MyBoardSynthesisBoard: React.FC = () => {
                     svg={synthesisRequestTarget.structureSvg}
                     rdkitSvg={synthesisRequestTarget.rdkitSvg}
                     rdkitSvgCache={synthesisRequestTarget.rdkitSvgCache}
-                    title={synthesisRequestTarget.designNo || synthesisRequestTarget.name || 'Structure'}
+                    title={synthesisRequestTarget.ideaNumber || synthesisRequestTarget.name || 'Structure'}
                     smiles={synthesisRequestTarget.smiles}
                     molBlock={synthesisRequestTarget.molBlock ?? synthesisRequestTarget.mol_block ?? synthesisRequestTarget.molblock}
                     cdxml={synthesisRequestTarget.draw}
@@ -4556,11 +4556,11 @@ const MyBoardSynthesisBoard: React.FC = () => {
                 <Input disabled value={synthesisRequestTargetGroup?.target || synthesisRequestTarget?.project || '-'} />
               </Form.Item>
               <Form.Item label="아이디어 번호" className="synthesis-request-inline-item">
-                <Input disabled value={synthesisRequestTarget?.designNo || synthesisRequestTarget?.name || '-'} />
+                <Input disabled value={synthesisRequestTarget?.ideaNumber || synthesisRequestTarget?.name || '-'} />
               </Form.Item>
-              <Form.Item label="디자인 비고" className="synthesis-request-inline-item synthesis-request-design-memo-item">
+              <Form.Item label="아이디어 비고" className="synthesis-request-inline-item synthesis-request-design-memo-item">
                 <div className="synthesis-request-design-memo-preview">
-                  {renderDesignMemoPreview(synthesisRequestTarget?.designMemo)}
+                  {renderDesignMemoPreview(synthesisRequestTarget?.ideaMemo)}
                 </div>
               </Form.Item>
             </div>
@@ -4893,8 +4893,8 @@ const MyBoardSynthesisBoard: React.FC = () => {
 
             <Col span={24}>
               <Form.Item
-                name="designMemo"
-                label="디자인 비고"
+                name="ideaMemo"
+                label="아이디어 비고"
                 className="idea-inline-form-item"
                 getValueFromEvent={(value) => (typeof value === 'string' ? value : '')}
               >

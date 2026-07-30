@@ -27,7 +27,6 @@ type PatentQuickViewerPanelProps = {
   error: string | null;
   canDownloadPdf: boolean;
   downloadingPdf: boolean;
-  fullscreen: boolean;
   onRetry: () => void;
   onClose: () => void;
   onOpenAnalysis: () => void;
@@ -61,7 +60,7 @@ const PatentStructureSection: React.FC<{
           svg={svg}
           title={`${publicationNumber} ${label}`}
           width="100%"
-          height={240}
+          height={300}
           fullWidth
           transparentBackground
           frameless
@@ -83,10 +82,40 @@ const PatentStructureSection: React.FC<{
 
 const PatentQuickViewerBody: React.FC<{
   data: PatentQuickViewData;
-}> = ({ data }) => (
+  canDownloadPdf: boolean;
+  downloadingPdf: boolean;
+  onDownloadPdf: () => void;
+}> = ({
+  data,
+  canDownloadPdf,
+  downloadingPdf,
+  onDownloadPdf,
+}) => (
   <>
     <section className="patent-quick-viewer-summary" aria-label="Patent summary">
-      <DetailRow label="Publication Number" value={data.publicationNumber} />
+      <div className="patent-quick-viewer-detail-row">
+        <Text type="secondary" className="patent-quick-viewer-detail-label">
+          Publication Number
+        </Text>
+        <div className="patent-quick-viewer-publication-value">
+          <Text className="patent-quick-viewer-detail-value">
+            {data.publicationNumber || '-'}
+          </Text>
+          <Tooltip title={canDownloadPdf ? undefined : '다운로드 가능한 OCR PDF가 없습니다.'}>
+            <span className="patent-quick-viewer-inline-download-wrap">
+              <Button
+                size="small"
+                icon={<Download size={13} />}
+                disabled={!canDownloadPdf}
+                loading={downloadingPdf}
+                onClick={onDownloadPdf}
+              >
+                OCR PDF
+              </Button>
+            </span>
+          </Tooltip>
+        </div>
+      </div>
       <DetailRow label="Publication Date" value={formatDisplayDate(data.publicationDate)} />
       <DetailRow label="Filing Date" value={formatDisplayDate(data.filingDate)} />
       <DetailRow label="Targets" value={data.targets} />
@@ -107,18 +136,18 @@ const PatentQuickViewerBody: React.FC<{
       )}
     </section>
 
-    <PatentStructureSection
-      label="Scaffold"
-      svg={data.scaffoldSvg}
-      publicationNumber={data.publicationNumber}
-    />
-
-    <PatentStructureSection
-      label="Genus Markush"
-      svg={data.genusMarkushSvg}
-      publicationNumber={data.publicationNumber}
-    />
-
+    <div className="patent-quick-viewer-structure-grid">
+      <PatentStructureSection
+        label="Genus Markush"
+        svg={data.genusMarkushSvg}
+        publicationNumber={data.publicationNumber}
+      />
+      <PatentStructureSection
+        label="Scaffold"
+        svg={data.scaffoldSvg}
+        publicationNumber={data.publicationNumber}
+      />
+    </div>
   </>
 );
 
@@ -129,23 +158,15 @@ const PatentQuickViewerPanel: React.FC<PatentQuickViewerPanelProps> = ({
   error,
   canDownloadPdf,
   downloadingPdf,
-  fullscreen,
   onRetry,
   onClose,
   onOpenAnalysis,
   onDownloadPdf,
 }) => {
-  const closeButtonWrapRef = React.useRef<HTMLSpanElement>(null);
   const data = React.useMemo(
     () => (patent ? mapPatentQuickViewData(patent, detail) : null),
     [detail, patent],
   );
-
-  React.useEffect(() => {
-    if (fullscreen && patent) {
-      closeButtonWrapRef.current?.querySelector<HTMLButtonElement>('button')?.focus();
-    }
-  }, [fullscreen, patent?.patentNumber]);
 
   return (
     <aside
@@ -160,7 +181,7 @@ const PatentQuickViewerPanel: React.FC<PatentQuickViewerPanelProps> = ({
             {data?.publicationNumber || '-'}
           </Text>
         </div>
-        <span ref={closeButtonWrapRef} className="patent-quick-viewer-close-wrap">
+        <span className="patent-quick-viewer-close-wrap">
           <Button
             type="text"
             size="small"
@@ -200,7 +221,12 @@ const PatentQuickViewerPanel: React.FC<PatentQuickViewerPanelProps> = ({
             <Skeleton.Node active className="patent-quick-viewer-structure-skeleton" />
           </div>
         ) : data ? (
-          <PatentQuickViewerBody data={data} />
+          <PatentQuickViewerBody
+            data={data}
+            canDownloadPdf={canDownloadPdf}
+            downloadingPdf={downloadingPdf}
+            onDownloadPdf={onDownloadPdf}
+          />
         ) : (
           <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="선택된 특허가 없습니다." />
         )}
@@ -215,18 +241,6 @@ const PatentQuickViewerPanel: React.FC<PatentQuickViewerPanelProps> = ({
         >
           분석 페이지로 이동
         </Button>
-        <Tooltip title={canDownloadPdf ? undefined : '다운로드 가능한 OCR PDF가 없습니다.'}>
-          <span className="patent-quick-viewer-download-wrap">
-            <Button
-              icon={<Download size={16} />}
-              disabled={!patent || !canDownloadPdf}
-              loading={downloadingPdf}
-              onClick={onDownloadPdf}
-            >
-              OCR PDF 다운로드
-            </Button>
-          </span>
-        </Tooltip>
       </footer>
     </aside>
   );

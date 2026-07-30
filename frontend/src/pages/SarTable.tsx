@@ -1531,10 +1531,10 @@ const SarTable: React.FC = () => {
     );
   };
 
-  const getSarDisplayCode = React.useCallback((record: Pick<SarTableRow, 'compoundId' | 'designNo' | 'sarApiRow'>) => {
+  const getSarDisplayCode = React.useCallback((record: Pick<SarTableRow, 'compoundId' | 'ideaNumber' | 'sarApiRow'>) => {
     const apiCode = getFirstSarApiValue(record as SarTableRow, ['compound_code']);
     const hasVnaCode = Boolean(apiCode ?? record.compoundId);
-    const displayCode = apiCode ?? (record.compoundId || record.designNo || '-');
+    const displayCode = apiCode ?? (record.compoundId || record.ideaNumber || '-');
 
     return {
       displayCode: String(displayCode),
@@ -4207,12 +4207,19 @@ const SarTable: React.FC = () => {
         }
         .sar-compound-setting-label {
           min-width: 42px;
-          color: ${token.colorTextSecondary};
-          font-size: 10px;
+          color: ${token.colorText};
+          font-size: 11px;
           font-weight: 700;
           line-height: 18px;
+          letter-spacing: 0.02em;
           text-align: left;
           user-select: none;
+        }
+        .sar-rdkit-control-label {
+          min-width: auto;
+          margin-right: 2px;
+          padding: 0 10px 0 4px;
+          border-inline-end: 1px solid ${token.colorBorder};
         }
         .sar-compound-setting-row .ant-btn {
           width: 24px;

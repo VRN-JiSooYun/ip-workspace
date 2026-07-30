@@ -72,6 +72,8 @@ export interface DataCardItemProps {
   isActive?: boolean;
   /** 평상시 카드 테두리를 제거하고 선택 시에만 테두리와 음영 표시 */
   selectionOnlyBorder?: boolean;
+  /** 선택 표시 방식 */
+  selectionVariant?: 'default' | 'sarHeader';
   /** 카드 클릭 콜백 */
   onClick?: () => void;
   /** 카드 크기 (Ant Design CardSize와 동일) */
@@ -111,6 +113,7 @@ const DataCardItem: React.FC<DataCardItemProps> = ({
   pagination,
   isActive = false,
   selectionOnlyBorder = false,
+  selectionVariant = 'default',
   onClick,
   size = 'small',
   hoverable = true,
@@ -120,6 +123,7 @@ const DataCardItem: React.FC<DataCardItemProps> = ({
   const imageClickHandler = onImageClick ?? onClick;
   const structureActionSize = size === 'small' ? 12 : 14;
   const structureHeight = squareImage ? '100%' : imageHeight;
+  const usesSarHeaderSelection = selectionVariant === 'sarHeader';
 
   // SVG 렌더링 컴포넌트
   const renderImage = () => {
@@ -197,15 +201,22 @@ const DataCardItem: React.FC<DataCardItemProps> = ({
     <Card
       size={size}
       hoverable={hoverable}
+      className={`patent-data-card-item${usesSarHeaderSelection ? ' patent-data-card-item-sar-header' : ''}${isActive ? ' is-active' : ''}`}
       style={{
         height: '100%',
         cursor: onClick ? 'pointer' : 'default',
-        border: isActive
-          ? `2px solid ${token.colorPrimary}`
-          : selectionOnlyBorder
-            ? '2px solid transparent'
+        border: usesSarHeaderSelection
+          ? undefined
+          : isActive
+            ? `2px solid ${token.colorPrimary}`
+            : selectionOnlyBorder
+              ? '2px solid transparent'
+              : undefined,
+        background: usesSarHeaderSelection
+          ? undefined
+          : isActive && selectionOnlyBorder
+            ? token.colorPrimaryBg
             : undefined,
-        background: isActive && selectionOnlyBorder ? token.colorPrimaryBg : undefined,
         borderRadius: 12,
       }}
       onClick={onClick}

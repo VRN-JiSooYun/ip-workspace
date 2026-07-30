@@ -22,6 +22,7 @@ import {
 } from 'antd';
 import { 
   Plus, 
+  ArrowLeft,
   ChevronLeft,
   Dna,
   Beaker,
@@ -53,6 +54,7 @@ import PatentAnalysisDataFilter, {
 import ScaffoldRankBadge, {
   normalizeScaffoldRank,
 } from '../components/patent-analysis/ScaffoldRankBadge';
+import PatentScaffoldFilterControls from '../components/patent-analysis/PatentScaffoldFilterControls';
 import ChemDrawModal from '../components/common/ChemDrawModal';
 import BenzeneIcon from '../components/common/BenzeneIcon';
 import CompoundStructureView from '../components/common/CompoundStructureView';
@@ -662,7 +664,6 @@ const PatentAnalysisDetail: React.FC = () => {
   const [cleanSearchRevision, setCleanSearchRevision] = React.useState(0);
   const [cleanDataRequestOpen, setCleanDataRequestOpen] = React.useState(false);
   const [cleanDataRequestLoading, setCleanDataRequestLoading] = React.useState(false);
-  const [selectedSummaryScaffoldRank, setSelectedSummaryScaffoldRank] = React.useState<number | null>(null);
   const [rawScaffoldRankFilter, setRawScaffoldRankFilter] = React.useState<'all' | number>('all');
   const [cleanScaffoldRankFilter, setCleanScaffoldRankFilter] = React.useState<'all' | number>('all');
   const [rawShowFunctionalGroupColumns, setRawShowFunctionalGroupColumns] = React.useState(true);
@@ -800,19 +801,6 @@ const PatentAnalysisDetail: React.FC = () => {
     () => findCompoundHighlightTarget(patentResult, requestedCompoundId),
     [patentResult, requestedCompoundId],
   );
-
-  React.useEffect(() => {
-    const availableRanks = summaryAnalysis?.scaffoldRanks
-      .map((rankData) => normalizeScaffoldRank(rankData.rank))
-      .filter((rank): rank is number => rank !== null) ?? [];
-    if (availableRanks.length === 0) {
-      setSelectedSummaryScaffoldRank(null);
-      return;
-    }
-    setSelectedSummaryScaffoldRank((current) => (
-      current !== null && availableRanks.includes(current) ? current : availableRanks[0]
-    ));
-  }, [summaryAnalysis]);
 
   React.useEffect(() => {
     if (rawScaffoldRankFilter !== 'all' && !rawScaffoldRanks.includes(rawScaffoldRankFilter)) {
@@ -1466,35 +1454,63 @@ const PatentAnalysisDetail: React.FC = () => {
     }
   }, [displayedPatent?.patentNumber, isFavoritePatent, isSavingFavoritePatent, message]);
 
+  const handleClosePage = React.useCallback(() => {
+    window.close();
+    window.setTimeout(() => {
+      if (!window.closed) {
+        navigate('/patents/analysis');
+      }
+    }, 150);
+  }, [navigate]);
+
   useEffect(() => {
     if (displayedPatent) {
       setHeaderContent(
-        <PageHeaderBreadcrumb
-          items={[
-            { label: 'Documents' },
-            { label: 'Patents' },
-            { label: 'My 특허 분석', onClick: () => navigate('/patents/analysis') },
-            {
-              label: (
-                <>
-                  <span>{displayedPatent.patentNumber}</span>
-                  <span style={{ color: token.colorTextSecondary, fontWeight: 400 }}>
-                    {' | '}
-                    {formatDisplayDate(displayedPatent.publicationDate)}
-                    {' | '}
-                    {displayedPatent.applicant}
-                    {' | '}
-                    {displayedPatent.title}
-                  </span>
-                </>
-              ),
-            },
-          ]}
-        />
+        <div style={{ width: '100%', minWidth: 0, display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{ minWidth: 0, flex: '0 1 auto', overflow: 'hidden' }}>
+            <PageHeaderBreadcrumb
+              items={[
+                { label: 'Documents' },
+                { label: 'Patents' },
+                { label: 'My 특허 분석', onClick: () => navigate('/patents/analysis') },
+                {
+                  label: (
+                    <>
+                      <span>{displayedPatent.patentNumber}</span>
+                      <span style={{ color: token.colorTextSecondary, fontWeight: 400 }}>
+                        {' | '}
+                        {formatDisplayDate(displayedPatent.publicationDate)}
+                        {' | '}
+                        {displayedPatent.applicant}
+                        {' | '}
+                        {displayedPatent.title}
+                      </span>
+                    </>
+                  ),
+                },
+              ]}
+            />
+          </div>
+          <Button
+            type="primary"
+            icon={<ArrowLeft size={18} />}
+            className="v-action-btn"
+            style={{
+              flex: '0 0 auto',
+              background: token.colorPrimary,
+              borderColor: token.colorPrimary,
+              color: token.colorBgContainer,
+              minWidth: 117,
+            }}
+            onClick={handleClosePage}
+          >
+            돌아가기
+          </Button>
+        </div>
       );
     }
     return () => setHeaderContent(null);
-  }, [displayedPatent, setHeaderContent, navigate, token.colorTextSecondary]);
+  }, [displayedPatent, handleClosePage, setHeaderContent, navigate, token.colorTextSecondary]);
 
   if (!displayedPatent) {
     return (
@@ -2202,7 +2218,7 @@ const PatentAnalysisDetail: React.FC = () => {
                         
                         <Row gutter={[16, 16]}>
                           <Col span={24}>
-                            <Card size="small" title="추천 key compound (빈도수/중요도 기반)">
+                            <Card size="small" title="추천 key compounds (빈도수 기반)">
                               {recommendedKeyCompounds.length > 0 ? (
                                 <div
                                   style={{
@@ -2248,6 +2264,7 @@ const PatentAnalysisDetail: React.FC = () => {
                                           imageBorderless
                                           isActive={activeCompId === compKey}
                                           selectionOnlyBorder
+                                          selectionVariant="sarHeader"
                                           onClick={() => handleCompoundCardClick(comp, comp.ranking)}
                                           onPreview={() => openSvgPreview(comp.compound_svg, `추천 key compound - ${comp.compound_id}`, {
                                             smiles: comp.smiles,
@@ -2278,7 +2295,7 @@ const PatentAnalysisDetail: React.FC = () => {
                                 isLoadingPatentDetail ? (
                                   <PatentDetailLoadingState />
                                 ) : shouldShowPatentDetailEmpty ? (
-                                  <Empty description="추천 key compound 데이터가 없습니다." />
+                                  <Empty description="추천 key compounds 데이터가 없습니다." />
                                 ) : null
                               )}
                             </Card>
@@ -2292,7 +2309,7 @@ const PatentAnalysisDetail: React.FC = () => {
                                 className="patent-summary-card patent-summary-scaffold-ranking-card"
                               >
                                 <div className="patent-summary-scaffold-scroll">
-                                  <div className="patent-summary-scaffold-item patent-summary-scaffold-tile">
+                                  <div className="patent-summary-scaffold-item patent-summary-scaffold-tile patent-summary-parent-scaffold">
                                     <div className="patent-summary-scaffold-tile-header">
                                       <Text strong>Parent scaffold</Text>
                                     </div>
@@ -2306,24 +2323,10 @@ const PatentAnalysisDetail: React.FC = () => {
                                     </div>
                                   </div>
                                   {summaryAnalysis.scaffoldRanks.map((rankData) => {
-                                    const normalizedRank = normalizeScaffoldRank(rankData.rank);
-                                    const isSelected = normalizedRank !== null
-                                      && selectedSummaryScaffoldRank === normalizedRank;
                                     return (
                                       <div
-                                        role="button"
-                                        tabIndex={0}
-                                        className={`patent-summary-scaffold-item patent-summary-scaffold-tile patent-summary-scaffold-selectable${isSelected ? ' is-active' : ''}`}
+                                        className="patent-summary-scaffold-item patent-summary-scaffold-tile patent-summary-scaffold-rank-tile"
                                         key={rankData.rank}
-                                        onClick={() => {
-                                          if (normalizedRank !== null) setSelectedSummaryScaffoldRank(normalizedRank);
-                                        }}
-                                        onKeyDown={(event) => {
-                                          if (event.key !== 'Enter' && event.key !== ' ') return;
-                                          event.preventDefault();
-                                          if (normalizedRank !== null) setSelectedSummaryScaffoldRank(normalizedRank);
-                                        }}
-                                        aria-pressed={isSelected}
                                       >
                                         <div className="patent-summary-scaffold-tile-header">
                                           <span className="patent-summary-rank-label">
@@ -2347,12 +2350,6 @@ const PatentAnalysisDetail: React.FC = () => {
                                 <section className="patent-functional-group-section">
                                   <div className="patent-functional-group-title">
                                     <Title level={5} style={{ margin: 0 }}>Functional group analysis</Title>
-                                    {selectedSummaryScaffoldRank !== null && (
-                                      <span className="patent-summary-rank-label">
-                                        <Text strong>Rank</Text>
-                                        <ScaffoldRankBadge rank={selectedSummaryScaffoldRank} />
-                                      </span>
-                                    )}
                                   </div>
                                   <div className="patent-functional-group-list">
                                     {summaryAnalysis.rGroups.map((group) => (
@@ -2429,7 +2426,31 @@ const PatentAnalysisDetail: React.FC = () => {
                         }}
                       >
                         <div className="patent-analysis-tab-heading-row" style={{ justifyContent: 'space-between' }}>
-                          <Title level={5} style={{ margin: 0 }}>Embodiment 화합물 목록</Title>
+                          <div className="patent-data-heading-controls">
+                            <Title level={5} style={{ margin: 0 }}>Embodiment 화합물 목록</Title>
+                            <PatentScaffoldFilterControls
+                              ranks={rawScaffoldRanks}
+                              value={rawScaffoldRankFilter}
+                              onChange={(value) => {
+                                setRawScaffoldRankFilter(value);
+                                setRawDataFilter((current) => ({
+                                  ...current,
+                                  scaffoldRanking: value === 'all' ? undefined : value,
+                                }));
+                              }}
+                            />
+                            {rawDataView === 'table' && (
+                              <Button
+                                size="small"
+                                type={rawShowFunctionalGroupColumns ? 'primary' : 'default'}
+                                className={`patent-functional-group-toggle${rawShowFunctionalGroupColumns ? ' is-active' : ''}`}
+                                onClick={() => setRawShowFunctionalGroupColumns((current) => !current)}
+                                aria-pressed={rawShowFunctionalGroupColumns}
+                              >
+                                작용기 {rawShowFunctionalGroupColumns ? 'On' : 'Off'}
+                              </Button>
+                            )}
+                          </div>
                           <Space>
                             <div
                               className="patent-analysis-view-toggle"
@@ -2474,16 +2495,6 @@ const PatentAnalysisDetail: React.FC = () => {
                                 Filter
                               </Button>
                             </Badge>
-                            {rawDataView === 'table' && (
-                              <Button
-                                size="small"
-                                type={rawShowFunctionalGroupColumns ? 'primary' : 'default'}
-                                onClick={() => setRawShowFunctionalGroupColumns((current) => !current)}
-                                aria-pressed={rawShowFunctionalGroupColumns}
-                              >
-                                작용기 {rawShowFunctionalGroupColumns ? 'On' : 'Off'}
-                              </Button>
-                            )}
                             <Tooltip
                               title={rawAppliedFilterCount > 0
                                 ? '현재 Filter와 관계없이 전체 Raw data를 다운로드합니다.'
@@ -2501,35 +2512,6 @@ const PatentAnalysisDetail: React.FC = () => {
                               </Button>
                             </Tooltip>
                           </Space>
-                        </div>
-                        <div className="patent-scaffold-filter-bar">
-                          <Text strong style={{ fontSize: 12 }}>Scaffold</Text>
-                          <Button
-                            size="small"
-                            type={rawScaffoldRankFilter === 'all' ? 'primary' : 'default'}
-                            onClick={() => {
-                              setRawScaffoldRankFilter('all');
-                              setRawDataFilter((current) => ({
-                                ...current,
-                                scaffoldRanking: undefined,
-                              }));
-                            }}
-                          >
-                            All
-                          </Button>
-                          {rawScaffoldRanks.map((rank) => (
-                            <Button
-                              key={rank}
-                              size="small"
-                              type={rawScaffoldRankFilter === rank ? 'primary' : 'default'}
-                              icon={<ScaffoldRankBadge rank={rank} size="small" />}
-                              onClick={() => {
-                                setRawScaffoldRankFilter(rank);
-                                setRawDataFilter((current) => ({ ...current, scaffoldRanking: rank }));
-                              }}
-                              aria-label={`Scaffold rank ${rank}`}
-                            />
-                          ))}
                         </div>
                         {rGroupFilter && (
                           <div style={{ marginBottom: 12, padding: '8px 12px', background: token.colorPrimaryBg, borderRadius: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -2662,7 +2644,7 @@ const PatentAnalysisDetail: React.FC = () => {
                                   const bboxArr: any[] = Array.isArray(record.bbox) ? record.bbox : [];
                                   const curIdx = pageIndices[compKey] ?? 0;
                                   return (
-                                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+                                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
                                       <div
                                         className="raw-data-svg-frame"
                                         style={{ width: PATENT_DATA_STRUCTURE_SIZE, height: PATENT_DATA_STRUCTURE_SIZE, background: 'transparent', border: 0, borderRadius: 8, position: 'relative', cursor: 'pointer', overflow: 'hidden', boxSizing: 'border-box', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
@@ -2862,7 +2844,31 @@ const PatentAnalysisDetail: React.FC = () => {
                         }}
                       >
                         <div className="patent-analysis-tab-heading-row" style={{ justifyContent: 'space-between' }}>
-                          <Title level={5} style={{ margin: 0 }}>Clean data 화합물 목록</Title>
+                          <div className="patent-data-heading-controls">
+                            <Title level={5} style={{ margin: 0 }}>Clean data 화합물 목록</Title>
+                            <PatentScaffoldFilterControls
+                              ranks={cleanScaffoldRanks}
+                              value={cleanScaffoldRankFilter}
+                              onChange={(value) => {
+                                setCleanScaffoldRankFilter(value);
+                                setCleanDataFilter((current) => ({
+                                  ...current,
+                                  scaffoldRanking: value === 'all' ? undefined : value,
+                                }));
+                              }}
+                            />
+                            {cleanDataView === 'table' && (
+                              <Button
+                                size="small"
+                                type={cleanShowFunctionalGroupColumns ? 'primary' : 'default'}
+                                className={`patent-functional-group-toggle${cleanShowFunctionalGroupColumns ? ' is-active' : ''}`}
+                                onClick={() => setCleanShowFunctionalGroupColumns((current) => !current)}
+                                aria-pressed={cleanShowFunctionalGroupColumns}
+                              >
+                                작용기 {cleanShowFunctionalGroupColumns ? 'On' : 'Off'}
+                              </Button>
+                            )}
+                          </div>
                           <Space>
                             <div
                               className="patent-analysis-view-toggle"
@@ -2907,16 +2913,6 @@ const PatentAnalysisDetail: React.FC = () => {
                                 Filter
                               </Button>
                             </Badge>
-                            {cleanDataView === 'table' && (
-                              <Button
-                                size="small"
-                                type={cleanShowFunctionalGroupColumns ? 'primary' : 'default'}
-                                onClick={() => setCleanShowFunctionalGroupColumns((current) => !current)}
-                                aria-pressed={cleanShowFunctionalGroupColumns}
-                              >
-                                작용기 {cleanShowFunctionalGroupColumns ? 'On' : 'Off'}
-                              </Button>
-                            )}
                             <Tooltip
                               title={cleanAppliedFilterCount > 0
                                 ? '현재 Filter와 관계없이 전체 Clean data를 다운로드합니다.'
@@ -2943,38 +2939,6 @@ const PatentAnalysisDetail: React.FC = () => {
                               Clean data 요청
                             </Button>
                           </Space>
-                        </div>
-                        <div className="patent-scaffold-filter-bar">
-                          <Text strong style={{ fontSize: 12 }}>Scaffold</Text>
-                          <Button
-                            size="small"
-                            type={cleanScaffoldRankFilter === 'all' ? 'primary' : 'default'}
-                            onClick={() => {
-                              setCleanScaffoldRankFilter('all');
-                              setCleanDataFilter((current) => ({
-                                ...current,
-                                scaffoldRanking: undefined,
-                              }));
-                            }}
-                          >
-                            All
-                          </Button>
-                          {cleanScaffoldRanks.map((rank) => (
-                            <Button
-                              key={rank}
-                              size="small"
-                              type={cleanScaffoldRankFilter === rank ? 'primary' : 'default'}
-                              icon={<ScaffoldRankBadge rank={rank} size="small" />}
-                              onClick={() => {
-                                setCleanScaffoldRankFilter(rank);
-                                setCleanDataFilter((current) => ({
-                                  ...current,
-                                  scaffoldRanking: rank,
-                                }));
-                              }}
-                              aria-label={`Scaffold rank ${rank}`}
-                            />
-                          ))}
                         </div>
                         {cleanSearchState.error && (
                           <Alert
@@ -3119,7 +3083,7 @@ const PatentAnalysisDetail: React.FC = () => {
                                   const bboxArr: any[] = Array.isArray(record.bbox) ? record.bbox : [];
                                   const curIdx = pageIndices[compKey] ?? 0;
                                   return (
-                                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+                                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
                                       <div
                                         className="raw-data-svg-frame"
                                         style={{ width: PATENT_DATA_STRUCTURE_SIZE, height: PATENT_DATA_STRUCTURE_SIZE, background: 'transparent', border: 0, borderRadius: 8, position: 'relative', cursor: 'pointer', overflow: 'hidden', boxSizing: 'border-box', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
@@ -3597,27 +3561,162 @@ const PatentAnalysisDetail: React.FC = () => {
           margin-bottom: 16px;
           display: flex;
           align-items: center;
+          flex-wrap: wrap;
+          gap: 10px 16px;
         }
-        .patent-scaffold-filter-bar {
-          min-height: 32px;
-          margin-bottom: 12px;
+        .patent-data-heading-controls {
           display: flex;
           align-items: center;
           flex-wrap: wrap;
-          gap: 6px;
+          gap: 8px;
         }
-        .patent-scaffold-filter-bar .ant-btn {
+        .patent-scaffold-filter-controls {
+          margin-left: 8px;
+          display: inline-flex;
+          align-items: center;
+          flex-wrap: nowrap;
+          height: 28px;
+          padding: 3px 6px;
+          border: 1px solid ${token.colorBorderSecondary};
+          border-radius: 6px;
+          background: ${token.colorBgLayout};
+          box-sizing: border-box;
+        }
+        .patent-scaffold-filter-controls > .ant-space-item {
+          height: 100%;
           display: inline-flex;
           align-items: center;
           justify-content: center;
         }
+        .patent-scaffold-filter-label.ant-typography {
+          margin-right: 15px;
+          margin-bottom: 0;
+          min-width: auto;
+          height: 100%;
+          display: inline-flex;
+          align-items: center;
+          color: ${token.colorText};
+          font-size: 11px;
+          font-weight: 700;
+          line-height: 1;
+          letter-spacing: 0.02em;
+          white-space: nowrap;
+          user-select: none;
+        }
+        .patent-scaffold-all-button,
+        .patent-functional-group-toggle {
+          height: 26px;
+          min-height: 26px;
+          padding: 0 9px;
+          border-radius: 999px;
+          font-size: 11px;
+          font-weight: 700;
+          line-height: 24px;
+          box-shadow: none;
+        }
+        .patent-scaffold-all-button {
+          min-width: 42px;
+        }
+        .patent-scaffold-filter-controls .patent-scaffold-all-button {
+          height: 22px;
+          min-height: 22px;
+          padding-inline: 8px;
+          font-size: 11px;
+          line-height: 20px;
+        }
+        .patent-scaffold-all-button.ant-btn-primary,
+        .patent-scaffold-all-button.ant-btn-primary:hover,
+        .patent-scaffold-all-button.ant-btn-primary:focus-visible {
+          background: ${token.colorInfo} !important;
+          border-color: ${token.colorInfo} !important;
+          color: #FFFFFF !important;
+        }
+        .patent-functional-group-toggle {
+          min-width: 76px;
+        }
+        .patent-scaffold-all-button:not(.ant-btn-primary),
+        .patent-functional-group-toggle:not(.is-active) {
+          background: ${token.colorBgContainer};
+          border-color: ${token.colorBorder};
+          color: ${token.colorTextSecondary};
+        }
+        .patent-scaffold-rank-button {
+          width: 18px;
+          min-width: 18px;
+          height: 18px;
+          margin: 0;
+          padding: 0;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          align-self: center;
+          appearance: none;
+          -webkit-appearance: none;
+          border: 0;
+          border-radius: 50%;
+          box-shadow: none;
+          box-sizing: border-box;
+          font: inherit;
+          font-size: 9px;
+          font-weight: 700;
+          line-height: 18px;
+          text-align: center;
+          vertical-align: middle;
+          cursor: pointer;
+          transition: background-color 0.16s ease, color 0.16s ease, transform 0.16s ease;
+        }
+        .patent-scaffold-rank-button:hover {
+          transform: translateY(-1px);
+        }
+        .patent-scaffold-rank-button:focus-visible {
+          outline: 2px solid ${token.colorPrimary};
+          outline-offset: 2px;
+        }
         .patent-key-compound-header {
           min-height: 24px;
           margin-bottom: 8px;
+          padding: 6px 8px;
           display: flex;
           align-items: center;
           justify-content: space-between;
           gap: 8px;
+          border-radius: 8px 8px 4px 4px;
+          transition: background-color 0.16s ease;
+        }
+        .patent-summary-tab-content .patent-data-card-item-sar-header {
+          position: relative;
+          border-color: transparent !important;
+          box-shadow: none !important;
+          transform: none !important;
+        }
+        .patent-summary-tab-content .patent-data-card-item-sar-header::after {
+          content: '';
+          position: absolute;
+          inset: 1px;
+          z-index: 10;
+          pointer-events: none;
+          border: 1px solid transparent;
+          border-radius: inherit;
+          box-sizing: border-box;
+        }
+        .patent-summary-tab-content .patent-data-card-item-sar-header:hover {
+          border-color: transparent !important;
+          box-shadow: none !important;
+          transform: none !important;
+        }
+        .patent-summary-tab-content .patent-data-card-item-sar-header:hover::after {
+          border-color: ${token.colorBorder};
+        }
+        .patent-summary-tab-content .patent-data-card-item-sar-header:hover .patent-key-compound-header {
+          background: ${token.colorFillTertiary};
+        }
+        .patent-summary-tab-content .patent-data-card-item-sar-header.is-active::after,
+        .patent-summary-tab-content .patent-data-card-item-sar-header.is-active:hover::after {
+          border-color: ${token.colorPrimary};
+        }
+        .patent-summary-tab-content .patent-data-card-item-sar-header.is-active .patent-key-compound-header,
+        .patent-summary-tab-content .patent-data-card-item-sar-header.is-active:hover .patent-key-compound-header {
+          background: ${token.colorPrimaryBg};
         }
         .patent-analysis-fixed-card-list {
           min-width: 0;
@@ -3725,25 +3824,15 @@ const PatentAnalysisDetail: React.FC = () => {
           flex-direction: column;
           gap: 8px;
           padding: 10px;
-          border: 2px solid transparent;
+          border: 1px solid transparent;
           border-radius: 12px;
           background: transparent;
           color: inherit;
           text-align: left;
           box-sizing: border-box;
         }
-        .patent-summary-tab-content .patent-summary-scaffold-selectable {
-          appearance: none;
-          font: inherit;
-          cursor: pointer;
-          transition: border-color 0.2s ease, background-color 0.2s ease;
-        }
-        .patent-summary-tab-content .patent-summary-scaffold-selectable:hover {
-          background: ${token.colorFillTertiary};
-        }
-        .patent-summary-tab-content .patent-summary-scaffold-selectable.is-active {
-          border-color: ${token.colorPrimary};
-          background: ${token.colorPrimaryBg};
+        .patent-summary-tab-content .patent-summary-parent-scaffold {
+          border-color: ${token.colorBorderSecondary};
         }
         .patent-summary-tab-content .patent-summary-scaffold-tile-header {
           min-height: 28px;
@@ -3891,12 +3980,12 @@ const PatentAnalysisDetail: React.FC = () => {
           max-height: 100% !important;
         }
         .raw-data-tab-content .raw-data-embodiment-table .raw-data-scaffold-column {
-          padding: 8px 8px !important;
+          padding: 3px 6px !important;
           text-align: center !important;
           vertical-align: middle !important;
         }
         .raw-data-tab-content .raw-data-embodiment-table .raw-data-rgroup-column {
-          padding: 6px 6px !important;
+          padding: 3px 6px !important;
           text-align: center !important;
           vertical-align: middle !important;
         }
@@ -3941,7 +4030,7 @@ const PatentAnalysisDetail: React.FC = () => {
         }
         .raw-data-tab-content .raw-data-embodiment-table .ant-table-tbody > tr > td {
           vertical-align: middle;
-          padding: 14px 12px;
+          padding: 3px 8px;
           transition: background-color 0.2s ease;
         }
         .raw-data-tab-content .raw-data-embodiment-table .ant-table-tbody > tr > td:not(.ant-table-cell-fix-left):not(.ant-table-cell-fix-left-last) {
