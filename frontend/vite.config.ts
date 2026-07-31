@@ -26,7 +26,7 @@ export default defineConfig({
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/compound-search-api/, ''),
       },
-      '/monitoring': {
+      '/monitoring/': {
         ...monitoringProxy,
         ws: true,
         rewrite: (path) => path.replace(/^\/monitoring/, ''),

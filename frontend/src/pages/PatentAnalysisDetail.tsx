@@ -1522,23 +1522,23 @@ const PatentAnalysisDetail: React.FC = () => {
   };
 
   const handlePageChange = (compId: string, direction: number, pages: any, bboxes?: any[]) => {
-    setActiveCompId(compId);
     const pageArray = Array.isArray(pages) ? pages : [pages];
     const bboxArray = Array.isArray(bboxes) ? bboxes : [];
-    
+
     if (pageArray.length === 0) return;
-    
+
     const currentIndex = pageIndices[compId] ?? 0;
-    let nextIndex = currentIndex + direction;
+    const isCurrentItemActive = activeCompId === compId;
+    let nextIndex = isCurrentItemActive ? currentIndex + direction : currentIndex;
     if (nextIndex < 0) nextIndex = pageArray.length - 1;
     if (nextIndex >= pageArray.length) nextIndex = 0;
-    
+
+    setActiveCompId(compId);
     setPageIndices(prev => ({ ...prev, [compId]: nextIndex }));
     handleGoToPdf(pageArray[nextIndex], bboxArray[nextIndex]);
   };
 
-  const handleCompoundCardClick = (comp: any, rank: number) => {
-    const compId = comp.id.toString();
+  const handleCompoundCardClick = (comp: any, rank: number, compId = comp.id.toString()) => {
     const pageArray = Array.isArray(comp.page) ? comp.page : [comp.page];
     const bboxArray = Array.isArray((comp as any).bbox) ? (comp as any).bbox : [];
     setActiveCompId(compId);
@@ -1645,7 +1645,8 @@ const PatentAnalysisDetail: React.FC = () => {
     if (pageArray.length === 0) return;
 
     const currentIndex = pageIndices[cardKey] ?? 0;
-    let nextIndex = currentIndex + direction;
+    const isCurrentItemActive = activeCompId === cardKey;
+    let nextIndex = isCurrentItemActive ? currentIndex + direction : currentIndex;
     if (nextIndex < 0) nextIndex = pageArray.length - 1;
     if (nextIndex >= pageArray.length) nextIndex = 0;
 
@@ -2228,7 +2229,7 @@ const PatentAnalysisDetail: React.FC = () => {
                                   }}
                                 >
                                   {recommendedKeyCompounds.map((comp: any, idx: number) => {
-                                    const compKey = String(comp.id);
+                                    const compKey = `summary-${comp.id}-${idx}`;
                                     const pageArr: number[] = Array.isArray(comp.page) ? comp.page : [];
                                     const bboxArr: any[] = Array.isArray(comp.bbox) ? comp.bbox : [];
                                     const curIdx = pageIndices[compKey] ?? 0;
@@ -2261,7 +2262,7 @@ const PatentAnalysisDetail: React.FC = () => {
                                           isActive={activeCompId === compKey}
                                           selectionOnlyBorder
                                           selectionVariant="sarHeader"
-                                          onClick={() => handleCompoundCardClick(comp, comp.ranking)}
+                                          onClick={() => handleCompoundCardClick(comp, comp.ranking, compKey)}
                                           onPreview={() => openSvgPreview(comp.compound_svg, `추천 key compound - ${comp.compound_id}`, {
                                             smiles: comp.smiles,
                                             molblock: comp.molblock,
@@ -2657,12 +2658,12 @@ const PatentAnalysisDetail: React.FC = () => {
                                       </div>
                                       <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                                         <Button size="small" type="text" icon={<ChevronLeft size={12} />}
-                                          onClick={(event) => { event.stopPropagation(); setActiveCompId(compKey); handlePageChange(compKey, -1, pageArr, bboxArr); }} />
+                                          onClick={(event) => { event.stopPropagation(); handlePageChange(compKey, -1, pageArr, bboxArr); }} />
                                         <Text style={{ fontSize: 10 }}>
                                           {curIdx + 1} / {pageArr.length}
                                         </Text>
                                         <Button size="small" type="text" style={{ transform: 'scaleX(-1)' }} icon={<ChevronLeft size={12} />}
-                                          onClick={(event) => { event.stopPropagation(); setActiveCompId(compKey); handlePageChange(compKey, 1, pageArr, bboxArr); }} />
+                                          onClick={(event) => { event.stopPropagation(); handlePageChange(compKey, 1, pageArr, bboxArr); }} />
                                       </div>
                                     </div>
                                   );
@@ -3096,12 +3097,12 @@ const PatentAnalysisDetail: React.FC = () => {
                                       </div>
                                       <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                                         <Button size="small" type="text" icon={<ChevronLeft size={12} />}
-                                          onClick={(event) => { event.stopPropagation(); setActiveCompId(compKey); handlePageChange(compKey, -1, pageArr, bboxArr); }} />
+                                          onClick={(event) => { event.stopPropagation(); handlePageChange(compKey, -1, pageArr, bboxArr); }} />
                                         <Text style={{ fontSize: 10 }}>
                                           {curIdx + 1} / {pageArr.length}
                                         </Text>
                                         <Button size="small" type="text" style={{ transform: 'scaleX(-1)' }} icon={<ChevronLeft size={12} />}
-                                          onClick={(event) => { event.stopPropagation(); setActiveCompId(compKey); handlePageChange(compKey, 1, pageArr, bboxArr); }} />
+                                          onClick={(event) => { event.stopPropagation(); handlePageChange(compKey, 1, pageArr, bboxArr); }} />
                                       </div>
                                     </div>
                                   );

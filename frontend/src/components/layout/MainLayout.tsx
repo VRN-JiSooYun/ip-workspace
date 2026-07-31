@@ -43,6 +43,16 @@ interface MiniMenuItem {
   activeKeys?: string[];
 }
 
+const getMenuAncestorKeys = (selectedKey: string): string[] => {
+  if (['patent-write', 'patent-analysis', 'patent-insight', 'patent-manage'].includes(selectedKey)) {
+    return ['documents', 'patents'];
+  }
+  if (selectedKey === 'paper-manage') return ['documents', 'papers'];
+  if (['compound-search', 'chem-space', 'clustering'].includes(selectedKey)) return ['compounds'];
+  if (selectedKey === 'reaction-predictor') return ['tools'];
+  return [];
+};
+
 import { useUIStore } from '../../store/useUIStore';
 
 const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
@@ -274,8 +284,20 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
     return 'dashboard';
   };
 
+  const selectedKey = getSelectedKey();
+  const [openMenuKeys, setOpenMenuKeys] = useState<string[]>(() => (
+    getMenuAncestorKeys(selectedKey)
+  ));
+
+  React.useEffect(() => {
+    const ancestorKeys = getMenuAncestorKeys(selectedKey);
+    if (ancestorKeys.length === 0) return;
+    setOpenMenuKeys((currentKeys) => (
+      Array.from(new Set([...currentKeys, ...ancestorKeys]))
+    ));
+  }, [location.pathname, selectedKey]);
+
   const isMiniItemSelected = (item: MiniMenuItem) => {
-    const selectedKey = getSelectedKey();
     return item.key === selectedKey || item.activeKeys?.includes(selectedKey) === true;
   };
 
@@ -436,7 +458,9 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
             <Menu
               mode="inline"
               inlineIndent={8}
-              selectedKeys={[getSelectedKey()]}
+              selectedKeys={[selectedKey]}
+              openKeys={openMenuKeys}
+              onOpenChange={(keys) => setOpenMenuKeys(keys)}
               style={{ background: 'transparent', borderRight: 0 }}
               items={[
               {
@@ -541,7 +565,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
             <Menu
               mode="inline"
               inlineIndent={8}
-              selectedKeys={[getSelectedKey()]}
+              selectedKeys={[selectedKey]}
               style={{ background: 'transparent', borderRight: 0 }}
               items={[
               ...workspaceAdminMenuItems.map((item) => ({
