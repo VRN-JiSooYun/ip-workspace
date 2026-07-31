@@ -281,7 +281,7 @@ export class ConferenceImportUploadService {
       )).length;
       const totalByteSize = files.reduce((sum, file) => sum + file.size, 0);
       const readyAt = new Date();
-      const readyBatch = await this.prisma.client.$transaction(async (tx) => {
+      await this.prisma.client.$transaction(async (tx) => {
         await tx.conferenceImportBatchFile.createMany({
           data: files.map((file) => ({
             batchId: batch.id,
@@ -305,17 +305,8 @@ export class ConferenceImportUploadService {
             )),
             readyAt,
           },
-          include: {
-            uploadedBy: {
-              select: { id: true, name: true, email: true },
-            },
-            files: {
-              orderBy: { logicalPath: 'asc' },
-            },
-          },
         });
       });
-      return this.batchResponse(readyBatch);
     } catch (error) {
       await rm(stagingDirectory, { recursive: true, force: true });
       await rm(finalDirectory, { recursive: true, force: true });
@@ -325,6 +316,18 @@ export class ConferenceImportUploadService {
       }).catch(() => undefined);
       throw error;
     }
+    const readyBatch = await this.prisma.client.conferenceImportBatch.findUniqueOrThrow({
+      where: { id: batch.id },
+      include: {
+        uploadedBy: {
+          select: { id: true, name: true, email: true },
+        },
+        files: {
+          orderBy: { logicalPath: 'asc' },
+        },
+      },
+    });
+    return this.batchResponse(readyBatch);
   }
 
   private async pathExists(path: string): Promise<boolean> {

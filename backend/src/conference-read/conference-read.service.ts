@@ -177,7 +177,7 @@ export class ConferenceReadService {
                 { id: 'asc' },
               ]
     );
-    const [items, total, facetConferences] = await this.prisma.client.$transaction([
+    const [items, total, facetConferences] = await Promise.all([
       this.prisma.client.conferenceAbstract.findMany({
         where,
         orderBy,
