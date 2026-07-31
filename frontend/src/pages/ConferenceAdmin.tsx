@@ -1423,6 +1423,10 @@ const ConferenceAdmin: React.FC = () => {
         className="v-table-card conference-admin-management-list"
         style={conferenceManagementTable.tableRegionStyle}
       >
+        <div className="v-table-header">
+          <Text strong>Conference 목록</Text>
+          <Text type="secondary">{formatNumberWithComma(conferenceTotal)} conferences</Text>
+        </div>
         <Table
           className="viewport-fill-table"
           rowKey="id"
@@ -1725,6 +1729,10 @@ const ConferenceAdmin: React.FC = () => {
         className="v-table-card conference-admin-management-list"
         style={abstractManagementTable.tableRegionStyle}
       >
+        <div className="v-table-header">
+          <Text strong>Abstract 목록</Text>
+          <Text type="secondary">{formatNumberWithComma(abstractTotal)} abstracts</Text>
+        </div>
         <Table
           className="viewport-fill-table"
           rowKey="id"
