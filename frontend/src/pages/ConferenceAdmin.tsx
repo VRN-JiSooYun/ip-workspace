@@ -1038,7 +1038,7 @@ const ConferenceAdmin: React.FC = () => {
       dataIndex: 'activeAbstractCount',
       width: 92,
       align: 'right',
-      render: formatNumberWithComma,
+      render: (value) => formatNumberWithComma(value),
     },
     {
       title: '수정일',
