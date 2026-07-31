@@ -818,6 +818,9 @@ const ConferenceList: React.FC = () => {
               pageSize,
               total,
               (nextPage, nextPageSize) => {
+                if (nextPageSize !== pageSize) {
+                  setItems([]);
+                }
                 setPage(nextPageSize === pageSize ? nextPage : 1);
                 setPageSize(nextPageSize);
               },

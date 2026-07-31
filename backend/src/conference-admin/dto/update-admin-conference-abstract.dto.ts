@@ -3,11 +3,20 @@ import {
   IsDateString,
   IsOptional,
   IsString,
+  IsUUID,
   MaxLength,
   MinLength,
 } from 'class-validator';
 
 export class UpdateAdminConferenceAbstractDto {
+  @IsOptional()
+  @IsUUID('4')
+  conferenceId?: string;
+
+  @IsOptional()
+  @IsDateString()
+  expectedUpdatedAt?: string;
+
   @IsOptional()
   @IsString()
   @MinLength(1)
@@ -76,7 +85,7 @@ export class UpdateAdminConferenceAbstractDto {
 
   @IsOptional()
   @IsDateString()
-  dateOpen?: string;
+  dateOpen?: string | null;
 
   @IsOptional()
   @IsString()

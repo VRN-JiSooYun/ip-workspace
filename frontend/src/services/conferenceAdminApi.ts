@@ -156,6 +156,74 @@ export interface AdminConferenceOption {
   dateEnd: string | null;
 }
 
+export interface AdminConferenceItem extends AdminConferenceOption {
+  sourceSystem: string;
+  sourceUrl: string | null;
+  activeAbstractCount: number;
+  createdAt: string;
+  updatedAt: string;
+  deletedAt: string | null;
+}
+
+export interface AdminConferenceAbstractItem {
+  id: string;
+  conferenceId: string;
+  title: string;
+  sourceSystem: string;
+  sourceUrl: string | null;
+  firstAuthorName: string | null;
+  firstAuthorOrganization: string | null;
+  authors: unknown;
+  meeting: string | null;
+  sessionType: string | null;
+  sessionTitle: string | null;
+  track: string | null;
+  subTrack: string | null;
+  abstractNumber: string | null;
+  posterNumber: string | null;
+  clinicalTrialRegistrationNumber: string | null;
+  dateOpen: string | null;
+  contents: unknown;
+  createdAt: string;
+  updatedAt: string;
+  deletedAt: string | null;
+  conference: {
+    id: string;
+    abbreviation: string;
+    year: number;
+    deletedAt: string | null;
+  };
+}
+
+export interface AdminPaginatedResponse<T> {
+  items: T[];
+  page: number;
+  pageSize: number;
+  total: number;
+  hasNext: boolean;
+}
+
+export interface AdminConferenceListParams {
+  q?: string;
+  year?: number;
+  status?: 'OPEN' | 'NOT_OPENED';
+  deleted?: 'active' | 'deleted';
+  sort?: 'yearDesc' | 'yearAsc' | 'updatedDesc';
+  page?: number;
+  pageSize?: number;
+}
+
+export interface AdminConferenceAbstractListParams {
+  conferenceId?: string;
+  q?: string;
+  dateFrom?: string;
+  dateTo?: string;
+  deleted?: 'active' | 'deleted';
+  sort?: 'updatedDesc' | 'abstractNumberAsc' | 'dateOpenDesc';
+  page?: number;
+  pageSize?: number;
+}
+
 export interface CreateAdminAbstractInput {
   title: string;
   sourceUrl?: string;
@@ -172,6 +240,24 @@ export interface CreateAdminAbstractInput {
   clinicalTrialRegistrationNumber?: string;
   dateOpen?: string;
   contentsJson?: string;
+}
+
+export interface UpdateAdminConferenceInput extends Omit<
+  Partial<CreateAdminConferenceInput>,
+  'dateStart' | 'dateEnd'
+> {
+  dateStart?: string | null;
+  dateEnd?: string | null;
+  expectedUpdatedAt?: string;
+}
+
+export interface UpdateAdminAbstractInput extends Omit<
+  Partial<CreateAdminAbstractInput>,
+  'dateOpen'
+> {
+  dateOpen?: string | null;
+  conferenceId?: string;
+  expectedUpdatedAt?: string;
 }
 
 const getApiBaseUrl = () => {
@@ -214,13 +300,24 @@ const request = async <T>(
 
 const jsonRequest = <T>(
   path: string,
-  method: 'POST' | 'PATCH',
+  method: 'POST' | 'PATCH' | 'DELETE',
   body: Record<string, unknown>,
 ) => request<T>(path, {
   method,
   headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify(body),
 });
+
+const queryPath = <T extends object>(path: string, params: T) => {
+  const searchParams = new URLSearchParams();
+  Object.entries(params).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== '') {
+      searchParams.set(key, String(value));
+    }
+  });
+  const query = searchParams.toString();
+  return query ? `${path}?${query}` : path;
+};
 
 export const conferenceAdminApi = {
   listConferenceOptions: () => request<AdminConferenceOption[]>(
@@ -309,11 +406,57 @@ export const conferenceAdminApi = {
   createConference: (body: CreateAdminConferenceInput) => (
     jsonRequest<Record<string, unknown>>('/admin/conferences', 'POST', { ...body })
   ),
+  listConferences: (params: AdminConferenceListParams = {}) => (
+    request<AdminPaginatedResponse<AdminConferenceItem>>(
+      queryPath('/admin/conferences', params),
+    )
+  ),
+  updateConference: (conferenceId: string, body: UpdateAdminConferenceInput) => (
+    jsonRequest<AdminConferenceItem>(
+      `/admin/conferences/${encodeURIComponent(conferenceId)}`,
+      'PATCH',
+      { ...body },
+    )
+  ),
+  deleteConference: (conferenceId: string, expectedUpdatedAt: string) => (
+    jsonRequest<AdminConferenceItem>(
+      `/admin/conferences/${encodeURIComponent(conferenceId)}`,
+      'DELETE',
+      { expectedUpdatedAt },
+    )
+  ),
+  restoreConference: (conferenceId: string) => request<AdminConferenceItem>(
+    `/admin/conferences/${encodeURIComponent(conferenceId)}/restore`,
+    { method: 'POST' },
+  ),
   createAbstract: (conferenceId: string, body: CreateAdminAbstractInput) => (
     jsonRequest<Record<string, unknown>>(
       `/admin/conferences/${encodeURIComponent(conferenceId)}/abstracts`,
       'POST',
       { ...body },
     )
+  ),
+  listAbstracts: (params: AdminConferenceAbstractListParams = {}) => (
+    request<AdminPaginatedResponse<AdminConferenceAbstractItem>>(
+      queryPath('/admin/conference-abstracts', params),
+    )
+  ),
+  updateAbstract: (abstractId: string, body: UpdateAdminAbstractInput) => (
+    jsonRequest<AdminConferenceAbstractItem>(
+      `/admin/conference-abstracts/${encodeURIComponent(abstractId)}`,
+      'PATCH',
+      { ...body },
+    )
+  ),
+  deleteAbstract: (abstractId: string, expectedUpdatedAt: string) => (
+    jsonRequest<AdminConferenceAbstractItem>(
+      `/admin/conference-abstracts/${encodeURIComponent(abstractId)}`,
+      'DELETE',
+      { expectedUpdatedAt },
+    )
+  ),
+  restoreAbstract: (abstractId: string) => request<AdminConferenceAbstractItem>(
+    `/admin/conference-abstracts/${encodeURIComponent(abstractId)}/restore`,
+    { method: 'POST' },
   ),
 };

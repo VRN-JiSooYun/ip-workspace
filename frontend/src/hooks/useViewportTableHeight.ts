@@ -3,14 +3,18 @@ import React from 'react';
 interface ViewportTableHeightOptions {
   bottomGap?: number;
   enabled?: boolean;
+  fitToRegion?: boolean;
   minHeight?: number;
+  refreshKey?: unknown;
   reservePaginationSpace?: boolean;
 }
 
 export const useViewportTableHeight = ({
   bottomGap = 16,
   enabled = true,
+  fitToRegion = false,
   minHeight = 160,
+  refreshKey,
   reservePaginationSpace = true,
 }: ViewportTableHeightOptions = {}) => {
   const tableRegionRef = React.useRef<HTMLDivElement | null>(null);
@@ -44,13 +48,15 @@ export const useViewportTableHeight = ({
               )
             : 48
           : 0;
+        const availableBottom = fitToRegion
+          ? region.getBoundingClientRect().bottom
+          : window.innerHeight - bottomGap;
         const nextHeight = Math.max(
           minHeight,
           Math.floor(
-            window.innerHeight
+            availableBottom
             - measureElement.getBoundingClientRect().top
             - paginationHeight
-            - bottomGap
             - 2
           )
         );
@@ -72,7 +78,14 @@ export const useViewportTableHeight = ({
       mutationObserver.disconnect();
       window.removeEventListener('resize', updateHeight);
     };
-  }, [bottomGap, enabled, minHeight, reservePaginationSpace]);
+  }, [
+    bottomGap,
+    enabled,
+    fitToRegion,
+    minHeight,
+    refreshKey,
+    reservePaginationSpace,
+  ]);
 
   const tableRegionStyle = React.useMemo(() => ({
     '--viewport-table-body-height': tableBodyHeight !== undefined

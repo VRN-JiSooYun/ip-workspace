@@ -214,8 +214,21 @@ export class ConferenceImportApplyService {
             legacyId,
           },
         },
-        select: { id: true },
+        select: { id: true, deletedAt: true },
       });
+      if (existing?.deletedAt) {
+        result.issues.push({
+          sourceFile: basename(manifestPath),
+          rowNumber: null,
+          entityType: 'CONFERENCE',
+          severity: 'WARNING',
+          errorCode: 'SOFT_DELETED_CONFERENCE_SKIPPED',
+          message: 'A soft-deleted Conference was not restored by import.',
+          sourceSnapshot: { legacyId, title },
+        });
+        result.skippedCount += 1;
+        continue;
+      }
       const isNotOpened = title === 'ESMO_2026';
       const conference = await this.prisma.client.conference.upsert({
         where: {
@@ -246,7 +259,6 @@ export class ConferenceImportApplyService {
           sourceUrl: typeof item.url === 'string' ? item.url : null,
           dateStart: isNotOpened ? null : date(item.date_start),
           dateEnd: isNotOpened ? null : date(item.date_end),
-          deletedAt: null,
         },
       });
       if (existing) result.updatedCount += 1;
@@ -321,15 +333,38 @@ export class ConferenceImportApplyService {
     const existing = await this.prisma.client.conferenceAbstract.findMany({
       where: profile === 'LEGACY_EXPORT'
         ? { sourceSystem: 'LEGACY_DJANGO', legacyId: { in: legacyIds } }
-        : { conferenceId: conference.id, sourceUrl: { in: sourceUrls }, deletedAt: null },
-      select: { id: true, legacyId: true, sourceUrl: true },
+        : { conferenceId: conference.id, sourceUrl: { in: sourceUrls } },
+      select: { id: true, legacyId: true, sourceUrl: true, deletedAt: true },
     });
     const existingByKey = new Map(existing.map((item) => [
       profile === 'LEGACY_EXPORT' ? String(item.legacyId) : item.sourceUrl!,
       item.id,
     ]));
+    const deletedKeys = new Set(existing
+      .filter((item) => item.deletedAt)
+      .map((item) => (
+        profile === 'LEGACY_EXPORT' ? String(item.legacyId) : item.sourceUrl!
+      )));
+    const applicable = valid.filter((item) => {
+      const key = profile === 'LEGACY_EXPORT' ? String(item.legacyId) : item.sourceUrl!;
+      if (!deletedKeys.has(key)) return true;
+      result.issues.push({
+        sourceFile: basename(file),
+        rowNumber: item.row.rowNumber,
+        entityType: 'ABSTRACT',
+        severity: 'WARNING',
+        errorCode: 'SOFT_DELETED_ABSTRACT_SKIPPED',
+        message: 'A soft-deleted Abstract was not restored by import.',
+        sourceSnapshot: {
+          legacyId: item.legacyId,
+          sourceUrl: item.sourceUrl,
+        },
+      });
+      result.skippedCount += 1;
+      return false;
+    });
 
-    const operations = valid.map((item) => {
+    const operations = applicable.map((item) => {
       const values = item.row.values;
       const data = this.abstractData(values, conference.id, item.sourceUrl);
       const key = profile === 'LEGACY_EXPORT' ? String(item.legacyId) : item.sourceUrl!;
@@ -342,7 +377,6 @@ export class ConferenceImportApplyService {
             ...(profile === 'LEGACY_EXPORT'
               ? { legacyId: item.legacyId, sourceSystem: 'LEGACY_DJANGO' }
               : {}),
-            deletedAt: null,
           },
           select: { id: true },
         })
@@ -362,7 +396,7 @@ export class ConferenceImportApplyService {
       : [];
 
     applied.forEach((_abstract, index) => {
-      const item = valid[index];
+      const item = applicable[index];
       const key = profile === 'LEGACY_EXPORT' ? String(item.legacyId) : item.sourceUrl!;
       if (existingByKey.has(key)) result.updatedCount += 1;
       else result.insertedCount += 1;
@@ -370,7 +404,7 @@ export class ConferenceImportApplyService {
     for (let index = 0; index < applied.length; index += 1) {
       await this.mergeInlineAssets(
         applied[index].id,
-        valid[index].row,
+        applicable[index].row,
         conference,
         result,
         file,

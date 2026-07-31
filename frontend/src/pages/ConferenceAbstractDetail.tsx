@@ -324,12 +324,12 @@ const ConferenceAbstractDetail: React.FC = () => {
 
   useEffect(() => {
     const conferenceLabel = detail?.conference.abbreviation || 'Conference';
+    const abstractLabel = detail?.abstractNumber || 'Abstract Detail';
     setHeaderContent(
       <PageHeaderBreadcrumb
         items={[
           { label: 'Conference', onClick: returnToList },
-          { label: conferenceLabel, onClick: returnToList },
-          { label: detail?.abstractNumber || 'Abstract Detail' },
+          { label: `${conferenceLabel} - ${abstractLabel}` },
         ]}
       />,
     );

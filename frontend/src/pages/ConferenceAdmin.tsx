@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Navigate } from 'react-router-dom';
+import { Navigate, useNavigate } from 'react-router-dom';
 import {
   Alert,
   App,
@@ -21,14 +21,19 @@ import {
   Upload,
 } from 'antd';
 import type { TableColumnsType, UploadFile } from 'antd';
+import dayjs from 'dayjs';
 import type { Dayjs } from 'dayjs';
 import {
+  ExternalLink,
   FileSpreadsheet,
   Mail,
+  Pencil,
   PlayCircle,
   Plus,
   RefreshCw,
+  RotateCcw,
   SearchCheck,
+  Trash2,
   UploadCloud,
   UsersRound,
 } from 'lucide-react';
@@ -36,6 +41,10 @@ import PageHeaderBreadcrumb from '../components/common/PageHeaderBreadcrumb';
 import { useAccessContext } from '../contexts/AccessContext';
 import {
   conferenceAdminApi,
+  type AdminConferenceAbstractItem,
+  type AdminConferenceAbstractListParams,
+  type AdminConferenceItem,
+  type AdminConferenceListParams,
   type AdminConferenceOption,
   type ConferenceImportBatch,
   type ConferenceImportIssue,
@@ -95,6 +104,7 @@ const runStatusColor: Record<string, string> = {
 const ConferenceAdmin: React.FC = () => {
   const { hasPermission } = useAccessContext();
   const { message } = App.useApp();
+  const navigate = useNavigate();
   const { setHeaderContent } = useUIStore();
   const [conferenceForm] = Form.useForm<ConferenceFormValues>();
   const [abstractForm] = Form.useForm<AbstractFormValues>();
@@ -106,6 +116,33 @@ const ConferenceAdmin: React.FC = () => {
   const [mailHealth, setMailHealth] = useState<ConferenceMailHealth | null>(null);
   const [mailOutboxes, setMailOutboxes] = useState<ConferenceMailOutboxItem[]>([]);
   const [conferences, setConferences] = useState<AdminConferenceOption[]>([]);
+  const [conferenceRows, setConferenceRows] = useState<AdminConferenceItem[]>([]);
+  const [conferenceTotal, setConferenceTotal] = useState(0);
+  const [conferenceListLoading, setConferenceListLoading] = useState(false);
+  const [conferenceQuery, setConferenceQuery] = useState<AdminConferenceListParams>({
+    deleted: 'active',
+    sort: 'yearDesc',
+    page: 1,
+    pageSize: 10,
+  });
+  const [editingConference, setEditingConference] =
+    useState<AdminConferenceItem | null>(null);
+  const [conferenceModalOpen, setConferenceModalOpen] = useState(false);
+  const [conferenceMutatingId, setConferenceMutatingId] = useState<string>();
+  const [abstractRows, setAbstractRows] = useState<AdminConferenceAbstractItem[]>([]);
+  const [abstractTotal, setAbstractTotal] = useState(0);
+  const [abstractListLoading, setAbstractListLoading] = useState(false);
+  const [abstractQuery, setAbstractQuery] =
+    useState<AdminConferenceAbstractListParams>({
+      deleted: 'active',
+      sort: 'updatedDesc',
+      page: 1,
+      pageSize: 10,
+    });
+  const [editingAbstract, setEditingAbstract] =
+    useState<AdminConferenceAbstractItem | null>(null);
+  const [abstractModalOpen, setAbstractModalOpen] = useState(false);
+  const [abstractMutatingId, setAbstractMutatingId] = useState<string>();
   const [selectedBatch, setSelectedBatch] = useState<string>();
   const [uploadBatchKey, setUploadBatchKey] = useState('');
   const [uploadBatchKind, setUploadBatchKind] =
@@ -127,10 +164,53 @@ const ConferenceAdmin: React.FC = () => {
   const [startingRecipientMode, setStartingRecipientMode] =
     useState<'DRY_RUN' | 'APPLY' | 'RECONCILE' | null>(null);
   const [retryingMailIds, setRetryingMailIds] = useState<Set<string>>(new Set());
-  const [activeTabKey, setActiveTabKey] = useState('import');
-  const importTable = useViewportTableHeight({ enabled: activeTabKey === 'import' });
-  const recipientTable = useViewportTableHeight({ enabled: activeTabKey === 'recipients' });
-  const mailTable = useViewportTableHeight({ enabled: activeTabKey === 'mail-outbox' });
+  const [activeTabKey, setActiveTabKey] = useState('conference');
+  const importTable = useViewportTableHeight({
+    enabled: activeTabKey === 'import',
+    fitToRegion: true,
+    minHeight: 100,
+  });
+  const recipientTable = useViewportTableHeight({
+    enabled: activeTabKey === 'recipients',
+    fitToRegion: true,
+    minHeight: 100,
+    refreshKey: [
+      loading,
+      recipientRuns.length,
+      selectedRecipientBatch,
+    ].join(':'),
+  });
+  const mailTable = useViewportTableHeight({
+    enabled: activeTabKey === 'mail-outbox',
+    fitToRegion: true,
+    minHeight: 100,
+    refreshKey: [
+      loading,
+      mailOutboxes.length,
+    ].join(':'),
+  });
+  const conferenceManagementTable = useViewportTableHeight({
+    enabled: activeTabKey === 'conference',
+    fitToRegion: true,
+    refreshKey: [
+      conferenceListLoading,
+      conferenceRows.length,
+      conferenceTotal,
+      conferenceQuery.page,
+      conferenceQuery.pageSize,
+    ].join(':'),
+  });
+  const abstractManagementTable = useViewportTableHeight({
+    enabled: activeTabKey === 'abstract',
+    fitToRegion: true,
+    refreshKey: [
+      abstractListLoading,
+      abstractRows.length,
+      abstractTotal,
+      abstractQuery.page,
+      abstractQuery.pageSize,
+    ].join(':'),
+  });
   const canManageConference = hasPermission('conference.manage');
 
   useEffect(() => {
@@ -189,9 +269,54 @@ const ConferenceAdmin: React.FC = () => {
     }
   }, [canManageConference, message]);
 
+  const loadConferenceOptions = useCallback(async () => {
+    const nextConferences = await conferenceAdminApi.listConferenceOptions();
+    setConferences(nextConferences);
+  }, []);
+
+  const loadConferenceRows = useCallback(async () => {
+    if (!canManageConference) return;
+    setConferenceListLoading(true);
+    try {
+      const response = await conferenceAdminApi.listConferences(conferenceQuery);
+      setConferenceRows(response.items);
+      setConferenceTotal(response.total);
+    } catch (error) {
+      void message.error(
+        error instanceof Error ? error.message : 'Conference 목록을 불러오지 못했습니다.',
+      );
+    } finally {
+      setConferenceListLoading(false);
+    }
+  }, [canManageConference, conferenceQuery, message]);
+
+  const loadAbstractRows = useCallback(async () => {
+    if (!canManageConference) return;
+    setAbstractListLoading(true);
+    try {
+      const response = await conferenceAdminApi.listAbstracts(abstractQuery);
+      setAbstractRows(response.items);
+      setAbstractTotal(response.total);
+    } catch (error) {
+      void message.error(
+        error instanceof Error ? error.message : 'Abstract 목록을 불러오지 못했습니다.',
+      );
+    } finally {
+      setAbstractListLoading(false);
+    }
+  }, [abstractQuery, canManageConference, message]);
+
   useEffect(() => {
     void loadAdminData();
   }, [loadAdminData]);
+
+  useEffect(() => {
+    if (activeTabKey === 'conference') void loadConferenceRows();
+  }, [activeTabKey, loadConferenceRows]);
+
+  useEffect(() => {
+    if (activeTabKey === 'abstract') void loadAbstractRows();
+  }, [activeTabKey, loadAbstractRows]);
 
   useEffect(() => {
     const importPending = runs.some(
@@ -400,7 +525,7 @@ const ConferenceAdmin: React.FC = () => {
     }
     setSavingConference(true);
     try {
-      await conferenceAdminApi.createConference({
+      const payload = {
         title: values.title.trim(),
         abbreviation: values.abbreviation.trim(),
         fullTitle: values.fullTitle?.trim(),
@@ -409,13 +534,26 @@ const ConferenceAdmin: React.FC = () => {
         sourceUrl: values.sourceUrl?.trim(),
         dateStart: values.dateRange?.[0].format('YYYY-MM-DD'),
         dateEnd: values.dateRange?.[1].format('YYYY-MM-DD'),
-      });
+      };
+      if (editingConference) {
+        await conferenceAdminApi.updateConference(editingConference.id, {
+          ...payload,
+          dateStart: payload.dateStart ?? null,
+          dateEnd: payload.dateEnd ?? null,
+          expectedUpdatedAt: editingConference.updatedAt,
+        });
+      } else {
+        await conferenceAdminApi.createConference(payload);
+      }
       conferenceForm.resetFields();
-      conferenceForm.setFieldValue('status', 'OPEN');
-      void message.success('Conference를 등록했습니다.');
-      await loadAdminData();
+      setConferenceModalOpen(false);
+      setEditingConference(null);
+      void message.success(
+        editingConference ? 'Conference를 수정했습니다.' : 'Conference를 등록했습니다.',
+      );
+      await Promise.all([loadConferenceRows(), loadConferenceOptions()]);
     } catch (error) {
-      void message.error(error instanceof Error ? error.message : 'Conference 등록에 실패했습니다.');
+      void message.error(error instanceof Error ? error.message : 'Conference 저장에 실패했습니다.');
     } finally {
       setSavingConference(false);
     }
@@ -430,7 +568,7 @@ const ConferenceAdmin: React.FC = () => {
     }
     setSavingAbstract(true);
     try {
-      await conferenceAdminApi.createAbstract(values.conferenceId, {
+      const payload = {
         title: values.title.trim(),
         abstractNumber: values.abstractNumber?.trim(),
         firstAuthorName: values.firstAuthorName?.trim(),
@@ -446,13 +584,152 @@ const ConferenceAdmin: React.FC = () => {
         dateOpen: values.dateOpen?.format('YYYY-MM-DD'),
         authors: values.authorsText?.split(',').map((author) => author.trim()).filter(Boolean),
         contentsJson: values.contentsJson?.trim(),
-      });
+      };
+      if (editingAbstract) {
+        await conferenceAdminApi.updateAbstract(editingAbstract.id, {
+          ...payload,
+          dateOpen: payload.dateOpen ?? null,
+          conferenceId: values.conferenceId,
+          expectedUpdatedAt: editingAbstract.updatedAt,
+        });
+      } else {
+        await conferenceAdminApi.createAbstract(values.conferenceId, payload);
+      }
       abstractForm.resetFields();
-      void message.success('Abstract를 등록했습니다.');
+      setAbstractModalOpen(false);
+      setEditingAbstract(null);
+      void message.success(
+        editingAbstract ? 'Abstract를 수정했습니다.' : 'Abstract를 등록했습니다.',
+      );
+      await loadAbstractRows();
     } catch (error) {
-      void message.error(error instanceof Error ? error.message : 'Abstract 등록에 실패했습니다.');
+      void message.error(error instanceof Error ? error.message : 'Abstract 저장에 실패했습니다.');
     } finally {
       setSavingAbstract(false);
+    }
+  };
+
+  const openConferenceForm = (conference?: AdminConferenceItem) => {
+    setEditingConference(conference ?? null);
+    conferenceForm.setFieldsValue(conference ? {
+      title: conference.title,
+      abbreviation: conference.abbreviation,
+      fullTitle: conference.fullTitle ?? undefined,
+      year: conference.year,
+      status: conference.status,
+      sourceUrl: conference.sourceUrl ?? undefined,
+      dateRange: conference.dateStart && conference.dateEnd
+        ? [dayjs(conference.dateStart), dayjs(conference.dateEnd)]
+        : undefined,
+    } : {
+      title: undefined,
+      abbreviation: undefined,
+      fullTitle: undefined,
+      year: undefined,
+      status: 'OPEN',
+      sourceUrl: undefined,
+      dateRange: undefined,
+    });
+    setConferenceModalOpen(true);
+  };
+
+  const openAbstractForm = (abstract?: AdminConferenceAbstractItem) => {
+    setEditingAbstract(abstract ?? null);
+    const authorValues = Array.isArray(abstract?.authors)
+      ? abstract.authors.filter((value): value is string => typeof value === 'string')
+      : [];
+    abstractForm.setFieldsValue(abstract ? {
+      conferenceId: abstract.conferenceId,
+      title: abstract.title,
+      abstractNumber: abstract.abstractNumber ?? undefined,
+      firstAuthorName: abstract.firstAuthorName ?? undefined,
+      firstAuthorOrganization: abstract.firstAuthorOrganization ?? undefined,
+      sourceUrl: abstract.sourceUrl ?? undefined,
+      meeting: abstract.meeting ?? undefined,
+      sessionType: abstract.sessionType ?? undefined,
+      sessionTitle: abstract.sessionTitle ?? undefined,
+      track: abstract.track ?? undefined,
+      subTrack: abstract.subTrack ?? undefined,
+      posterNumber: abstract.posterNumber ?? undefined,
+      clinicalTrialRegistrationNumber:
+        abstract.clinicalTrialRegistrationNumber ?? undefined,
+      dateOpen: abstract.dateOpen ? dayjs(abstract.dateOpen) : undefined,
+      authorsText: authorValues.join(', '),
+      contentsJson: typeof abstract.contents === 'string'
+        ? abstract.contents
+        : abstract.contents == null
+          ? undefined
+          : JSON.stringify(abstract.contents, null, 2),
+    } : {
+      conferenceId: abstractQuery.conferenceId,
+      title: undefined,
+      abstractNumber: undefined,
+      firstAuthorName: undefined,
+      firstAuthorOrganization: undefined,
+      sourceUrl: undefined,
+      meeting: undefined,
+      sessionType: undefined,
+      sessionTitle: undefined,
+      track: undefined,
+      subTrack: undefined,
+      posterNumber: undefined,
+      clinicalTrialRegistrationNumber: undefined,
+      dateOpen: undefined,
+      authorsText: undefined,
+      contentsJson: undefined,
+    });
+    setAbstractModalOpen(true);
+  };
+
+  const deleteConference = async (conference: AdminConferenceItem) => {
+    setConferenceMutatingId(conference.id);
+    try {
+      await conferenceAdminApi.deleteConference(conference.id, conference.updatedAt);
+      void message.success('Conference를 삭제했습니다.');
+      await Promise.all([loadConferenceRows(), loadConferenceOptions()]);
+    } catch (error) {
+      void message.error(error instanceof Error ? error.message : 'Conference 삭제에 실패했습니다.');
+    } finally {
+      setConferenceMutatingId(undefined);
+    }
+  };
+
+  const restoreConference = async (conference: AdminConferenceItem) => {
+    setConferenceMutatingId(conference.id);
+    try {
+      await conferenceAdminApi.restoreConference(conference.id);
+      void message.success('Conference를 복구했습니다.');
+      await Promise.all([loadConferenceRows(), loadConferenceOptions()]);
+    } catch (error) {
+      void message.error(error instanceof Error ? error.message : 'Conference 복구에 실패했습니다.');
+    } finally {
+      setConferenceMutatingId(undefined);
+    }
+  };
+
+  const deleteAbstract = async (abstract: AdminConferenceAbstractItem) => {
+    setAbstractMutatingId(abstract.id);
+    try {
+      await conferenceAdminApi.deleteAbstract(abstract.id, abstract.updatedAt);
+      void message.success('Abstract를 삭제했습니다.');
+      await loadAbstractRows();
+    } catch (error) {
+      void message.error(error instanceof Error ? error.message : 'Abstract 삭제에 실패했습니다.');
+    } finally {
+      setAbstractMutatingId(undefined);
+    }
+  };
+
+  const restoreAbstract = async (abstract: AdminConferenceAbstractItem) => {
+    setAbstractMutatingId(abstract.id);
+    try {
+      await conferenceAdminApi.restoreAbstract(abstract.id);
+      void message.success('Abstract를 복구했습니다.');
+      await loadAbstractRows();
+    } catch (error) {
+      void message.error(error instanceof Error ? error.message : 'Abstract 복구에 실패했습니다.');
+    } finally {
+      setAbstractMutatingId(undefined);
     }
   };
 
@@ -717,10 +994,199 @@ const ConferenceAdmin: React.FC = () => {
     },
   ];
 
+  const conferenceColumns: TableColumnsType<AdminConferenceItem> = [
+    {
+      title: '연도',
+      dataIndex: 'year',
+      width: 76,
+      align: 'center',
+    },
+    {
+      title: '약어',
+      dataIndex: 'abbreviation',
+      width: 120,
+      align: 'center',
+    },
+    {
+      title: 'Conference key',
+      dataIndex: 'title',
+      width: 180,
+      align: 'center',
+      ellipsis: true,
+    },
+    { title: '정식 명칭', dataIndex: 'fullTitle', ellipsis: true, render: (value) => value || '-' },
+    {
+      title: '상태',
+      dataIndex: 'status',
+      width: 112,
+      align: 'center',
+      render: (value) => (
+        <Tag color={value === 'OPEN' ? 'success' : 'default'}>{value}</Tag>
+      ),
+    },
+    {
+      title: '기간',
+      key: 'dateRange',
+      width: 190,
+      align: 'center',
+      render: (_, item) => item.dateStart && item.dateEnd
+        ? `${formatDisplayDate(item.dateStart)} ~ ${formatDisplayDate(item.dateEnd)}`
+        : '-',
+    },
+    {
+      title: 'Abstract',
+      dataIndex: 'activeAbstractCount',
+      width: 92,
+      align: 'right',
+      render: formatNumberWithComma,
+    },
+    {
+      title: '수정일',
+      dataIndex: 'updatedAt',
+      width: 150,
+      align: 'center',
+      render: formatDisplayDate,
+    },
+    {
+      title: '작업',
+      key: 'actions',
+      width: 130,
+      fixed: 'right',
+      align: 'center',
+      render: (_, item) => item.deletedAt ? (
+        <Button
+          size="small"
+          icon={<RotateCcw size={14} />}
+          loading={conferenceMutatingId === item.id}
+          onClick={() => void restoreConference(item)}
+        >
+          복구
+        </Button>
+      ) : (
+        <Space size={4}>
+          <Button
+            size="small"
+            type="text"
+            icon={<Pencil size={14} />}
+            aria-label="Conference 수정"
+            onClick={() => openConferenceForm(item)}
+          />
+          <Popconfirm
+            title="Conference를 삭제하시겠습니까?"
+            description={item.activeAbstractCount > 0
+              ? `활성 Abstract ${formatNumberWithComma(item.activeAbstractCount)}건을 먼저 삭제해야 합니다.`
+              : '삭제 후 삭제 목록에서 복구할 수 있습니다.'}
+            okText="삭제"
+            cancelText="취소"
+            okButtonProps={{ danger: true, disabled: item.activeAbstractCount > 0 }}
+            onConfirm={() => void deleteConference(item)}
+          >
+            <Button
+              size="small"
+              type="text"
+              danger
+              icon={<Trash2 size={14} />}
+              aria-label="Conference 삭제"
+              loading={conferenceMutatingId === item.id}
+            />
+          </Popconfirm>
+        </Space>
+      ),
+    },
+  ];
+
+  const abstractColumns: TableColumnsType<AdminConferenceAbstractItem> = [
+    {
+      title: 'Conference',
+      key: 'conference',
+      width: 135,
+      align: 'center',
+      render: (_, item) => (
+        <Tag>{item.conference.abbreviation} {item.conference.year}</Tag>
+      ),
+    },
+    {
+      title: 'Abstract No.',
+      dataIndex: 'abstractNumber',
+      width: 130,
+      align: 'center',
+      render: (value) => value || '-',
+    },
+    { title: '제목', dataIndex: 'title', ellipsis: true },
+    { title: '제1저자', dataIndex: 'firstAuthorName', width: 140, ellipsis: true, render: (value) => value || '-' },
+    { title: '소속', dataIndex: 'firstAuthorOrganization', width: 180, ellipsis: true, render: (value) => value || '-' },
+    {
+      title: '공개일',
+      dataIndex: 'dateOpen',
+      width: 112,
+      align: 'center',
+      render: (value) => value ? formatDisplayDate(value) : '-',
+    },
+    {
+      title: '수정일',
+      dataIndex: 'updatedAt',
+      width: 150,
+      align: 'center',
+      render: formatDisplayDate,
+    },
+    {
+      title: '작업',
+      key: 'actions',
+      width: 166,
+      fixed: 'right',
+      align: 'center',
+      render: (_, item) => item.deletedAt ? (
+        <Button
+          size="small"
+          icon={<RotateCcw size={14} />}
+          loading={abstractMutatingId === item.id}
+          disabled={Boolean(item.conference.deletedAt)}
+          onClick={() => void restoreAbstract(item)}
+        >
+          복구
+        </Button>
+      ) : (
+        <Space size={4}>
+          <Button
+            size="small"
+            type="text"
+            icon={<ExternalLink size={14} />}
+            aria-label="Abstract 상세"
+            onClick={() => navigate(`/conferences/abstracts/${item.id}`)}
+          />
+          <Button
+            size="small"
+            type="text"
+            icon={<Pencil size={14} />}
+            aria-label="Abstract 수정"
+            onClick={() => openAbstractForm(item)}
+          />
+          <Popconfirm
+            title="Abstract를 삭제하시겠습니까?"
+            description="삭제 후 삭제 목록에서 복구할 수 있습니다."
+            okText="삭제"
+            cancelText="취소"
+            okButtonProps={{ danger: true }}
+            onConfirm={() => void deleteAbstract(item)}
+          >
+            <Button
+              size="small"
+              type="text"
+              danger
+              icon={<Trash2 size={14} />}
+              aria-label="Abstract 삭제"
+              loading={abstractMutatingId === item.id}
+            />
+          </Popconfirm>
+        </Space>
+      ),
+    },
+  ];
+
   if (!canManageConference) return <Navigate to="/dashboard" replace />;
 
   const importTab = (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+    <div className="conference-admin-import-tab">
       {batches.length === 0 && (
         <Alert
           type="warning"
@@ -729,7 +1195,7 @@ const ConferenceAdmin: React.FC = () => {
           description="아래에서 Legacy 또는 API metadata 파일을 새 batch로 업로드해 주세요."
         />
       )}
-      <Card title={<Space><UploadCloud size={17} />Import batch 업로드</Space>}>
+      <Card className="c-card" title={<Space><UploadCloud size={17} />Import batch 업로드</Space>}>
         <Space wrap size={12} style={{ marginBottom: 12 }}>
           <Input
             value={uploadBatchKey}
@@ -774,7 +1240,7 @@ const ConferenceAdmin: React.FC = () => {
           </p>
         </Upload.Dragger>
       </Card>
-      <Card>
+      <Card className="c-card">
         <Space wrap size={12}>
           <Select
             value={selectedBatch}
@@ -838,63 +1304,154 @@ const ConferenceAdmin: React.FC = () => {
             : 'Excel metadata와 legacy media URL만 DB에 반영하며 media binary는 복사하지 않습니다.'}
         />
       </Card>
-      <div className="v-table-card" ref={importTable.tableRegionRef} style={importTable.tableRegionStyle}>
-        <Table
-          className="viewport-fill-table"
-          rowKey="id"
-          size="small"
-          columns={runColumns}
-          dataSource={runs}
-          loading={loading}
-          scroll={{ x: 1100, y: importTable.tableBodyHeight }}
-          pagination={{ pageSize: 10, showSizeChanger: true, pageSizeOptions: [10, 30, 50, 100] }}
-        />
+      <div
+        className="v-table-card conference-admin-import-list"
+      >
+        <div
+          ref={importTable.tableRegionRef}
+          className="conference-admin-import-table-region"
+          style={importTable.tableRegionStyle}
+        >
+          <Table
+            className="conference-admin-import-table viewport-fill-table"
+            rowKey="id"
+            size="small"
+            columns={runColumns}
+            dataSource={runs}
+            loading={loading}
+            scroll={{ x: 1100, y: importTable.tableBodyHeight }}
+            pagination={{
+              position: ['bottomRight'],
+              pageSize: 10,
+              showSizeChanger: true,
+              pageSizeOptions: [10, 30, 50, 100],
+              showTotal: undefined,
+              itemRender: (page, type, originalElement) => (
+                type === 'page'
+                  ? <span>{formatNumberWithComma(page)}</span>
+                  : originalElement
+              ),
+            }}
+          />
+        </div>
       </div>
     </div>
   );
 
   const conferenceTab = (
-    <Card title={<Space><Plus size={17} />Conference 소량 등록</Space>}>
-      <Form
-        form={conferenceForm}
-        layout="vertical"
-        initialValues={{ status: 'OPEN' }}
-      >
-        <div className="conference-admin-form-grid">
-          <Form.Item name="title" label="Conference key" rules={[{ required: true }]}>
-            <Input placeholder="예: ESMO_2027" />
-          </Form.Item>
-          <Form.Item name="abbreviation" label="약어" rules={[{ required: true }]}>
-            <Input placeholder="예: ESMO" />
-          </Form.Item>
-          <Form.Item name="year" label="연도" rules={[{ required: true }]}>
-            <InputNumber min={2000} max={2100} style={{ width: '100%' }} />
-          </Form.Item>
-          <Form.Item name="status" label="상태" rules={[{ required: true }]}>
-            <Select options={[
+    <div className="conference-admin-management-tab">
+      <Card className="c-card">
+        <Space wrap size={8}>
+          <Input.Search
+            defaultValue={conferenceQuery.q}
+            allowClear
+            placeholder="Conference key, 약어, 정식 명칭"
+            style={{ width: 280 }}
+            onSearch={(q) => setConferenceQuery((current) => ({
+              ...current,
+              q: q.trim() || undefined,
+              page: 1,
+            }))}
+          />
+          <InputNumber
+            min={2000}
+            max={2100}
+            placeholder="연도"
+            value={conferenceQuery.year}
+            onChange={(year) => setConferenceQuery((current) => ({
+              ...current,
+              year: year ?? undefined,
+              page: 1,
+            }))}
+          />
+          <Select
+            allowClear
+            placeholder="상태"
+            style={{ width: 140 }}
+            value={conferenceQuery.status}
+            options={[
               { value: 'OPEN', label: 'OPEN' },
               { value: 'NOT_OPENED', label: 'NOT_OPENED' },
-            ]} />
-          </Form.Item>
-          <Form.Item name="fullTitle" label="정식 명칭" className="conference-admin-span-2">
-            <Input />
-          </Form.Item>
-          <Form.Item name="dateRange" label="개최 기간">
-            <DatePicker.RangePicker style={{ width: '100%' }} format="YYYY.MM.DD" />
-          </Form.Item>
-          <Form.Item name="sourceUrl" label="원본 URL">
-            <Input />
-          </Form.Item>
-        </div>
-        <Button type="primary" loading={savingConference} onClick={() => void saveConference()}>
-          Conference 등록
-        </Button>
-      </Form>
-    </Card>
+            ]}
+            onChange={(status) => setConferenceQuery((current) => ({
+              ...current,
+              status,
+              page: 1,
+            }))}
+          />
+          <Select
+            style={{ width: 120 }}
+            value={conferenceQuery.deleted}
+            options={[
+              { value: 'active', label: '사용 중' },
+              { value: 'deleted', label: '삭제됨' },
+            ]}
+            onChange={(deleted) => setConferenceQuery((current) => ({
+              ...current,
+              deleted,
+              page: 1,
+            }))}
+          />
+          <Select
+            style={{ width: 140 }}
+            value={conferenceQuery.sort}
+            options={[
+              { value: 'yearDesc', label: '연도 내림차순' },
+              { value: 'yearAsc', label: '연도 오름차순' },
+              { value: 'updatedDesc', label: '최근 수정순' },
+            ]}
+            onChange={(sort) => setConferenceQuery((current) => ({
+              ...current,
+              sort,
+              page: 1,
+            }))}
+          />
+          <Button
+            icon={<RefreshCw size={15} />}
+            loading={conferenceListLoading}
+            onClick={() => void loadConferenceRows()}
+          >
+            새로고침
+          </Button>
+          <Button type="primary" icon={<Plus size={15} />} onClick={() => openConferenceForm()}>
+            Conference 등록
+          </Button>
+        </Space>
+      </Card>
+      <div
+        ref={conferenceManagementTable.tableRegionRef}
+        className="v-table-card conference-admin-management-list"
+        style={conferenceManagementTable.tableRegionStyle}
+      >
+        <Table
+          className="viewport-fill-table"
+          rowKey="id"
+          size="small"
+          columns={conferenceColumns}
+          dataSource={conferenceRows}
+          loading={conferenceListLoading}
+          scroll={{ x: 1250, y: conferenceManagementTable.tableBodyHeight }}
+          pagination={{
+            current: conferenceQuery.page,
+            pageSize: conferenceQuery.pageSize,
+            total: conferenceTotal,
+            showSizeChanger: true,
+            pageSizeOptions: [10, 30, 50, 100],
+            showTotal: undefined,
+            onChange: (page, pageSize) => setConferenceQuery((current) => ({
+              ...current,
+              page,
+              pageSize,
+            })),
+          }}
+          locale={{ emptyText: '조건에 맞는 Conference가 없습니다.' }}
+        />
+      </div>
+    </div>
   );
 
   const recipientImportTab = (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+    <div className="conference-admin-operations-tab">
       {recipientBatches.length === 0 && (
         <Alert
           type="warning"
@@ -903,7 +1460,7 @@ const ConferenceAdmin: React.FC = () => {
           description="getMembers.json을 새 batch로 업로드한 뒤 Dry-run을 실행해 주세요."
         />
       )}
-      <Card title={<Space><UploadCloud size={17} />메일 대상 batch 업로드</Space>}>
+      <Card className="c-card" title={<Space><UploadCloud size={17} />메일 대상 batch 업로드</Space>}>
         <Space wrap size={12} style={{ marginBottom: 12 }}>
           <Input
             value={recipientUploadBatchKey}
@@ -937,7 +1494,7 @@ const ConferenceAdmin: React.FC = () => {
           </p>
         </Upload.Dragger>
       </Card>
-      <Card>
+      <Card className="c-card">
         <Space wrap size={12}>
           <Select
             value={selectedRecipientBatch}
@@ -998,7 +1555,11 @@ const ConferenceAdmin: React.FC = () => {
           description="APPLY는 같은 batch checksum의 오류·충돌 없는 Dry-run 후에만 활성화됩니다. 이메일이 없는 구성원은 SKIPPED_NO_EMAIL로 제외하며 인증 User는 생성하지 않습니다."
         />
       </Card>
-      <div className="v-table-card" ref={recipientTable.tableRegionRef} style={recipientTable.tableRegionStyle}>
+      <div
+        className="v-table-card conference-admin-operations-list"
+        ref={recipientTable.tableRegionRef}
+        style={recipientTable.tableRegionStyle}
+      >
         <Table
           className="viewport-fill-table"
           rowKey="id"
@@ -1008,9 +1569,16 @@ const ConferenceAdmin: React.FC = () => {
           loading={loading}
           scroll={{ x: 1300, y: recipientTable.tableBodyHeight }}
           pagination={{
+            position: ['bottomRight'],
             pageSize: 10,
             showSizeChanger: true,
             pageSizeOptions: [10, 30, 50, 100],
+            showTotal: undefined,
+            itemRender: (page, type, originalElement) => (
+              type === 'page'
+                ? <span>{formatNumberWithComma(page)}</span>
+                : originalElement
+            ),
           }}
         />
       </div>
@@ -1018,8 +1586,8 @@ const ConferenceAdmin: React.FC = () => {
   );
 
   const mailOutboxTab = (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-      <Card>
+    <div className="conference-admin-operations-tab">
+      <Card className="c-card">
         <Alert
           type={mailHealth?.provider.ready ? 'success' : 'warning'}
           showIcon
@@ -1042,7 +1610,11 @@ const ConferenceAdmin: React.FC = () => {
           새로고침
         </Button>
       </Card>
-      <div className="v-table-card" ref={mailTable.tableRegionRef} style={mailTable.tableRegionStyle}>
+      <div
+        className="v-table-card conference-admin-operations-list"
+        ref={mailTable.tableRegionRef}
+        style={mailTable.tableRegionStyle}
+      >
         <Table
           className="viewport-fill-table"
           rowKey="id"
@@ -1052,9 +1624,16 @@ const ConferenceAdmin: React.FC = () => {
           loading={loading}
           scroll={{ x: 1150, y: mailTable.tableBodyHeight }}
           pagination={{
+            position: ['bottomRight'],
             pageSize: 10,
             showSizeChanger: true,
             pageSizeOptions: [10, 30, 50, 100],
+            showTotal: undefined,
+            itemRender: (page, type, originalElement) => (
+              type === 'page'
+                ? <span>{formatNumberWithComma(page)}</span>
+                : originalElement
+            ),
           }}
         />
       </div>
@@ -1062,60 +1641,125 @@ const ConferenceAdmin: React.FC = () => {
   );
 
   const abstractTab = (
-    <Card title={<Space><Plus size={17} />Abstract 소량 등록</Space>}>
-      <Form form={abstractForm} layout="vertical">
-        <div className="conference-admin-form-grid">
-          <Form.Item name="conferenceId" label="Conference" rules={[{ required: true }]}>
-            <Select
-              showSearch
-              optionFilterProp="label"
-              options={conferences.map((conference) => ({
-                value: conference.id,
-                label: `${conference.abbreviation} ${conference.year}`,
-              }))}
-            />
-          </Form.Item>
-          <Form.Item name="abstractNumber" label="Abstract No.">
-            <Input />
-          </Form.Item>
-          <Form.Item name="title" label="제목" rules={[{ required: true }]} className="conference-admin-span-2">
-            <Input />
-          </Form.Item>
-          <Form.Item name="firstAuthorName" label="제1저자">
-            <Input />
-          </Form.Item>
-          <Form.Item name="firstAuthorOrganization" label="제1저자 소속">
-            <Input />
-          </Form.Item>
-          <Form.Item name="authorsText" label="전체 저자 (comma 구분)" className="conference-admin-span-2">
-            <Input />
-          </Form.Item>
-          <Form.Item name="meeting" label="Meeting"><Input /></Form.Item>
-          <Form.Item name="sessionType" label="Session type"><Input /></Form.Item>
-          <Form.Item name="sessionTitle" label="Session title" className="conference-admin-span-2"><Input /></Form.Item>
-          <Form.Item name="track" label="Track"><Input /></Form.Item>
-          <Form.Item name="subTrack" label="Sub-track"><Input /></Form.Item>
-          <Form.Item name="posterNumber" label="Poster No."><Input /></Form.Item>
-          <Form.Item name="clinicalTrialRegistrationNumber" label="임상시험 번호"><Input /></Form.Item>
-          <Form.Item name="dateOpen" label="공개일"><DatePicker style={{ width: '100%' }} format="YYYY.MM.DD" /></Form.Item>
-          <Form.Item name="sourceUrl" label="원본 URL"><Input /></Form.Item>
-          <Form.Item name="contentsJson" label="본문 JSON 또는 text" className="conference-admin-span-2">
-            <Input.TextArea rows={8} />
-          </Form.Item>
-        </div>
-        <Button type="primary" loading={savingAbstract} onClick={() => void saveAbstract()}>
-          Abstract 등록
-        </Button>
-      </Form>
-    </Card>
+    <div className="conference-admin-management-tab">
+      <Card className="c-card">
+        <Space wrap size={8}>
+          <Select
+            allowClear
+            showSearch
+            optionFilterProp="label"
+            placeholder="Conference"
+            style={{ width: 220 }}
+            value={abstractQuery.conferenceId}
+            options={conferences.map((conference) => ({
+              value: conference.id,
+              label: `${conference.abbreviation} ${conference.year}`,
+            }))}
+            onChange={(conferenceId) => setAbstractQuery((current) => ({
+              ...current,
+              conferenceId,
+              page: 1,
+            }))}
+          />
+          <Input.Search
+            defaultValue={abstractQuery.q}
+            allowClear
+            placeholder="번호, 제목, 저자, 세션"
+            style={{ width: 280 }}
+            onSearch={(q) => setAbstractQuery((current) => ({
+              ...current,
+              q: q.trim() || undefined,
+              page: 1,
+            }))}
+          />
+          <DatePicker.RangePicker
+            format="YYYY.MM.DD"
+            onChange={(range) => setAbstractQuery((current) => ({
+              ...current,
+              dateFrom: range?.[0]?.format('YYYY-MM-DD'),
+              dateTo: range?.[1]?.format('YYYY-MM-DD'),
+              page: 1,
+            }))}
+          />
+          <Select
+            style={{ width: 120 }}
+            value={abstractQuery.deleted}
+            options={[
+              { value: 'active', label: '사용 중' },
+              { value: 'deleted', label: '삭제됨' },
+            ]}
+            onChange={(deleted) => setAbstractQuery((current) => ({
+              ...current,
+              deleted,
+              page: 1,
+            }))}
+          />
+          <Select
+            style={{ width: 150 }}
+            value={abstractQuery.sort}
+            options={[
+              { value: 'updatedDesc', label: '최근 수정순' },
+              { value: 'abstractNumberAsc', label: 'Abstract No.순' },
+              { value: 'dateOpenDesc', label: '공개일 내림차순' },
+            ]}
+            onChange={(sort) => setAbstractQuery((current) => ({
+              ...current,
+              sort,
+              page: 1,
+            }))}
+          />
+          <Button
+            icon={<RefreshCw size={15} />}
+            loading={abstractListLoading}
+            onClick={() => void loadAbstractRows()}
+          >
+            새로고침
+          </Button>
+          <Button type="primary" icon={<Plus size={15} />} onClick={() => openAbstractForm()}>
+            Abstract 등록
+          </Button>
+        </Space>
+      </Card>
+      <div
+        ref={abstractManagementTable.tableRegionRef}
+        className="v-table-card conference-admin-management-list"
+        style={abstractManagementTable.tableRegionStyle}
+      >
+        <Table
+          className="viewport-fill-table"
+          rowKey="id"
+          size="small"
+          columns={abstractColumns}
+          dataSource={abstractRows}
+          loading={abstractListLoading}
+          scroll={{ x: 1300, y: abstractManagementTable.tableBodyHeight }}
+          pagination={{
+            current: abstractQuery.page,
+            pageSize: abstractQuery.pageSize,
+            total: abstractTotal,
+            showSizeChanger: true,
+            pageSizeOptions: [10, 30, 50, 100],
+            showTotal: undefined,
+            onChange: (page, pageSize) => setAbstractQuery((current) => ({
+              ...current,
+              page,
+              pageSize,
+            })),
+          }}
+          locale={{ emptyText: '조건에 맞는 Abstract가 없습니다.' }}
+        />
+      </div>
+    </div>
   );
 
   return (
-    <div className="conference-admin-page">
+    <div className={`conference-admin-page conference-admin-page-${activeTabKey}`}>
       <Tabs
         activeKey={activeTabKey}
         onChange={setActiveTabKey}
         items={[
+          { key: 'conference', label: 'Conference 관리', children: conferenceTab },
+          { key: 'abstract', label: 'Abstract 관리', children: abstractTab },
           {
             key: 'import',
             label: (
@@ -1146,10 +1790,111 @@ const ConferenceAdmin: React.FC = () => {
             ),
             children: mailOutboxTab,
           },
-          { key: 'conference', label: 'Conference 등록', children: conferenceTab },
-          { key: 'abstract', label: 'Abstract 등록', children: abstractTab },
         ]}
       />
+
+      <Modal
+        rootClassName="conference-admin-modal"
+        width={760}
+        title={editingConference ? 'Conference 수정' : 'Conference 등록'}
+        open={conferenceModalOpen}
+        okText={editingConference ? '수정' : '등록'}
+        cancelText="취소"
+        confirmLoading={savingConference}
+        onOk={() => void saveConference()}
+        onCancel={() => {
+          setConferenceModalOpen(false);
+          setEditingConference(null);
+          conferenceForm.resetFields();
+        }}
+      >
+        <Form form={conferenceForm} layout="vertical">
+          <div className="conference-admin-form-grid">
+            <Form.Item name="title" label="Conference key" rules={[{ required: true }]}>
+              <Input placeholder="예: ESMO_2027" />
+            </Form.Item>
+            <Form.Item name="abbreviation" label="약어" rules={[{ required: true }]}>
+              <Input placeholder="예: ESMO" />
+            </Form.Item>
+            <Form.Item name="year" label="연도" rules={[{ required: true }]}>
+              <InputNumber min={2000} max={2100} style={{ width: '100%' }} />
+            </Form.Item>
+            <Form.Item name="status" label="상태" rules={[{ required: true }]}>
+              <Select options={[
+                { value: 'OPEN', label: 'OPEN' },
+                { value: 'NOT_OPENED', label: 'NOT_OPENED' },
+              ]} />
+            </Form.Item>
+            <Form.Item name="fullTitle" label="정식 명칭" className="conference-admin-span-2">
+              <Input />
+            </Form.Item>
+            <Form.Item name="dateRange" label="개최 기간">
+              <DatePicker.RangePicker style={{ width: '100%' }} format="YYYY.MM.DD" />
+            </Form.Item>
+            <Form.Item name="sourceUrl" label="원본 URL">
+              <Input />
+            </Form.Item>
+          </div>
+        </Form>
+      </Modal>
+
+      <Modal
+        rootClassName="conference-admin-modal"
+        width={900}
+        title={editingAbstract ? 'Abstract 수정' : 'Abstract 등록'}
+        open={abstractModalOpen}
+        okText={editingAbstract ? '수정' : '등록'}
+        cancelText="취소"
+        confirmLoading={savingAbstract}
+        onOk={() => void saveAbstract()}
+        onCancel={() => {
+          setAbstractModalOpen(false);
+          setEditingAbstract(null);
+          abstractForm.resetFields();
+        }}
+      >
+        <Form form={abstractForm} layout="vertical">
+          <div className="conference-admin-form-grid">
+            <Form.Item name="conferenceId" label="Conference" rules={[{ required: true }]}>
+              <Select
+                showSearch
+                optionFilterProp="label"
+                options={conferences.map((conference) => ({
+                  value: conference.id,
+                  label: `${conference.abbreviation} ${conference.year}`,
+                }))}
+              />
+            </Form.Item>
+            <Form.Item name="abstractNumber" label="Abstract No.">
+              <Input />
+            </Form.Item>
+            <Form.Item name="title" label="제목" rules={[{ required: true }]} className="conference-admin-span-2">
+              <Input />
+            </Form.Item>
+            <Form.Item name="firstAuthorName" label="제1저자">
+              <Input />
+            </Form.Item>
+            <Form.Item name="firstAuthorOrganization" label="제1저자 소속">
+              <Input />
+            </Form.Item>
+            <Form.Item name="authorsText" label="전체 저자 (comma 구분)" className="conference-admin-span-2">
+              <Input />
+            </Form.Item>
+            <Form.Item name="meeting" label="Meeting"><Input /></Form.Item>
+            <Form.Item name="sessionType" label="Session type"><Input /></Form.Item>
+            <Form.Item name="sessionTitle" label="Session title" className="conference-admin-span-2"><Input /></Form.Item>
+            <Form.Item name="track" label="Track"><Input /></Form.Item>
+            <Form.Item name="subTrack" label="Sub-track"><Input /></Form.Item>
+            <Form.Item name="posterNumber" label="Poster No."><Input /></Form.Item>
+            <Form.Item name="clinicalTrialRegistrationNumber" label="임상시험 번호"><Input /></Form.Item>
+            <Form.Item name="dateOpen" label="공개일"><DatePicker style={{ width: '100%' }} format="YYYY.MM.DD" /></Form.Item>
+            <Form.Item name="sourceUrl" label="원본 URL"><Input /></Form.Item>
+            <Form.Item name="contentsJson" label="본문 JSON 또는 text" className="conference-admin-span-2">
+              <Input.TextArea rows={8} />
+            </Form.Item>
+          </div>
+        </Form>
+      </Modal>
 
       <Modal
         rootClassName="conference-admin-modal"
@@ -1253,7 +1998,127 @@ const ConferenceAdmin: React.FC = () => {
         .conference-admin-page {
           height: 100%;
           overflow: auto;
-          padding: 0 8px 20px;
+          box-sizing: border-box;
+          padding: 0 16px 16px;
+        }
+        .conference-admin-page-import > .ant-tabs,
+        .conference-admin-page-recipients > .ant-tabs,
+        .conference-admin-page-mail-outbox > .ant-tabs,
+        .conference-admin-page-conference > .ant-tabs,
+        .conference-admin-page-abstract > .ant-tabs {
+          height: 100%;
+          display: flex;
+          flex-direction: column;
+        }
+        .conference-admin-page-import > .ant-tabs > .ant-tabs-nav,
+        .conference-admin-page-recipients > .ant-tabs > .ant-tabs-nav,
+        .conference-admin-page-mail-outbox > .ant-tabs > .ant-tabs-nav,
+        .conference-admin-page-conference > .ant-tabs > .ant-tabs-nav,
+        .conference-admin-page-abstract > .ant-tabs > .ant-tabs-nav {
+          flex: 0 0 auto;
+        }
+        .conference-admin-page-import > .ant-tabs > .ant-tabs-content-holder,
+        .conference-admin-page-recipients > .ant-tabs > .ant-tabs-content-holder,
+        .conference-admin-page-mail-outbox > .ant-tabs > .ant-tabs-content-holder,
+        .conference-admin-page-conference > .ant-tabs > .ant-tabs-content-holder,
+        .conference-admin-page-abstract > .ant-tabs > .ant-tabs-content-holder {
+          flex: 1 1 auto;
+          min-height: 0;
+          overflow: visible;
+        }
+        .conference-admin-page-import .ant-tabs-content,
+        .conference-admin-page-import .ant-tabs-tabpane-active,
+        .conference-admin-page-recipients .ant-tabs-content,
+        .conference-admin-page-recipients .ant-tabs-tabpane-active,
+        .conference-admin-page-mail-outbox .ant-tabs-content,
+        .conference-admin-page-mail-outbox .ant-tabs-tabpane-active,
+        .conference-admin-page-conference .ant-tabs-content,
+        .conference-admin-page-conference .ant-tabs-tabpane-active,
+        .conference-admin-page-abstract .ant-tabs-content,
+        .conference-admin-page-abstract .ant-tabs-tabpane-active {
+          height: 100%;
+          min-height: 0;
+        }
+        .conference-admin-import-tab {
+          height: 100%;
+          min-height: 0;
+          display: flex;
+          flex-direction: column;
+          gap: 14px;
+        }
+        .conference-admin-import-tab > .ant-alert,
+        .conference-admin-import-tab > .ant-card {
+          flex: 0 0 auto;
+        }
+        .conference-admin-import-list {
+          flex: 1 1 auto;
+          min-height: 210px;
+          overflow: hidden;
+        }
+        .conference-admin-import-table-region {
+          height: 100%;
+          min-height: 0;
+          overflow: hidden;
+          box-sizing: border-box;
+        }
+        .conference-admin-import-table .ant-pagination {
+          margin: 12px 16px !important;
+        }
+        .conference-admin-operations-tab {
+          height: 100%;
+          min-height: 0;
+          display: flex;
+          flex-direction: column;
+          gap: 14px;
+        }
+        .conference-admin-operations-tab > .ant-alert,
+        .conference-admin-operations-tab > .ant-card {
+          flex: 0 0 auto;
+        }
+        .conference-admin-operations-list {
+          flex: 1 1 auto;
+          min-height: 210px;
+          display: flex;
+          flex-direction: column;
+          overflow: hidden;
+        }
+        .conference-admin-operations-list > .ant-table-wrapper {
+          flex: 1 1 auto;
+          min-height: 0;
+          display: flex;
+          flex-direction: column;
+          box-sizing: border-box;
+        }
+        .conference-admin-operations-list > .ant-table-wrapper > .ant-spin-nested-loading {
+          flex: 1 1 auto;
+          min-height: 0;
+          display: flex;
+          flex-direction: column;
+        }
+        .conference-admin-operations-list .ant-spin-container {
+          flex: 1 1 auto;
+          min-height: 0;
+          display: flex;
+          flex-direction: column;
+        }
+        .conference-admin-operations-list .ant-pagination {
+          flex: 0 0 auto;
+          margin: auto 16px 12px !important;
+        }
+        .conference-admin-management-tab {
+          height: 100%;
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
+          min-height: 0;
+        }
+        .conference-admin-management-list {
+          flex: 1 1 auto;
+          min-height: 0;
+          overflow: hidden;
+        }
+        .conference-admin-management-list .ant-pagination {
+          margin: 12px 16px !important;
         }
         .conference-admin-form-grid {
           display: grid;

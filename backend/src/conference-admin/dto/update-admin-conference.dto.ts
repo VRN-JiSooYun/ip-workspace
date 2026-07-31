@@ -12,6 +12,10 @@ import {
 
 export class UpdateAdminConferenceDto {
   @IsOptional()
+  @IsDateString()
+  expectedUpdatedAt?: string;
+
+  @IsOptional()
   @IsString()
   @MinLength(1)
   @MaxLength(200)
@@ -45,9 +49,9 @@ export class UpdateAdminConferenceDto {
 
   @IsOptional()
   @IsDateString()
-  dateStart?: string;
+  dateStart?: string | null;
 
   @IsOptional()
   @IsDateString()
-  dateEnd?: string;
+  dateEnd?: string | null;
 }

@@ -474,8 +474,31 @@ export class ConferenceImportService implements OnModuleInit, OnModuleDestroy {
           select: { title: true },
         })).map((conference) => conference.title),
       );
-      for (const title of await this.loadManifestTitles(files)) {
-        conferenceTitles.add(title);
+      const manifestConferences = await this.loadManifestConferences(files);
+      const deletedManifestLegacyIds = new Set(
+        (await this.prisma.client.conference.findMany({
+          where: {
+            sourceSystem: 'LEGACY_DJANGO',
+            legacyId: { in: manifestConferences.map(({ legacyId }) => legacyId) },
+            deletedAt: { not: null },
+          },
+          select: { legacyId: true },
+        })).flatMap(({ legacyId }) => legacyId === null ? [] : [legacyId]),
+      );
+      for (const conference of manifestConferences) {
+        if (deletedManifestLegacyIds.has(conference.legacyId)) {
+          issues.push({
+            sourceFile: 'conference_list.json',
+            rowNumber: null,
+            entityType: 'CONFERENCE',
+            severity: 'WARNING',
+            errorCode: 'SOFT_DELETED_CONFERENCE_SKIPPED',
+            message: 'A soft-deleted Conference will not be restored by import.',
+            sourceSnapshot: conference,
+          });
+          continue;
+        }
+        conferenceTitles.add(conference.title);
       }
 
       for (const file of files.filter((item) => item.toLowerCase().endsWith('.xlsx'))) {
@@ -629,7 +652,9 @@ export class ConferenceImportService implements OnModuleInit, OnModuleDestroy {
     return hash.digest('hex');
   }
 
-  private async loadManifestTitles(files: string[]): Promise<string[]> {
+  private async loadManifestConferences(
+    files: string[],
+  ): Promise<Array<{ legacyId: number; title: string }>> {
     const manifestPath = files.find((file) => file.endsWith(`${sep}conference_list.json`));
     if (!manifestPath) return [];
     const parsed = JSON.parse(await readFile(manifestPath, 'utf8')) as {
@@ -638,7 +663,7 @@ export class ConferenceImportService implements OnModuleInit, OnModuleDestroy {
     if (!Array.isArray(parsed.list_serialized_data_conference)) {
       throw new Error('CONFERENCE_MANIFEST_INVALID');
     }
-    const titles: string[] = [];
+    const conferences: Array<{ legacyId: number; title: string }> = [];
     const seen = new Set<string>();
     for (const conference of parsed.list_serialized_data_conference) {
       const title = typeof conference.title === 'string' ? conference.title.trim() : '';
@@ -658,8 +683,8 @@ export class ConferenceImportService implements OnModuleInit, OnModuleDestroy {
         throw new Error('CONFERENCE_MANIFEST_ROW_INVALID');
       }
       seen.add(title);
-      titles.push(title);
+      conferences.push({ legacyId: Number(item.id), title });
     }
-    return titles;
+    return conferences;
   }
 }
