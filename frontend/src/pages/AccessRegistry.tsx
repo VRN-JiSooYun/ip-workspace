@@ -4,6 +4,7 @@ import {
   Alert,
   App as AntApp,
   Button,
+  Card,
   Checkbox,
   Form,
   Input,
@@ -13,10 +14,9 @@ import {
   Table,
   Tag,
   Typography,
-  theme,
 } from 'antd';
 import type { TableColumnsType } from 'antd';
-import { RefreshCw, Search, ShieldCheck } from 'lucide-react';
+import { RefreshCw, Search } from 'lucide-react';
 import PageHeaderBreadcrumb from '../components/common/PageHeaderBreadcrumb';
 import { useAuthSession } from '../contexts/AuthSessionContext';
 import { useAccessContext } from '../contexts/AccessContext';
@@ -32,10 +32,12 @@ import {
 } from '../services/adminAccessApi';
 import { AUTH_REQUIRED_EVENT } from '../services/authApi';
 import { useUIStore } from '../store/useUIStore';
+import { useResponsiveLayout } from '../hooks/useResponsiveLayout';
 import { useViewportTableHeight } from '../hooks/useViewportTableHeight';
 import { formatDisplayDate, formatNumberWithComma } from '../utils/displayFormat';
 
-const { Text, Title } = Typography;
+const { Text } = Typography;
+const PAGE_SIZE_OPTIONS = ['10', '30', '50', '100'];
 
 const moduleLabels: Record<WorkspaceModuleCode, string> = {
   CONFERENCE: 'Conference',
@@ -61,9 +63,9 @@ const getErrorMessage = (error: unknown) => {
 const AccessRegistry: React.FC = () => {
   const session = useAuthSession();
   const { hasPermission } = useAccessContext();
-  const { token } = theme.useToken();
   const { message } = AntApp.useApp();
   const { setHeaderContent } = useUIStore();
+  const { layoutPreset } = useResponsiveLayout();
   const [form] = Form.useForm<AccessFormValues>();
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [query, setQuery] = useState('');
@@ -79,7 +81,16 @@ const AccessRegistry: React.FC = () => {
     useState<Record<WorkspaceModuleCode, TeamModuleAccess> | null>(null);
   const [savingTeamAccess, setSavingTeamAccess] = useState(false);
   const [syncingTeams, setSyncingTeams] = useState(false);
-  const { tableBodyHeight, tableRegionRef, tableRegionStyle } = useViewportTableHeight();
+  const { tableBodyHeight, tableRegionRef, tableRegionStyle } = useViewportTableHeight({
+    minHeight: 240,
+    refreshKey: [
+      loading,
+      users.length,
+      query,
+      pagination.current,
+      pagination.pageSize,
+    ].join(':'),
+  });
   const canManageUsers = hasPermission('userAccess.manage');
 
   useEffect(() => {
@@ -329,29 +340,38 @@ const AccessRegistry: React.FC = () => {
 
   return (
     <div
+      className="access-registry-page"
       style={{
         width: '100%',
-        maxWidth: 1280,
+        maxWidth: layoutPreset.maxWidth,
         margin: '0 auto',
-        padding: '0 12px',
+        padding: `0 ${layoutPreset.sidePadding}px`,
         boxSizing: 'border-box',
         display: 'flex',
         flexDirection: 'column',
-        gap: 16,
+        height: '100%',
         minHeight: 0,
+        overflow: 'hidden',
       }}
     >
-      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
-        <div>
-          <Space size={8} align="center">
-            <ShieldCheck size={20} color={token.colorPrimary} />
-            <Title level={4} style={{ margin: 0 }}>사용자 접근 관리</Title>
-          </Space>
-          <div>
-            <Text type="secondary">사용자 역할과 서비스 접근 상태를 관리합니다.</Text>
-          </div>
-        </div>
-        <Space>
+      <Card
+        variant="borderless"
+        className="c-card compact-filter-card"
+        style={{ marginBottom: 12, flexShrink: 0 }}
+      >
+        <Space wrap>
+          <Input
+            allowClear
+            value={query}
+            onChange={(event) => {
+              setQuery(event.target.value);
+              setPagination((current) => ({ ...current, current: 1 }));
+            }}
+            prefix={<Search size={16} />}
+            placeholder="이메일 또는 이름 검색"
+            className="v-search-input"
+            style={{ width: 280 }}
+          />
           <Button onClick={() => void reconcileTeams()} loading={syncingTeams}>
             팀 동기화
           </Button>
@@ -362,32 +382,30 @@ const AccessRegistry: React.FC = () => {
             새로고침
           </Button>
         </Space>
-      </div>
+      </Card>
 
-      {error && <Alert type="error" showIcon message={error} closable onClose={() => setError('')} />}
+      {error && (
+        <Alert
+          type="error"
+          showIcon
+          message={error}
+          closable
+          onClose={() => setError('')}
+          style={{ marginBottom: 12 }}
+        />
+      )}
 
       <div
         className="v-table-card"
         style={{
-          background: token.colorBgContainer,
-          padding: 16,
+          flex: 1,
           minHeight: 0,
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 12,
         }}
       >
-        <Input
-          allowClear
-          value={query}
-          onChange={(event) => {
-            setQuery(event.target.value);
-            setPagination((current) => ({ ...current, current: 1 }));
-          }}
-          prefix={<Search size={16} color={token.colorTextPlaceholder} />}
-          placeholder="이메일 또는 이름 검색"
-          style={{ width: 'min(360px, 100%)' }}
-        />
+        <div className="v-table-header">
+          <Text strong>사용자 목록</Text>
+          <Text type="secondary">{formatNumberWithComma(filteredUsers.length)} users</Text>
+        </div>
         <div ref={tableRegionRef} style={tableRegionStyle}>
           <Table<AdminUser>
             className="access-registry-table viewport-fill-table"
@@ -400,9 +418,14 @@ const AccessRegistry: React.FC = () => {
             pagination={{
               current: pagination.current,
               pageSize: pagination.pageSize,
-              pageSizeOptions: [10, 30, 50, 100],
+              pageSizeOptions: PAGE_SIZE_OPTIONS,
               showSizeChanger: true,
               position: ['bottomRight'],
+              itemRender: (number, type, element) => (
+                type === 'page'
+                  ? <span>{formatNumberWithComma(number)}</span>
+                  : element
+              ),
               onChange: (current, pageSize) => setPagination({ current, pageSize }),
             }}
           />
