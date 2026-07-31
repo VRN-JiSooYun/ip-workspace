@@ -257,6 +257,25 @@ const AccessRegistry: React.FC = () => {
       ),
     },
     {
+      title: '팀',
+      dataIndex: 'team',
+      width: 180,
+      align: 'center',
+      ellipsis: true,
+      render: (team: string | null) => (
+        team
+          ? (
+            <Text
+              ellipsis={{ tooltip: team }}
+              style={{ display: 'block', maxWidth: '100%' }}
+            >
+              {team}
+            </Text>
+          )
+          : <Text type="secondary">-</Text>
+      ),
+    },
+    {
       title: '역할',
       dataIndex: 'adminRoles',
       width: 260,
@@ -377,7 +396,7 @@ const AccessRegistry: React.FC = () => {
             dataSource={filteredUsers}
             loading={loading}
             size="small"
-            scroll={{ x: 900, y: tableBodyHeight }}
+            scroll={{ x: 1_220, y: tableBodyHeight }}
             pagination={{
               current: pagination.current,
               pageSize: pagination.pageSize,
