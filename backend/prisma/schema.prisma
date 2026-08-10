@@ -24,7 +24,6 @@ model User {
   updatedAt     DateTime       @updatedAt
   sessions      Session[]
   accounts      Account[]
-  calculationJobs CalculationJob[]
   abstractBookmarks AbstractBookmark[]
   abstractComments ConferenceAbstractComment[]
   conferenceImportRuns ConferenceImportRun[]
@@ -45,16 +44,9 @@ model User {
   @@map("user")
 }
 
-enum CalculationProvider {
-  THREE_D_PSA
-}
-
 enum WorkspaceModule {
   CONFERENCE
   PATENT_ANALYSIS
-  SAR_TABLE
-  DESIGN
-  SYNTHESIS
 }
 
 model Organization {
@@ -181,18 +173,6 @@ model TeamModuleAccess {
   @@map("team_module_access")
 }
 
-enum CalculationJobType {
-  PSA
-  ESOL
-}
-
-enum CalculationJobStatus {
-  SUBMITTING
-  QUEUED
-  COMPLETED
-  FAILED
-}
-
 enum ConferenceStatus {
   OPEN
   NOT_OPENED
@@ -297,31 +277,6 @@ enum NotificationRecipientImportBatchStatus {
 enum NotificationRecipientImportIssueSeverity {
   WARNING
   ERROR
-}
-
-model CalculationJob {
-  id                 String               @id @default(uuid()) @db.Uuid
-  userId             String               @db.Uuid
-  compoundDraftKey   String
-  provider           CalculationProvider  @default(THREE_D_PSA)
-  jobType            CalculationJobType
-  externalKey        String               @unique
-  externalJobId      String?
-  smiles             String
-  status             CalculationJobStatus @default(SUBMITTING)
-  resultData         Json?
-  errorMessage       String?
-  requestedAt        DateTime             @default(now())
-  callbackReceivedAt DateTime?
-  completedAt        DateTime?
-  deletedAt          DateTime?
-  createdAt          DateTime             @default(now())
-  updatedAt          DateTime             @updatedAt
-  user               User                 @relation(fields: [userId], references: [id], onDelete: Restrict)
-
-  @@index([userId, compoundDraftKey, deletedAt])
-  @@index([status, deletedAt, updatedAt])
-  @@map("calculation_job")
 }
 
 model Conference {
