@@ -84,16 +84,6 @@ export const validateEnv = (config: EnvConfig): EnvConfig => {
   ensureNumber("CONFORMER_API_TIMEOUT_MS", config.CONFORMER_API_TIMEOUT_MS);
   ensureNumber("COMPOUND_API_TIMEOUT_MS", config.COMPOUND_API_TIMEOUT_MS);
   ensureNumber(
-    "THREE_D_PSA_SUBMIT_TIMEOUT_MS",
-    config.THREE_D_PSA_SUBMIT_TIMEOUT_MS,
-  );
-  ensureNumber(
-    "THREE_D_PSA_CALLBACK_MAX_BODY_MB",
-    config.THREE_D_PSA_CALLBACK_MAX_BODY_MB,
-  );
-  ensureNumber("VPROP_API_TIMEOUT_MS", config.VPROP_API_TIMEOUT_MS);
-  ensureNumber("VPROP_MAX_RESPONSE_BYTES", config.VPROP_MAX_RESPONSE_BYTES);
-  ensureNumber(
     "CONFERENCE_MEDIA_REQUEST_TIMEOUT_MS",
     config.CONFERENCE_MEDIA_REQUEST_TIMEOUT_MS,
   );
@@ -138,11 +128,6 @@ export const validateEnv = (config: EnvConfig): EnvConfig => {
     "GROUPWARE_REVALIDATE_INTERVAL_SECONDS",
     config.GROUPWARE_REVALIDATE_INTERVAL_SECONDS,
   );
-  ensureExactValue(
-    "THREE_D_PSA_UNIQUE_KEY_PREFIX",
-    config.THREE_D_PSA_UNIQUE_KEY_PREFIX,
-    "workspace-",
-  );
   ensureUrl(
     "PATENT_ANALYSIS_HELPER_API_URL",
     config.PATENT_ANALYSIS_HELPER_API_URL,
@@ -154,9 +139,6 @@ export const validateEnv = (config: EnvConfig): EnvConfig => {
   ensureUrl("PATENT_INSIGHT_API_URL", config.PATENT_INSIGHT_API_URL);
   ensureUrl("CONFORMER_API_URL", config.CONFORMER_API_URL);
   ensureUrl("COMPOUND_API_URL", config.COMPOUND_API_URL);
-  ensureUrl("THREE_D_PSA_API_URL", config.THREE_D_PSA_API_URL);
-  ensureUrl("THREE_D_PSA_CALLBACK_URL", config.THREE_D_PSA_CALLBACK_URL);
-  ensureUrl("VPROP_API_URL", config.VPROP_API_URL);
   ensureUrl(
     "CONFERENCE_LEGACY_MEDIA_BASE_URL",
     config.CONFERENCE_LEGACY_MEDIA_BASE_URL,

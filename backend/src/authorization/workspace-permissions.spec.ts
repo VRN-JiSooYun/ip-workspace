@@ -43,10 +43,10 @@ describe("workspace permissions", () => {
 
   it("adds team-scoped permissions without granting global administration", () => {
     const permissions = getWorkspacePermissions("USER", [
-      "design.read",
-      "design.write",
+      "conference.read",
+      "patentAnalysis.read",
     ]);
-    expect(permissions).toEqual(["design.read", "design.write"]);
+    expect(permissions).toEqual(["conference.read", "patentAnalysis.read"]);
     expect(permissions).not.toContain("userAccess.manage");
   });
 });

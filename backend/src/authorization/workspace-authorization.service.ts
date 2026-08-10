@@ -22,9 +22,6 @@ export type WorkspaceAccessContext = {
   modules: {
     conference: { read: boolean; write: boolean; manage: boolean };
     patentAnalysis: { read: boolean; write: boolean; manage: boolean };
-    sarTable: { read: boolean; write: boolean; manage: boolean };
-    design: { read: boolean; write: boolean; manage: boolean };
-    synthesis: { read: boolean; write: boolean; manage: boolean };
   };
 };
 
@@ -110,21 +107,6 @@ export class WorkspaceAuthorizationService {
           write: has("patentAnalysis.manage"),
           manage: has("patentAnalysis.manage"),
         },
-        sarTable: {
-          read: has("sarTable.read"),
-          write: has("sarTable.write"),
-          manage: has("sarTable.manage"),
-        },
-        design: {
-          read: has("design.read"),
-          write: has("design.write"),
-          manage: has("design.manage"),
-        },
-        synthesis: {
-          read: has("synthesis.read"),
-          write: has("synthesis.write"),
-          manage: has("synthesis.manage"),
-        },
       },
     };
   }
@@ -148,8 +130,7 @@ export class WorkspaceAuthorizationService {
 
   resolveDataScope(
     accessContext: WorkspaceAccessContext,
-    domain:
-      "conference" | "patentAnalysis" | "sarTable" | "design" | "synthesis",
+    domain: "conference" | "patentAnalysis",
   ): WorkspaceDataScope {
     if (accessContext.globalRoles.includes("SUPER_ADMIN")) {
       return { type: "GLOBAL" };
@@ -174,19 +155,12 @@ export class WorkspaceAuthorizationService {
     if (!accessContext.organization) {
       throw new ForbiddenException("WORKSPACE_ORGANIZATION_REQUIRED");
     }
-    if (domain === "conference") {
-      return {
-        type: "ORG",
-        organizationId: accessContext.organization.id,
-      };
-    }
-    if (accessContext.teams.length === 0) {
-      throw new ForbiddenException("WORKSPACE_TEAM_REQUIRED");
-    }
+    // Only `conference` remains, and it is organization-scoped. The TEAM scope
+    // this used to fall through to was reachable only from the design/synthesis
+    // domains, which no longer exist.
     return {
-      type: "TEAM",
+      type: "ORG",
       organizationId: accessContext.organization.id,
-      teamIds: accessContext.teams.map(({ id }) => id),
     };
   }
 
@@ -207,7 +181,6 @@ export class WorkspaceAuthorizationService {
     canManage: boolean;
   }): WorkspacePermission[] {
     const canRead = access.canRead || access.canWrite || access.canManage;
-    const canWrite = access.canWrite || access.canManage;
     switch (access.module) {
       case "CONFERENCE":
         return [
@@ -223,24 +196,6 @@ export class WorkspaceAuthorizationService {
         return [
           ...(canRead ? ["patentAnalysis.read" as const] : []),
           ...(access.canManage ? ["patentAnalysis.manage" as const] : []),
-        ];
-      case "SAR_TABLE":
-        return [
-          ...(canRead ? ["sarTable.read" as const] : []),
-          ...(canWrite ? ["sarTable.write" as const] : []),
-          ...(access.canManage ? ["sarTable.manage" as const] : []),
-        ];
-      case "DESIGN":
-        return [
-          ...(canRead ? ["design.read" as const] : []),
-          ...(canWrite ? ["design.write" as const] : []),
-          ...(access.canManage ? ["design.manage" as const] : []),
-        ];
-      case "SYNTHESIS":
-        return [
-          ...(canRead ? ["synthesis.read" as const] : []),
-          ...(canWrite ? ["synthesis.write" as const] : []),
-          ...(access.canManage ? ["synthesis.manage" as const] : []),
         ];
       default:
         return [];

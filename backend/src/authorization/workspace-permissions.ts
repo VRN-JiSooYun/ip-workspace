@@ -5,15 +5,6 @@ export const WORKSPACE_PERMISSIONS = [
   "conference.comment.moderate",
   "patentAnalysis.read",
   "patentAnalysis.manage",
-  "sarTable.read",
-  "sarTable.write",
-  "sarTable.manage",
-  "design.read",
-  "design.write",
-  "design.manage",
-  "synthesis.read",
-  "synthesis.write",
-  "synthesis.manage",
 ] as const;
 
 export type WorkspacePermission = (typeof WORKSPACE_PERMISSIONS)[number];

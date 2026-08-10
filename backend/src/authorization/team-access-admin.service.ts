@@ -12,9 +12,6 @@ import {
 const WORKSPACE_MODULES = [
   "CONFERENCE",
   "PATENT_ANALYSIS",
-  "SAR_TABLE",
-  "DESIGN",
-  "SYNTHESIS",
 ] as const;
 
 type WorkspaceModuleCode = (typeof WORKSPACE_MODULES)[number];

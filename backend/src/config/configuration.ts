@@ -37,29 +37,6 @@ export default () => ({
     authToken: process.env.COMPOUND_API_AUTH_TOKEN ?? "",
     timeoutMs: parseNumber(process.env.COMPOUND_API_TIMEOUT_MS, 30000),
   },
-  threeDPsa: {
-    apiUrl: process.env.THREE_D_PSA_API_URL ?? "http://172.16.1.130:20010",
-    callbackUrl:
-      process.env.THREE_D_PSA_CALLBACK_URL ??
-      "http://172.16.1.183:18082/api/calculations/3d-psa/callback",
-    submitTimeoutMs: parseNumber(
-      process.env.THREE_D_PSA_SUBMIT_TIMEOUT_MS,
-      10000,
-    ),
-    uniqueKeyPrefix: process.env.THREE_D_PSA_UNIQUE_KEY_PREFIX ?? "workspace-",
-    callbackMaxBodyMb: parseNumber(
-      process.env.THREE_D_PSA_CALLBACK_MAX_BODY_MB,
-      25,
-    ),
-  },
-  vprop: {
-    apiUrl: process.env.VPROP_API_URL ?? "http://172.16.1.207:8100",
-    timeoutMs: parseNumber(process.env.VPROP_API_TIMEOUT_MS, 25000),
-    maxResponseBytes: parseNumber(
-      process.env.VPROP_MAX_RESPONSE_BYTES,
-      5242880,
-    ),
-  },
   conferenceMedia: {
     legacyBaseUrl:
       process.env.CONFERENCE_LEGACY_MEDIA_BASE_URL ?? "https://voronoi.app",

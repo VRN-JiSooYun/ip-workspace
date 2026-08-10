@@ -8,13 +8,10 @@ const context = (
   globalRoles: [],
   organization: { id: "org-1", name: "Workspace" },
   teams: [{ id: "team-1", name: "Research" }],
-  permissions: ["conference.read", "patentAnalysis.read", "design.read"],
+  permissions: ["conference.read", "patentAnalysis.read"],
   modules: {
     conference: { read: true, write: false, manage: false },
     patentAnalysis: { read: true, write: false, manage: false },
-    sarTable: { read: false, write: false, manage: false },
-    design: { read: true, write: false, manage: false },
-    synthesis: { read: false, write: false, manage: false },
   },
   ...overrides,
 });
@@ -48,11 +45,9 @@ describe("workspace data scope", () => {
     });
   });
 
-  it("uses all current team memberships for team-owned domains", () => {
-    expect(service.resolveDataScope(context(), "design")).toEqual({
-      type: "TEAM",
-      organizationId: "org-1",
-      teamIds: ["team-1"],
-    });
+  it("requires an organization before scoping conference access", () => {
+    expect(() =>
+      service.resolveDataScope(context({ organization: null }), "conference"),
+    ).toThrow("WORKSPACE_ORGANIZATION_REQUIRED");
   });
 });

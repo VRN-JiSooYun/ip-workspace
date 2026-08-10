@@ -11,7 +11,6 @@ import { auth } from "./auth/auth";
 import { IpAuthModule } from "./auth/auth.module";
 import { DatabaseModule } from "./database/database.module";
 import { AdminModule } from "./admin/admin.module";
-import { CalculationsModule } from "./calculations/calculations.module";
 import { ConferenceMediaModule } from "./conference-media/conference-media.module";
 import { ConferenceImportModule } from "./conference-import/conference-import.module";
 import { ConferenceReadModule } from "./conference-read/conference-read.module";
@@ -34,10 +33,7 @@ import { AuthorizationModule } from "./authorization/authorization.module";
       auth,
       bodyParser: {
         json: { limit: "2mb" },
-        urlencoded: {
-          limit: `${process.env.THREE_D_PSA_CALLBACK_MAX_BODY_MB ?? "25"}mb`,
-          extended: true,
-        },
+        urlencoded: { limit: "2mb", extended: true },
       },
     }),
     IpAuthModule,
@@ -48,7 +44,6 @@ import { AuthorizationModule } from "./authorization/authorization.module";
     PatentAnalysisAdminModule,
     ConformerModule,
     CompoundApiModule,
-    CalculationsModule,
     ConferenceMediaModule,
     ConferenceImportModule,
     ConferenceReadModule,

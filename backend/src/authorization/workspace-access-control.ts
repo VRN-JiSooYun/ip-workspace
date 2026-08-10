@@ -6,9 +6,6 @@ const workspaceStatements = {
   userAccess: ["manage"],
   conference: ["read", "manage", "comment-moderate"],
   patentAnalysis: ["read", "manage"],
-  sarTable: ["read", "write", "manage"],
-  design: ["read", "write", "manage"],
-  synthesis: ["read", "write", "manage"],
 } as const;
 
 export const workspaceAccessControl = createAccessControl(workspaceStatements);
@@ -18,9 +15,6 @@ const baseUserStatements = {
   session: [],
   conference: [],
   patentAnalysis: [],
-  sarTable: [],
-  design: [],
-  synthesis: [],
 } as const;
 
 const superAdminStatements = {
@@ -28,9 +22,6 @@ const superAdminStatements = {
   userAccess: ["manage"],
   conference: ["read", "manage", "comment-moderate"],
   patentAnalysis: ["read", "manage"],
-  sarTable: ["read", "write", "manage"],
-  design: ["read", "write", "manage"],
-  synthesis: ["read", "write", "manage"],
 } as const;
 
 export const betterAuthWorkspaceRoles = {

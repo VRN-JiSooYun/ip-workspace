@@ -27,9 +27,6 @@ describe("TeamMembershipSyncService", () => {
         moduleAccess: [
           { module: "CONFERENCE" },
           { module: "PATENT_ANALYSIS" },
-          { module: "SAR_TABLE" },
-          { module: "DESIGN" },
-          { module: "SYNTHESIS" },
         ],
       },
       user: {

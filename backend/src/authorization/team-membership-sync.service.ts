@@ -12,9 +12,6 @@ const DEFAULT_TEAM_MODULE_ACCESS = [
     canWrite: false,
     canManage: false,
   },
-  { module: "SAR_TABLE", canRead: true, canWrite: true, canManage: false },
-  { module: "DESIGN", canRead: true, canWrite: true, canManage: false },
-  { module: "SYNTHESIS", canRead: true, canWrite: true, canManage: false },
 ] as const;
 
 export const normalizeTeamAlias = (value: string): string =>
