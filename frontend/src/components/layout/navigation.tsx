@@ -1,19 +1,13 @@
 import React from 'react';
 import {
-  Activity,
   Database,
   FileText,
-  FlaskConical,
   HelpCircle,
   LayoutDashboard,
-  Microscope,
-  Monitor,
-  Palette,
   Presentation,
   Search,
   ShieldCheck,
 } from 'lucide-react';
-import BenzeneIcon from '../common/BenzeneIcon';
 import { getRoutePermission } from '../../routes';
 import type { WorkspacePermission } from '../../services/accessContextApi';
 
@@ -118,13 +112,6 @@ export const BOTTOM_NAV: NavNode[] = [
     label: '특허 분석 관리',
     icon: <FileText size={22} />,
     path: '/workspace/patent-analysis-admin',
-  },
-  { key: 'monitoring', label: '모니터링', icon: <Monitor size={22} />, path: '/monitoring' },
-  {
-    key: 'development-status',
-    label: '수리응용2팀 서비스 개발 진행 현황',
-    icon: <Activity size={22} />,
-    path: '/development-status',
   },
   { key: 'contact', label: '문의하기', icon: <HelpCircle size={22} />, path: '/contact' },
 ];

@@ -6,7 +6,7 @@ import {
   getCompoundStructureCopyText,
   getStructureImageCopyFilter,
 } from './CompoundStructureView';
-import MolstarStructureViewer from '../myboard/MolstarStructureViewer';
+import MolstarStructureViewer from './MolstarStructureViewer';
 import { conformerApi } from '../../services/conformerApi';
 
 type StructurePreviewMode = '2d' | '3d';
