@@ -1,0 +1,306 @@
+/* 특허 관리 — three-column portfolio view.
+   Colours come from the shared custom properties in index.css so the page
+   follows the brand colour and dark mode without hardcoding hex values. */
+
+.pm-layout {
+  display: grid;
+  grid-template-columns: 340px minmax(0, 1fr) 500px;
+  gap: 16px;
+  align-items: start;
+  padding: 0 16px 24px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.pm-layout.pm-layout-viewer-closed {
+  grid-template-columns: 340px minmax(0, 1fr);
+}
+
+@media (max-width: 1600px) {
+  .pm-layout {
+    grid-template-columns: 300px minmax(0, 1fr) 420px;
+  }
+}
+
+@media (max-width: 1280px) {
+  .pm-layout,
+  .pm-layout.pm-layout-viewer-closed {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.pm-column {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+
+.pm-card {
+  background: var(--card-bg);
+  border: 1px solid var(--c-card-border);
+  border-radius: 12px;
+  padding: 16px;
+  box-sizing: border-box;
+}
+
+.pm-card-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.pm-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+/* ---- deadline calendar -------------------------------------------------- */
+
+.pm-calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+}
+
+.pm-calendar-weekday {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 28px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.pm-calendar-day {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 30px;
+  border-radius: 999px;
+  font-size: 12px;
+  color: var(--text-primary);
+}
+
+.pm-calendar-day-muted {
+  color: var(--text-secondary);
+  opacity: 0.45;
+}
+
+/* A deadline falls on this day. */
+.pm-calendar-day-due {
+  background: rgba(var(--brand-primary-rgb), 0.16);
+  color: var(--brand-primary);
+  font-weight: 700;
+}
+
+/* The day currently in focus. */
+.pm-calendar-day-selected {
+  background: var(--brand-primary);
+  color: #fff;
+  font-weight: 700;
+}
+
+/* ---- upcoming deadlines ------------------------------------------------- */
+
+.pm-deadline-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 0;
+  font-size: 12px;
+  color: var(--text-primary);
+}
+
+.pm-dday {
+  flex-shrink: 0;
+  min-width: 46px;
+  text-align: center;
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.pm-dday-urgent {
+  background: rgba(220, 38, 38, 0.12);
+  color: #dc2626;
+}
+
+.pm-dday-soon {
+  background: rgba(217, 119, 6, 0.14);
+  color: #b45309;
+}
+
+.pm-dday-later {
+  background: rgba(5, 150, 105, 0.12);
+  color: #047857;
+}
+
+.pm-deadline-label {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pm-deadline-date {
+  flex-shrink: 0;
+  color: var(--text-secondary);
+}
+
+/* ---- compound list ------------------------------------------------------ */
+
+.pm-compound-head,
+.pm-compound-row {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr) 48px;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 8px;
+  border-radius: 8px;
+  font-size: 13px;
+}
+
+.pm-compound-head {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  border-bottom: 1px solid var(--border-color);
+  border-radius: 0;
+}
+
+.pm-compound-row {
+  cursor: pointer;
+}
+
+.pm-compound-row:hover {
+  background: var(--table-row-hover-bg);
+}
+
+.pm-compound-row-selected {
+  background: rgba(var(--brand-primary-rgb), 0.1);
+}
+
+.pm-compound-count {
+  text-align: right;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- stage pipeline ----------------------------------------------------- */
+
+.pm-pipeline {
+  display: flex;
+  align-items: stretch;
+  gap: 2px;
+  overflow-x: auto;
+  padding: 4px;
+}
+
+.pm-stage {
+  position: relative;
+  flex: 1 1 0;
+  min-width: 104px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: 12px 18px;
+  border: none;
+  background: transparent;
+  color: var(--text-primary);
+  cursor: pointer;
+  font-family: inherit;
+}
+
+/* Only the active step is drawn as a filled chevron; the rest stay flat with a
+   thin separator between them, matching the design. */
+.pm-stage-active {
+  background: var(--brand-primary);
+  color: #fff;
+  clip-path: polygon(0 0, calc(100% - 14px) 0, 100% 50%, calc(100% - 14px) 100%, 0 100%, 14px 50%);
+}
+
+.pm-stage:first-child.pm-stage-active {
+  clip-path: polygon(0 0, calc(100% - 14px) 0, 100% 50%, calc(100% - 14px) 100%, 0 100%);
+}
+
+.pm-stage:last-child.pm-stage-active {
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%, 14px 50%);
+}
+
+.pm-stage-separator {
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+  color: var(--border-color);
+}
+
+.pm-stage:not(.pm-stage-active):hover {
+  background: rgba(var(--brand-primary-rgb), 0.1);
+}
+
+.pm-stage-label {
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.pm-stage-count {
+  font-size: 19px;
+  font-weight: 700;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- document viewer ---------------------------------------------------- */
+
+.pm-viewer-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.pm-viewer-meta-value {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.pm-viewer-divider {
+  color: var(--border-color);
+}
+
+.pm-viewer-preview {
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  padding: 20px;
+  background: var(--card-bg);
+  max-height: 620px;
+  overflow-y: auto;
+}
+
+.pm-doc-field {
+  display: grid;
+  grid-template-columns: 92px minmax(0, 1fr);
+  gap: 8px;
+  padding: 3px 0;
+  font-size: 12px;
+}
+
+.pm-doc-field-label {
+  color: var(--text-secondary);
+}
+
+.pm-doc-field-value {
+  color: var(--text-primary);
+}

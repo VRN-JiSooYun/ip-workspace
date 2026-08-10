@@ -10,6 +10,7 @@ import PatentAnalysisAdmin from './pages/PatentAnalysisAdmin';
 import PatentAnalysisDetail from './pages/PatentAnalysisDetail';
 import PatentAnalysisList from './pages/PatentAnalysisList';
 import PatentInsight from './pages/PatentInsight';
+import PatentManagement from './pages/PatentManagement';
 import UniversalSearch from './pages/UniversalSearch';
 import type { WorkspacePermission } from './services/accessContextApi';
 
@@ -71,6 +72,9 @@ export const APP_ROUTES: AppRoute[] = [
       />
     ),
   },
+
+  // ---- 특허 관리 -----------------------------------------------------------
+  { path: '/patent-management', permission: 'patentAnalysis.read', element: <PatentManagement /> },
 
   // Need to Create IP Dashboard
   { path: '/dashboard', element: <Dashboard /> },

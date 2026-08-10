@@ -2,6 +2,7 @@ import React from 'react';
 import {
   Database,
   FileText,
+  FolderKanban,
   HelpCircle,
   LayoutDashboard,
   Presentation,
@@ -56,6 +57,12 @@ export const MAIN_NAV: NavNode[] = [
     label: 'Dashboard',
     icon: <LayoutDashboard size={22} />,
     path: '/dashboard',
+  },
+  {
+    key: 'patent-management',
+    label: '특허 관리',
+    icon: <FolderKanban size={22} />,
+    path: '/patent-management',
   },
   {
     key: 'documents',
