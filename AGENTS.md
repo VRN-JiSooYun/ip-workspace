@@ -56,6 +56,28 @@
 - 권장: 짧고 명령형 커밋 제목(예: "Add auth guard").
 - PR에는 요약, 테스트 내용, UI 변경 시 스크린샷을 포함하세요.
 
+## Database Bootstrap (신규 DB 필수 절차)
+마이그레이션만 적용한 DB에서는 **아무도 로그인할 수 없습니다.** 로그인 게이트가
+`notification_recipient.memberId`를 요구하는데(`auth/groupware-sso.plugin.ts`,
+`auth/groupware-session.interceptor.ts`), SSO 로그인 자체는 이 값을 채우지 않고
+그룹웨어 디렉터리 임포트만 채웁니다. 그런데 그 임포트는 로그인이 필요한 관리자
+엔드포인트라 서로 막히는 구조입니다.
+
+DB를 새로 만들었다면 마이그레이션 직후 다음을 실행하세요:
+
+```bash
+cd backend && bun run seed:recipients
+```
+
+- 원본은 `backend/imports/groupware-members/getMembers.json` (git 미추적 — 실명·이메일 포함).
+  `--file=<경로>`로 바꿀 수 있고, `--dry-run`으로 먼저 확인할 수 있습니다.
+- 멱등합니다. 재실행하면 전부 `unchanged`로 보고합니다.
+- 실제 임포터(`NotificationRecipientImportService`)와 동일한 필드·checksum을 쓰므로
+  이후 정식 임포트가 시드된 행을 `UNCHANGED`로 인식합니다. 임포터의 candidate/checksum
+  로직을 바꾸면 `scripts/seed-notification-recipients.ts`도 같이 바꿔야 합니다.
+- 부트스트랩 전용입니다. import run/batch 기록을 남기지 않고, 원본에서 빠진 멤버를
+  비활성화하는 정식 임포터의 sweep도 수행하지 않습니다.
+
 ## Configuration & Environment
 - 프론트엔드는 API 기본 URL로 `VITE_API_URL`을 사용합니다 (향후 backend 연동 시 필요).
 - 기본 개발 값은 `docker-compose.yml`의 환경변수(`VITE_API_URL=http://localhost:3000`)에서 정의.

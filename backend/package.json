@@ -13,6 +13,7 @@
     "start:dev": "bun run prisma:generate && nest start --watch -e bun",
     "start:debug": "nest start --debug --watch -e bun",
     "start:prod": "bun dist/main.js",
+    "seed:recipients": "bun run scripts/seed-notification-recipients.ts",
     "prisma:generate": "bunx --bun prisma generate",
     "prisma:migrate:dev": "bunx --bun prisma migrate dev",
     "prisma:migrate:deploy": "bunx --bun prisma migrate deploy",
