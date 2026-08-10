@@ -1,8 +1,3 @@
-declare module 'fabric' {
-  const fabric: any;
-  export = fabric;
-}
-
 declare module 'react-pdf-highlighter-plus' {
   import * as React from 'react';
 

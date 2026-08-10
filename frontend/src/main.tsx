@@ -6,7 +6,6 @@ import { ThemeProvider } from './contexts/ThemeContext';
 import App from './App';
 import './index.css';
 import { initBrandPrimary } from './theme/brandColor';
-import 'echarts-gl'; // Import globally once to prevent component registration warnings
 
 installCanvasReadbackPatch();
 // Publish --brand-primary before the first render so nothing paints with the
