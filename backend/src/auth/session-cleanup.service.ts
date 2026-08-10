@@ -1,5 +1,10 @@
-import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
-import { PrismaService } from '../database/prisma.service';
+import {
+  Injectable,
+  Logger,
+  OnModuleDestroy,
+  OnModuleInit,
+} from "@nestjs/common";
+import { PrismaService } from "../database/prisma.service";
 
 const CLEANUP_INTERVAL_MS = 60 * 60 * 1000;
 
@@ -16,7 +21,7 @@ export class SessionCleanupService implements OnModuleInit, OnModuleDestroy {
         .deleteMany({ where: { expiresAt: { lt: new Date() } } })
         .catch((error: unknown) => {
           this.logger.error(
-            'Expired session cleanup failed',
+            "Expired session cleanup failed",
             error instanceof Error ? error.stack : undefined,
           );
         });

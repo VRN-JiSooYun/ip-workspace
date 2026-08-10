@@ -1,4 +1,4 @@
-import { Type } from 'class-transformer';
+import { Type } from "class-transformer";
 import {
   IsBoolean,
   IsIn,
@@ -11,7 +11,7 @@ import {
   MaxLength,
   Min,
   ValidateNested,
-} from 'class-validator';
+} from "class-validator";
 
 export class EmbodimentBioactivityFilterDto {
   @IsString()
@@ -42,8 +42,8 @@ export class EmbodimentRGroupFilterDto {
 }
 
 export class EmbodimentSearchDto {
-  @IsIn(['raw', 'clean'])
-  dataset!: 'raw' | 'clean';
+  @IsIn(["raw", "clean"])
+  dataset!: "raw" | "clean";
 
   @IsOptional()
   @Type(() => Number)

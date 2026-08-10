@@ -1,17 +1,19 @@
-import type { PrismaClient } from '../generated/prisma/client';
+import type { PrismaClient } from "../generated/prisma/client";
 
 export const normalizeRecipientEmail = (email: string): string =>
   email.trim().toLowerCase();
 
 const preferredWorkspaceName = (name: string, email: string): string => {
   const trimmed = name.trim();
-  return trimmed && normalizeRecipientEmail(trimmed) !== email ? trimmed : email;
+  return trimmed && normalizeRecipientEmail(trimmed) !== email
+    ? trimmed
+    : email;
 };
 
 export class NotificationRecipientSyncConflictError extends Error {
   constructor(readonly code: string) {
     super(code);
-    this.name = 'NotificationRecipientSyncConflictError';
+    this.name = "NotificationRecipientSyncConflictError";
   }
 }
 
@@ -20,7 +22,7 @@ export const syncNotificationRecipientForUser = async (
   user: { id: string; name: string; email: string; status?: string },
 ) => {
   const normalizedEmail = normalizeRecipientEmail(user.email);
-  const active = (user.status ?? 'ACTIVE') === 'ACTIVE';
+  const active = (user.status ?? "ACTIVE") === "ACTIVE";
 
   return prisma.$transaction(async (tx) => {
     const byEmail = await tx.notificationRecipient.findUnique({
@@ -32,12 +34,12 @@ export const syncNotificationRecipientForUser = async (
 
     if (byUser && byUser.normalizedEmail !== normalizedEmail) {
       throw new NotificationRecipientSyncConflictError(
-        'NOTIFICATION_RECIPIENT_USER_EMAIL_CHANGED',
+        "NOTIFICATION_RECIPIENT_USER_EMAIL_CHANGED",
       );
     }
     if (byEmail?.linkedUserId && byEmail.linkedUserId !== user.id) {
       throw new NotificationRecipientSyncConflictError(
-        'NOTIFICATION_RECIPIENT_EMAIL_ALREADY_LINKED',
+        "NOTIFICATION_RECIPIENT_EMAIL_ALREADY_LINKED",
       );
     }
 
@@ -46,10 +48,10 @@ export const syncNotificationRecipientForUser = async (
         where: { id: byEmail.id },
         data: {
           linkedUserId: user.id,
-          status: active ? 'ACTIVE' : 'INACTIVE',
+          status: active ? "ACTIVE" : "INACTIVE",
           mailEnabled: active,
           lastSyncedAt: new Date(),
-          ...(byEmail.source === 'WORKSPACE_USER'
+          ...(byEmail.source === "WORKSPACE_USER"
             ? { name: preferredWorkspaceName(user.name, normalizedEmail) }
             : {}),
         },
@@ -62,8 +64,8 @@ export const syncNotificationRecipientForUser = async (
         email: normalizedEmail,
         normalizedEmail,
         linkedUserId: user.id,
-        source: 'WORKSPACE_USER',
-        status: active ? 'ACTIVE' : 'INACTIVE',
+        source: "WORKSPACE_USER",
+        status: active ? "ACTIVE" : "INACTIVE",
         mailEnabled: active,
         lastSyncedAt: new Date(),
       },

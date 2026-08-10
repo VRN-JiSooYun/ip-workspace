@@ -3430,11 +3430,11 @@ const PatentAnalysisDetail: React.FC = () => {
           z-index: 4 !important;
         }
         .TextHighlight__part {
-          background-color: rgba(248, 124, 99, 0.3) !important;
+          background-color: rgba(var(--brand-primary-rgb), 0.3) !important;
           border-radius: 4px;
         }
         .Highlight__part {
-          background-color: rgba(248, 124, 99, 0.3);
+          background-color: rgba(var(--brand-primary-rgb), 0.3);
         }
         .active_compound_highlight .TextHighlight__part {
           background-color: rgba(255, 0, 0, 0.2) !important;

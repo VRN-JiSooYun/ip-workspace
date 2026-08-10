@@ -268,7 +268,7 @@ const ChemSpace: React.FC = () => {
                 ) : (
                   colorBy === 'kinase' ? (
                   <Space direction="vertical" size={8}>
-                    <Space><div style={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: '#F87C63' }} /> <Text style={{ fontSize: '11px' }}>TK</Text></Space>
+                    <Space><div style={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: 'var(--brand-primary)' }} /> <Text style={{ fontSize: '11px' }}>TK</Text></Space>
                     <Space><div style={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: '#4ECDC4' }} /> <Text style={{ fontSize: '11px' }}>TKL</Text></Space>
                     <Space><div style={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: '#FFD166' }} /> <Text style={{ fontSize: '11px' }}>STE</Text></Space>
                     <Space><div style={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: '#06D6A0' }} /> <Text style={{ fontSize: '11px' }}>CK1</Text></Space>

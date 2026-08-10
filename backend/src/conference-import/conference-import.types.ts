@@ -2,18 +2,14 @@ export type ConferenceImportIssueDraft = {
   sourceFile: string;
   rowNumber: number | null;
   entityType: string;
-  severity: 'WARNING' | 'ERROR';
+  severity: "WARNING" | "ERROR";
   errorCode: string;
   message: string;
   sourceSnapshot?: Record<string, string | number | boolean | null>;
 };
 
 export type ConferenceExcelProfile =
-  | 'LEGACY_EXPORT'
-  | 'DETAIL'
-  | 'POSTER'
-  | 'DOCUMENT'
-  | 'VIDEO';
+  "LEGACY_EXPORT" | "DETAIL" | "POSTER" | "DOCUMENT" | "VIDEO";
 
 export type ConferenceExcelInspection = {
   sourceFile: string;

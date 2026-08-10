@@ -10,8 +10,7 @@ export type PatentAnalysisLegacyResult<T = unknown> = [
 ];
 
 export type PatentAnalysisHelperResponse<T = unknown> =
-  | PatentAnalysisHelperResult<T>
-  | PatentAnalysisLegacyResult<T>;
+  PatentAnalysisHelperResult<T> | PatentAnalysisLegacyResult<T>;
 
 export type PatentListResult = {
   partial_rows?: unknown[];
@@ -50,10 +49,6 @@ export type CompoundSearchResult = {
 };
 
 export type PatentAnalysisFormValue =
-  | string
-  | number
-  | boolean
-  | null
-  | undefined;
+  string | number | boolean | null | undefined;
 
 export type PatentAnalysisFormPayload = Record<string, PatentAnalysisFormValue>;

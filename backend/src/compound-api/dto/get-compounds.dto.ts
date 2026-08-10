@@ -1,4 +1,4 @@
-import { ArrayNotEmpty, IsArray, IsIn, IsString } from 'class-validator';
+import { ArrayNotEmpty, IsArray, IsIn, IsString } from "class-validator";
 
 export class GetCompoundsDto {
   @IsArray()
@@ -7,6 +7,6 @@ export class GetCompoundsDto {
   compounds!: string[];
 
   @IsString()
-  @IsIn(['smiles'])
-  type: 'smiles' = 'smiles';
+  @IsIn(["smiles"])
+  type: "smiles" = "smiles";
 }

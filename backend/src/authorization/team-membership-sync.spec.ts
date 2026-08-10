@@ -1,39 +1,39 @@
 import {
   normalizeTeamAlias,
   TeamMembershipSyncService,
-} from './team-membership-sync.service';
+} from "./team-membership-sync.service";
 
-describe('normalizeTeamAlias', () => {
-  it('normalizes unicode, whitespace, and case for stable alias lookup', () => {
-    expect(normalizeTeamAlias('  AI 연구소   수리응용2팀  ')).toBe(
-      'ai 연구소 수리응용2팀',
+describe("normalizeTeamAlias", () => {
+  it("normalizes unicode, whitespace, and case for stable alias lookup", () => {
+    expect(normalizeTeamAlias("  AI 연구소   수리응용2팀  ")).toBe(
+      "ai 연구소 수리응용2팀",
     );
-    expect(normalizeTeamAlias('ＡＩ 연구소')).toBe('ai 연구소');
+    expect(normalizeTeamAlias("ＡＩ 연구소")).toBe("ai 연구소");
   });
 });
 
-describe('TeamMembershipSyncService', () => {
-  it('repairs active session context when the canonical assignment already exists', async () => {
+describe("TeamMembershipSyncService", () => {
+  it("repairs active session context when the canonical assignment already exists", async () => {
     const findUnique = jest.fn().mockResolvedValue({
       team: {
-        id: 'team-1',
-        name: 'Research',
+        id: "team-1",
+        name: "Research",
         organization: {
-          id: 'organization-1',
-          name: 'Medichem Workspace',
-          slug: 'medichem-workspace',
+          id: "organization-1",
+          name: "Medichem Workspace",
+          slug: "medichem-workspace",
         },
-        aliases: [{ id: 'alias-1' }],
+        aliases: [{ id: "alias-1" }],
         moduleAccess: [
-          { module: 'CONFERENCE' },
-          { module: 'PATENT_ANALYSIS' },
-          { module: 'SAR_TABLE' },
-          { module: 'DESIGN' },
-          { module: 'SYNTHESIS' },
+          { module: "CONFERENCE" },
+          { module: "PATENT_ANALYSIS" },
+          { module: "SAR_TABLE" },
+          { module: "DESIGN" },
+          { module: "SYNTHESIS" },
         ],
       },
       user: {
-        organizationMembers: [{ organizationId: 'organization-1' }],
+        organizationMembers: [{ organizationId: "organization-1" }],
       },
     });
     const updateMany = jest.fn().mockResolvedValue({ count: 1 });
@@ -46,28 +46,26 @@ describe('TeamMembershipSyncService', () => {
       },
     } as never);
 
-    await expect(
-      service.ensureForUser('user-1', 'Research'),
-    ).resolves.toEqual({
+    await expect(service.ensureForUser("user-1", "Research")).resolves.toEqual({
       organization: {
-        id: 'organization-1',
-        name: 'Medichem Workspace',
+        id: "organization-1",
+        name: "Medichem Workspace",
       },
-      team: { id: 'team-1', name: 'Research' },
+      team: { id: "team-1", name: "Research" },
     });
     expect(updateMany).toHaveBeenCalledWith({
       where: {
-        userId: 'user-1',
+        userId: "user-1",
         OR: [
           { activeOrganizationId: null },
-          { activeOrganizationId: { not: 'organization-1' } },
+          { activeOrganizationId: { not: "organization-1" } },
           { activeTeamId: null },
-          { activeTeamId: { not: 'team-1' } },
+          { activeTeamId: { not: "team-1" } },
         ],
       },
       data: {
-        activeOrganizationId: 'organization-1',
-        activeTeamId: 'team-1',
+        activeOrganizationId: "organization-1",
+        activeTeamId: "team-1",
       },
     });
     expect(transaction).not.toHaveBeenCalled();

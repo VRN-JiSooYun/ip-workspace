@@ -13,7 +13,7 @@ export type AuthSession = {
   session: { id: string; expiresAt: string };
 };
 
-export const AUTH_REQUIRED_EVENT = 'medichem:auth-required';
+export const AUTH_REQUIRED_EVENT = 'ip:auth-required';
 
 export const notifyIfAuthRequired = (response: Response): void => {
   if (response.status === 401 && typeof window !== 'undefined') {

@@ -3,15 +3,15 @@ import {
   ConflictException,
   Injectable,
   NotFoundException,
-} from '@nestjs/common';
-import type { Prisma } from '../generated/prisma/client';
-import { PrismaService } from '../database/prisma.service';
-import type { AdminConferenceListQueryDto } from './dto/admin-conference-list-query.dto';
-import type { AdminConferenceAbstractListQueryDto } from './dto/admin-conference-abstract-list-query.dto';
-import type { CreateAdminConferenceDto } from './dto/create-admin-conference.dto';
-import type { UpdateAdminConferenceDto } from './dto/update-admin-conference.dto';
-import type { CreateAdminConferenceAbstractDto } from './dto/create-admin-conference-abstract.dto';
-import type { UpdateAdminConferenceAbstractDto } from './dto/update-admin-conference-abstract.dto';
+} from "@nestjs/common";
+import type { Prisma } from "../generated/prisma/client";
+import { PrismaService } from "../database/prisma.service";
+import type { AdminConferenceListQueryDto } from "./dto/admin-conference-list-query.dto";
+import type { AdminConferenceAbstractListQueryDto } from "./dto/admin-conference-abstract-list-query.dto";
+import type { CreateAdminConferenceDto } from "./dto/create-admin-conference.dto";
+import type { UpdateAdminConferenceDto } from "./dto/update-admin-conference.dto";
+import type { CreateAdminConferenceAbstractDto } from "./dto/create-admin-conference-abstract.dto";
+import type { UpdateAdminConferenceAbstractDto } from "./dto/update-admin-conference-abstract.dto";
 
 const nullable = (value: string | undefined): string | null | undefined => {
   if (value === undefined) return undefined;
@@ -40,7 +40,7 @@ const assertDateRange = (
   dateEnd?: string | null,
 ): void => {
   if (dateStart && dateEnd && dateStart.slice(0, 10) > dateEnd.slice(0, 10)) {
-    throw new BadRequestException('INVALID_DATE_RANGE');
+    throw new BadRequestException("INVALID_DATE_RANGE");
   }
 };
 
@@ -55,22 +55,25 @@ export class ConferenceAdminService {
     const q = query.q?.trim();
     const where: Prisma.ConferenceWhereInput = {
       organizationId,
-      deletedAt: query.deleted === 'deleted' ? { not: null } : null,
+      deletedAt: query.deleted === "deleted" ? { not: null } : null,
       ...(query.year ? { year: query.year } : {}),
       ...(query.status ? { status: query.status } : {}),
-      ...(q ? {
-        OR: [
-          { title: { contains: q, mode: 'insensitive' } },
-          { abbreviation: { contains: q, mode: 'insensitive' } },
-          { fullTitle: { contains: q, mode: 'insensitive' } },
-        ],
-      } : {}),
+      ...(q
+        ? {
+            OR: [
+              { title: { contains: q, mode: "insensitive" } },
+              { abbreviation: { contains: q, mode: "insensitive" } },
+              { fullTitle: { contains: q, mode: "insensitive" } },
+            ],
+          }
+        : {}),
     };
-    const orderBy: Prisma.ConferenceOrderByWithRelationInput[] = query.sort === 'yearAsc'
-      ? [{ year: 'asc' }, { abbreviation: 'asc' }]
-      : query.sort === 'updatedDesc'
-        ? [{ updatedAt: 'desc' }, { id: 'asc' }]
-        : [{ year: 'desc' }, { abbreviation: 'asc' }];
+    const orderBy: Prisma.ConferenceOrderByWithRelationInput[] =
+      query.sort === "yearAsc"
+        ? [{ year: "asc" }, { abbreviation: "asc" }]
+        : query.sort === "updatedDesc"
+          ? [{ updatedAt: "desc" }, { id: "asc" }]
+          : [{ year: "desc" }, { abbreviation: "asc" }];
     const [items, total] = await Promise.all([
       this.prisma.client.conference.findMany({
         where,
@@ -117,44 +120,48 @@ export class ConferenceAdminService {
     organizationId?: string,
   ) {
     if (
-      query.dateFrom
-      && query.dateTo
-      && query.dateFrom.slice(0, 10) > query.dateTo.slice(0, 10)
+      query.dateFrom &&
+      query.dateTo &&
+      query.dateFrom.slice(0, 10) > query.dateTo.slice(0, 10)
     ) {
-      throw new BadRequestException('INVALID_DATE_RANGE');
+      throw new BadRequestException("INVALID_DATE_RANGE");
     }
     const q = query.q?.trim();
     const where: Prisma.ConferenceAbstractWhereInput = {
-      deletedAt: query.deleted === 'deleted' ? { not: null } : null,
+      deletedAt: query.deleted === "deleted" ? { not: null } : null,
       conference: {
         organizationId,
-        ...(query.deleted === 'active' ? { deletedAt: null } : {}),
+        ...(query.deleted === "active" ? { deletedAt: null } : {}),
       },
       ...(query.conferenceId ? { conferenceId: query.conferenceId } : {}),
-      ...(query.dateFrom || query.dateTo ? {
-        dateOpen: {
-          ...(query.dateFrom ? { gte: date(query.dateFrom) as Date } : {}),
-          ...(query.dateTo ? { lte: date(query.dateTo) as Date } : {}),
-        },
-      } : {}),
-      ...(q ? {
-        OR: [
-          { abstractNumber: { contains: q, mode: 'insensitive' } },
-          { title: { contains: q, mode: 'insensitive' } },
-          { firstAuthorName: { contains: q, mode: 'insensitive' } },
-          { firstAuthorOrganization: { contains: q, mode: 'insensitive' } },
-          { meeting: { contains: q, mode: 'insensitive' } },
-          { sessionType: { contains: q, mode: 'insensitive' } },
-          { sessionTitle: { contains: q, mode: 'insensitive' } },
-        ],
-      } : {}),
+      ...(query.dateFrom || query.dateTo
+        ? {
+            dateOpen: {
+              ...(query.dateFrom ? { gte: date(query.dateFrom) as Date } : {}),
+              ...(query.dateTo ? { lte: date(query.dateTo) as Date } : {}),
+            },
+          }
+        : {}),
+      ...(q
+        ? {
+            OR: [
+              { abstractNumber: { contains: q, mode: "insensitive" } },
+              { title: { contains: q, mode: "insensitive" } },
+              { firstAuthorName: { contains: q, mode: "insensitive" } },
+              { firstAuthorOrganization: { contains: q, mode: "insensitive" } },
+              { meeting: { contains: q, mode: "insensitive" } },
+              { sessionType: { contains: q, mode: "insensitive" } },
+              { sessionTitle: { contains: q, mode: "insensitive" } },
+            ],
+          }
+        : {}),
     };
     const orderBy: Prisma.ConferenceAbstractOrderByWithRelationInput[] =
-      query.sort === 'abstractNumberAsc'
-        ? [{ abstractNumber: 'asc' }, { id: 'asc' }]
-        : query.sort === 'dateOpenDesc'
-          ? [{ dateOpen: 'desc' }, { id: 'asc' }]
-          : [{ updatedAt: 'desc' }, { id: 'asc' }];
+      query.sort === "abstractNumberAsc"
+        ? [{ abstractNumber: "asc" }, { id: "asc" }]
+        : query.sort === "dateOpenDesc"
+          ? [{ dateOpen: "desc" }, { id: "asc" }]
+          : [{ updatedAt: "desc" }, { id: "asc" }];
     const [items, total] = await Promise.all([
       this.prisma.client.conferenceAbstract.findMany({
         where,
@@ -217,7 +224,7 @@ export class ConferenceAdminService {
         dateStart: true,
         dateEnd: true,
       },
-      orderBy: [{ year: 'desc' }, { abbreviation: 'asc' }],
+      orderBy: [{ year: "desc" }, { abbreviation: "asc" }],
     });
   }
 
@@ -233,12 +240,12 @@ export class ConferenceAdminService {
         const created = await tx.conference.create({
           data: {
             organizationId,
-            sourceSystem: 'WORKSPACE_ADMIN',
+            sourceSystem: "WORKSPACE_ADMIN",
             title: body.title.trim(),
             abbreviation: body.abbreviation.trim(),
             fullTitle: nullable(body.fullTitle),
             year: body.year,
-            status: body.status ?? 'OPEN',
+            status: body.status ?? "OPEN",
             sourceUrl: nullable(body.sourceUrl),
             dateStart: date(body.dateStart),
             dateEnd: date(body.dateEnd),
@@ -247,8 +254,8 @@ export class ConferenceAdminService {
         await tx.authAuditLog.create({
           data: {
             actorUserId,
-            eventType: 'CONFERENCE_CREATED',
-            result: 'success',
+            eventType: "CONFERENCE_CREATED",
+            result: "success",
             requestId,
             metadata: this.conferenceAuditSnapshot(created),
           },
@@ -270,18 +277,20 @@ export class ConferenceAdminService {
     const current = await this.prisma.client.conference.findFirst({
       where: { id: conferenceId, deletedAt: null, organizationId },
     });
-    if (!current) throw new NotFoundException('CONFERENCE_NOT_FOUND');
+    if (!current) throw new NotFoundException("CONFERENCE_NOT_FOUND");
     this.assertExpectedUpdatedAt(
       current.updatedAt,
       body.expectedUpdatedAt,
-      'CONFERENCE_UPDATE_CONFLICT',
+      "CONFERENCE_UPDATE_CONFLICT",
     );
-    const nextDateStart = body.dateStart !== undefined
-      ? body.dateStart
-      : current.dateStart?.toISOString().slice(0, 10);
-    const nextDateEnd = body.dateEnd !== undefined
-      ? body.dateEnd
-      : current.dateEnd?.toISOString().slice(0, 10);
+    const nextDateStart =
+      body.dateStart !== undefined
+        ? body.dateStart
+        : current.dateStart?.toISOString().slice(0, 10);
+    const nextDateEnd =
+      body.dateEnd !== undefined
+        ? body.dateEnd
+        : current.dateEnd?.toISOString().slice(0, 10);
     assertDateRange(nextDateStart, nextDateEnd);
     try {
       return await this.prisma.client.$transaction(async (tx) => {
@@ -293,17 +302,27 @@ export class ConferenceAdminService {
           },
           data: {
             ...(body.title !== undefined ? { title: body.title.trim() } : {}),
-            ...(body.abbreviation !== undefined ? { abbreviation: body.abbreviation.trim() } : {}),
-            ...(body.fullTitle !== undefined ? { fullTitle: nullable(body.fullTitle) } : {}),
+            ...(body.abbreviation !== undefined
+              ? { abbreviation: body.abbreviation.trim() }
+              : {}),
+            ...(body.fullTitle !== undefined
+              ? { fullTitle: nullable(body.fullTitle) }
+              : {}),
             ...(body.year !== undefined ? { year: body.year } : {}),
             ...(body.status !== undefined ? { status: body.status } : {}),
-            ...(body.sourceUrl !== undefined ? { sourceUrl: nullable(body.sourceUrl) } : {}),
-            ...(body.dateStart !== undefined ? { dateStart: date(body.dateStart) } : {}),
-            ...(body.dateEnd !== undefined ? { dateEnd: date(body.dateEnd) } : {}),
+            ...(body.sourceUrl !== undefined
+              ? { sourceUrl: nullable(body.sourceUrl) }
+              : {}),
+            ...(body.dateStart !== undefined
+              ? { dateStart: date(body.dateStart) }
+              : {}),
+            ...(body.dateEnd !== undefined
+              ? { dateEnd: date(body.dateEnd) }
+              : {}),
           },
         });
         if (updateResult.count !== 1) {
-          throw new ConflictException('CONFERENCE_UPDATE_CONFLICT');
+          throw new ConflictException("CONFERENCE_UPDATE_CONFLICT");
         }
         const updated = await tx.conference.findUniqueOrThrow({
           where: { id: conferenceId },
@@ -311,8 +330,8 @@ export class ConferenceAdminService {
         await tx.authAuditLog.create({
           data: {
             actorUserId,
-            eventType: 'CONFERENCE_UPDATED',
-            result: 'success',
+            eventType: "CONFERENCE_UPDATED",
+            result: "success",
             requestId,
             metadata: {
               conferenceId,
@@ -340,7 +359,7 @@ export class ConferenceAdminService {
       const created = await tx.conferenceAbstract.create({
         data: {
           conferenceId,
-          sourceSystem: 'WORKSPACE_ADMIN',
+          sourceSystem: "WORKSPACE_ADMIN",
           ...this.abstractData(body),
           title: body.title.trim(),
         },
@@ -348,8 +367,8 @@ export class ConferenceAdminService {
       await tx.authAuditLog.create({
         data: {
           actorUserId,
-          eventType: 'CONFERENCE_ABSTRACT_CREATED',
-          result: 'success',
+          eventType: "CONFERENCE_ABSTRACT_CREATED",
+          result: "success",
           requestId,
           metadata: this.abstractAuditSnapshot(created),
         },
@@ -380,11 +399,11 @@ export class ConferenceAdminService {
         updatedAt: true,
       },
     });
-    if (!abstract) throw new NotFoundException('CONFERENCE_ABSTRACT_NOT_FOUND');
+    if (!abstract) throw new NotFoundException("CONFERENCE_ABSTRACT_NOT_FOUND");
     this.assertExpectedUpdatedAt(
       abstract.updatedAt,
       body.expectedUpdatedAt,
-      'CONFERENCE_ABSTRACT_UPDATE_CONFLICT',
+      "CONFERENCE_ABSTRACT_UPDATE_CONFLICT",
     );
     if (body.conferenceId && body.conferenceId !== abstract.conferenceId) {
       await this.assertConference(body.conferenceId, organizationId);
@@ -402,7 +421,7 @@ export class ConferenceAdminService {
         },
       });
       if (updateResult.count !== 1) {
-        throw new ConflictException('CONFERENCE_ABSTRACT_UPDATE_CONFLICT');
+        throw new ConflictException("CONFERENCE_ABSTRACT_UPDATE_CONFLICT");
       }
       const updated = await tx.conferenceAbstract.findUniqueOrThrow({
         where: { id: abstractId },
@@ -410,8 +429,8 @@ export class ConferenceAdminService {
       await tx.authAuditLog.create({
         data: {
           actorUserId,
-          eventType: 'CONFERENCE_ABSTRACT_UPDATED',
-          result: 'success',
+          eventType: "CONFERENCE_ABSTRACT_UPDATED",
+          result: "success",
           requestId,
           metadata: {
             abstractId,
@@ -431,41 +450,45 @@ export class ConferenceAdminService {
     actorUserId: string,
     requestId: string,
   ) {
-    return this.prisma.client.$transaction(async (tx) => {
-      const current = await tx.conference.findFirst({
-        where: { id: conferenceId, organizationId },
-      });
-      if (!current) throw new NotFoundException('CONFERENCE_NOT_FOUND');
-      if (current.deletedAt) throw new ConflictException('CONFERENCE_ALREADY_DELETED');
-      this.assertExpectedUpdatedAt(
-        current.updatedAt,
-        expectedUpdatedAt,
-        'CONFERENCE_UPDATE_CONFLICT',
-      );
-      const activeAbstractCount = await tx.conferenceAbstract.count({
-        where: { conferenceId, deletedAt: null },
-      });
-      if (activeAbstractCount > 0) {
-        throw new ConflictException({
-          message: 'CONFERENCE_HAS_ACTIVE_ABSTRACTS',
-          activeAbstractCount,
+    return this.prisma.client.$transaction(
+      async (tx) => {
+        const current = await tx.conference.findFirst({
+          where: { id: conferenceId, organizationId },
         });
-      }
-      const deleted = await tx.conference.update({
-        where: { id: conferenceId },
-        data: { deletedAt: new Date() },
-      });
-      await tx.authAuditLog.create({
-        data: {
-          actorUserId,
-          eventType: 'CONFERENCE_DELETED',
-          result: 'success',
-          requestId,
-          metadata: this.conferenceAuditSnapshot(deleted),
-        },
-      });
-      return deleted;
-    }, { isolationLevel: 'Serializable' });
+        if (!current) throw new NotFoundException("CONFERENCE_NOT_FOUND");
+        if (current.deletedAt)
+          throw new ConflictException("CONFERENCE_ALREADY_DELETED");
+        this.assertExpectedUpdatedAt(
+          current.updatedAt,
+          expectedUpdatedAt,
+          "CONFERENCE_UPDATE_CONFLICT",
+        );
+        const activeAbstractCount = await tx.conferenceAbstract.count({
+          where: { conferenceId, deletedAt: null },
+        });
+        if (activeAbstractCount > 0) {
+          throw new ConflictException({
+            message: "CONFERENCE_HAS_ACTIVE_ABSTRACTS",
+            activeAbstractCount,
+          });
+        }
+        const deleted = await tx.conference.update({
+          where: { id: conferenceId },
+          data: { deletedAt: new Date() },
+        });
+        await tx.authAuditLog.create({
+          data: {
+            actorUserId,
+            eventType: "CONFERENCE_DELETED",
+            result: "success",
+            requestId,
+            metadata: this.conferenceAuditSnapshot(deleted),
+          },
+        });
+        return deleted;
+      },
+      { isolationLevel: "Serializable" },
+    );
   }
 
   async restoreConference(
@@ -474,26 +497,29 @@ export class ConferenceAdminService {
     actorUserId: string,
     requestId: string,
   ) {
-    return this.prisma.client.$transaction(async (tx) => {
-      const current = await tx.conference.findFirst({
-        where: { id: conferenceId, organizationId, deletedAt: { not: null } },
-      });
-      if (!current) throw new NotFoundException('CONFERENCE_NOT_FOUND');
-      const restored = await tx.conference.update({
-        where: { id: conferenceId },
-        data: { deletedAt: null },
-      });
-      await tx.authAuditLog.create({
-        data: {
-          actorUserId,
-          eventType: 'CONFERENCE_RESTORED',
-          result: 'success',
-          requestId,
-          metadata: this.conferenceAuditSnapshot(restored),
-        },
-      });
-      return restored;
-    }, { isolationLevel: 'Serializable' });
+    return this.prisma.client.$transaction(
+      async (tx) => {
+        const current = await tx.conference.findFirst({
+          where: { id: conferenceId, organizationId, deletedAt: { not: null } },
+        });
+        if (!current) throw new NotFoundException("CONFERENCE_NOT_FOUND");
+        const restored = await tx.conference.update({
+          where: { id: conferenceId },
+          data: { deletedAt: null },
+        });
+        await tx.authAuditLog.create({
+          data: {
+            actorUserId,
+            eventType: "CONFERENCE_RESTORED",
+            result: "success",
+            requestId,
+            metadata: this.conferenceAuditSnapshot(restored),
+          },
+        });
+        return restored;
+      },
+      { isolationLevel: "Serializable" },
+    );
   }
 
   async deleteAbstract(
@@ -503,37 +529,41 @@ export class ConferenceAdminService {
     actorUserId: string,
     requestId: string,
   ) {
-    return this.prisma.client.$transaction(async (tx) => {
-      const current = await tx.conferenceAbstract.findFirst({
-        where: {
-          id: abstractId,
-          conference: { organizationId },
-        },
-      });
-      if (!current) throw new NotFoundException('CONFERENCE_ABSTRACT_NOT_FOUND');
-      if (current.deletedAt) {
-        throw new ConflictException('CONFERENCE_ABSTRACT_ALREADY_DELETED');
-      }
-      this.assertExpectedUpdatedAt(
-        current.updatedAt,
-        expectedUpdatedAt,
-        'CONFERENCE_ABSTRACT_UPDATE_CONFLICT',
-      );
-      const deleted = await tx.conferenceAbstract.update({
-        where: { id: abstractId },
-        data: { deletedAt: new Date() },
-      });
-      await tx.authAuditLog.create({
-        data: {
-          actorUserId,
-          eventType: 'CONFERENCE_ABSTRACT_DELETED',
-          result: 'success',
-          requestId,
-          metadata: this.abstractAuditSnapshot(deleted),
-        },
-      });
-      return deleted;
-    }, { isolationLevel: 'Serializable' });
+    return this.prisma.client.$transaction(
+      async (tx) => {
+        const current = await tx.conferenceAbstract.findFirst({
+          where: {
+            id: abstractId,
+            conference: { organizationId },
+          },
+        });
+        if (!current)
+          throw new NotFoundException("CONFERENCE_ABSTRACT_NOT_FOUND");
+        if (current.deletedAt) {
+          throw new ConflictException("CONFERENCE_ABSTRACT_ALREADY_DELETED");
+        }
+        this.assertExpectedUpdatedAt(
+          current.updatedAt,
+          expectedUpdatedAt,
+          "CONFERENCE_ABSTRACT_UPDATE_CONFLICT",
+        );
+        const deleted = await tx.conferenceAbstract.update({
+          where: { id: abstractId },
+          data: { deletedAt: new Date() },
+        });
+        await tx.authAuditLog.create({
+          data: {
+            actorUserId,
+            eventType: "CONFERENCE_ABSTRACT_DELETED",
+            result: "success",
+            requestId,
+            metadata: this.abstractAuditSnapshot(deleted),
+          },
+        });
+        return deleted;
+      },
+      { isolationLevel: "Serializable" },
+    );
   }
 
   async restoreAbstract(
@@ -542,30 +572,34 @@ export class ConferenceAdminService {
     actorUserId: string,
     requestId: string,
   ) {
-    return this.prisma.client.$transaction(async (tx) => {
-      const current = await tx.conferenceAbstract.findFirst({
-        where: {
-          id: abstractId,
-          deletedAt: { not: null },
-          conference: { organizationId, deletedAt: null },
-        },
-      });
-      if (!current) throw new NotFoundException('CONFERENCE_ABSTRACT_NOT_FOUND');
-      const restored = await tx.conferenceAbstract.update({
-        where: { id: abstractId },
-        data: { deletedAt: null },
-      });
-      await tx.authAuditLog.create({
-        data: {
-          actorUserId,
-          eventType: 'CONFERENCE_ABSTRACT_RESTORED',
-          result: 'success',
-          requestId,
-          metadata: this.abstractAuditSnapshot(restored),
-        },
-      });
-      return restored;
-    }, { isolationLevel: 'Serializable' });
+    return this.prisma.client.$transaction(
+      async (tx) => {
+        const current = await tx.conferenceAbstract.findFirst({
+          where: {
+            id: abstractId,
+            deletedAt: { not: null },
+            conference: { organizationId, deletedAt: null },
+          },
+        });
+        if (!current)
+          throw new NotFoundException("CONFERENCE_ABSTRACT_NOT_FOUND");
+        const restored = await tx.conferenceAbstract.update({
+          where: { id: abstractId },
+          data: { deletedAt: null },
+        });
+        await tx.authAuditLog.create({
+          data: {
+            actorUserId,
+            eventType: "CONFERENCE_ABSTRACT_RESTORED",
+            result: "success",
+            requestId,
+            metadata: this.abstractAuditSnapshot(restored),
+          },
+        });
+        return restored;
+      },
+      { isolationLevel: "Serializable" },
+    );
   }
 
   private abstractData(
@@ -573,7 +607,9 @@ export class ConferenceAdminService {
   ) {
     return {
       ...(body.title !== undefined ? { title: body.title.trim() } : {}),
-      ...(body.sourceUrl !== undefined ? { sourceUrl: nullable(body.sourceUrl) } : {}),
+      ...(body.sourceUrl !== undefined
+        ? { sourceUrl: nullable(body.sourceUrl) }
+        : {}),
       ...(body.firstAuthorName !== undefined
         ? { firstAuthorName: nullable(body.firstAuthorName) }
         : {}),
@@ -581,23 +617,36 @@ export class ConferenceAdminService {
         ? { firstAuthorOrganization: nullable(body.firstAuthorOrganization) }
         : {}),
       ...(body.authors !== undefined ? { authors: body.authors } : {}),
-      ...(body.meeting !== undefined ? { meeting: nullable(body.meeting) } : {}),
-      ...(body.sessionType !== undefined ? { sessionType: nullable(body.sessionType) } : {}),
-      ...(body.sessionTitle !== undefined ? { sessionTitle: nullable(body.sessionTitle) } : {}),
+      ...(body.meeting !== undefined
+        ? { meeting: nullable(body.meeting) }
+        : {}),
+      ...(body.sessionType !== undefined
+        ? { sessionType: nullable(body.sessionType) }
+        : {}),
+      ...(body.sessionTitle !== undefined
+        ? { sessionTitle: nullable(body.sessionTitle) }
+        : {}),
       ...(body.track !== undefined ? { track: nullable(body.track) } : {}),
-      ...(body.subTrack !== undefined ? { subTrack: nullable(body.subTrack) } : {}),
+      ...(body.subTrack !== undefined
+        ? { subTrack: nullable(body.subTrack) }
+        : {}),
       ...(body.abstractNumber !== undefined
         ? { abstractNumber: nullable(body.abstractNumber) }
         : {}),
-      ...(body.posterNumber !== undefined ? { posterNumber: nullable(body.posterNumber) } : {}),
+      ...(body.posterNumber !== undefined
+        ? { posterNumber: nullable(body.posterNumber) }
+        : {}),
       ...(body.clinicalTrialRegistrationNumber !== undefined
         ? {
-          clinicalTrialRegistrationNumber:
-            nullable(body.clinicalTrialRegistrationNumber),
-        }
+            clinicalTrialRegistrationNumber: nullable(
+              body.clinicalTrialRegistrationNumber,
+            ),
+          }
         : {}),
       ...(body.dateOpen !== undefined ? { dateOpen: date(body.dateOpen) } : {}),
-      ...(body.contentsJson !== undefined ? { contents: contents(body.contentsJson) as any } : {}),
+      ...(body.contentsJson !== undefined
+        ? { contents: contents(body.contentsJson) as any }
+        : {}),
     };
   }
 
@@ -609,7 +658,7 @@ export class ConferenceAdminService {
       where: { id: conferenceId, deletedAt: null, organizationId },
       select: { id: true },
     });
-    if (!conference) throw new NotFoundException('CONFERENCE_NOT_FOUND');
+    if (!conference) throw new NotFoundException("CONFERENCE_NOT_FOUND");
   }
 
   private assertExpectedUpdatedAt(
@@ -665,8 +714,8 @@ export class ConferenceAdminService {
 
   private rethrowConflict(error: unknown): never {
     const candidate = error as { code?: string };
-    if (candidate?.code === 'P2002') {
-      throw new ConflictException('CONFERENCE_ABBREVIATION_YEAR_DUPLICATED');
+    if (candidate?.code === "P2002") {
+      throw new ConflictException("CONFERENCE_ABBREVIATION_YEAR_DUPLICATED");
     }
     throw error;
   }

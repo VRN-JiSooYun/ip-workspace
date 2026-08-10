@@ -5,9 +5,13 @@ import ReactDOM from 'react-dom/client';
 import { ThemeProvider } from './contexts/ThemeContext';
 import App from './App';
 import './index.css';
+import { initBrandPrimary } from './theme/brandColor';
 import 'echarts-gl'; // Import globally once to prevent component registration warnings
 
 installCanvasReadbackPatch();
+// Publish --brand-primary before the first render so nothing paints with the
+// stale fallback baked into index.css.
+initBrandPrimary();
 
 const roots = new Map<Element, any>();
 const originalCreateRoot = ReactDOM.createRoot;

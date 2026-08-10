@@ -4,11 +4,17 @@ import {
   Injectable,
   NestInterceptor,
   RequestTimeoutException,
-} from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { Reflector } from '@nestjs/core';
-import { Observable, TimeoutError, catchError, throwError, timeout } from 'rxjs';
-import { SKIP_TIMEOUT_INTERCEPTOR } from '../decorators/skip-timeout.decorator';
+} from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
+import { Reflector } from "@nestjs/core";
+import {
+  Observable,
+  TimeoutError,
+  catchError,
+  throwError,
+  timeout,
+} from "rxjs";
+import { SKIP_TIMEOUT_INTERCEPTOR } from "../decorators/skip-timeout.decorator";
 
 @Injectable()
 export class TimeoutInterceptor implements NestInterceptor {
@@ -24,7 +30,7 @@ export class TimeoutInterceptor implements NestInterceptor {
     );
     if (shouldSkipTimeout) return next.handle();
 
-    const timeoutMs = this.configService.get<number>('httpTimeoutMs', 30000);
+    const timeoutMs = this.configService.get<number>("httpTimeoutMs", 30000);
 
     return next.handle().pipe(
       timeout(timeoutMs),

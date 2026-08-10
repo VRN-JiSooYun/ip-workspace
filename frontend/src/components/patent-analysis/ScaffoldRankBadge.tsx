@@ -1,7 +1,8 @@
 import React from 'react';
+import { getBrandPrimary } from '../../theme/brandColor';
 
-const RANK_COLORS = [
-  '#F87C63',
+// Rank 1 is the brand color; the rest of the ramp is fixed.
+const RANK_COLORS_AFTER_BRAND = [
   '#F5A623',
   '#5B8FF9',
   '#61B15A',
@@ -22,9 +23,10 @@ export const normalizeScaffoldRank = (value: unknown): number | null => {
   return Number.isFinite(rank) && rank > 0 ? rank : null;
 };
 
-export const getScaffoldRankColor = (rank: number) => (
-  RANK_COLORS[(Math.max(1, rank) - 1) % RANK_COLORS.length]
-);
+export const getScaffoldRankColor = (rank: number) => {
+  const colors = [getBrandPrimary(), ...RANK_COLORS_AFTER_BRAND];
+  return colors[(Math.max(1, rank) - 1) % colors.length];
+};
 
 type ScaffoldRankBadgeProps = {
   rank: unknown;

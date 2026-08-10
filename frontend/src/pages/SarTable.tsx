@@ -2567,7 +2567,7 @@ const SarTable: React.FC = () => {
                             : isPinnedCompound && (isSelectedCompound || hoveredRowKey === item.id)
                             ? sarPinnedSelectedCardBg
                             : isSelectedCompound || hoveredRowKey === item.id
-                            ? (isDarkMode ? 'rgba(248, 124, 99, 0.12)' : 'rgba(248, 124, 99, 0.08)')
+                            ? (isDarkMode ? 'rgba(var(--brand-primary-rgb), 0.12)' : 'rgba(var(--brand-primary-rgb), 0.08)')
                             : token.colorBgContainer,
                         boxSizing: 'border-box',
                         borderColor: 'transparent',
@@ -3066,12 +3066,12 @@ const SarTable: React.FC = () => {
 
       <style>{`
         .sar-page {
-          --table-row-hover-bg: rgba(248, 124, 99, 0.06);
-          --table-row-selected-hover-bg: rgba(248, 124, 99, 0.16);
+          --table-row-hover-bg: rgba(var(--brand-primary-rgb), 0.06);
+          --table-row-selected-hover-bg: rgba(var(--brand-primary-rgb), 0.16);
         }
         [data-theme='dark'] .sar-page {
-          --table-row-hover-bg: rgba(248, 124, 99, 0.10);
-          --table-row-selected-hover-bg: rgba(248, 124, 99, 0.24);
+          --table-row-hover-bg: rgba(var(--brand-primary-rgb), 0.10);
+          --table-row-selected-hover-bg: rgba(var(--brand-primary-rgb), 0.24);
         }
         .sar-board-layout {
           display: flex;
@@ -3319,7 +3319,7 @@ const SarTable: React.FC = () => {
         }
         .sar-row-selected td {
           background-color: var(--table-row-selected-bg) !important;
-          border-bottom: 1px solid ${isDarkMode ? '#F87C6333' : '#F87C6322'} !important;
+          border-bottom: 1px solid ${isDarkMode ? 'rgba(var(--brand-primary-rgb), 0.2)' : 'rgba(var(--brand-primary-rgb), 0.133)'} !important;
         }
         .sar-row-hovered td {
           background-color: var(--table-row-hover-bg) !important;
@@ -3709,8 +3709,8 @@ const SarTable: React.FC = () => {
           cursor: not-allowed;
         }
         .sar-quick-viewer-pane .quick-viewer-tab-active {
-          border-color: #F87C63;
-          background: #F87C63;
+          border-color: var(--brand-primary);
+          background: var(--brand-primary);
           color: #FFFFFF;
         }
         .sar-quick-viewer-pane .quick-viewer-body {
@@ -4037,7 +4037,7 @@ const SarTable: React.FC = () => {
           align-items: center;
         }
         .sar-table-card-color-active {
-          border-color: ${isDarkMode ? 'rgba(248, 124, 99, 0.42)' : 'rgba(248, 124, 99, 0.36)'};
+          border-color: ${isDarkMode ? 'rgba(var(--brand-primary-rgb), 0.42)' : 'rgba(var(--brand-primary-rgb), 0.36)'};
           box-shadow: inset 0 2px 0 ${token.colorPrimary};
         }
         .sar-table .ant-table-tbody > tr.sar-row-rgroup-group-start > td {
@@ -4135,7 +4135,7 @@ const SarTable: React.FC = () => {
         .sar-scaffold-button-active:focus-visible {
           color: ${token.colorPrimary} !important;
           border-color: ${token.colorPrimary} !important;
-          background: ${isDarkMode ? 'rgba(248, 124, 99, 0.16)' : 'rgba(248, 124, 99, 0.1)'} !important;
+          background: ${isDarkMode ? 'rgba(var(--brand-primary-rgb), 0.16)' : 'rgba(var(--brand-primary-rgb), 0.1)'} !important;
         }
         .sar-scaffold-color-panel {
           display: flex;
@@ -4166,7 +4166,7 @@ const SarTable: React.FC = () => {
         .sar-scaffold-color-swatch:hover,
         .sar-scaffold-color-swatch:focus-visible {
           outline: none;
-          box-shadow: 0 0 0 2px ${isDarkMode ? 'rgba(248, 124, 99, 0.26)' : 'rgba(248, 124, 99, 0.22)'};
+          box-shadow: 0 0 0 2px ${isDarkMode ? 'rgba(var(--brand-primary-rgb), 0.26)' : 'rgba(var(--brand-primary-rgb), 0.22)'};
         }
         .sar-scaffold-color-swatch-selected {
           border-color: ${token.colorPrimary};
@@ -4280,11 +4280,11 @@ const SarTable: React.FC = () => {
           box-shadow: none !important;
         }
         .sar-compound-card.selected:hover {
-          background-color: ${isCompoundCardOverlapped ? 'transparent' : isDarkMode ? 'rgba(248, 124, 99, 0.16)' : 'rgba(248, 124, 99, 0.12)'} !important;
+          background-color: ${isCompoundCardOverlapped ? 'transparent' : isDarkMode ? 'rgba(var(--brand-primary-rgb), 0.16)' : 'rgba(var(--brand-primary-rgb), 0.12)'} !important;
         }
         .sar-compound-card.hovered {
           border-color: transparent !important;
-          background-color: ${isCompoundCardOverlapped ? 'transparent' : isDarkMode ? 'rgba(248, 124, 99, 0.12)' : 'rgba(248, 124, 99, 0.08)'} !important;
+          background-color: ${isCompoundCardOverlapped ? 'transparent' : isDarkMode ? 'rgba(var(--brand-primary-rgb), 0.12)' : 'rgba(var(--brand-primary-rgb), 0.08)'} !important;
           transform: none;
         }
         .sar-compound-card.pinned {

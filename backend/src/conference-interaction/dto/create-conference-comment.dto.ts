@@ -1,4 +1,4 @@
-import { Transform } from 'class-transformer';
+import { Transform } from "class-transformer";
 import {
   ArrayMaxSize,
   ArrayUnique,
@@ -8,10 +8,10 @@ import {
   IsUUID,
   MaxLength,
   MinLength,
-} from 'class-validator';
+} from "class-validator";
 
 export class CreateConferenceCommentDto {
-  @Transform(({ value }) => typeof value === 'string' ? value.trim() : value)
+  @Transform(({ value }) => (typeof value === "string" ? value.trim() : value))
   @IsString()
   @MinLength(1)
   @MaxLength(5000)
@@ -20,14 +20,16 @@ export class CreateConferenceCommentDto {
   @IsArray()
   @ArrayMaxSize(20)
   @ArrayUnique()
-  @IsUUID('4', { each: true })
+  @IsUUID("4", { each: true })
   recipientIds: string[] = [];
 
-  @Transform(({ value }) => (
+  @Transform(({ value }) =>
     Array.isArray(value)
-      ? value.map((email) => typeof email === 'string' ? email.trim().toLowerCase() : email)
-      : value
-  ))
+      ? value.map((email) =>
+          typeof email === "string" ? email.trim().toLowerCase() : email,
+        )
+      : value,
+  )
   @IsArray()
   @ArrayMaxSize(20)
   @ArrayUnique()

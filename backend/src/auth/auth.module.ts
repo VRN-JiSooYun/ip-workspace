@@ -1,8 +1,8 @@
-import { Global, Module } from '@nestjs/common';
-import { APP_INTERCEPTOR } from '@nestjs/core';
-import { GroupwareSessionInterceptor } from './groupware-session.interceptor';
-import { GroupwareTokenService } from './groupware-token.service';
-import { SessionCleanupService } from './session-cleanup.service';
+import { Global, Module } from "@nestjs/common";
+import { APP_INTERCEPTOR } from "@nestjs/core";
+import { GroupwareSessionInterceptor } from "./groupware-session.interceptor";
+import { GroupwareTokenService } from "./groupware-token.service";
+import { SessionCleanupService } from "./session-cleanup.service";
 
 @Global()
 @Module({
@@ -14,4 +14,4 @@ import { SessionCleanupService } from './session-cleanup.service';
   ],
   exports: [GroupwareTokenService],
 })
-export class MedichemAuthModule {}
+export class IpAuthModule {}

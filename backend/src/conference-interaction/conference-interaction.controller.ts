@@ -8,30 +8,31 @@ import {
   Post,
   Put,
   Query,
-} from '@nestjs/common';
-import { Session, type UserSession } from '@thallesp/nestjs-better-auth';
-import { RequirePermissions } from '../authorization/require-permissions.decorator';
-import { ConferenceInteractionService } from './conference-interaction.service';
-import { CreateConferenceCommentDto } from './dto/create-conference-comment.dto';
-import { RecipientSearchQueryDto } from './dto/recipient-search-query.dto';
-import { WorkspaceAccess } from '../authorization/workspace-access.decorator';
-import type { WorkspaceAccessContext } from '../authorization/workspace-authorization.service';
-import { WorkspaceAuthorizationService } from '../authorization/workspace-authorization.service';
-import { organizationIdForScope } from '../authorization/workspace-data-scope';
+} from "@nestjs/common";
+import { Session, type UserSession } from "@thallesp/nestjs-better-auth";
+import { RequirePermissions } from "../authorization/require-permissions.decorator";
+import { ConferenceInteractionService } from "./conference-interaction.service";
+import { CreateConferenceCommentDto } from "./dto/create-conference-comment.dto";
+import { RecipientSearchQueryDto } from "./dto/recipient-search-query.dto";
+import { WorkspaceAccess } from "../authorization/workspace-access.decorator";
+import type { WorkspaceAccessContext } from "../authorization/workspace-authorization.service";
+import { WorkspaceAuthorizationService } from "../authorization/workspace-authorization.service";
+import { organizationIdForScope } from "../authorization/workspace-data-scope";
 
-@RequirePermissions('conference.read')
-@Controller('api')
+@RequirePermissions("conference.read")
+@Controller("api")
 export class ConferenceInteractionController {
   constructor(
     private readonly interactions: ConferenceInteractionService,
     private readonly authorization: WorkspaceAuthorizationService,
   ) {}
 
-  @Put('conference-abstracts/:abstractId/bookmark')
+  @Put("conference-abstracts/:abstractId/bookmark")
   bookmarkAbstract(
     @Session() session: UserSession,
     @WorkspaceAccess() access: WorkspaceAccessContext,
-    @Param('abstractId', new ParseUUIDPipe({ version: '4' })) abstractId: string,
+    @Param("abstractId", new ParseUUIDPipe({ version: "4" }))
+    abstractId: string,
   ) {
     return this.interactions.setAbstractBookmark(
       session.user.id,
@@ -41,11 +42,12 @@ export class ConferenceInteractionController {
     );
   }
 
-  @Delete('conference-abstracts/:abstractId/bookmark')
+  @Delete("conference-abstracts/:abstractId/bookmark")
   unbookmarkAbstract(
     @Session() session: UserSession,
     @WorkspaceAccess() access: WorkspaceAccessContext,
-    @Param('abstractId', new ParseUUIDPipe({ version: '4' })) abstractId: string,
+    @Param("abstractId", new ParseUUIDPipe({ version: "4" }))
+    abstractId: string,
   ) {
     return this.interactions.setAbstractBookmark(
       session.user.id,
@@ -55,7 +57,7 @@ export class ConferenceInteractionController {
     );
   }
 
-  @Get('notification-recipients/search')
+  @Get("notification-recipients/search")
   searchRecipients(
     @Session() session: UserSession,
     @Query() query: RecipientSearchQueryDto,
@@ -63,11 +65,12 @@ export class ConferenceInteractionController {
     return this.interactions.searchRecipients(session.user.id, query);
   }
 
-  @Post('conference-abstracts/:abstractId/comments')
+  @Post("conference-abstracts/:abstractId/comments")
   createComment(
     @Session() session: UserSession,
     @WorkspaceAccess() access: WorkspaceAccessContext,
-    @Param('abstractId', new ParseUUIDPipe({ version: '4' })) abstractId: string,
+    @Param("abstractId", new ParseUUIDPipe({ version: "4" }))
+    abstractId: string,
     @Body() body: CreateConferenceCommentDto,
   ) {
     return this.interactions.createComment(
@@ -78,11 +81,11 @@ export class ConferenceInteractionController {
     );
   }
 
-  @Delete('conference-abstract-comments/:commentId')
+  @Delete("conference-abstract-comments/:commentId")
   deleteComment(
     @Session() session: UserSession,
     @WorkspaceAccess() access: WorkspaceAccessContext,
-    @Param('commentId', new ParseUUIDPipe({ version: '4' })) commentId: string,
+    @Param("commentId", new ParseUUIDPipe({ version: "4" })) commentId: string,
   ) {
     return this.interactions.deleteComment(
       session.user.id,
@@ -93,7 +96,7 @@ export class ConferenceInteractionController {
 
   private organizationId(access: WorkspaceAccessContext): string | undefined {
     return organizationIdForScope(
-      this.authorization.resolveDataScope(access, 'conference'),
+      this.authorization.resolveDataScope(access, "conference"),
     );
   }
 }

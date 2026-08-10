@@ -1,17 +1,14 @@
-import { createAccessControl } from 'better-auth/plugins/access';
-import {
-  adminAc,
-  defaultStatements,
-} from 'better-auth/plugins/admin/access';
+import { createAccessControl } from "better-auth/plugins/access";
+import { adminAc, defaultStatements } from "better-auth/plugins/admin/access";
 
 const workspaceStatements = {
   ...defaultStatements,
-  userAccess: ['manage'],
-  conference: ['read', 'manage', 'comment-moderate'],
-  patentAnalysis: ['read', 'manage'],
-  sarTable: ['read', 'write', 'manage'],
-  design: ['read', 'write', 'manage'],
-  synthesis: ['read', 'write', 'manage'],
+  userAccess: ["manage"],
+  conference: ["read", "manage", "comment-moderate"],
+  patentAnalysis: ["read", "manage"],
+  sarTable: ["read", "write", "manage"],
+  design: ["read", "write", "manage"],
+  synthesis: ["read", "write", "manage"],
 } as const;
 
 export const workspaceAccessControl = createAccessControl(workspaceStatements);
@@ -28,12 +25,12 @@ const baseUserStatements = {
 
 const superAdminStatements = {
   ...adminAc.statements,
-  userAccess: ['manage'],
-  conference: ['read', 'manage', 'comment-moderate'],
-  patentAnalysis: ['read', 'manage'],
-  sarTable: ['read', 'write', 'manage'],
-  design: ['read', 'write', 'manage'],
-  synthesis: ['read', 'write', 'manage'],
+  userAccess: ["manage"],
+  conference: ["read", "manage", "comment-moderate"],
+  patentAnalysis: ["read", "manage"],
+  sarTable: ["read", "write", "manage"],
+  design: ["read", "write", "manage"],
+  synthesis: ["read", "write", "manage"],
 } as const;
 
 export const betterAuthWorkspaceRoles = {
@@ -42,10 +39,10 @@ export const betterAuthWorkspaceRoles = {
   SUPER_ADMIN: workspaceAccessControl.newRole(superAdminStatements),
   CONFERENCE_ADMIN: workspaceAccessControl.newRole({
     ...baseUserStatements,
-    conference: ['read', 'manage', 'comment-moderate'],
+    conference: ["read", "manage", "comment-moderate"],
   }),
   PATENT_ANALYSIS_ADMIN: workspaceAccessControl.newRole({
     ...baseUserStatements,
-    patentAnalysis: ['read', 'manage'],
+    patentAnalysis: ["read", "manage"],
   }),
 };

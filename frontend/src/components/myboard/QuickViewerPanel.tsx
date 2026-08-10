@@ -10,6 +10,7 @@ import type {
 import { KINOME_LAYOUTS } from '../../data/kinomeTree';
 import coralBasetreeSvg from '../../assets/kinome/coral_basetree.svg';
 import MolstarStructureViewer, { type MolstarStructureFormat } from './MolstarStructureViewer';
+import { useBrandPrimary } from '../../theme/brandColor';
 
 const { Text } = Typography;
 
@@ -24,7 +25,6 @@ const VORA_EXTERNAL_URL = 'https://voronoi.app/vora/';
 
 const getPointRadius = (inhibition: number) => Math.max(4, Math.min(13, inhibition / 8));
 const getPointOpacity = (inhibition: number) => Math.max(0.28, Math.min(0.95, inhibition / 100));
-const ACTIVE_KINOME_POINT_COLOR = '#F87C63';
 
 const KINOME_BASE_SVG_BY_LAYOUT = {
   'coral-basetree': coralBasetreeSvg,
@@ -66,6 +66,8 @@ const getVoraPdbUrl = (pdbId?: string) => {
 
 const KinomeTreeViewer: React.FC<{ asset: CompoundQuickViewerAsset; compound: Compound }> = ({ asset, compound }) => {
   const [isZoomOpen, setIsZoomOpen] = React.useState(false);
+  // Drives SVG `fill`/`stroke` attributes, which do not resolve var().
+  const activePointColor = useBrandPrimary();
   const points = asset.payload?.points ?? [];
   const layout = KINOME_LAYOUTS[asset.payload?.layout ?? 'coral-basetree'];
   const plottedPoints = points
@@ -106,7 +108,7 @@ const KinomeTreeViewer: React.FC<{ asset: CompoundQuickViewerAsset; compound: Co
               cx={point.x}
               cy={point.y}
               r={getPointRadius(point.inhibition)}
-              fill={ACTIVE_KINOME_POINT_COLOR}
+              fill={activePointColor}
               opacity={getPointOpacity(point.inhibition)}
             />
             {point.inhibition >= 70 ? (
@@ -182,6 +184,8 @@ const KinomeTreeViewer: React.FC<{ asset: CompoundQuickViewerAsset; compound: Co
 
 const PlaceholderViewer: React.FC<{ asset: CompoundQuickViewerAsset; compound: Compound }> = ({ asset, compound }) => {
   const compoundLabel = compound.compoundId || compound.name;
+  // The accent ribbon in the placeholder illustration tracks the brand color.
+  const brandPrimary = useBrandPrimary();
   const structureUrl = asset.payload?.structureUrl;
   const structureFormat = asset.payload?.structureFormat ?? (structureUrl ? inferStructureFormat(structureUrl) : 'mmcif');
   const resultTitle = asset.payload?.title ?? `${compoundLabel} ${asset.label} result`;
@@ -210,7 +214,7 @@ const PlaceholderViewer: React.FC<{ asset: CompoundQuickViewerAsset; compound: C
             <svg viewBox="0 0 320 260" className="quick-viewer-pdb-svg" aria-label="PDB preview">
               <rect width="320" height="260" fill="#F8FAFC" />
               <path d="M58 176 C92 84 142 74 168 132 S238 210 276 88" fill="none" stroke="#53B6A8" strokeWidth="12" strokeLinecap="round" />
-              <path d="M74 120 C132 176 170 62 236 126" fill="none" stroke="#F87C63" strokeWidth="10" strokeLinecap="round" />
+              <path d="M74 120 C132 176 170 62 236 126" fill="none" stroke={brandPrimary} strokeWidth="10" strokeLinecap="round" />
               <path d="M102 198 C144 126 212 216 250 150" fill="none" stroke="#5B7CFA" strokeWidth="8" strokeLinecap="round" />
               <circle cx="156" cy="136" r="14" fill="#FFC857" opacity="0.85" />
               <circle cx="220" cy="152" r="10" fill="#A855F7" opacity="0.7" />

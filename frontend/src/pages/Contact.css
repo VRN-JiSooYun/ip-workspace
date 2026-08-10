@@ -18,7 +18,7 @@
 }
 
 .contact-table-title {
-  color: #f87c63;
+  color: var(--brand-primary);
   font-size: 16px !important;
   line-height: 24px;
 }

@@ -1,26 +1,26 @@
-import { Module } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
-import configuration from './config/configuration';
-import { validateEnv } from './config/env.validation';
-import { HealthModule } from './health/health.module';
-import { PatentAnalysisModule } from './patent-analysis/patent-analysis.module';
-import { ConformerModule } from './conformer/conformer.module';
-import { CompoundApiModule } from './compound-api/compound-api.module';
-import { AuthModule } from '@thallesp/nestjs-better-auth';
-import { auth } from './auth/auth';
-import { MedichemAuthModule } from './auth/auth.module';
-import { DatabaseModule } from './database/database.module';
-import { AdminModule } from './admin/admin.module';
-import { CalculationsModule } from './calculations/calculations.module';
-import { ConferenceMediaModule } from './conference-media/conference-media.module';
-import { ConferenceImportModule } from './conference-import/conference-import.module';
-import { ConferenceReadModule } from './conference-read/conference-read.module';
-import { ConferenceInteractionModule } from './conference-interaction/conference-interaction.module';
-import { ConferenceAdminModule } from './conference-admin/conference-admin.module';
-import { NotificationRecipientModule } from './notification-recipient/notification-recipient.module';
-import { ConferenceMailModule } from './conference-mail/conference-mail.module';
-import { PatentAnalysisAdminModule } from './patent-analysis-admin/patent-analysis-admin.module';
-import { AuthorizationModule } from './authorization/authorization.module';
+import { Module } from "@nestjs/common";
+import { ConfigModule } from "@nestjs/config";
+import configuration from "./config/configuration";
+import { validateEnv } from "./config/env.validation";
+import { HealthModule } from "./health/health.module";
+import { PatentAnalysisModule } from "./patent-analysis/patent-analysis.module";
+import { ConformerModule } from "./conformer/conformer.module";
+import { CompoundApiModule } from "./compound-api/compound-api.module";
+import { AuthModule } from "@thallesp/nestjs-better-auth";
+import { auth } from "./auth/auth";
+import { IpAuthModule } from "./auth/auth.module";
+import { DatabaseModule } from "./database/database.module";
+import { AdminModule } from "./admin/admin.module";
+import { CalculationsModule } from "./calculations/calculations.module";
+import { ConferenceMediaModule } from "./conference-media/conference-media.module";
+import { ConferenceImportModule } from "./conference-import/conference-import.module";
+import { ConferenceReadModule } from "./conference-read/conference-read.module";
+import { ConferenceInteractionModule } from "./conference-interaction/conference-interaction.module";
+import { ConferenceAdminModule } from "./conference-admin/conference-admin.module";
+import { NotificationRecipientModule } from "./notification-recipient/notification-recipient.module";
+import { ConferenceMailModule } from "./conference-mail/conference-mail.module";
+import { PatentAnalysisAdminModule } from "./patent-analysis-admin/patent-analysis-admin.module";
+import { AuthorizationModule } from "./authorization/authorization.module";
 
 @Module({
   imports: [
@@ -33,14 +33,14 @@ import { AuthorizationModule } from './authorization/authorization.module';
     AuthModule.forRoot({
       auth,
       bodyParser: {
-        json: { limit: '2mb' },
+        json: { limit: "2mb" },
         urlencoded: {
-          limit: `${process.env.THREE_D_PSA_CALLBACK_MAX_BODY_MB ?? '25'}mb`,
+          limit: `${process.env.THREE_D_PSA_CALLBACK_MAX_BODY_MB ?? "25"}mb`,
           extended: true,
         },
       },
     }),
-    MedichemAuthModule,
+    IpAuthModule,
     AuthorizationModule,
     AdminModule,
     HealthModule,

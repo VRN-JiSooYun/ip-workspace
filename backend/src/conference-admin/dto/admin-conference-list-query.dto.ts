@@ -1,4 +1,4 @@
-import { Transform } from 'class-transformer';
+import { Transform } from "class-transformer";
 import {
   IsIn,
   IsInt,
@@ -7,7 +7,7 @@ import {
   Max,
   MaxLength,
   Min,
-} from 'class-validator';
+} from "class-validator";
 
 export class AdminConferenceListQueryDto {
   @IsOptional()
@@ -23,16 +23,16 @@ export class AdminConferenceListQueryDto {
   year?: number;
 
   @IsOptional()
-  @IsIn(['OPEN', 'NOT_OPENED'])
-  status?: 'OPEN' | 'NOT_OPENED';
+  @IsIn(["OPEN", "NOT_OPENED"])
+  status?: "OPEN" | "NOT_OPENED";
 
   @IsOptional()
-  @IsIn(['active', 'deleted'])
-  deleted: 'active' | 'deleted' = 'active';
+  @IsIn(["active", "deleted"])
+  deleted: "active" | "deleted" = "active";
 
   @IsOptional()
-  @IsIn(['yearDesc', 'yearAsc', 'updatedDesc'])
-  sort: 'yearDesc' | 'yearAsc' | 'updatedDesc' = 'yearDesc';
+  @IsIn(["yearDesc", "yearAsc", "updatedDesc"])
+  sort: "yearDesc" | "yearAsc" | "updatedDesc" = "yearDesc";
 
   @IsOptional()
   @Transform(({ value }) => Number(value))

@@ -2,6 +2,15 @@
 @import '@xyflow/react/dist/style.css';
 
 :root {
+  /*
+   * Brand color. These two declarations are only the pre-JS fallback — the
+   * authoritative value lives in src/theme/brandColor.ts, which rewrites both
+   * properties on the document root at startup. Keep them in sync with
+   * DEFAULT_BRAND_PRIMARY there so the first paint matches.
+   */
+  --brand-primary: #F87C63;
+  --brand-primary-rgb: 248, 124, 99;
+
   --bg-color: #f8f9fa;
   --card-bg: #fff;
   --card-border: #c4c4c4;
@@ -9,9 +18,9 @@
   --text-primary: #4f5d73;
   --text-secondary: #868e96;
   --border-color: #f0f0f0;
-  --table-row-hover-bg: rgba(248, 124, 99, 0.12);
-  --table-row-selected-bg: rgba(248, 124, 99, 0.14);
-  --table-row-selected-hover-bg: rgba(248, 124, 99, 0.22);
+  --table-row-hover-bg: rgba(var(--brand-primary-rgb), 0.12);
+  --table-row-selected-bg: rgba(var(--brand-primary-rgb), 0.14);
+  --table-row-selected-hover-bg: rgba(var(--brand-primary-rgb), 0.22);
   --table-header-bg: #edeff300;
   --table-header-font-size: 12px;
   --table-cell-font-size: 12px;
@@ -29,9 +38,9 @@
   --text-primary: rgba(255, 255, 255, 0.85);
   --text-secondary: rgba(255, 255, 255, 0.45);
   --border-color: #303030;
-  --table-row-hover-bg: rgba(248, 124, 99, 0.18);
-  --table-row-selected-bg: rgba(248, 124, 99, 0.22);
-  --table-row-selected-hover-bg: rgba(248, 124, 99, 0.32);
+  --table-row-hover-bg: rgba(var(--brand-primary-rgb), 0.18);
+  --table-row-selected-bg: rgba(var(--brand-primary-rgb), 0.22);
+  --table-row-selected-hover-bg: rgba(var(--brand-primary-rgb), 0.32);
   --table-header-bg: #2a2a2a;
   --patent-scrollbar-thumb: #4b5563;
   --patent-scrollbar-thumb-hover: #6b7280;
@@ -246,7 +255,7 @@ span.ant-typography {
 }
 
 .my-board-tree-node-depth-1 {
-  border-color: rgba(248, 124, 99, 0.5);
+  border-color: rgba(var(--brand-primary-rgb), 0.5);
 }
 
 .my-board-tree-node-header {
@@ -621,23 +630,23 @@ span.ant-typography {
 }
 
 .ant-table-wrapper .ant-table-pagination .ant-pagination-item-active {
-  border-color: #F87C63;
+  border-color: var(--brand-primary);
   background: transparent;
   border-radius: 990px;
 }
 
 .ant-table-wrapper .ant-table-pagination .ant-pagination-item-active a,
 .ant-table-wrapper .ant-table-pagination .ant-pagination-item-active span {
-  color: #F87C63 !important;
+  color: var(--brand-primary) !important;
 }
 
 .ant-table-wrapper .ant-table-pagination .ant-pagination-item:hover {
-  border-color: #F87C63;
+  border-color: var(--brand-primary);
 }
 
 .ant-table-wrapper .ant-table-pagination .ant-pagination-item:hover a,
 .ant-table-wrapper .ant-table-pagination .ant-pagination-item:hover span {
-  color: #F87C63;
+  color: var(--brand-primary);
 }
 
 .ant-table-wrapper .ant-table-pagination .ant-pagination-options {
@@ -736,23 +745,23 @@ span.ant-typography {
 }
 
 .v-common-pagination .ant-pagination-item-active {
-  border-color: #F87C63;
+  border-color: var(--brand-primary);
   background: transparent;
   border-radius: 990px;
 }
 
 .v-common-pagination .ant-pagination-item-active a,
 .v-common-pagination .ant-pagination-item-active span {
-  color: #F87C63 !important;
+  color: var(--brand-primary) !important;
 }
 
 .v-common-pagination .ant-pagination-item:hover {
-  border-color: #F87C63;
+  border-color: var(--brand-primary);
 }
 
 .v-common-pagination .ant-pagination-item:hover a,
 .v-common-pagination .ant-pagination-item:hover span {
-  color: #F87C63;
+  color: var(--brand-primary);
 }
 
 .v-common-pagination .ant-pagination-options {
@@ -927,8 +936,8 @@ span.ant-typography {
 }
 
 .compound-structure-action-button:hover {
-  color: #F87C63 !important;
-  background: rgba(248, 124, 99, 0.14) !important;
+  color: var(--brand-primary) !important;
+  background: rgba(var(--brand-primary-rgb), 0.14) !important;
 }
 
 .compound-structure-actions-overlay {
@@ -990,14 +999,14 @@ span.ant-typography {
 }
 
 .v-item-card:hover {
-  border-color: #F87C63 !important;
+  border-color: var(--brand-primary) !important;
   transform: translateY(-2px);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
 }
 
 .v-item-card.selected {
-  border-color: #F87C63 !important;
-  box-shadow: 0 0 0 1px #F87C63;
+  border-color: var(--brand-primary) !important;
+  box-shadow: 0 0 0 1px var(--brand-primary);
 }
 
 /* Universal compound search */
@@ -2021,7 +2030,7 @@ span.ant-typography {
 }
 
 .reaction-profile-loading svg {
-  color: #F87C63;
+  color: var(--brand-primary);
 }
 
 .reaction-calculation-card .compound-structure-frame {
@@ -2241,7 +2250,7 @@ span.ant-typography {
   width: 40px;
   height: 40px;
   background: var(--card-bg);
-  border: 1px solid #F87C63;
+  border: 1px solid var(--brand-primary);
   border-radius: 12px;
   display: flex;
   align-items: center;
@@ -2250,14 +2259,14 @@ span.ant-typography {
   top: -10px;
   left: -10px;
   z-index: 5;
-  color: #F87C63;
+  color: var(--brand-primary);
 }
 
 .dashboard-card-title {
   text-align: right;
   padding: 12px 20px;
   border-bottom: 1px solid var(--border-color);
-  color: #F87C63;
+  color: var(--brand-primary);
   font-weight: 700;
   font-size: 1.0375rem;
 }
@@ -2273,7 +2282,7 @@ span.ant-typography {
 }
 
 .dashboard-list-title {
-  color: #F87C63;
+  color: var(--brand-primary);
   font-weight: 700;
   margin-top: 15px;
   margin-bottom: 8px;
@@ -2296,7 +2305,7 @@ span.ant-typography {
   content: '•';
   position: absolute;
   left: 0;
-  color: #F87C63;
+  color: var(--brand-primary);
 }
 
 .status-badge {

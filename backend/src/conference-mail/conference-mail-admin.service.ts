@@ -2,10 +2,10 @@ import {
   ConflictException,
   Injectable,
   NotFoundException,
-} from '@nestjs/common';
-import { PrismaService } from '../database/prisma.service';
-import type { ConferenceMailOutboxListQueryDto } from './dto/conference-mail-outbox-list-query.dto';
-import { GmailMailProvider } from './gmail-mail.provider';
+} from "@nestjs/common";
+import { PrismaService } from "../database/prisma.service";
+import type { ConferenceMailOutboxListQueryDto } from "./dto/conference-mail-outbox-list-query.dto";
+import { GmailMailProvider } from "./gmail-mail.provider";
 
 @Injectable()
 export class ConferenceMailAdminService {
@@ -18,15 +18,15 @@ export class ConferenceMailAdminService {
     const [provider, counts] = await Promise.all([
       this.provider.readiness(),
       this.prisma.client.conferenceMailOutbox.groupBy({
-        by: ['status'],
+        by: ["status"],
         where: organizationId
           ? {
-            comment: {
-              abstract: {
-                conference: { organizationId },
+              comment: {
+                abstract: {
+                  conference: { organizationId },
+                },
               },
-            },
-          }
+            }
           : undefined,
         _count: { _all: true },
       }),
@@ -45,15 +45,15 @@ export class ConferenceMailAdminService {
         ...(query.status ? { status: query.status } : {}),
         ...(organizationId
           ? {
-            comment: {
-              abstract: {
-                conference: { organizationId },
+              comment: {
+                abstract: {
+                  conference: { organizationId },
+                },
               },
-            },
-          }
+            }
           : {}),
       },
-      orderBy: { createdAt: 'desc' },
+      orderBy: { createdAt: "desc" },
       take: query.limit,
       select: {
         id: true,
@@ -90,24 +90,25 @@ export class ConferenceMailAdminService {
         id: outboxId,
         ...(organizationId
           ? {
-            comment: {
-              abstract: {
-                conference: { organizationId },
+              comment: {
+                abstract: {
+                  conference: { organizationId },
+                },
               },
-            },
-          }
+            }
           : {}),
       },
       select: { id: true, status: true },
     });
-    if (!existing) throw new NotFoundException('CONFERENCE_MAIL_OUTBOX_NOT_FOUND');
-    if (existing.status !== 'FAILED') {
-      throw new ConflictException('CONFERENCE_MAIL_OUTBOX_NOT_FAILED');
+    if (!existing)
+      throw new NotFoundException("CONFERENCE_MAIL_OUTBOX_NOT_FOUND");
+    if (existing.status !== "FAILED") {
+      throw new ConflictException("CONFERENCE_MAIL_OUTBOX_NOT_FAILED");
     }
     return this.prisma.client.conferenceMailOutbox.update({
       where: { id: outboxId },
       data: {
-        status: 'RETRY',
+        status: "RETRY",
         attemptCount: 0,
         nextAttemptAt: new Date(),
         lastErrorCode: null,

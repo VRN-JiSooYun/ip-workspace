@@ -1,7 +1,7 @@
-import { HttpModule } from '@nestjs/axios';
-import { Module } from '@nestjs/common';
-import { ConformerController } from './conformer.controller';
-import { ConformerService } from './conformer.service';
+import { HttpModule } from "@nestjs/axios";
+import { Module } from "@nestjs/common";
+import { ConformerController } from "./conformer.controller";
+import { ConformerService } from "./conformer.service";
 
 @Module({
   imports: [HttpModule],

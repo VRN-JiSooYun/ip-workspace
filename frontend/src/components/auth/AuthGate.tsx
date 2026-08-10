@@ -7,6 +7,7 @@ import {
   useAccessContext,
 } from '../../contexts/AccessContext';
 import { AUTH_REQUIRED_EVENT, authApi, type AuthSession } from '../../services/authApi';
+import { AUTH_BYPASS, bypassSession } from '../../services/authBypass';
 
 type RuntimeWindow = Window & { _env_?: { VITE_GROUPWARE_ORIGIN?: string } };
 
@@ -80,6 +81,7 @@ const RouteSessionValidator: React.FC<React.PropsWithChildren> = ({ children }) 
   const initialPathRef = useRef(location.pathname);
 
   useEffect(() => {
+    if (AUTH_BYPASS) return;
     if (initialPathRef.current === location.pathname) return;
     initialPathRef.current = location.pathname;
 
@@ -117,6 +119,13 @@ const AuthGate: React.FC<React.PropsWithChildren> = ({ children }) => {
   const intervalRef = useRef<number | undefined>(undefined);
   const timeoutRef = useRef<number | undefined>(undefined);
 
+  // 백엔드 없이 UI만 볼 때 쓰는 로컬 우회. VITE_AUTH_BYPASS=true 일 때만 동작한다.
+  useEffect(() => {
+    if (!AUTH_BYPASS) return;
+    setSession(bypassSession());
+    setState('authenticated');
+  }, []);
+
   const cleanup = useCallback(() => {
     if (intervalRef.current) window.clearInterval(intervalRef.current);
     if (timeoutRef.current) window.clearTimeout(timeoutRef.current);
@@ -146,6 +155,7 @@ const AuthGate: React.FC<React.PropsWithChildren> = ({ children }) => {
   }, [cleanup]);
 
   useEffect(() => {
+    if (AUTH_BYPASS) return;
     let active = true;
     const queryAuth = readGroupwareQueryAuth(window.location.search);
     if (queryAuth.type !== 'none') removeGroupwareQueryAuth();
@@ -201,6 +211,8 @@ const AuthGate: React.FC<React.PropsWithChildren> = ({ children }) => {
 
   useEffect(() => {
     const handleAuthRequired = () => {
+      // 우회 모드에서는 보호된 API가 전부 401이므로 이 이벤트를 무시한다.
+      if (AUTH_BYPASS) return;
       cleanup();
       setSession(null);
       setError('로그인 세션이 만료되었습니다. Groupware 인증을 다시 확인해주세요.');
@@ -240,7 +252,7 @@ const AuthGate: React.FC<React.PropsWithChildren> = ({ children }) => {
     setError('');
     const popup = window.open(
       GROUPWARE_LOADING_URL,
-      'medichem-groupware-auth',
+      'ip-groupware-auth',
       'popup,width=400,height=400',
     );
     if (!popup) {
@@ -267,14 +279,14 @@ const AuthGate: React.FC<React.PropsWithChildren> = ({ children }) => {
     <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', padding: 24 }}>
       <Card style={{ width: 'min(440px, 100%)', textAlign: 'center' }}>
         {loading ? (
-          <Spin tip={state === 'exchanging' ? 'Medichem session 생성 중' : 'Groupware 인증 확인 중'} size="large">
+          <Spin tip={state === 'exchanging' ? 'IP session 생성 중' : 'Groupware 인증 확인 중'} size="large">
             <div style={{ minHeight: 160 }} />
           </Spin>
         ) : state === 'error' ? (
           <Result status="warning" title="로그인 확인 실패" subTitle={error} extra={<Button type="primary" onClick={openGroupware}>다시 확인</Button>} />
         ) : (
           <>
-            <Typography.Title level={3}>Medichem Workspace</Typography.Title>
+            <Typography.Title level={3}>IP Workspace</Typography.Title>
             <Typography.Paragraph type="secondary">Groupware 로그인 정보를 확인해야 사용할 수 있습니다.</Typography.Paragraph>
             <Button type="primary" onClick={openGroupware}>Groupware 인증 확인</Button>
           </>

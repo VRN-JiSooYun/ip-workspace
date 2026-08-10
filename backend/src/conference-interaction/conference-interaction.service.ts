@@ -5,15 +5,15 @@ import {
   HttpStatus,
   Injectable,
   NotFoundException,
-} from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { randomUUID } from 'node:crypto';
-import { WorkspaceAuthorizationService } from '../authorization/workspace-authorization.service';
-import { PrismaService } from '../database/prisma.service';
-import { buildConferenceCommentMail } from '../conference-mail/conference-mail-template';
-import { normalizeRecipientEmail } from '../notification-recipient/notification-recipient-sync';
-import type { CreateConferenceCommentDto } from './dto/create-conference-comment.dto';
-import type { RecipientSearchQueryDto } from './dto/recipient-search-query.dto';
+} from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
+import { randomUUID } from "node:crypto";
+import { WorkspaceAuthorizationService } from "../authorization/workspace-authorization.service";
+import { PrismaService } from "../database/prisma.service";
+import { buildConferenceCommentMail } from "../conference-mail/conference-mail-template";
+import { normalizeRecipientEmail } from "../notification-recipient/notification-recipient-sync";
+import type { CreateConferenceCommentDto } from "./dto/create-conference-comment.dto";
+import type { RecipientSearchQueryDto } from "./dto/recipient-search-query.dto";
 
 const RECIPIENT_SEARCH_WINDOW_MS = 60_000;
 const RECIPIENT_SEARCH_MAX_REQUESTS = 30;
@@ -38,15 +38,16 @@ export class ConferenceInteractionService {
     config: ConfigService,
   ) {
     this.publicAppBaseUrl = config.get<string>(
-      'gmail.publicAppBaseUrl',
-      'http://localhost:5174',
+      "gmail.publicAppBaseUrl",
+      "http://localhost:5174",
     );
     this.mailMaxAttempts = Math.min(
       20,
-      Math.max(1, config.get<number>('gmail.maxAttempts', 5)),
+      Math.max(1, config.get<number>("gmail.maxAttempts", 5)),
     );
     this.allowedRecipientDomains = new Set(
-      config.get<string[]>('gmail.allowedRecipientDomains', ['voronoi.io'])
+      config
+        .get<string[]>("gmail.allowedRecipientDomains", ["voronoi.io"])
         .map((domain) => domain.trim().toLowerCase())
         .filter(Boolean),
     );
@@ -80,17 +81,19 @@ export class ConferenceInteractionService {
     this.assertRecipientSearchRate(requestUserId);
     return this.prisma.client.notificationRecipient.findMany({
       where: {
-        status: 'ACTIVE',
+        status: "ACTIVE",
         mailEnabled: true,
-        AND: [{
-          OR: [
-            { name: { contains: query.q, mode: 'insensitive' } },
-            { email: { contains: query.q, mode: 'insensitive' } },
-          ],
-        }],
+        AND: [
+          {
+            OR: [
+              { name: { contains: query.q, mode: "insensitive" } },
+              { email: { contains: query.q, mode: "insensitive" } },
+            ],
+          },
+        ],
       },
       select: { id: true, name: true, email: true },
-      orderBy: [{ name: 'asc' }, { email: 'asc' }],
+      orderBy: [{ name: "asc" }, { email: "asc" }],
       take: query.limit,
     });
   }
@@ -118,65 +121,82 @@ export class ConferenceInteractionService {
           },
         },
       });
-      if (!abstract) throw new NotFoundException('CONFERENCE_ABSTRACT_NOT_FOUND');
+      if (!abstract)
+        throw new NotFoundException("CONFERENCE_ABSTRACT_NOT_FOUND");
       const author = await tx.user.findUnique({
         where: { id: authorUserId },
         select: { name: true, email: true },
       });
-      if (!author) throw new NotFoundException('COMMENT_AUTHOR_NOT_FOUND');
+      if (!author) throw new NotFoundException("COMMENT_AUTHOR_NOT_FOUND");
 
       const recipientIds = body.recipientIds ?? [];
-      const recipientEmails = [...new Set(
-        (body.recipientEmails ?? []).map(normalizeRecipientEmail),
-      )];
+      const recipientEmails = [
+        ...new Set((body.recipientEmails ?? []).map(normalizeRecipientEmail)),
+      ];
       if (recipientIds.length + recipientEmails.length > 20) {
-        throw new BadRequestException('RECIPIENT_LIMIT_EXCEEDED');
+        throw new BadRequestException("RECIPIENT_LIMIT_EXCEEDED");
       }
       for (const email of recipientEmails) {
-        const domain = email.slice(email.lastIndexOf('@') + 1);
+        const domain = email.slice(email.lastIndexOf("@") + 1);
         if (!this.allowedRecipientDomains.has(domain)) {
-          throw new BadRequestException('RECIPIENT_EMAIL_DOMAIN_NOT_ALLOWED');
+          throw new BadRequestException("RECIPIENT_EMAIL_DOMAIN_NOT_ALLOWED");
         }
       }
 
-      const requestedRecipients = recipientIds.length === 0 && recipientEmails.length === 0
-        ? []
-        : await tx.notificationRecipient.findMany({
-          where: {
-            OR: [
-              ...(recipientIds.length > 0 ? [{ id: { in: recipientIds } }] : []),
-              ...(recipientEmails.length > 0
-                ? [{ normalizedEmail: { in: recipientEmails } }]
-                : []),
-            ],
-          },
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            normalizedEmail: true,
-            status: true,
-            mailEnabled: true,
-          },
-        });
+      const requestedRecipients =
+        recipientIds.length === 0 && recipientEmails.length === 0
+          ? []
+          : await tx.notificationRecipient.findMany({
+              where: {
+                OR: [
+                  ...(recipientIds.length > 0
+                    ? [{ id: { in: recipientIds } }]
+                    : []),
+                  ...(recipientEmails.length > 0
+                    ? [{ normalizedEmail: { in: recipientEmails } }]
+                    : []),
+                ],
+              },
+              select: {
+                id: true,
+                name: true,
+                email: true,
+                normalizedEmail: true,
+                status: true,
+                mailEnabled: true,
+              },
+            });
       const recipientsById = new Map(
         requestedRecipients.map((recipient) => [recipient.id, recipient]),
       );
       const recipientsByEmail = new Map(
-        requestedRecipients.map((recipient) => [recipient.normalizedEmail, recipient]),
+        requestedRecipients.map((recipient) => [
+          recipient.normalizedEmail,
+          recipient,
+        ]),
       );
-      if (recipientIds.some((id) => {
-        const recipient = recipientsById.get(id);
-        return !recipient || recipient.status !== 'ACTIVE' || !recipient.mailEnabled;
-      })) {
-        throw new NotFoundException('RECIPIENT_NOT_FOUND_OR_INACTIVE');
+      if (
+        recipientIds.some((id) => {
+          const recipient = recipientsById.get(id);
+          return (
+            !recipient ||
+            recipient.status !== "ACTIVE" ||
+            !recipient.mailEnabled
+          );
+        })
+      ) {
+        throw new NotFoundException("RECIPIENT_NOT_FOUND_OR_INACTIVE");
       }
-      if (recipientEmails.some((email) => {
-        const recipient = recipientsByEmail.get(email);
-        return recipient
-          && (recipient.status !== 'ACTIVE' || !recipient.mailEnabled);
-      })) {
-        throw new NotFoundException('RECIPIENT_NOT_FOUND_OR_INACTIVE');
+      if (
+        recipientEmails.some((email) => {
+          const recipient = recipientsByEmail.get(email);
+          return (
+            recipient &&
+            (recipient.status !== "ACTIVE" || !recipient.mailEnabled)
+          );
+        })
+      ) {
+        throw new NotFoundException("RECIPIENT_NOT_FOUND_OR_INACTIVE");
       }
 
       const mailTargets = new Map<string, ConferenceMailTarget>();
@@ -186,18 +206,20 @@ export class ConferenceInteractionService {
       });
       recipientEmails.forEach((email) => {
         const recipient = recipientsByEmail.get(email);
-        mailTargets.set(email, recipient ?? {
-          id: null,
-          name: email,
+        mailTargets.set(
           email,
-          normalizedEmail: email,
-        });
+          recipient ?? {
+            id: null,
+            name: email,
+            email,
+            normalizedEmail: email,
+          },
+        );
       });
       const targets = [...mailTargets.values()];
       const mentionedRecipients = targets.filter(
-        (recipient): recipient is ConferenceMailTarget & { id: string } => (
-          recipient.id !== null
-        ),
+        (recipient): recipient is ConferenceMailTarget & { id: string } =>
+          recipient.id !== null,
       );
       const directRecipientEmails = targets
         .filter((recipient) => recipient.id === null)
@@ -255,7 +277,7 @@ export class ConferenceInteractionService {
       }
       return {
         ...comment,
-        sourceSystem: 'WORKSPACE' as const,
+        sourceSystem: "WORKSPACE" as const,
         sourceCreatedAt: null,
         mentionedRecipients,
         directRecipientEmails,
@@ -271,7 +293,7 @@ export class ConferenceInteractionService {
   ) {
     const canModerate = await this.authorization.hasPermission(
       actorUserId,
-      'conference.comment.moderate',
+      "conference.comment.moderate",
     );
     return this.prisma.client.$transaction(async (tx) => {
       const comment = await tx.conferenceAbstractComment.findFirst({
@@ -285,9 +307,10 @@ export class ConferenceInteractionService {
         },
         select: { id: true, authorUserId: true },
       });
-      if (!comment) throw new NotFoundException('CONFERENCE_ABSTRACT_COMMENT_NOT_FOUND');
+      if (!comment)
+        throw new NotFoundException("CONFERENCE_ABSTRACT_COMMENT_NOT_FOUND");
       if (comment.authorUserId !== actorUserId && !canModerate) {
-        throw new ForbiddenException('COMMENT_DELETE_FORBIDDEN');
+        throw new ForbiddenException("COMMENT_DELETE_FORBIDDEN");
       }
       await tx.conferenceAbstractComment.update({
         where: { id: commentId },
@@ -309,17 +332,18 @@ export class ConferenceInteractionService {
       },
       select: { id: true },
     });
-    if (!abstract) throw new NotFoundException('CONFERENCE_ABSTRACT_NOT_FOUND');
+    if (!abstract) throw new NotFoundException("CONFERENCE_ABSTRACT_NOT_FOUND");
   }
 
   private assertRecipientSearchRate(userId: string): void {
     const now = Date.now();
-    const recent = (this.recipientSearchWindows.get(userId) ?? [])
-      .filter((requestedAt) => now - requestedAt < RECIPIENT_SEARCH_WINDOW_MS);
+    const recent = (this.recipientSearchWindows.get(userId) ?? []).filter(
+      (requestedAt) => now - requestedAt < RECIPIENT_SEARCH_WINDOW_MS,
+    );
     if (recent.length >= RECIPIENT_SEARCH_MAX_REQUESTS) {
       this.recipientSearchWindows.set(userId, recent);
       throw new HttpException(
-        'RECIPIENT_SEARCH_RATE_LIMITED',
+        "RECIPIENT_SEARCH_RATE_LIMITED",
         HttpStatus.TOO_MANY_REQUESTS,
       );
     }

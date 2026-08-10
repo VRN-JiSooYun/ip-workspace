@@ -1,11 +1,14 @@
-import { Injectable } from '@nestjs/common';
-import { basename } from 'node:path';
-import { PrismaService } from '../database/prisma.service';
-import { ConferenceExcelReaderService, parseConferenceExcelSource } from './conference-excel-reader.service';
-import type { ConferenceImportIssueDraft } from './conference-import.types';
-import { parseLegacyCommentLiteral } from './legacy-comment-literal.parser';
+import { Injectable } from "@nestjs/common";
+import { basename } from "node:path";
+import { PrismaService } from "../database/prisma.service";
+import {
+  ConferenceExcelReaderService,
+  parseConferenceExcelSource,
+} from "./conference-excel-reader.service";
+import type { ConferenceImportIssueDraft } from "./conference-import.types";
+import { parseLegacyCommentLiteral } from "./legacy-comment-literal.parser";
 
-export const LEGACY_COMMENT_PROFILE = 'legacy-comments/v1';
+export const LEGACY_COMMENT_PROFILE = "legacy-comments/v1";
 
 type LegacyCommentCandidate = {
   sourceFile: string;
@@ -48,7 +51,7 @@ export class LegacyCommentImportService {
 
   async apply(files: string[]): Promise<LegacyCommentImportResult> {
     const analysis = await this.analyze(files);
-    if (analysis.issues.some(({ severity }) => severity === 'ERROR')) {
+    if (analysis.issues.some(({ severity }) => severity === "ERROR")) {
       return {
         insertedCount: 0,
         updatedCount: 0,
@@ -65,7 +68,7 @@ export class LegacyCommentImportService {
           authorUserId: null,
           legacyAuthorRecipientId: candidate.legacyAuthorRecipientId,
           authorNameSnapshot: candidate.authorNameSnapshot,
-          sourceSystem: 'LEGACY_DJANGO',
+          sourceSystem: "LEGACY_DJANGO",
           legacyCommentKey: candidate.legacyCommentKey,
           legacyCommentId: candidate.legacyCommentId,
           legacyOrder: candidate.legacyOrder,
@@ -106,7 +109,7 @@ export class LegacyCommentImportService {
 
     for (const file of files) {
       const source = parseConferenceExcelSource(basename(file));
-      if (!source || source.profile !== 'LEGACY_EXPORT') continue;
+      if (!source || source.profile !== "LEGACY_EXPORT") continue;
       for await (const row of this.excelReader.rows(file)) {
         const literal = row.values.list_dict_comment?.trim();
         if (!literal) continue;
@@ -115,10 +118,10 @@ export class LegacyCommentImportService {
           issues.push({
             sourceFile: source.sourceFile,
             rowNumber: row.rowNumber,
-            entityType: 'COMMENT',
-            severity: 'ERROR',
-            errorCode: 'LEGACY_COMMENT_ABSTRACT_ID_INVALID',
-            message: 'Comment row has an invalid Abstract legacy ID.',
+            entityType: "COMMENT",
+            severity: "ERROR",
+            errorCode: "LEGACY_COMMENT_ABSTRACT_ID_INVALID",
+            message: "Comment row has an invalid Abstract legacy ID.",
           });
           continue;
         }
@@ -130,10 +133,13 @@ export class LegacyCommentImportService {
           issues.push({
             sourceFile: source.sourceFile,
             rowNumber: row.rowNumber,
-            entityType: 'COMMENT',
-            severity: 'ERROR',
-            errorCode: 'LEGACY_COMMENT_LITERAL_INVALID',
-            message: error instanceof Error ? error.message.slice(0, 500) : 'Invalid comment literal.',
+            entityType: "COMMENT",
+            severity: "ERROR",
+            errorCode: "LEGACY_COMMENT_LITERAL_INVALID",
+            message:
+              error instanceof Error
+                ? error.message.slice(0, 500)
+                : "Invalid comment literal.",
             sourceSnapshot: { abstractLegacyId },
           });
           continue;
@@ -145,10 +151,10 @@ export class LegacyCommentImportService {
             issues.push({
               sourceFile: source.sourceFile,
               rowNumber: row.rowNumber,
-              entityType: 'COMMENT',
-              severity: 'ERROR',
-              errorCode: 'LEGACY_COMMENT_ID_DUPLICATE',
-              message: 'Comment ID is duplicated in the same Abstract row.',
+              entityType: "COMMENT",
+              severity: "ERROR",
+              errorCode: "LEGACY_COMMENT_ID_DUPLICATE",
+              message: "Comment ID is duplicated in the same Abstract row.",
               sourceSnapshot: {
                 abstractLegacyId,
                 legacyCommentId: comment.id,
@@ -158,19 +164,20 @@ export class LegacyCommentImportService {
           }
           rowCommentIds.add(comment.id);
           const legacyCommentKey = [
-            'LEGACY_DJANGO',
+            "LEGACY_DJANGO",
             `abstract:${abstractLegacyId}`,
             `comment:${comment.id}`,
             `member:${comment.memberId}`,
-          ].join(':');
+          ].join(":");
           if (seenKeys.has(legacyCommentKey)) {
             issues.push({
               sourceFile: source.sourceFile,
               rowNumber: row.rowNumber,
-              entityType: 'COMMENT',
-              severity: 'ERROR',
-              errorCode: 'LEGACY_COMMENT_KEY_DUPLICATE',
-              message: 'Deterministic legacy comment key is duplicated in the source.',
+              entityType: "COMMENT",
+              severity: "ERROR",
+              errorCode: "LEGACY_COMMENT_KEY_DUPLICATE",
+              message:
+                "Deterministic legacy comment key is duplicated in the source.",
               sourceSnapshot: {
                 abstractLegacyId,
                 legacyCommentId: comment.id,
@@ -195,13 +202,17 @@ export class LegacyCommentImportService {
       }
     }
 
-    const abstractLegacyIds = [...new Set(rawComments.map(({ abstractLegacyId }) => abstractLegacyId))];
+    const abstractLegacyIds = [
+      ...new Set(rawComments.map(({ abstractLegacyId }) => abstractLegacyId)),
+    ];
     const memberIds = [...new Set(rawComments.map(({ memberId }) => memberId))];
-    const legacyCommentKeys = rawComments.map(({ legacyCommentKey }) => legacyCommentKey);
+    const legacyCommentKeys = rawComments.map(
+      ({ legacyCommentKey }) => legacyCommentKey,
+    );
     const [abstracts, recipients, existingComments] = await Promise.all([
       this.prisma.client.conferenceAbstract.findMany({
         where: {
-          sourceSystem: 'LEGACY_DJANGO',
+          sourceSystem: "LEGACY_DJANGO",
           legacyId: { in: abstractLegacyIds },
           deletedAt: null,
         },
@@ -226,19 +237,25 @@ export class LegacyCommentImportService {
       }),
     ]);
     const abstractByLegacyId = new Map(
-      abstracts.flatMap((abstract) => (
-        abstract.legacyId === null ? [] : [[abstract.legacyId, abstract] as const]
-      )),
+      abstracts.flatMap((abstract) =>
+        abstract.legacyId === null
+          ? []
+          : [[abstract.legacyId, abstract] as const],
+      ),
     );
     const recipientByMemberId = new Map(
-      recipients.flatMap((recipient) => (
-        recipient.memberId === null ? [] : [[recipient.memberId, recipient] as const]
-      )),
+      recipients.flatMap((recipient) =>
+        recipient.memberId === null
+          ? []
+          : [[recipient.memberId, recipient] as const],
+      ),
     );
     const existingByKey = new Map(
-      existingComments.flatMap((comment) => (
-        comment.legacyCommentKey ? [[comment.legacyCommentKey, comment] as const] : []
-      )),
+      existingComments.flatMap((comment) =>
+        comment.legacyCommentKey
+          ? [[comment.legacyCommentKey, comment] as const]
+          : [],
+      ),
     );
 
     const candidates: LegacyCommentCandidate[] = [];
@@ -249,10 +266,10 @@ export class LegacyCommentImportService {
         issues.push({
           sourceFile: raw.sourceFile,
           rowNumber: raw.rowNumber,
-          entityType: 'COMMENT',
-          severity: 'ERROR',
-          errorCode: 'LEGACY_COMMENT_ABSTRACT_NOT_FOUND',
-          message: 'No active imported Abstract matches the legacy ID.',
+          entityType: "COMMENT",
+          severity: "ERROR",
+          errorCode: "LEGACY_COMMENT_ABSTRACT_NOT_FOUND",
+          message: "No active imported Abstract matches the legacy ID.",
           sourceSnapshot: { abstractLegacyId: raw.abstractLegacyId },
         });
         continue;
@@ -262,10 +279,10 @@ export class LegacyCommentImportService {
         issues.push({
           sourceFile: raw.sourceFile,
           rowNumber: raw.rowNumber,
-          entityType: 'COMMENT',
-          severity: 'ERROR',
-          errorCode: 'LEGACY_COMMENT_AUTHOR_NOT_FOUND',
-          message: 'No notification recipient matches the legacy member ID.',
+          entityType: "COMMENT",
+          severity: "ERROR",
+          errorCode: "LEGACY_COMMENT_AUTHOR_NOT_FOUND",
+          message: "No notification recipient matches the legacy member ID.",
           sourceSnapshot: {
             abstractLegacyId: raw.abstractLegacyId,
             memberId: raw.memberId,
@@ -277,10 +294,11 @@ export class LegacyCommentImportService {
         issues.push({
           sourceFile: raw.sourceFile,
           rowNumber: raw.rowNumber,
-          entityType: 'COMMENT',
-          severity: 'WARNING',
-          errorCode: 'LEGACY_COMMENT_AUTHOR_NAME_MISMATCH',
-          message: 'Legacy comment author name differs from the recipient directory; the source name is preserved.',
+          entityType: "COMMENT",
+          severity: "WARNING",
+          errorCode: "LEGACY_COMMENT_AUTHOR_NAME_MISMATCH",
+          message:
+            "Legacy comment author name differs from the recipient directory; the source name is preserved.",
           sourceSnapshot: {
             abstractLegacyId: raw.abstractLegacyId,
             memberId: raw.memberId,
@@ -305,25 +323,26 @@ export class LegacyCommentImportService {
         candidates.push(candidate);
         continue;
       }
-      const matches = (
-        existing.sourceSystem === 'LEGACY_DJANGO'
-        && existing.abstractId === candidate.abstractId
-        && existing.legacyAuthorRecipientId === candidate.legacyAuthorRecipientId
-        && existing.authorNameSnapshot === candidate.authorNameSnapshot
-        && existing.legacyCommentId === candidate.legacyCommentId
-        && existing.legacyOrder === candidate.legacyOrder
-        && existing.content === candidate.content
-      );
+      const matches =
+        existing.sourceSystem === "LEGACY_DJANGO" &&
+        existing.abstractId === candidate.abstractId &&
+        existing.legacyAuthorRecipientId ===
+          candidate.legacyAuthorRecipientId &&
+        existing.authorNameSnapshot === candidate.authorNameSnapshot &&
+        existing.legacyCommentId === candidate.legacyCommentId &&
+        existing.legacyOrder === candidate.legacyOrder &&
+        existing.content === candidate.content;
       if (matches) {
         unchangedCount += 1;
       } else {
         issues.push({
           sourceFile: raw.sourceFile,
           rowNumber: raw.rowNumber,
-          entityType: 'COMMENT',
-          severity: 'ERROR',
-          errorCode: 'LEGACY_COMMENT_IDEMPOTENCY_CONFLICT',
-          message: 'An existing legacy comment key has different persisted data.',
+          entityType: "COMMENT",
+          severity: "ERROR",
+          errorCode: "LEGACY_COMMENT_IDEMPOTENCY_CONFLICT",
+          message:
+            "An existing legacy comment key has different persisted data.",
           sourceSnapshot: {
             abstractLegacyId: raw.abstractLegacyId,
             legacyCommentId: raw.legacyCommentId,

@@ -1,4 +1,4 @@
-import { Transform } from 'class-transformer';
+import { Transform } from "class-transformer";
 import {
   IsDateString,
   IsIn,
@@ -9,11 +9,11 @@ import {
   Max,
   MaxLength,
   Min,
-} from 'class-validator';
+} from "class-validator";
 
 export class AdminConferenceAbstractListQueryDto {
   @IsOptional()
-  @IsUUID('4')
+  @IsUUID("4")
   conferenceId?: string;
 
   @IsOptional()
@@ -30,12 +30,12 @@ export class AdminConferenceAbstractListQueryDto {
   dateTo?: string;
 
   @IsOptional()
-  @IsIn(['active', 'deleted'])
-  deleted: 'active' | 'deleted' = 'active';
+  @IsIn(["active", "deleted"])
+  deleted: "active" | "deleted" = "active";
 
   @IsOptional()
-  @IsIn(['updatedDesc', 'abstractNumberAsc', 'dateOpenDesc'])
-  sort: 'updatedDesc' | 'abstractNumberAsc' | 'dateOpenDesc' = 'updatedDesc';
+  @IsIn(["updatedDesc", "abstractNumberAsc", "dateOpenDesc"])
+  sort: "updatedDesc" | "abstractNumberAsc" | "dateOpenDesc" = "updatedDesc";
 
   @IsOptional()
   @Transform(({ value }) => Number(value))

@@ -5,23 +5,22 @@ import {
   IsOptional,
   IsString,
   MaxLength,
-} from 'class-validator';
+} from "class-validator";
 
 export class UpdateUserAccessDto {
   @IsOptional()
   @IsArray()
   @ArrayUnique()
-  @IsIn(
-    ['SUPER_ADMIN', 'CONFERENCE_ADMIN', 'PATENT_ANALYSIS_ADMIN'],
-    { each: true },
-  )
+  @IsIn(["SUPER_ADMIN", "CONFERENCE_ADMIN", "PATENT_ANALYSIS_ADMIN"], {
+    each: true,
+  })
   adminRoles?: Array<
-    'SUPER_ADMIN' | 'CONFERENCE_ADMIN' | 'PATENT_ANALYSIS_ADMIN'
+    "SUPER_ADMIN" | "CONFERENCE_ADMIN" | "PATENT_ANALYSIS_ADMIN"
   >;
 
   @IsOptional()
-  @IsIn(['ACTIVE', 'INACTIVE'])
-  status?: 'ACTIVE' | 'INACTIVE';
+  @IsIn(["ACTIVE", "INACTIVE"])
+  status?: "ACTIVE" | "INACTIVE";
 
   @IsOptional()
   @IsString()

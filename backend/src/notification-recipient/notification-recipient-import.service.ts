@@ -3,29 +3,31 @@ import {
   Injectable,
   Logger,
   NotFoundException,
-} from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { createHash } from 'node:crypto';
-import { readFile, realpath } from 'node:fs/promises';
-import { join, sep } from 'node:path';
-import { z } from 'zod';
-import { PrismaService } from '../database/prisma.service';
-import { normalizeRecipientEmail } from './notification-recipient-sync';
+} from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
+import { createHash } from "node:crypto";
+import { readFile, realpath } from "node:fs/promises";
+import { join, sep } from "node:path";
+import { z } from "zod";
+import { PrismaService } from "../database/prisma.service";
+import { normalizeRecipientEmail } from "./notification-recipient-sync";
 
-const PROFILE_VERSION = 'groupware-members/v1';
+const PROFILE_VERSION = "groupware-members/v1";
 
-const sourceRowSchema = z.object({
-  member_id: z.number().int().positive(),
-  member_name: z.string().trim().min(1).max(200),
-  member_email: z.string(),
-}).passthrough();
+const sourceRowSchema = z
+  .object({
+    member_id: z.number().int().positive(),
+    member_name: z.string().trim().min(1).max(200),
+    member_email: z.string(),
+  })
+  .passthrough();
 
 const emailSchema = z.string().trim().toLowerCase().max(320).email();
 
-type ImportMode = 'DRY_RUN' | 'APPLY';
+type ImportMode = "DRY_RUN" | "APPLY";
 type Issue = {
   rowNumber: number | null;
-  severity: 'WARNING' | 'ERROR';
+  severity: "WARNING" | "ERROR";
   errorCode: string;
   message: string;
   memberId: number | null;
@@ -41,16 +43,16 @@ type Candidate = {
 };
 
 type Action =
-  | { type: 'INSERT'; candidate: Candidate; linkedUserId: string | null }
+  | { type: "INSERT"; candidate: Candidate; linkedUserId: string | null }
   | {
-    type: 'UPDATE';
-    candidate: Candidate;
-    recipientId: string;
-    linkedUserId: string | null;
-  }
-  | { type: 'UNCHANGED'; candidate: Candidate };
+      type: "UPDATE";
+      candidate: Candidate;
+      recipientId: string;
+      linkedUserId: string | null;
+    }
+  | { type: "UNCHANGED"; candidate: Candidate };
 
-type RecipientWriteAction = Extract<Action, { type: 'INSERT' | 'UPDATE' }>;
+type RecipientWriteAction = Extract<Action, { type: "INSERT" | "UPDATE" }>;
 
 type Analysis = {
   sourceCount: number;
@@ -75,42 +77,44 @@ export class NotificationRecipientImportService {
     config: ConfigService,
   ) {
     this.importRoot = config.get<string>(
-      'notificationRecipient.importRoot',
-      '/app/imports/notification-recipients',
+      "notificationRecipient.importRoot",
+      "/app/imports/notification-recipients",
     );
   }
 
   async execute(startedByUserId: string, mode: ImportMode, batchKey: string) {
-    const batch = await this.prisma.client.notificationRecipientImportBatch.findUnique({
-      where: { batchKey },
-    });
-    if (!batch || batch.status !== 'READY' || !batch.sourceChecksum) {
+    const batch =
+      await this.prisma.client.notificationRecipientImportBatch.findUnique({
+        where: { batchKey },
+      });
+    if (!batch || batch.status !== "READY" || !batch.sourceChecksum) {
       throw new NotFoundException(
-        'NOTIFICATION_RECIPIENT_IMPORT_BATCH_NOT_READY',
+        "NOTIFICATION_RECIPIENT_IMPORT_BATCH_NOT_READY",
       );
     }
     const sourcePath = await this.resolveBatchSource(batch.batchKey);
     const source = await readFile(sourcePath);
-    const sourceChecksum = createHash('sha256').update(source).digest('hex');
+    const sourceChecksum = createHash("sha256").update(source).digest("hex");
     if (sourceChecksum !== batch.sourceChecksum) {
       throw new ConflictException(
-        'NOTIFICATION_RECIPIENT_IMPORT_BATCH_CHECKSUM_MISMATCH',
+        "NOTIFICATION_RECIPIENT_IMPORT_BATCH_CHECKSUM_MISMATCH",
       );
     }
 
-    const existing = await this.prisma.client.notificationRecipientImportRun.findUnique({
-      where: {
-        sourceChecksum_profileVersion_mode: {
-          sourceChecksum,
-          profileVersion: PROFILE_VERSION,
-          mode,
+    const existing =
+      await this.prisma.client.notificationRecipientImportRun.findUnique({
+        where: {
+          sourceChecksum_profileVersion_mode: {
+            sourceChecksum,
+            profileVersion: PROFILE_VERSION,
+            mode,
+          },
         },
-      },
-      include: {
-        batch: { select: { id: true, batchKey: true } },
-        issues: { orderBy: { rowNumber: 'asc' } },
-      },
-    });
+        include: {
+          batch: { select: { id: true, batchKey: true } },
+          issues: { orderBy: { rowNumber: "asc" } },
+        },
+      });
     let run;
     if (existing) {
       if (existing.batchId !== batch.id) {
@@ -119,7 +123,7 @@ export class NotificationRecipientImportService {
           data: { batchId: batch.id },
         });
       }
-      if (existing.status !== 'FAILED' && existing.status !== 'PARTIAL') {
+      if (existing.status !== "FAILED" && existing.status !== "PARTIAL") {
         return this.getRun(existing.id);
       }
       run = await this.prisma.client.$transaction(async (tx) => {
@@ -129,7 +133,7 @@ export class NotificationRecipientImportService {
         return tx.notificationRecipientImportRun.update({
           where: { id: existing.id },
           data: {
-            status: 'RUNNING',
+            status: "RUNNING",
             sourceCount: 0,
             insertedCount: 0,
             updatedCount: 0,
@@ -146,24 +150,25 @@ export class NotificationRecipientImportService {
       });
     }
 
-    if (mode === 'APPLY') {
-      const dryRun = await this.prisma.client.notificationRecipientImportRun.findUnique({
-        where: {
-          sourceChecksum_profileVersion_mode: {
-            sourceChecksum,
-            profileVersion: PROFILE_VERSION,
-            mode: 'DRY_RUN',
+    if (mode === "APPLY") {
+      const dryRun =
+        await this.prisma.client.notificationRecipientImportRun.findUnique({
+          where: {
+            sourceChecksum_profileVersion_mode: {
+              sourceChecksum,
+              profileVersion: PROFILE_VERSION,
+              mode: "DRY_RUN",
+            },
           },
-        },
-      });
+        });
       if (
-        !dryRun
-        || dryRun.status !== 'COMPLETED'
-        || dryRun.errorCount !== 0
-        || dryRun.conflictCount !== 0
+        !dryRun ||
+        dryRun.status !== "COMPLETED" ||
+        dryRun.errorCount !== 0 ||
+        dryRun.conflictCount !== 0
       ) {
         throw new ConflictException(
-          'NOTIFICATION_RECIPIENT_SUCCESSFUL_DRY_RUN_REQUIRED',
+          "NOTIFICATION_RECIPIENT_SUCCESSFUL_DRY_RUN_REQUIRED",
         );
       }
     }
@@ -171,7 +176,7 @@ export class NotificationRecipientImportService {
     run ??= await this.prisma.client.notificationRecipientImportRun.create({
       data: {
         mode,
-        status: 'RUNNING',
+        status: "RUNNING",
         batchId: batch.id,
         profileVersion: PROFILE_VERSION,
         sourceChecksum,
@@ -183,15 +188,16 @@ export class NotificationRecipientImportService {
       const parsed = this.parseSource(source);
       const analysis = await this.analyze(parsed);
       if (
-        mode === 'APPLY'
-        && analysis.errorCount === 0
-        && analysis.conflictCount === 0
+        mode === "APPLY" &&
+        analysis.errorCount === 0 &&
+        analysis.conflictCount === 0
       ) {
         await this.apply(analysis);
       }
-      const status = analysis.errorCount > 0 || analysis.conflictCount > 0
-        ? 'PARTIAL'
-        : 'COMPLETED';
+      const status =
+        analysis.errorCount > 0 || analysis.conflictCount > 0
+          ? "PARTIAL"
+          : "COMPLETED";
       await this.prisma.client.$transaction(async (tx) => {
         if (analysis.issues.length > 0) {
           await tx.notificationRecipientImportIssue.createMany({
@@ -214,32 +220,36 @@ export class NotificationRecipientImportService {
         });
       });
     } catch (error) {
-      const errorRecord = error && typeof error === 'object'
-        ? error as { code?: unknown; message?: unknown; name?: unknown }
-        : null;
-      const message = typeof errorRecord?.message === 'string'
-        ? errorRecord.message
-        : '';
-      const reason = /expired transaction|transaction.*timeout|timeout.*transaction/i.test(message)
-        ? 'TRANSACTION_TIMEOUT'
-        : typeof errorRecord?.name === 'string'
-          ? errorRecord.name
-          : 'UNKNOWN';
-      const code = typeof errorRecord?.code === 'string' ? errorRecord.code : '-';
+      const errorRecord =
+        error && typeof error === "object"
+          ? (error as { code?: unknown; message?: unknown; name?: unknown })
+          : null;
+      const message =
+        typeof errorRecord?.message === "string" ? errorRecord.message : "";
+      const reason =
+        /expired transaction|transaction.*timeout|timeout.*transaction/i.test(
+          message,
+        )
+          ? "TRANSACTION_TIMEOUT"
+          : typeof errorRecord?.name === "string"
+            ? errorRecord.name
+            : "UNKNOWN";
+      const code =
+        typeof errorRecord?.code === "string" ? errorRecord.code : "-";
       this.logger.error(
         `Notification recipient import failed run=${run.id} mode=${mode} reason=${reason} code=${code}`,
       );
       await this.prisma.client.notificationRecipientImportRun.update({
         where: { id: run.id },
         data: {
-          status: 'FAILED',
+          status: "FAILED",
           errorCount: 1,
           finishedAt: new Date(),
           issues: {
             create: {
-              severity: 'ERROR',
-              errorCode: 'NOTIFICATION_RECIPIENT_IMPORT_FAILED',
-              message: '구성원 알림 대상 import 처리에 실패했습니다.',
+              severity: "ERROR",
+              errorCode: "NOTIFICATION_RECIPIENT_IMPORT_FAILED",
+              message: "구성원 알림 대상 import 처리에 실패했습니다.",
             },
           },
         },
@@ -251,7 +261,7 @@ export class NotificationRecipientImportService {
 
   listRuns() {
     return this.prisma.client.notificationRecipientImportRun.findMany({
-      orderBy: { startedAt: 'desc' },
+      orderBy: { startedAt: "desc" },
       take: 50,
       include: {
         batch: {
@@ -264,15 +274,18 @@ export class NotificationRecipientImportService {
   }
 
   async getRun(runId: string) {
-    const run = await this.prisma.client.notificationRecipientImportRun.findUnique({
-      where: { id: runId },
-      include: {
-        batch: { select: { id: true, batchKey: true } },
-        issues: { orderBy: { rowNumber: 'asc' } },
-      },
-    });
+    const run =
+      await this.prisma.client.notificationRecipientImportRun.findUnique({
+        where: { id: runId },
+        include: {
+          batch: { select: { id: true, batchKey: true } },
+          issues: { orderBy: { rowNumber: "asc" } },
+        },
+      });
     if (!run) {
-      throw new NotFoundException('NOTIFICATION_RECIPIENT_IMPORT_RUN_NOT_FOUND');
+      throw new NotFoundException(
+        "NOTIFICATION_RECIPIENT_IMPORT_RUN_NOT_FOUND",
+      );
     }
     return run;
   }
@@ -282,30 +295,31 @@ export class NotificationRecipientImportService {
     let sourcePath: string;
     try {
       root = await realpath(this.importRoot);
-      sourcePath = await realpath(join(root, batchKey, 'getMembers.json'));
+      sourcePath = await realpath(join(root, batchKey, "getMembers.json"));
     } catch {
       throw new NotFoundException(
-        'NOTIFICATION_RECIPIENT_IMPORT_BATCH_FILE_NOT_FOUND',
+        "NOTIFICATION_RECIPIENT_IMPORT_BATCH_FILE_NOT_FOUND",
       );
     }
     if (!sourcePath.startsWith(`${root}${sep}`)) {
       throw new NotFoundException(
-        'NOTIFICATION_RECIPIENT_IMPORT_BATCH_FILE_NOT_FOUND',
+        "NOTIFICATION_RECIPIENT_IMPORT_BATCH_FILE_NOT_FOUND",
       );
     }
     return sourcePath;
   }
 
   private parseSource(source: Buffer): unknown[] {
-    const parsed = JSON.parse(source.toString('utf8')) as unknown;
+    const parsed = JSON.parse(source.toString("utf8")) as unknown;
     if (!Array.isArray(parsed)) {
-      throw new Error('GROUPWARE_MEMBERS_SOURCE_MUST_BE_ARRAY');
+      throw new Error("GROUPWARE_MEMBERS_SOURCE_MUST_BE_ARRAY");
     }
     return parsed;
   }
 
   private async analyze(rows: unknown[]): Promise<Analysis> {
-    const recipients = await this.prisma.client.notificationRecipient.findMany();
+    const recipients =
+      await this.prisma.client.notificationRecipient.findMany();
     const users = await this.prisma.client.user.findMany({
       select: { id: true, email: true },
     });
@@ -321,7 +335,8 @@ export class NotificationRecipientImportService {
     const duplicatedUserEmails = new Set<string>();
     for (const user of users) {
       const normalizedEmail = normalizeRecipientEmail(user.email);
-      if (usersByEmail.has(normalizedEmail)) duplicatedUserEmails.add(normalizedEmail);
+      if (usersByEmail.has(normalizedEmail))
+        duplicatedUserEmails.add(normalizedEmail);
       else usersByEmail.set(normalizedEmail, user);
     }
 
@@ -340,9 +355,9 @@ export class NotificationRecipientImportService {
         errorCount += 1;
         issues.push({
           rowNumber,
-          severity: 'ERROR',
-          errorCode: 'INVALID_GROUPWARE_MEMBER_ROW',
-          message: 'member_id, member_name 형식을 확인해 주세요.',
+          severity: "ERROR",
+          errorCode: "INVALID_GROUPWARE_MEMBER_ROW",
+          message: "member_id, member_name 형식을 확인해 주세요.",
           memberId: null,
         });
         continue;
@@ -354,9 +369,9 @@ export class NotificationRecipientImportService {
         skippedCount += 1;
         issues.push({
           rowNumber,
-          severity: 'WARNING',
-          errorCode: 'SKIPPED_NO_EMAIL',
-          message: '이메일이 없어 알림 대상 등록에서 제외했습니다.',
+          severity: "WARNING",
+          errorCode: "SKIPPED_NO_EMAIL",
+          message: "이메일이 없어 알림 대상 등록에서 제외했습니다.",
           memberId,
         });
         continue;
@@ -367,9 +382,9 @@ export class NotificationRecipientImportService {
         errorCount += 1;
         issues.push({
           rowNumber,
-          severity: 'ERROR',
-          errorCode: 'INVALID_MEMBER_EMAIL',
-          message: '이메일 형식이 올바르지 않습니다.',
+          severity: "ERROR",
+          errorCode: "INVALID_MEMBER_EMAIL",
+          message: "이메일 형식이 올바르지 않습니다.",
           memberId,
         });
         continue;
@@ -380,9 +395,9 @@ export class NotificationRecipientImportService {
         conflictCount += 1;
         issues.push({
           rowNumber,
-          severity: 'ERROR',
-          errorCode: 'DUPLICATED_MEMBER_IN_SOURCE',
-          message: 'source 안에서 member_id 또는 email이 중복되었습니다.',
+          severity: "ERROR",
+          errorCode: "DUPLICATED_MEMBER_IN_SOURCE",
+          message: "source 안에서 member_id 또는 email이 중복되었습니다.",
           memberId,
         });
         continue;
@@ -396,9 +411,11 @@ export class NotificationRecipientImportService {
         name: parsed.data.member_name,
         email: normalizedEmail,
         normalizedEmail,
-        sourceChecksum: createHash('sha256')
-          .update(`${memberId}\u0000${parsed.data.member_name}\u0000${normalizedEmail}`)
-          .digest('hex'),
+        sourceChecksum: createHash("sha256")
+          .update(
+            `${memberId}\u0000${parsed.data.member_name}\u0000${normalizedEmail}`,
+          )
+          .digest("hex"),
       };
       const byMember = recipientsByMemberId.get(memberId);
       const byEmail = recipientsByEmail.get(normalizedEmail);
@@ -406,9 +423,9 @@ export class NotificationRecipientImportService {
         conflictCount += 1;
         issues.push({
           rowNumber,
-          severity: 'ERROR',
-          errorCode: 'MEMBER_EMAIL_RECIPIENT_CONFLICT',
-          message: 'member_id와 email이 서로 다른 recipient를 가리킵니다.',
+          severity: "ERROR",
+          errorCode: "MEMBER_EMAIL_RECIPIENT_CONFLICT",
+          message: "member_id와 email이 서로 다른 recipient를 가리킵니다.",
           memberId,
         });
         continue;
@@ -416,16 +433,16 @@ export class NotificationRecipientImportService {
 
       const existing = byMember ?? byEmail;
       if (
-        existing
-        && existing.memberId !== null
-        && existing.memberId !== memberId
+        existing &&
+        existing.memberId !== null &&
+        existing.memberId !== memberId
       ) {
         conflictCount += 1;
         issues.push({
           rowNumber,
-          severity: 'ERROR',
-          errorCode: 'RECIPIENT_EMAIL_MEMBER_CONFLICT',
-          message: 'email이 다른 member_id에 이미 연결되어 있습니다.',
+          severity: "ERROR",
+          errorCode: "RECIPIENT_EMAIL_MEMBER_CONFLICT",
+          message: "email이 다른 member_id에 이미 연결되어 있습니다.",
           memberId,
         });
         continue;
@@ -434,9 +451,9 @@ export class NotificationRecipientImportService {
         conflictCount += 1;
         issues.push({
           rowNumber,
-          severity: 'ERROR',
-          errorCode: 'DUPLICATED_WORKSPACE_USER_EMAIL',
-          message: '정규화한 email에 해당하는 User가 둘 이상입니다.',
+          severity: "ERROR",
+          errorCode: "DUPLICATED_WORKSPACE_USER_EMAIL",
+          message: "정규화한 email에 해당하는 User가 둘 이상입니다.",
           memberId,
         });
         continue;
@@ -444,16 +461,16 @@ export class NotificationRecipientImportService {
 
       const matchedUser = usersByEmail.get(normalizedEmail);
       if (
-        existing?.linkedUserId
-        && matchedUser
-        && existing.linkedUserId !== matchedUser.id
+        existing?.linkedUserId &&
+        matchedUser &&
+        existing.linkedUserId !== matchedUser.id
       ) {
         conflictCount += 1;
         issues.push({
           rowNumber,
-          severity: 'ERROR',
-          errorCode: 'RECIPIENT_LINKED_USER_CONFLICT',
-          message: 'recipient가 다른 User에 연결되어 있습니다.',
+          severity: "ERROR",
+          errorCode: "RECIPIENT_LINKED_USER_CONFLICT",
+          message: "recipient가 다른 User에 연결되어 있습니다.",
           memberId,
         });
         continue;
@@ -461,31 +478,37 @@ export class NotificationRecipientImportService {
       const linkedUserId = existing?.linkedUserId ?? matchedUser?.id ?? null;
 
       if (!existing) {
-        actions.push({ type: 'INSERT', candidate, linkedUserId });
+        actions.push({ type: "INSERT", candidate, linkedUserId });
         continue;
       }
 
-      const unchanged = (
-        existing.memberId === memberId
-        && existing.name === candidate.name
-        && existing.email === candidate.email
-        && existing.normalizedEmail === candidate.normalizedEmail
-        && existing.linkedUserId === linkedUserId
-        && existing.source === 'GROUPWARE_IMPORT'
-        && existing.status === 'ACTIVE'
-        && existing.mailEnabled
-        && existing.sourceChecksum === candidate.sourceChecksum
+      const unchanged =
+        existing.memberId === memberId &&
+        existing.name === candidate.name &&
+        existing.email === candidate.email &&
+        existing.normalizedEmail === candidate.normalizedEmail &&
+        existing.linkedUserId === linkedUserId &&
+        existing.source === "GROUPWARE_IMPORT" &&
+        existing.status === "ACTIVE" &&
+        existing.mailEnabled &&
+        existing.sourceChecksum === candidate.sourceChecksum;
+      actions.push(
+        unchanged
+          ? { type: "UNCHANGED", candidate }
+          : {
+              type: "UPDATE",
+              candidate,
+              recipientId: existing.id,
+              linkedUserId,
+            },
       );
-      actions.push(unchanged
-        ? { type: 'UNCHANGED', candidate }
-        : { type: 'UPDATE', candidate, recipientId: existing.id, linkedUserId });
     }
 
     return {
       sourceCount: rows.length,
-      insertedCount: actions.filter(({ type }) => type === 'INSERT').length,
-      updatedCount: actions.filter(({ type }) => type === 'UPDATE').length,
-      unchangedCount: actions.filter(({ type }) => type === 'UNCHANGED').length,
+      insertedCount: actions.filter(({ type }) => type === "INSERT").length,
+      updatedCount: actions.filter(({ type }) => type === "UPDATE").length,
+      unchangedCount: actions.filter(({ type }) => type === "UNCHANGED").length,
       skippedCount,
       conflictCount,
       errorCount,
@@ -497,10 +520,12 @@ export class NotificationRecipientImportService {
 
   private async apply(analysis: Analysis): Promise<void> {
     const insertActions = analysis.actions.filter(
-      (action): action is Extract<Action, { type: 'INSERT' }> => action.type === 'INSERT',
+      (action): action is Extract<Action, { type: "INSERT" }> =>
+        action.type === "INSERT",
     );
     const updateActions = analysis.actions.filter(
-      (action): action is Extract<Action, { type: 'UPDATE' }> => action.type === 'UPDATE',
+      (action): action is Extract<Action, { type: "UPDATE" }> =>
+        action.type === "UPDATE",
     );
     const recipientData = (action: RecipientWriteAction) => ({
       memberId: action.candidate.memberId,
@@ -508,43 +533,46 @@ export class NotificationRecipientImportService {
       email: action.candidate.email,
       normalizedEmail: action.candidate.normalizedEmail,
       linkedUserId: action.linkedUserId,
-      source: 'GROUPWARE_IMPORT' as const,
-      status: 'ACTIVE' as const,
+      source: "GROUPWARE_IMPORT" as const,
+      status: "ACTIVE" as const,
       mailEnabled: true,
       sourceChecksum: action.candidate.sourceChecksum,
       lastSyncedAt: new Date(),
     });
 
-    await this.prisma.client.$transaction(async (tx) => {
-      if (insertActions.length > 0) {
-        await tx.notificationRecipient.createMany({
-          data: insertActions.map(recipientData),
-        });
-      }
-      for (const action of updateActions) {
-        await tx.notificationRecipient.update({
-          where: { id: action.recipientId },
-          data: recipientData(action),
-        });
-      }
+    await this.prisma.client.$transaction(
+      async (tx) => {
+        if (insertActions.length > 0) {
+          await tx.notificationRecipient.createMany({
+            data: insertActions.map(recipientData),
+          });
+        }
+        for (const action of updateActions) {
+          await tx.notificationRecipient.update({
+            where: { id: action.recipientId },
+            data: recipientData(action),
+          });
+        }
 
-      if (analysis.activeMemberIds.length > 0) {
-        await tx.notificationRecipient.updateMany({
-          where: {
-            source: 'GROUPWARE_IMPORT',
-            memberId: { notIn: analysis.activeMemberIds },
-            status: 'ACTIVE',
-          },
-          data: {
-            status: 'INACTIVE',
-            mailEnabled: false,
-            lastSyncedAt: new Date(),
-          },
-        });
-      }
-    }, {
-      maxWait: 10_000,
-      timeout: 60_000,
-    });
+        if (analysis.activeMemberIds.length > 0) {
+          await tx.notificationRecipient.updateMany({
+            where: {
+              source: "GROUPWARE_IMPORT",
+              memberId: { notIn: analysis.activeMemberIds },
+              status: "ACTIVE",
+            },
+            data: {
+              status: "INACTIVE",
+              mailEnabled: false,
+              lastSyncedAt: new Date(),
+            },
+          });
+        }
+      },
+      {
+        maxWait: 10_000,
+        timeout: 60_000,
+      },
+    );
   }
 }

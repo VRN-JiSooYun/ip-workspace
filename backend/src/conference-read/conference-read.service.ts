@@ -1,15 +1,18 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import type { Prisma } from '../generated/prisma/client';
-import { PrismaService } from '../database/prisma.service';
-import type { ConferenceAbstractSearchQueryDto } from './dto/conference-abstract-search-query.dto';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from "@nestjs/common";
+import type { Prisma } from "../generated/prisma/client";
+import { PrismaService } from "../database/prisma.service";
+import type { ConferenceAbstractSearchQueryDto } from "./dto/conference-abstract-search-query.dto";
 
-const parseDate = (value?: string): Date | undefined => (
-  value ? new Date(`${value.slice(0, 10)}T00:00:00.000Z`) : undefined
-);
+const parseDate = (value?: string): Date | undefined =>
+  value ? new Date(`${value.slice(0, 10)}T00:00:00.000Z`) : undefined;
 
 const assertDateRange = (dateFrom?: string, dateTo?: string): void => {
   if (dateFrom && dateTo && dateFrom.slice(0, 10) > dateTo.slice(0, 10)) {
-    throw new BadRequestException('INVALID_DATE_RANGE');
+    throw new BadRequestException("INVALID_DATE_RANGE");
   }
 };
 
@@ -28,9 +31,10 @@ const assetDto = (asset: {
   byteSize: asset.byteSize === null ? null : asset.byteSize.toString(),
   sortOrder: asset.sortOrder ?? 0,
   contentUrl: `/api/conference-assets/${asset.id}/content`,
-  downloadUrl: asset.kind === 'VIDEO'
-    ? null
-    : `/api/conference-assets/${asset.id}/download`,
+  downloadUrl:
+    asset.kind === "VIDEO"
+      ? null
+      : `/api/conference-assets/${asset.id}/download`,
 });
 
 @Injectable()
@@ -42,7 +46,7 @@ export class ConferenceReadService {
       where: { id: conferenceId, deletedAt: null, organizationId },
       include: {
         assets: {
-          orderBy: { createdAt: 'asc' },
+          orderBy: { createdAt: "asc" },
           select: {
             id: true,
             kind: true,
@@ -54,7 +58,7 @@ export class ConferenceReadService {
         _count: { select: { abstracts: { where: { deletedAt: null } } } },
       },
     });
-    if (!conference) throw new NotFoundException('CONFERENCE_NOT_FOUND');
+    if (!conference) throw new NotFoundException("CONFERENCE_NOT_FOUND");
     return {
       id: conference.id,
       title: conference.title,
@@ -82,19 +86,21 @@ export class ConferenceReadService {
     const conferenceWhere: Prisma.ConferenceWhereInput = {
       deletedAt: null,
       organizationId,
-      ...(query.conferenceIds?.length ? { id: { in: query.conferenceIds } } : {}),
+      ...(query.conferenceIds?.length
+        ? { id: { in: query.conferenceIds } }
+        : {}),
       ...(query.years?.length ? { year: { in: query.years } } : {}),
-      ...(query.dateField === 'conferencePeriod' && dateFrom
+      ...(query.dateField === "conferencePeriod" && dateFrom
         ? { dateEnd: { gte: dateFrom } }
         : {}),
-      ...(query.dateField === 'conferencePeriod' && dateTo
+      ...(query.dateField === "conferencePeriod" && dateTo
         ? { dateStart: { lte: dateTo } }
         : {}),
     };
     const and: Prisma.ConferenceAbstractWhereInput[] = [];
 
     if (q) {
-      const insensitive = { contains: q, mode: 'insensitive' as const };
+      const insensitive = { contains: q, mode: "insensitive" as const };
       const abstractNumber = { abstractNumber: insensitive };
       const title = { title: insensitive };
       const authorConditions: Prisma.ConferenceAbstractWhereInput[] = [
@@ -110,33 +116,32 @@ export class ConferenceReadService {
           ],
         },
       };
-      const searchConditions: Prisma.ConferenceAbstractWhereInput[] = (
-        query.searchField === 'conference'
+      const searchConditions: Prisma.ConferenceAbstractWhereInput[] =
+        query.searchField === "conference"
           ? [conferenceCondition]
-          : query.searchField === 'title'
+          : query.searchField === "title"
             ? [title]
-            : query.searchField === 'author'
+            : query.searchField === "author"
               ? authorConditions
-              : query.searchField === 'abstractNumber'
+              : query.searchField === "abstractNumber"
                 ? [abstractNumber]
                 : [
-                  title,
-                  abstractNumber,
-                  ...authorConditions,
-                  conferenceCondition,
-                  { meeting: insensitive },
-                  { sessionType: insensitive },
-                  { sessionTitle: insensitive },
-                  { track: insensitive },
-                  { subTrack: insensitive },
-                ]
-      );
+                    title,
+                    abstractNumber,
+                    ...authorConditions,
+                    conferenceCondition,
+                    { meeting: insensitive },
+                    { sessionType: insensitive },
+                    { sessionTitle: insensitive },
+                    { track: insensitive },
+                    { subTrack: insensitive },
+                  ];
       and.push({ OR: searchConditions });
     }
     if (query.favoriteOnly) {
       and.push({ bookmarks: { some: { userId } } });
     }
-    if (query.dateField === 'dateOpen' && (dateFrom || dateTo)) {
+    if (query.dateField === "dateOpen" && (dateFrom || dateTo)) {
       and.push({
         dateOpen: {
           ...(dateFrom ? { gte: dateFrom } : {}),
@@ -144,39 +149,38 @@ export class ConferenceReadService {
         },
       });
     }
-    if (query.hasPoster) and.push({ assets: { some: { kind: 'POSTER' } } });
-    if (query.hasVideo) and.push({ assets: { some: { kind: 'VIDEO' } } });
-    if (query.hasDocument) and.push({ assets: { some: { kind: 'DOCUMENT' } } });
+    if (query.hasPoster) and.push({ assets: { some: { kind: "POSTER" } } });
+    if (query.hasVideo) and.push({ assets: { some: { kind: "VIDEO" } } });
+    if (query.hasDocument) and.push({ assets: { some: { kind: "DOCUMENT" } } });
 
     const where: Prisma.ConferenceAbstractWhereInput = {
       deletedAt: null,
       conference: conferenceWhere,
       ...(and.length ? { AND: and } : {}),
     };
-    const orderBy: Prisma.ConferenceAbstractOrderByWithRelationInput[] = (
-      query.sort === 'titleAsc'
-        ? [{ title: 'asc' }, { id: 'asc' }]
-        : query.sort === 'dateOpenDesc'
-          ? [{ dateOpen: 'desc' }, { title: 'asc' }, { id: 'asc' }]
-          : query.sort === 'commentCountDesc'
+    const orderBy: Prisma.ConferenceAbstractOrderByWithRelationInput[] =
+      query.sort === "titleAsc"
+        ? [{ title: "asc" }, { id: "asc" }]
+        : query.sort === "dateOpenDesc"
+          ? [{ dateOpen: "desc" }, { title: "asc" }, { id: "asc" }]
+          : query.sort === "commentCountDesc"
             ? [
-              { comments: { _count: 'desc' } },
-              { abstractNumber: 'asc' },
-              { id: 'asc' },
-            ]
-            : query.sort === 'abstractNumberAsc'
+                { comments: { _count: "desc" } },
+                { abstractNumber: "asc" },
+                { id: "asc" },
+              ]
+            : query.sort === "abstractNumberAsc"
               ? [
-                { conference: { year: 'desc' } },
-                { abstractNumber: 'asc' },
-                { id: 'asc' },
-              ]
+                  { conference: { year: "desc" } },
+                  { abstractNumber: "asc" },
+                  { id: "asc" },
+                ]
               : [
-                { conference: { year: 'desc' } },
-                { conference: { abbreviation: 'asc' } },
-                { abstractNumber: 'asc' },
-                { id: 'asc' },
-              ]
-    );
+                  { conference: { year: "desc" } },
+                  { conference: { abbreviation: "asc" } },
+                  { abstractNumber: "asc" },
+                  { id: "asc" },
+                ];
     const [items, total, facetConferences] = await Promise.all([
       this.prisma.client.conferenceAbstract.findMany({
         where,
@@ -224,15 +228,18 @@ export class ConferenceReadService {
           dateStart: true,
           dateEnd: true,
         },
-        orderBy: [{ year: 'desc' }, { abbreviation: 'asc' }],
+        orderBy: [{ year: "desc" }, { abbreviation: "asc" }],
       }),
     ]);
     return {
       items: items.map((abstract) => {
-        const assetCounts = abstract.assets.reduce((counts, asset) => {
-          counts[asset.kind] = (counts[asset.kind] ?? 0) + 1;
-          return counts;
-        }, {} as Partial<Record<string, number>>);
+        const assetCounts = abstract.assets.reduce(
+          (counts, asset) => {
+            counts[asset.kind] = (counts[asset.kind] ?? 0) + 1;
+            return counts;
+          },
+          {} as Partial<Record<string, number>>,
+        );
         return {
           id: abstract.id,
           conference: abstract.conference,
@@ -266,7 +273,11 @@ export class ConferenceReadService {
     };
   }
 
-  async getAbstract(userId: string, abstractId: string, organizationId?: string) {
+  async getAbstract(
+    userId: string,
+    abstractId: string,
+    organizationId?: string,
+  ) {
     const abstract = await this.prisma.client.conferenceAbstract.findFirst({
       where: {
         id: abstractId,
@@ -285,7 +296,7 @@ export class ConferenceReadService {
         },
         bookmarks: { where: { userId }, select: { userId: true } },
         assets: {
-          orderBy: [{ kind: 'asc' }, { sortOrder: 'asc' }],
+          orderBy: [{ kind: "asc" }, { sortOrder: "asc" }],
           select: {
             id: true,
             kind: true,
@@ -297,7 +308,11 @@ export class ConferenceReadService {
         },
         comments: {
           where: { deletedAt: null },
-          orderBy: [{ createdAt: 'asc' }, { legacyOrder: 'asc' }, { id: 'asc' }],
+          orderBy: [
+            { createdAt: "asc" },
+            { legacyOrder: "asc" },
+            { id: "asc" },
+          ],
           select: {
             id: true,
             content: true,
@@ -320,13 +335,13 @@ export class ConferenceReadService {
             mailOutboxes: {
               where: { recipientId: null },
               select: { recipientEmailSnapshot: true },
-              orderBy: { createdAt: 'asc' },
+              orderBy: { createdAt: "asc" },
             },
           },
         },
       },
     });
-    if (!abstract) throw new NotFoundException('CONFERENCE_ABSTRACT_NOT_FOUND');
+    if (!abstract) throw new NotFoundException("CONFERENCE_ABSTRACT_NOT_FOUND");
     return {
       id: abstract.id,
       conference: abstract.conference,
@@ -364,8 +379,11 @@ export class ConferenceReadService {
         sourceCreatedAt: comment.sourceCreatedAt,
         author: comment.author ?? {
           id: null,
-          name: comment.authorNameSnapshot || comment.legacyAuthorRecipient?.name || '이관 사용자',
-          email: comment.legacyAuthorRecipient?.email || '',
+          name:
+            comment.authorNameSnapshot ||
+            comment.legacyAuthorRecipient?.name ||
+            "이관 사용자",
+          email: comment.legacyAuthorRecipient?.email || "",
         },
         mentionedRecipients: comment.mentions.map(
           (mention) => mention.mentionedRecipient,

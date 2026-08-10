@@ -6,7 +6,7 @@ import {
   IsString,
   Max,
   Min,
-} from 'class-validator';
+} from "class-validator";
 
 export class GenerateConformerDto {
   @IsString()
@@ -40,8 +40,8 @@ export class GenerateConformerDto {
   max_iters?: number;
 
   @IsOptional()
-  @IsIn(['sdf'])
-  return_format?: 'sdf';
+  @IsIn(["sdf"])
+  return_format?: "sdf";
 
   @IsOptional()
   @IsInt()

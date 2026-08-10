@@ -1,6 +1,6 @@
-import { Injectable } from '@nestjs/common';
-import { PrismaService } from '../database/prisma.service';
-import { syncNotificationRecipientForUser } from './notification-recipient-sync';
+import { Injectable } from "@nestjs/common";
+import { PrismaService } from "../database/prisma.service";
+import { syncNotificationRecipientForUser } from "./notification-recipient-sync";
 
 @Injectable()
 export class NotificationRecipientSyncService {
@@ -13,7 +13,7 @@ export class NotificationRecipientSyncService {
   async reconcileAllUsers() {
     const users = await this.prisma.client.user.findMany({
       select: { id: true, name: true, email: true, status: true },
-      orderBy: { createdAt: 'asc' },
+      orderBy: { createdAt: "asc" },
     });
     const result = {
       sourceCount: users.length,

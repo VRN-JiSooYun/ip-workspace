@@ -9,38 +9,38 @@ import {
   Patch,
   Post,
   Query,
-} from '@nestjs/common';
-import { Session, type UserSession } from '@thallesp/nestjs-better-auth';
-import { randomUUID } from 'node:crypto';
-import { RequirePermissions } from '../authorization/require-permissions.decorator';
-import { ConferenceAdminService } from './conference-admin.service';
-import { AdminConferenceListQueryDto } from './dto/admin-conference-list-query.dto';
-import { AdminConferenceAbstractListQueryDto } from './dto/admin-conference-abstract-list-query.dto';
-import { CreateAdminConferenceDto } from './dto/create-admin-conference.dto';
-import { UpdateAdminConferenceDto } from './dto/update-admin-conference.dto';
-import { CreateAdminConferenceAbstractDto } from './dto/create-admin-conference-abstract.dto';
-import { UpdateAdminConferenceAbstractDto } from './dto/update-admin-conference-abstract.dto';
-import { DeleteAdminEntityDto } from './dto/delete-admin-entity.dto';
-import { WorkspaceAccess } from '../authorization/workspace-access.decorator';
-import type { WorkspaceAccessContext } from '../authorization/workspace-authorization.service';
-import { WorkspaceAuthorizationService } from '../authorization/workspace-authorization.service';
-import { organizationIdForScope } from '../authorization/workspace-data-scope';
-import { DEFAULT_ORGANIZATION_ID } from '../authorization/team-membership-sync.service';
+} from "@nestjs/common";
+import { Session, type UserSession } from "@thallesp/nestjs-better-auth";
+import { randomUUID } from "node:crypto";
+import { RequirePermissions } from "../authorization/require-permissions.decorator";
+import { ConferenceAdminService } from "./conference-admin.service";
+import { AdminConferenceListQueryDto } from "./dto/admin-conference-list-query.dto";
+import { AdminConferenceAbstractListQueryDto } from "./dto/admin-conference-abstract-list-query.dto";
+import { CreateAdminConferenceDto } from "./dto/create-admin-conference.dto";
+import { UpdateAdminConferenceDto } from "./dto/update-admin-conference.dto";
+import { CreateAdminConferenceAbstractDto } from "./dto/create-admin-conference-abstract.dto";
+import { UpdateAdminConferenceAbstractDto } from "./dto/update-admin-conference-abstract.dto";
+import { DeleteAdminEntityDto } from "./dto/delete-admin-entity.dto";
+import { WorkspaceAccess } from "../authorization/workspace-access.decorator";
+import type { WorkspaceAccessContext } from "../authorization/workspace-authorization.service";
+import { WorkspaceAuthorizationService } from "../authorization/workspace-authorization.service";
+import { organizationIdForScope } from "../authorization/workspace-data-scope";
+import { DEFAULT_ORGANIZATION_ID } from "../authorization/team-membership-sync.service";
 
-@RequirePermissions('conference.manage')
-@Controller('api/admin')
+@RequirePermissions("conference.manage")
+@Controller("api/admin")
 export class ConferenceAdminController {
   constructor(
     private readonly conferences: ConferenceAdminService,
     private readonly authorization: WorkspaceAuthorizationService,
   ) {}
 
-  @Get('conferences/options')
+  @Get("conferences/options")
   listConferenceOptions(@WorkspaceAccess() access: WorkspaceAccessContext) {
     return this.conferences.listConferenceOptions(this.organizationId(access));
   }
 
-  @Get('conferences')
+  @Get("conferences")
   listConferences(
     @WorkspaceAccess() access: WorkspaceAccessContext,
     @Query() query: AdminConferenceListQueryDto,
@@ -48,7 +48,7 @@ export class ConferenceAdminController {
     return this.conferences.listConferences(query, this.organizationId(access));
   }
 
-  @Get('conference-abstracts')
+  @Get("conference-abstracts")
   listAbstracts(
     @WorkspaceAccess() access: WorkspaceAccessContext,
     @Query() query: AdminConferenceAbstractListQueryDto,
@@ -56,28 +56,31 @@ export class ConferenceAdminController {
     return this.conferences.listAbstracts(query, this.organizationId(access));
   }
 
-  @Post('conferences')
+  @Post("conferences")
   createConference(
     @Session() session: UserSession,
     @WorkspaceAccess() access: WorkspaceAccessContext,
     @Body() body: CreateAdminConferenceDto,
-    @Headers('x-request-id') requestId?: string,
+    @Headers("x-request-id") requestId?: string,
   ) {
     return this.conferences.createConference(
-      this.organizationId(access) ?? access.organization?.id ?? DEFAULT_ORGANIZATION_ID,
+      this.organizationId(access) ??
+        access.organization?.id ??
+        DEFAULT_ORGANIZATION_ID,
       body,
       session.user.id,
       requestId ?? randomUUID(),
     );
   }
 
-  @Patch('conferences/:conferenceId')
+  @Patch("conferences/:conferenceId")
   updateConference(
     @Session() session: UserSession,
     @WorkspaceAccess() access: WorkspaceAccessContext,
-    @Param('conferenceId', new ParseUUIDPipe({ version: '4' })) conferenceId: string,
+    @Param("conferenceId", new ParseUUIDPipe({ version: "4" }))
+    conferenceId: string,
     @Body() body: UpdateAdminConferenceDto,
-    @Headers('x-request-id') requestId?: string,
+    @Headers("x-request-id") requestId?: string,
   ) {
     return this.conferences.updateConference(
       conferenceId,
@@ -88,13 +91,14 @@ export class ConferenceAdminController {
     );
   }
 
-  @Delete('conferences/:conferenceId')
+  @Delete("conferences/:conferenceId")
   deleteConference(
     @Session() session: UserSession,
     @WorkspaceAccess() access: WorkspaceAccessContext,
-    @Param('conferenceId', new ParseUUIDPipe({ version: '4' })) conferenceId: string,
+    @Param("conferenceId", new ParseUUIDPipe({ version: "4" }))
+    conferenceId: string,
     @Body() body: DeleteAdminEntityDto,
-    @Headers('x-request-id') requestId?: string,
+    @Headers("x-request-id") requestId?: string,
   ) {
     return this.conferences.deleteConference(
       conferenceId,
@@ -105,12 +109,13 @@ export class ConferenceAdminController {
     );
   }
 
-  @Post('conferences/:conferenceId/restore')
+  @Post("conferences/:conferenceId/restore")
   restoreConference(
     @Session() session: UserSession,
     @WorkspaceAccess() access: WorkspaceAccessContext,
-    @Param('conferenceId', new ParseUUIDPipe({ version: '4' })) conferenceId: string,
-    @Headers('x-request-id') requestId?: string,
+    @Param("conferenceId", new ParseUUIDPipe({ version: "4" }))
+    conferenceId: string,
+    @Headers("x-request-id") requestId?: string,
   ) {
     return this.conferences.restoreConference(
       conferenceId,
@@ -120,13 +125,14 @@ export class ConferenceAdminController {
     );
   }
 
-  @Post('conferences/:conferenceId/abstracts')
+  @Post("conferences/:conferenceId/abstracts")
   createAbstract(
     @Session() session: UserSession,
     @WorkspaceAccess() access: WorkspaceAccessContext,
-    @Param('conferenceId', new ParseUUIDPipe({ version: '4' })) conferenceId: string,
+    @Param("conferenceId", new ParseUUIDPipe({ version: "4" }))
+    conferenceId: string,
     @Body() body: CreateAdminConferenceAbstractDto,
-    @Headers('x-request-id') requestId?: string,
+    @Headers("x-request-id") requestId?: string,
   ) {
     return this.conferences.createAbstract(
       conferenceId,
@@ -137,13 +143,14 @@ export class ConferenceAdminController {
     );
   }
 
-  @Patch('conference-abstracts/:abstractId')
+  @Patch("conference-abstracts/:abstractId")
   updateAbstract(
     @Session() session: UserSession,
     @WorkspaceAccess() access: WorkspaceAccessContext,
-    @Param('abstractId', new ParseUUIDPipe({ version: '4' })) abstractId: string,
+    @Param("abstractId", new ParseUUIDPipe({ version: "4" }))
+    abstractId: string,
     @Body() body: UpdateAdminConferenceAbstractDto,
-    @Headers('x-request-id') requestId?: string,
+    @Headers("x-request-id") requestId?: string,
   ) {
     return this.conferences.updateAbstract(
       abstractId,
@@ -154,13 +161,14 @@ export class ConferenceAdminController {
     );
   }
 
-  @Delete('conference-abstracts/:abstractId')
+  @Delete("conference-abstracts/:abstractId")
   deleteAbstract(
     @Session() session: UserSession,
     @WorkspaceAccess() access: WorkspaceAccessContext,
-    @Param('abstractId', new ParseUUIDPipe({ version: '4' })) abstractId: string,
+    @Param("abstractId", new ParseUUIDPipe({ version: "4" }))
+    abstractId: string,
     @Body() body: DeleteAdminEntityDto,
-    @Headers('x-request-id') requestId?: string,
+    @Headers("x-request-id") requestId?: string,
   ) {
     return this.conferences.deleteAbstract(
       abstractId,
@@ -171,12 +179,13 @@ export class ConferenceAdminController {
     );
   }
 
-  @Post('conference-abstracts/:abstractId/restore')
+  @Post("conference-abstracts/:abstractId/restore")
   restoreAbstract(
     @Session() session: UserSession,
     @WorkspaceAccess() access: WorkspaceAccessContext,
-    @Param('abstractId', new ParseUUIDPipe({ version: '4' })) abstractId: string,
-    @Headers('x-request-id') requestId?: string,
+    @Param("abstractId", new ParseUUIDPipe({ version: "4" }))
+    abstractId: string,
+    @Headers("x-request-id") requestId?: string,
   ) {
     return this.conferences.restoreAbstract(
       abstractId,
@@ -188,7 +197,7 @@ export class ConferenceAdminController {
 
   private organizationId(access: WorkspaceAccessContext): string | undefined {
     return organizationIdForScope(
-      this.authorization.resolveDataScope(access, 'conference'),
+      this.authorization.resolveDataScope(access, "conference"),
     );
   }
 }

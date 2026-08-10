@@ -1,10 +1,10 @@
-import type { WorkspacePermission } from './workspace-permissions';
+import type { WorkspacePermission } from "./workspace-permissions";
 
 export type WorkspaceDataScope =
-  | { type: 'GLOBAL' }
-  | { type: 'ORG'; organizationId: string }
-  | { type: 'TEAM'; organizationId: string; teamIds: string[] }
-  | { type: 'OWN'; userId: string };
+  | { type: "GLOBAL" }
+  | { type: "ORG"; organizationId: string }
+  | { type: "TEAM"; organizationId: string; teamIds: string[] }
+  | { type: "OWN"; userId: string };
 
 export type WorkspaceScopedRequest = {
   workspaceAccessContext?: {
@@ -18,8 +18,7 @@ export type WorkspaceScopedRequest = {
 
 export const organizationIdForScope = (
   scope: WorkspaceDataScope,
-): string | undefined => (
-  scope.type === 'ORG' || scope.type === 'TEAM'
+): string | undefined =>
+  scope.type === "ORG" || scope.type === "TEAM"
     ? scope.organizationId
-    : undefined
-);
+    : undefined;

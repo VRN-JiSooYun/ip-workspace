@@ -6,11 +6,11 @@ import {
   IsUUID,
   MaxLength,
   MinLength,
-} from 'class-validator';
+} from "class-validator";
 
 export class UpdateAdminConferenceAbstractDto {
   @IsOptional()
-  @IsUUID('4')
+  @IsUUID("4")
   conferenceId?: string;
 
   @IsOptional()

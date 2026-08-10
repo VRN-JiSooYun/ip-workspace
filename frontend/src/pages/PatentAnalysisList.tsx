@@ -1764,8 +1764,8 @@ const PatentAnalysisList: React.FC = () => {
                     icon={<Plus size={18} />}
                     className="v-action-btn"
                     style={{
-                      background: '#F87C63',
-                      borderColor: '#F87C63',
+                      background: 'var(--brand-primary)',
+                      borderColor: 'var(--brand-primary)',
                       width: isResponsiveToolbar ? '100%' : undefined,
                     }}
                   >

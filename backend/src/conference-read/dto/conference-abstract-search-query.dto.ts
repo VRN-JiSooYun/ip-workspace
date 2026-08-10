@@ -1,4 +1,4 @@
-import { Transform } from 'class-transformer';
+import { Transform } from "class-transformer";
 import {
   IsArray,
   IsBoolean,
@@ -11,19 +11,21 @@ import {
   Max,
   MaxLength,
   Min,
-} from 'class-validator';
+} from "class-validator";
 
 const optionalBoolean = ({ value }: { value: unknown }) => {
-  if (value === undefined || value === '') return undefined;
-  if (value === true || value === 'true') return true;
-  if (value === false || value === 'false') return false;
+  if (value === undefined || value === "") return undefined;
+  if (value === true || value === "true") return true;
+  if (value === false || value === "false") return false;
   return value;
 };
 
 const csvStrings = ({ value }: { value: unknown }): string[] | undefined => {
-  if (value === undefined || value === '') return undefined;
-  const values = Array.isArray(value) ? value : String(value).split(',');
-  return [...new Set(values.map((item) => String(item).trim()).filter(Boolean))];
+  if (value === undefined || value === "") return undefined;
+  const values = Array.isArray(value) ? value : String(value).split(",");
+  return [
+    ...new Set(values.map((item) => String(item).trim()).filter(Boolean)),
+  ];
 };
 
 const csvNumbers = ({ value }: { value: unknown }): number[] | undefined => {
@@ -38,18 +40,14 @@ export class ConferenceAbstractSearchQueryDto {
   q?: string;
 
   @IsOptional()
-  @IsIn(['all', 'conference', 'title', 'author', 'abstractNumber'])
-  searchField:
-    | 'all'
-    | 'conference'
-    | 'title'
-    | 'author'
-    | 'abstractNumber' = 'all';
+  @IsIn(["all", "conference", "title", "author", "abstractNumber"])
+  searchField: "all" | "conference" | "title" | "author" | "abstractNumber" =
+    "all";
 
   @IsOptional()
   @Transform(csvStrings)
   @IsArray()
-  @IsUUID('4', { each: true })
+  @IsUUID("4", { each: true })
   conferenceIds?: string[];
 
   @IsOptional()
@@ -66,8 +64,8 @@ export class ConferenceAbstractSearchQueryDto {
   favoriteOnly?: boolean;
 
   @IsOptional()
-  @IsIn(['conferencePeriod', 'dateOpen'])
-  dateField: 'conferencePeriod' | 'dateOpen' = 'conferencePeriod';
+  @IsIn(["conferencePeriod", "dateOpen"])
+  dateField: "conferencePeriod" | "dateOpen" = "conferencePeriod";
 
   @IsOptional()
   @IsDateString()
@@ -94,18 +92,18 @@ export class ConferenceAbstractSearchQueryDto {
 
   @IsOptional()
   @IsIn([
-    'conferenceYearDesc',
-    'abstractNumberAsc',
-    'titleAsc',
-    'dateOpenDesc',
-    'commentCountDesc',
+    "conferenceYearDesc",
+    "abstractNumberAsc",
+    "titleAsc",
+    "dateOpenDesc",
+    "commentCountDesc",
   ])
   sort:
-    | 'conferenceYearDesc'
-    | 'abstractNumberAsc'
-    | 'titleAsc'
-    | 'dateOpenDesc'
-    | 'commentCountDesc' = 'conferenceYearDesc';
+    | "conferenceYearDesc"
+    | "abstractNumberAsc"
+    | "titleAsc"
+    | "dateOpenDesc"
+    | "commentCountDesc" = "conferenceYearDesc";
 
   @IsOptional()
   @Transform(({ value }) => Number(value))

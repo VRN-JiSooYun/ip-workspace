@@ -12,6 +12,7 @@ import {
   type WorkspaceAccessContext,
   type WorkspacePermission,
 } from '../services/accessContextApi';
+import { AUTH_BYPASS, bypassAccessContext } from '../services/authBypass';
 
 type AccessContextValue = {
   access: WorkspaceAccessContext;
@@ -29,6 +30,11 @@ export const AccessContextProvider: React.FC<React.PropsWithChildren> = ({
 
   const load = useCallback(async () => {
     setError('');
+    // 우회 모드에서는 /api/access-context가 401이라 stub 권한으로 대체한다.
+    if (AUTH_BYPASS) {
+      setAccess(bypassAccessContext());
+      return;
+    }
     try {
       setAccess(await accessContextApi.get());
     } catch (loadError) {

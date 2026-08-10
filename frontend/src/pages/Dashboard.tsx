@@ -52,7 +52,7 @@ const Dashboard: React.FC = () => {
     >
       {/* Top Header Section */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-        <Title level={4} style={{ margin: 0, color: '#F87C63', fontWeight: 600 }}>
+        <Title level={4} style={{ margin: 0, color: 'var(--brand-primary)', fontWeight: 600 }}>
           {formatDisplayDate('2025.04.14')} ~ {formatDisplayDate('2025.04.21')}
         </Title>
         <Button 
@@ -61,11 +61,11 @@ const Dashboard: React.FC = () => {
           className="v-action-btn"
           style={{ 
             padding: '0 24px', 
-            background: '#F87C63', 
+            background: 'var(--brand-primary)', 
             border: 'none',
             fontWeight: 700,
             fontSize: '15px',
-            boxShadow: '0 2px 6px rgba(248, 124, 99, 0.2)'
+            boxShadow: '0 2px 6px rgba(var(--brand-primary-rgb), 0.2)'
           }}
         >
           What's New
@@ -77,16 +77,16 @@ const Dashboard: React.FC = () => {
         {/* Top Priority Cards (Synthesis, Documents, PDBs, Calculations) */}
         <Col xs={24} sm={12} lg={6}>
           <div className="dashboard-card" style={{ minHeight: 320 }}>
-            <div className="dashboard-card-icon" style={{ borderColor: '#F87C63', color: '#F87C63' }}><BenzeneIcon size={20} /></div>
-            <div className="dashboard-card-title" style={{ color: '#F87C63', borderColor: '#f0f0f0' }}>Compounds</div>
+            <div className="dashboard-card-icon" style={{ borderColor: 'var(--brand-primary)', color: 'var(--brand-primary)' }}><BenzeneIcon size={20} /></div>
+            <div className="dashboard-card-title" style={{ color: 'var(--brand-primary)', borderColor: '#f0f0f0' }}>Compounds</div>
             <div className="dashboard-card-content" style={{ fontSize: '12px' }}>
-              <div className="dashboard-list-title" style={{ color: '#F87C63' }}>Synthesis</div>
+              <div className="dashboard-list-title" style={{ color: 'var(--brand-primary)' }}>Synthesis</div>
               <div className="dashboard-list-item">박창인 chip_250418_comp8</div>
               <div className="dashboard-list-item">우씨 chip_250330_comp2</div>
-              <div className="dashboard-list-title" style={{ marginTop: 12, color: '#F87C63' }}>Assay</div>
+              <div className="dashboard-list-title" style={{ marginTop: 12, color: 'var(--brand-primary)' }}>Assay</div>
               <div className="dashboard-list-item">FGFR3 6LUB, 8WGI</div>
               <div className="dashboard-list-item">cMET 7MI7, 7U8C</div>
-              <div className="dashboard-list-title" style={{ marginTop: 12, color: '#F87C63' }}>Profiling</div>
+              <div className="dashboard-list-title" style={{ marginTop: 12, color: 'var(--brand-primary)' }}>Profiling</div>
               <div className="dashboard-list-item">FGFR VRN235868</div>
             </div>
           </div>
@@ -94,13 +94,13 @@ const Dashboard: React.FC = () => {
         
         <Col xs={24} sm={12} lg={6}>
           <div className="dashboard-card" style={{ minHeight: 320 }}>
-            <div className="dashboard-card-icon" style={{ borderColor: '#F87C63', color: '#F87C63' }}><FileText size={20} /></div>
-            <div className="dashboard-card-title" style={{ color: '#F87C63', borderColor: '#f0f0f0' }}>Documents</div>
+            <div className="dashboard-card-icon" style={{ borderColor: 'var(--brand-primary)', color: 'var(--brand-primary)' }}><FileText size={20} /></div>
+            <div className="dashboard-card-title" style={{ color: 'var(--brand-primary)', borderColor: '#f0f0f0' }}>Documents</div>
             <div className="dashboard-card-content">
-              <div className="dashboard-list-title" style={{ color: '#F87C63' }}>Patent <Settings size={14} style={{ marginLeft: 8, cursor: 'pointer' }} /></div>
+              <div className="dashboard-list-title" style={{ color: 'var(--brand-primary)' }}>Patent <Settings size={14} style={{ marginLeft: 8, cursor: 'pointer' }} /></div>
               <div className="dashboard-list-item">FGFR 특허 WO203918503</div>
               <div className="dashboard-list-item">cMET 특허 WO203134456</div>
-              <div className="dashboard-list-title" style={{ marginTop: 12, color: '#F87C63' }}>Paper</div>
+              <div className="dashboard-list-title" style={{ marginTop: 12, color: 'var(--brand-primary)' }}>Paper</div>
               <div className="dashboard-list-item">FGFR / cMET 윈 논문</div>
             </div>
           </div>
@@ -108,13 +108,13 @@ const Dashboard: React.FC = () => {
 
         <Col xs={24} sm={12} lg={6}>
           <div className="dashboard-card" style={{ minHeight: 320 }}>
-            <div className="dashboard-card-icon" style={{ borderColor: '#F87C63', color: '#F87C63' }}><Activity size={20} /></div>
-            <div className="dashboard-card-title" style={{ color: '#F87C63', borderColor: '#f0f0f0' }}>PDBs</div>
+            <div className="dashboard-card-icon" style={{ borderColor: 'var(--brand-primary)', color: 'var(--brand-primary)' }}><Activity size={20} /></div>
+            <div className="dashboard-card-title" style={{ color: 'var(--brand-primary)', borderColor: '#f0f0f0' }}>PDBs</div>
             <div className="dashboard-card-content">
-              <div className="dashboard-list-title" style={{ color: '#F87C63' }}>in-house</div>
+              <div className="dashboard-list-title" style={{ color: 'var(--brand-primary)' }}>in-house</div>
               <div className="dashboard-list-item">FGFR VNA213583</div>
               <div className="dashboard-list-item">cMET VNA213861</div>
-              <div className="dashboard-list-title" style={{ marginTop: 12, color: '#F87C63' }}>RCSB</div>
+              <div className="dashboard-list-title" style={{ marginTop: 12, color: 'var(--brand-primary)' }}>RCSB</div>
               <div className="dashboard-list-item">FGFR3 6LUB, 8WGI</div>
               <div className="dashboard-list-item">Docking pose</div>
               <div className="dashboard-list-item">FGFR VRN235868</div>
@@ -124,8 +124,8 @@ const Dashboard: React.FC = () => {
 
         <Col xs={24} sm={12} lg={6}>
           <div className="dashboard-card" style={{ minHeight: 320 }}>
-            <div className="dashboard-card-icon" style={{ borderColor: '#F87C63', color: '#F87C63' }}><Calculator size={20} /></div>
-            <div className="dashboard-card-title" style={{ color: '#F87C63', borderColor: '#f0f0f0' }}>Calculations <Settings size={14} style={{ marginLeft: 8, cursor: 'pointer' }} /></div>
+            <div className="dashboard-card-icon" style={{ borderColor: 'var(--brand-primary)', color: 'var(--brand-primary)' }}><Calculator size={20} /></div>
+            <div className="dashboard-card-title" style={{ color: 'var(--brand-primary)', borderColor: '#f0f0f0' }}>Calculations <Settings size={14} style={{ marginLeft: 8, cursor: 'pointer' }} /></div>
             <div className="dashboard-card-content">
               <Space direction="vertical" style={{ width: '100%' }} size={8}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px' }}>

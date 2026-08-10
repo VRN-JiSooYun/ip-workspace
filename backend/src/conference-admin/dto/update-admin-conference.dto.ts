@@ -8,7 +8,7 @@ import {
   MaxLength,
   Min,
   MinLength,
-} from 'class-validator';
+} from "class-validator";
 
 export class UpdateAdminConferenceDto {
   @IsOptional()
@@ -39,8 +39,8 @@ export class UpdateAdminConferenceDto {
   year?: number;
 
   @IsOptional()
-  @IsIn(['OPEN', 'NOT_OPENED'])
-  status?: 'OPEN' | 'NOT_OPENED';
+  @IsIn(["OPEN", "NOT_OPENED"])
+  status?: "OPEN" | "NOT_OPENED";
 
   @IsOptional()
   @IsString()

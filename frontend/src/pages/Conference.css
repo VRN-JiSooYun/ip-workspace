@@ -108,7 +108,7 @@
 }
 
 .conference-list-toolbar-title.ant-typography {
-  color: #F87C63;
+  color: var(--brand-primary);
   font-size: 16px;
 }
 
@@ -134,7 +134,7 @@
 }
 
 .conference-table .ant-table-row:focus-visible > td {
-  outline: 2px solid #F87C63;
+  outline: 2px solid var(--brand-primary);
   outline-offset: -2px;
 }
 
@@ -169,19 +169,19 @@
 
 .conference-row-bookmark:hover,
 .conference-row-bookmark:focus-visible {
-  color: #F87C63 !important;
-  background: rgba(248, 124, 99, 0.12) !important;
+  color: var(--brand-primary) !important;
+  background: rgba(var(--brand-primary-rgb), 0.12) !important;
 }
 
 .conference-search-highlight {
   padding: 0 2px;
   border-radius: 3px;
   color: inherit;
-  background: rgba(248, 124, 99, 0.32);
+  background: rgba(var(--brand-primary-rgb), 0.32);
 }
 
 [data-theme='dark'] .conference-search-highlight {
-  background: rgba(248, 124, 99, 0.46);
+  background: rgba(var(--brand-primary-rgb), 0.46);
 }
 
 .conference-asset-summary svg {

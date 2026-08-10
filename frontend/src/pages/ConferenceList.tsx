@@ -44,6 +44,7 @@ import {
   type ConferenceOption,
 } from '../services/conferenceApi';
 import { useUIStore } from '../store/useUIStore';
+import { useBrandPrimary } from '../theme/brandColor';
 import { formatNumberWithComma } from '../utils/displayFormat';
 import './Conference.css';
 
@@ -167,6 +168,8 @@ const ConferenceList: React.FC = () => {
   const { message } = App.useApp();
   const navigate = useNavigate();
   const { setHeaderContent } = useUIStore();
+  // Feeds the Bookmark icon's SVG `fill`, which does not resolve var().
+  const brandPrimary = useBrandPrimary();
   const storedState = useMemo(readStoredListState, []);
   const initialFilter = useMemo(() => restoreFilter(storedState.filter), [storedState.filter]);
 
@@ -391,8 +394,8 @@ const ConferenceList: React.FC = () => {
           icon={(
             <Bookmark
               size={15}
-              fill={record.isFavorite ? '#F87C63' : 'none'}
-              color={record.isFavorite ? '#F87C63' : 'currentColor'}
+              fill={record.isFavorite ? brandPrimary : 'none'}
+              color={record.isFavorite ? brandPrimary : 'currentColor'}
             />
           )}
           onClick={(event) => void toggleAbstractBookmark(record, event)}
@@ -518,7 +521,7 @@ const ConferenceList: React.FC = () => {
       align: 'center',
       render: (value: number) => formatNumberWithComma(value),
     },
-  ], [filter.q, pendingBookmarkIds, toggleAbstractBookmark]);
+  ], [brandPrimary, filter.q, pendingBookmarkIds, toggleAbstractBookmark]);
 
   const selectedConferenceLabels = useMemo(() => new Map(
     conferenceOptions.map((conference) => [

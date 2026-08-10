@@ -3,15 +3,15 @@ import {
   Logger,
   OnModuleDestroy,
   OnModuleInit,
-} from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { randomUUID } from 'node:crypto';
-import { PrismaService } from '../database/prisma.service';
-import { GmailMailProvider, MailProviderError } from './gmail-mail.provider';
+} from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
+import { randomUUID } from "node:crypto";
+import { PrismaService } from "../database/prisma.service";
+import { GmailMailProvider, MailProviderError } from "./gmail-mail.provider";
 
 type ClaimedOutbox = {
   id: string;
-  status: 'PENDING' | 'PROCESSING' | 'RETRY' | 'SENT' | 'FAILED';
+  status: "PENDING" | "PROCESSING" | "RETRY" | "SENT" | "FAILED";
   recipientEmailSnapshot: string;
   subjectSnapshot: string;
   textBodySnapshot: string;
@@ -23,7 +23,9 @@ type ClaimedOutbox = {
 };
 
 @Injectable()
-export class ConferenceMailWorkerService implements OnModuleInit, OnModuleDestroy {
+export class ConferenceMailWorkerService
+  implements OnModuleInit, OnModuleDestroy
+{
   private readonly logger = new Logger(ConferenceMailWorkerService.name);
   private readonly workerId = randomUUID();
   private readonly pollIntervalMs: number;
@@ -38,16 +40,19 @@ export class ConferenceMailWorkerService implements OnModuleInit, OnModuleDestro
   ) {
     this.pollIntervalMs = Math.max(
       1000,
-      config.get<number>('gmail.pollIntervalMs', 5000),
+      config.get<number>("gmail.pollIntervalMs", 5000),
     );
     this.leaseDurationMs = Math.max(
       10000,
-      config.get<number>('gmail.leaseDurationMs', 60000),
+      config.get<number>("gmail.leaseDurationMs", 60000),
     );
   }
 
   onModuleInit(): void {
-    this.timer = setInterval(() => void this.processAvailable(), this.pollIntervalMs);
+    this.timer = setInterval(
+      () => void this.processAvailable(),
+      this.pollIntervalMs,
+    );
     this.timer.unref();
     void this.processAvailable();
   }
@@ -68,7 +73,7 @@ export class ConferenceMailWorkerService implements OnModuleInit, OnModuleDestro
         await this.deliver(outbox);
       }
     } catch {
-      this.logger.error('Conference mail worker cycle failed');
+      this.logger.error("Conference mail worker cycle failed");
     } finally {
       this.busy = false;
     }
@@ -80,16 +85,16 @@ export class ConferenceMailWorkerService implements OnModuleInit, OnModuleDestro
       where: {
         OR: [
           {
-            status: { in: ['PENDING', 'RETRY'] },
+            status: { in: ["PENDING", "RETRY"] },
             nextAttemptAt: { lte: now },
           },
           {
-            status: 'PROCESSING',
+            status: "PROCESSING",
             leaseExpiresAt: { lt: now },
           },
         ],
       },
-      orderBy: [{ nextAttemptAt: 'asc' }, { createdAt: 'asc' }],
+      orderBy: [{ nextAttemptAt: "asc" }, { createdAt: "asc" }],
     });
     if (!candidate) return null;
     const leaseExpiresAt = new Date(now.getTime() + this.leaseDurationMs);
@@ -100,7 +105,7 @@ export class ConferenceMailWorkerService implements OnModuleInit, OnModuleDestro
         updatedAt: candidate.updatedAt,
       },
       data: {
-        status: 'PROCESSING',
+        status: "PROCESSING",
         leaseOwner: this.workerId,
         leaseExpiresAt,
         attemptCount: { increment: 1 },
@@ -125,11 +130,11 @@ export class ConferenceMailWorkerService implements OnModuleInit, OnModuleDestro
       await this.prisma.client.conferenceMailOutbox.updateMany({
         where: {
           id: outbox.id,
-          status: 'PROCESSING',
+          status: "PROCESSING",
           leaseOwner: this.workerId,
         },
         data: {
-          status: 'SENT',
+          status: "SENT",
           providerMessageId: result.providerMessageId,
           sentAt: new Date(),
           leaseOwner: null,
@@ -139,19 +144,21 @@ export class ConferenceMailWorkerService implements OnModuleInit, OnModuleDestro
         },
       });
     } catch (error) {
-      const providerError = error instanceof MailProviderError
-        ? error
-        : new MailProviderError('GMAIL_SEND_UNKNOWN', true);
-      const retry = providerError.retryable && outbox.attemptCount < outbox.maxAttempts;
+      const providerError =
+        error instanceof MailProviderError
+          ? error
+          : new MailProviderError("GMAIL_SEND_UNKNOWN", true);
+      const retry =
+        providerError.retryable && outbox.attemptCount < outbox.maxAttempts;
       const delayMs = this.retryDelayMs(outbox.attemptCount);
       await this.prisma.client.conferenceMailOutbox.updateMany({
         where: {
           id: outbox.id,
-          status: 'PROCESSING',
+          status: "PROCESSING",
           leaseOwner: this.workerId,
         },
         data: {
-          status: retry ? 'RETRY' : 'FAILED',
+          status: retry ? "RETRY" : "FAILED",
           nextAttemptAt: retry
             ? new Date(Date.now() + delayMs)
             : outbox.nextAttemptAt,
@@ -161,12 +168,19 @@ export class ConferenceMailWorkerService implements OnModuleInit, OnModuleDestro
           lastErrorMessage: providerError.code,
         },
       });
-      this.logger.warn(`Mail outbox ${outbox.id} failed with ${providerError.code}`);
+      this.logger.warn(
+        `Mail outbox ${outbox.id} failed with ${providerError.code}`,
+      );
     }
   }
 
   private retryDelayMs(attemptCount: number): number {
-    const exponential = Math.min(60 * 60 * 1000, 5000 * 2 ** Math.max(0, attemptCount - 1));
-    return exponential + Math.floor(Math.random() * Math.min(5000, exponential / 4));
+    const exponential = Math.min(
+      60 * 60 * 1000,
+      5000 * 2 ** Math.max(0, attemptCount - 1),
+    );
+    return (
+      exponential + Math.floor(Math.random() * Math.min(5000, exponential / 4))
+    );
   }
 }

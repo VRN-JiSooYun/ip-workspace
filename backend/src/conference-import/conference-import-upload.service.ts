@@ -3,10 +3,10 @@ import {
   ConflictException,
   Injectable,
   PayloadTooLargeException,
-} from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { createHash, randomUUID } from 'node:crypto';
-import { createReadStream } from 'node:fs';
+} from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
+import { createHash, randomUUID } from "node:crypto";
+import { createReadStream } from "node:fs";
 import {
   copyFile,
   chmod,
@@ -18,13 +18,13 @@ import {
   rm,
   stat,
   unlink,
-} from 'node:fs/promises';
-import { basename, dirname, extname, join, sep } from 'node:path';
-import { PrismaService } from '../database/prisma.service';
+} from "node:fs/promises";
+import { basename, dirname, extname, join, sep } from "node:path";
+import { PrismaService } from "../database/prisma.service";
 import {
   CONFERENCE_IMPORT_UPLOAD_MAX_BATCH_BYTES,
   CONFERENCE_IMPORT_UPLOAD_MAX_FILES,
-} from './conference-import-upload.constants';
+} from "./conference-import-upload.constants";
 
 export type ConferenceImportUploadFile = {
   originalname: string;
@@ -33,7 +33,7 @@ export type ConferenceImportUploadFile = {
   size: number;
 };
 
-type UploadBatchKind = 'LEGACY' | 'API_METADATA';
+type UploadBatchKind = "LEGACY" | "API_METADATA";
 
 type ValidatedUploadFile = ConferenceImportUploadFile & {
   logicalPath: string;
@@ -54,8 +54,8 @@ export class ConferenceImportUploadService {
     config: ConfigService,
   ) {
     this.importRoot = config.get<string>(
-      'conferenceImport.root',
-      '/app/imports/conference',
+      "conferenceImport.root",
+      "/app/imports/conference",
     );
   }
 
@@ -75,16 +75,16 @@ export class ConferenceImportUploadService {
   }
 
   private parseBatchKey(value: unknown): string {
-    const batchKey = typeof value === 'string' ? value.trim() : '';
+    const batchKey = typeof value === "string" ? value.trim() : "";
     if (!BATCH_KEY_PATTERN.test(batchKey)) {
-      throw new BadRequestException('CONFERENCE_IMPORT_BATCH_KEY_INVALID');
+      throw new BadRequestException("CONFERENCE_IMPORT_BATCH_KEY_INVALID");
     }
     return batchKey;
   }
 
   private parseKind(value: unknown): UploadBatchKind {
-    if (value !== 'LEGACY' && value !== 'API_METADATA') {
-      throw new BadRequestException('CONFERENCE_IMPORT_BATCH_KIND_INVALID');
+    if (value !== "LEGACY" && value !== "API_METADATA") {
+      throw new BadRequestException("CONFERENCE_IMPORT_BATCH_KIND_INVALID");
     }
     return value;
   }
@@ -94,14 +94,18 @@ export class ConferenceImportUploadService {
     files: ConferenceImportUploadFile[],
   ): Promise<ValidatedUploadFile[]> {
     if (files.length === 0) {
-      throw new BadRequestException('CONFERENCE_IMPORT_UPLOAD_FILES_REQUIRED');
+      throw new BadRequestException("CONFERENCE_IMPORT_UPLOAD_FILES_REQUIRED");
     }
     if (files.length > CONFERENCE_IMPORT_UPLOAD_MAX_FILES) {
-      throw new PayloadTooLargeException('CONFERENCE_IMPORT_UPLOAD_TOO_MANY_FILES');
+      throw new PayloadTooLargeException(
+        "CONFERENCE_IMPORT_UPLOAD_TOO_MANY_FILES",
+      );
     }
     const totalByteSize = files.reduce((sum, file) => sum + file.size, 0);
     if (totalByteSize > CONFERENCE_IMPORT_UPLOAD_MAX_BATCH_BYTES) {
-      throw new PayloadTooLargeException('CONFERENCE_IMPORT_UPLOAD_BATCH_TOO_LARGE');
+      throw new PayloadTooLargeException(
+        "CONFERENCE_IMPORT_UPLOAD_BATCH_TOO_LARGE",
+      );
     }
 
     const filenames = new Set<string>();
@@ -110,55 +114,62 @@ export class ConferenceImportUploadService {
     let excelCount = 0;
 
     for (const file of files) {
-      const safeFilename = basename(file.originalname).normalize('NFC');
+      const safeFilename = basename(file.originalname).normalize("NFC");
       const normalizedFilename = safeFilename.toLowerCase();
       if (
-        safeFilename !== file.originalname
-        || !SAFE_FILENAME_PATTERN.test(safeFilename)
-        || filenames.has(normalizedFilename)
-        || file.size <= 0
+        safeFilename !== file.originalname ||
+        !SAFE_FILENAME_PATTERN.test(safeFilename) ||
+        filenames.has(normalizedFilename) ||
+        file.size <= 0
       ) {
-        throw new BadRequestException('CONFERENCE_IMPORT_UPLOAD_FILENAME_INVALID');
+        throw new BadRequestException(
+          "CONFERENCE_IMPORT_UPLOAD_FILENAME_INVALID",
+        );
       }
       filenames.add(normalizedFilename);
 
       const extension = extname(normalizedFilename);
-      if (extension === '.xlsx') {
+      if (extension === ".xlsx") {
         await this.validateXlsx(file.path);
         excelCount += 1;
-      } else if (normalizedFilename === 'conference_list.json') {
-        if (kind !== 'LEGACY') {
-          throw new BadRequestException('CONFERENCE_IMPORT_MANIFEST_KIND_INVALID');
+      } else if (normalizedFilename === "conference_list.json") {
+        if (kind !== "LEGACY") {
+          throw new BadRequestException(
+            "CONFERENCE_IMPORT_MANIFEST_KIND_INVALID",
+          );
         }
         await this.validateManifest(file.path);
         manifestCount += 1;
       } else {
-        throw new BadRequestException('CONFERENCE_IMPORT_UPLOAD_FILE_TYPE_INVALID');
+        throw new BadRequestException(
+          "CONFERENCE_IMPORT_UPLOAD_FILE_TYPE_INVALID",
+        );
       }
 
       validated.push({
         ...file,
         safeFilename,
-        logicalPath: normalizedFilename === 'conference_list.json'
-          ? 'conference_list.json'
-          : kind === 'LEGACY'
-            ? `excel/${safeFilename}`
-            : safeFilename,
+        logicalPath:
+          normalizedFilename === "conference_list.json"
+            ? "conference_list.json"
+            : kind === "LEGACY"
+              ? `excel/${safeFilename}`
+              : safeFilename,
         sha256: await this.calculateFileChecksum(file.path),
       });
     }
 
     if (excelCount === 0) {
-      throw new BadRequestException('CONFERENCE_IMPORT_UPLOAD_EXCEL_REQUIRED');
+      throw new BadRequestException("CONFERENCE_IMPORT_UPLOAD_EXCEL_REQUIRED");
     }
-    if (kind === 'LEGACY' && manifestCount !== 1) {
-      throw new BadRequestException('CONFERENCE_IMPORT_MANIFEST_REQUIRED');
+    if (kind === "LEGACY" && manifestCount !== 1) {
+      throw new BadRequestException("CONFERENCE_IMPORT_MANIFEST_REQUIRED");
     }
     return validated;
   }
 
   private async validateXlsx(path: string): Promise<void> {
-    const handle = await open(path, 'r');
+    const handle = await open(path, "r");
     try {
       const signature = Buffer.alloc(XLSX_SIGNATURE.length);
       const { bytesRead } = await handle.read(
@@ -168,10 +179,12 @@ export class ConferenceImportUploadService {
         0,
       );
       if (
-        bytesRead !== XLSX_SIGNATURE.length
-        || !signature.equals(XLSX_SIGNATURE)
+        bytesRead !== XLSX_SIGNATURE.length ||
+        !signature.equals(XLSX_SIGNATURE)
       ) {
-        throw new BadRequestException('CONFERENCE_IMPORT_XLSX_SIGNATURE_INVALID');
+        throw new BadRequestException(
+          "CONFERENCE_IMPORT_XLSX_SIGNATURE_INVALID",
+        );
       }
     } finally {
       await handle.close();
@@ -181,43 +194,45 @@ export class ConferenceImportUploadService {
   private async validateManifest(path: string): Promise<void> {
     let parsed: unknown;
     try {
-      parsed = JSON.parse(await readFile(path, 'utf8'));
+      parsed = JSON.parse(await readFile(path, "utf8"));
     } catch {
-      throw new BadRequestException('CONFERENCE_IMPORT_MANIFEST_JSON_INVALID');
+      throw new BadRequestException("CONFERENCE_IMPORT_MANIFEST_JSON_INVALID");
     }
     if (
-      typeof parsed !== 'object'
-      || parsed === null
-      || !Array.isArray(
+      typeof parsed !== "object" ||
+      parsed === null ||
+      !Array.isArray(
         (parsed as { list_serialized_data_conference?: unknown })
           .list_serialized_data_conference,
       )
     ) {
-      throw new BadRequestException('CONFERENCE_IMPORT_MANIFEST_SCHEMA_INVALID');
+      throw new BadRequestException(
+        "CONFERENCE_IMPORT_MANIFEST_SCHEMA_INVALID",
+      );
     }
   }
 
   private async calculateFileChecksum(path: string): Promise<string> {
-    const hash = createHash('sha256');
+    const hash = createHash("sha256");
     for await (const chunk of createReadStream(path)) {
       hash.update(chunk as Buffer);
     }
-    return hash.digest('hex');
+    return hash.digest("hex");
   }
 
   private async calculateBatchChecksum(
     files: ValidatedUploadFile[],
   ): Promise<string> {
-    const hash = createHash('sha256');
-    for (const file of [...files].sort((a, b) => (
-      a.logicalPath.localeCompare(b.logicalPath)
-    ))) {
-      hash.update(file.logicalPath.split('/').at(-1) ?? '');
+    const hash = createHash("sha256");
+    for (const file of [...files].sort((a, b) =>
+      a.logicalPath.localeCompare(b.logicalPath),
+    )) {
+      hash.update(file.logicalPath.split("/").at(-1) ?? "");
       for await (const chunk of createReadStream(file.path)) {
         hash.update(chunk as Buffer);
       }
     }
-    return hash.digest('hex');
+    return hash.digest("hex");
   }
 
   private async persistBatch(
@@ -229,25 +244,30 @@ export class ConferenceImportUploadService {
     await mkdir(this.importRoot, { recursive: true, mode: 0o700 });
     const root = await realpath(this.importRoot);
     const finalDirectory = join(root, batchKey);
-    if (!finalDirectory.startsWith(`${root}${sep}`) || await this.pathExists(finalDirectory)) {
-      throw new ConflictException('CONFERENCE_IMPORT_BATCH_KEY_ALREADY_EXISTS');
+    if (
+      !finalDirectory.startsWith(`${root}${sep}`) ||
+      (await this.pathExists(finalDirectory))
+    ) {
+      throw new ConflictException("CONFERENCE_IMPORT_BATCH_KEY_ALREADY_EXISTS");
     }
-    const duplicateBatchKey = await this.prisma.client.conferenceImportBatch.findUnique({
-      where: { batchKey },
-      select: { id: true },
-    });
+    const duplicateBatchKey =
+      await this.prisma.client.conferenceImportBatch.findUnique({
+        where: { batchKey },
+        select: { id: true },
+      });
     if (duplicateBatchKey) {
-      throw new ConflictException('CONFERENCE_IMPORT_BATCH_KEY_ALREADY_EXISTS');
+      throw new ConflictException("CONFERENCE_IMPORT_BATCH_KEY_ALREADY_EXISTS");
     }
 
     const sourceChecksum = await this.calculateBatchChecksum(files);
-    const duplicateChecksum = await this.prisma.client.conferenceImportBatch.findUnique({
-      where: { sourceChecksum },
-      select: { batchKey: true },
-    });
+    const duplicateChecksum =
+      await this.prisma.client.conferenceImportBatch.findUnique({
+        where: { sourceChecksum },
+        select: { batchKey: true },
+      });
     if (duplicateChecksum) {
       throw new ConflictException({
-        message: 'CONFERENCE_IMPORT_BATCH_DUPLICATE_CONTENT',
+        message: "CONFERENCE_IMPORT_BATCH_DUPLICATE_CONTENT",
         batchKey: duplicateChecksum.batchKey,
       });
     }
@@ -256,7 +276,7 @@ export class ConferenceImportUploadService {
       data: {
         batchKey,
         kind,
-        status: 'UPLOADING',
+        status: "UPLOADING",
         uploadedByUserId: userId,
       },
     });
@@ -276,9 +296,9 @@ export class ConferenceImportUploadService {
       await rename(stagingDirectory, finalDirectory);
 
       const fileCount = files.length;
-      const excelCount = files.filter(({ safeFilename }) => (
-        safeFilename.toLowerCase().endsWith('.xlsx')
-      )).length;
+      const excelCount = files.filter(({ safeFilename }) =>
+        safeFilename.toLowerCase().endsWith(".xlsx"),
+      ).length;
       const totalByteSize = files.reduce((sum, file) => sum + file.size, 0);
       const readyAt = new Date();
       await this.prisma.client.$transaction(async (tx) => {
@@ -295,14 +315,15 @@ export class ConferenceImportUploadService {
         return tx.conferenceImportBatch.update({
           where: { id: batch.id },
           data: {
-            status: 'READY',
+            status: "READY",
             sourceChecksum,
             fileCount,
             excelCount,
             totalByteSize: BigInt(totalByteSize),
-            hasManifest: files.some(({ safeFilename }) => (
-              safeFilename.toLowerCase() === 'conference_list.json'
-            )),
+            hasManifest: files.some(
+              ({ safeFilename }) =>
+                safeFilename.toLowerCase() === "conference_list.json",
+            ),
             readyAt,
           },
         });
@@ -310,23 +331,26 @@ export class ConferenceImportUploadService {
     } catch (error) {
       await rm(stagingDirectory, { recursive: true, force: true });
       await rm(finalDirectory, { recursive: true, force: true });
-      await this.prisma.client.conferenceImportBatch.update({
-        where: { id: batch.id },
-        data: { status: 'INVALID' },
-      }).catch(() => undefined);
+      await this.prisma.client.conferenceImportBatch
+        .update({
+          where: { id: batch.id },
+          data: { status: "INVALID" },
+        })
+        .catch(() => undefined);
       throw error;
     }
-    const readyBatch = await this.prisma.client.conferenceImportBatch.findUniqueOrThrow({
-      where: { id: batch.id },
-      include: {
-        uploadedBy: {
-          select: { id: true, name: true, email: true },
+    const readyBatch =
+      await this.prisma.client.conferenceImportBatch.findUniqueOrThrow({
+        where: { id: batch.id },
+        include: {
+          uploadedBy: {
+            select: { id: true, name: true, email: true },
+          },
+          files: {
+            orderBy: { logicalPath: "asc" },
+          },
         },
-        files: {
-          orderBy: { logicalPath: 'asc' },
-        },
-      },
-    });
+      });
     return this.batchResponse(readyBatch);
   }
 
@@ -339,13 +363,15 @@ export class ConferenceImportUploadService {
     }
   }
 
-  private batchResponse<T extends {
-    totalByteSize: bigint;
-    files?: Array<{ byteSize: bigint; logicalPath: string }>;
-  }>(batch: T) {
+  private batchResponse<
+    T extends {
+      totalByteSize: bigint;
+      files?: Array<{ byteSize: bigint; logicalPath: string }>;
+    },
+  >(batch: T) {
     return {
       ...batch,
-      source: 'ADMIN_UPLOAD' as const,
+      source: "ADMIN_UPLOAD" as const,
       sourceFiles: batch.files?.map(({ logicalPath }) => logicalPath) ?? [],
       totalByteSize: Number(batch.totalByteSize),
       files: batch.files?.map((file) => ({

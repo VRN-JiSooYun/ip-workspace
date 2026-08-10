@@ -1,6 +1,7 @@
 import React from 'react';
 import ReactECharts from 'echarts-for-react';
 import { theme } from 'antd';
+import { getBrandPrimary } from '../../theme/brandColor';
 
 interface ChemSpaceChartProps {
   data: any[];
@@ -19,7 +20,9 @@ const keyMap: Record<string, string> = {
 };
 
 const kinaseGroups = ['TK', 'TKL', 'STE', 'CK1', 'AGC', 'CMGC', 'CAMK', 'Other'];
-const kinaseColors = ['#F87C63', '#4ECDC4', '#FFD166', '#06D6A0', '#118AB2', '#073B4C', '#A29BFE', '#8D99AE'];
+const kinaseColorsAfterBrand = ['#4ECDC4', '#FFD166', '#06D6A0', '#118AB2', '#073B4C', '#A29BFE', '#8D99AE'];
+// echarts renders to canvas, so the palette needs literal colors.
+const getKinaseColors = () => [getBrandPrimary(), ...kinaseColorsAfterBrand];
 
 const getKinaseGroup = (k: string) => {
   if (!k || k === 'Unknown') return 'Other';
@@ -141,7 +144,7 @@ const ChemSpaceChart: React.FC<ChemSpaceChartProps> = ({
         dimension: 2,
         show: false,
         inRange: {
-          color: kinaseColors
+          color: getKinaseColors()
         },
         seriesIndex: [0]
       };

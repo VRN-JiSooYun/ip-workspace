@@ -9,9 +9,9 @@
   "scripts": {
     "build": "nest build",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
-    "start": "nest start",
-    "start:dev": "bun run prisma:generate && nest start --watch",
-    "start:debug": "nest start --debug --watch",
+    "start": "nest start -e bun",
+    "start:dev": "bun run prisma:generate && nest start --watch -e bun",
+    "start:debug": "nest start --debug --watch -e bun",
     "start:prod": "bun dist/main.js",
     "prisma:generate": "bunx --bun prisma generate",
     "prisma:migrate:dev": "bunx --bun prisma migrate dev",

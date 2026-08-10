@@ -58,6 +58,7 @@ import shareForwardIconRaw from '../assets/svg/share-forward-fill.svg?raw';
 import shareIconRaw from '../assets/svg/share.svg?raw';
 import bookmarkIconRaw from '../assets/svg/bookmark.svg?raw';
 import { formatDisplayDate, formatNumberWithComma } from '../utils/displayFormat';
+import { getBrandPrimary } from '../theme/brandColor';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
@@ -69,7 +70,7 @@ const MYBOARD_QUICK_VIEWER_MIN_WIDTH = 360;
 const MYBOARD_QUICK_VIEWER_MAX_WIDTH = 868;
 const MYBOARD_QUICK_VIEWER_DEFAULT_WIDTH = 460;
 const MYBOARD_SHARE_STATUS_COLORS = {
-  '공유 하는중': '#F87C63',
+  '공유 하는중': 'var(--brand-primary)',
   '공유 받는중': '#1677ff',
 } as const;
 const QUANTUM_CALCULATION_OPTIONS: Record<string, QuantumJobType> = {
@@ -995,7 +996,7 @@ const MyBoard: React.FC = () => {
       borderRadius: 6,
       fontSize: 10,
       fontWeight: isActive ? 600 : 500,
-      boxShadow: isActive ? '0 0 0 1px rgba(248, 124, 99, 0.15)' : 'none'
+      boxShadow: isActive ? '0 0 0 1px rgba(var(--brand-primary-rgb), 0.15)' : 'none'
     };
   };
 
@@ -4208,7 +4209,7 @@ const MyBoard: React.FC = () => {
               <MiniMap
                 pannable
                 zoomable
-                nodeColor={(node) => (node.data?.depth === 1 ? '#F87C63' : '#8FBFE8')}
+                nodeColor={(node) => (node.data?.depth === 1 ? getBrandPrimary() : '#8FBFE8')}
                 maskColor="rgba(15, 23, 42, 0.08)"
               />
             )}
@@ -5661,7 +5662,7 @@ const MyBoard: React.FC = () => {
                 cursor: 'grab',
                 opacity: draggedItemIndex === index ? 0.6 : 1,
                 transition: 'all 0.2s ease',
-                boxShadow: draggedItemIndex === index ? '0 4px 12px rgba(248, 124, 99, 0.1)' : 'none'
+                boxShadow: draggedItemIndex === index ? '0 4px 12px rgba(var(--brand-primary-rgb), 0.1)' : 'none'
               }}
             >
               <Space>
@@ -6320,13 +6321,13 @@ const MyBoard: React.FC = () => {
           background-color: var(--table-row-selected-hover-bg) !important;
         }
         .my-board-page {
-          --table-row-hover-bg: rgba(248, 124, 99, 0.06);
-          --table-row-selected-hover-bg: rgba(248, 124, 99, 0.16);
+          --table-row-hover-bg: rgba(var(--brand-primary-rgb), 0.06);
+          --table-row-selected-hover-bg: rgba(var(--brand-primary-rgb), 0.16);
           min-height: 0;
         }
         [data-theme='dark'] .my-board-page {
-          --table-row-hover-bg: rgba(248, 124, 99, 0.10);
-          --table-row-selected-hover-bg: rgba(248, 124, 99, 0.24);
+          --table-row-hover-bg: rgba(var(--brand-primary-rgb), 0.10);
+          --table-row-selected-hover-bg: rgba(var(--brand-primary-rgb), 0.24);
         }
         .my-board-group-panel,
         .my-board-detail-panel,
@@ -6708,8 +6709,8 @@ const MyBoard: React.FC = () => {
           cursor: not-allowed;
         }
         .quick-viewer-tab-active {
-          border-color: #F87C63;
-          background: #F87C63;
+          border-color: var(--brand-primary);
+          background: var(--brand-primary);
           color: #FFFFFF;
         }
         .quick-viewer-body {

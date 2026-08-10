@@ -4,54 +4,32 @@ import { Layout, Menu, Button, theme, Input, Avatar, Space, Dropdown, Tooltip } 
 import type { MenuProps } from 'antd';
 import { useTheme } from '../../contexts/ThemeContext';
 import {
-  LayoutDashboard,
-  FlaskConical,
   Search,
   Bell,
   Moon,
   Sun,
   Palette,
-  Activity,
-  Monitor,
-  Microscope,
   Menu as MenuIcon,
   PanelLeftClose,
-  FileText,
-  HelpCircle,
-  ShieldCheck,
-  Presentation,
-  Database,
 } from 'lucide-react';
-import BenzeneIcon from '../common/BenzeneIcon';
 import RdkitDrawOptionsModal from '../common/RdkitDrawOptionsModal';
 import { useAuthSession } from '../../contexts/AuthSessionContext';
 import { useAccessContext } from '../../contexts/AccessContext';
-import type { WorkspacePermission } from '../../services/accessContextApi';
+import {
+  BOTTOM_NAV,
+  MAIN_NAV,
+  filterNavByPermission,
+  getAncestorKeys,
+  getSubtreeKeys,
+  resolveSelectedKey,
+  type NavNode,
+} from './navigation';
 
 const { Header, Sider, Content } = Layout;
 
 interface MainLayoutProps {
   children: React.ReactNode;
 }
-
-interface MiniMenuItem {
-  key: string;
-  label: string;
-  icon: React.ReactNode;
-  onClick?: () => void;
-  menu?: MenuProps;
-  activeKeys?: string[];
-}
-
-const getMenuAncestorKeys = (selectedKey: string): string[] => {
-  if (['patent-write', 'patent-analysis', 'patent-insight', 'patent-manage'].includes(selectedKey)) {
-    return ['documents', 'patents'];
-  }
-  if (selectedKey === 'paper-manage') return ['documents', 'papers'];
-  if (['compound-search', 'chem-space', 'clustering'].includes(selectedKey)) return ['compounds'];
-  if (selectedKey === 'reaction-predictor') return ['tools'];
-  return [];
-};
 
 import { useUIStore } from '../../store/useUIStore';
 
@@ -67,10 +45,6 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
   const { headerContent } = useUIStore();
   const session = useAuthSession();
   const { hasPermission } = useAccessContext();
-  const canAccessDesign = hasPermission('design.read');
-  const canAccessSynthesis = hasPermission('synthesis.read');
-  const canAccessPatentAnalysis = hasPermission('patentAnalysis.read');
-  const canAccessConference = hasPermission('conference.read');
   const navigate = useNavigate();
   const location = useLocation();
   const isStackedHeader = viewportWidth <= 900;
@@ -94,6 +68,43 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
     <span className="mini-dropdown-label" title="">{label}</span>
   );
 
+  const mainNav = React.useMemo(
+    () => filterNavByPermission(MAIN_NAV, hasPermission),
+    [hasPermission],
+  );
+  const bottomNav = React.useMemo(
+    () => filterNavByPermission(BOTTOM_NAV, hasPermission),
+    [hasPermission],
+  );
+
+  /** Expanded sidebar: top-level entries carry an icon and bold label. */
+  const toFullMenuItems = (nodes: NavNode[], depth = 0): MenuProps['items'] =>
+    nodes.map((node) => ({
+      key: node.key,
+      ...(node.icon ? { icon: renderSidebarIcon(node.icon) } : {}),
+      label: depth === 0 ? <span style={{ fontWeight: 600 }}>{node.label}</span> : node.label,
+      ...(node.children
+        ? {
+          popupClassName: 'app-sidebar-popup-menu',
+          children: toFullMenuItems(node.children, depth + 1),
+        }
+        : { onClick: () => navigate(node.path!) }),
+    }));
+
+  /** Mini rail: children surface in a hover dropdown instead. */
+  const toMiniDropdownItems = (nodes: NavNode[]): MenuProps['items'] =>
+    nodes.map((node) => ({
+      key: node.key,
+      label: renderMiniDropdownLabel(node.label),
+      title: '',
+      ...(node.children
+        ? {
+          popupClassName: 'app-sidebar-popup-menu',
+          children: toMiniDropdownItems(node.children),
+        }
+        : { onClick: () => navigate(node.path!) }),
+    }));
+
   const miniMenuButtonStyle = (selected: boolean): React.CSSProperties => ({
     width: 40,
     height: 40,
@@ -104,213 +115,81 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    color: selected ? '#F87C63' : token.colorText,
+    color: selected ? 'var(--brand-primary)' : token.colorText,
     background: selected ? (isDarkMode ? '#2b2b2b' : '#ffffff') : 'transparent',
     boxShadow: selected && !isDarkMode ? '0 4px 6px -1px rgb(0 0 0 / 0.1)' : 'none',
   });
 
-  const mainMiniMenuItems: MiniMenuItem[] = [
-    {
-      key: 'dashboard',
-      label: 'Dashboard',
-      icon: <LayoutDashboard size={22} />,
-      onClick: () => navigate('/dashboard'),
-    },
-    ...(canAccessDesign ? [{
-      key: 'design',
-      label: 'Design',
-      icon: <Palette size={22} />,
-      activeKeys: ['design', 'myboard'],
-      onClick: () => navigate('/design'),
-    }] : []),
-    ...(canAccessSynthesis ? [{
-      key: 'synthesis',
-      label: 'Synthesis',
-      icon: <Microscope size={22} />,
-      activeKeys: ['synthesis'],
-      onClick: () => navigate('/synthesis'),
-    }] : []),
-    {
-      key: 'documents',
-      label: 'Documents',
-      icon: <FileText size={22} />,
-      activeKeys: ['documents', 'patents', 'patent-write', 'patent-analysis', 'patent-insight', 'patent-manage', 'papers', 'paper-manage'],
-      menu: {
-        items: [
-          ...(canAccessPatentAnalysis ? [{
-            key: 'patents',
-            label: renderMiniDropdownLabel('Patents'),
-            title: '',
-            popupClassName: 'app-sidebar-popup-menu',
-            children: [
-              { key: 'patent-write', label: renderMiniDropdownLabel('My 특허 쓰기'), title: '', onClick: () => navigate('/patents/write') },
-              { key: 'patent-analysis', label: renderMiniDropdownLabel('My 특허 분석'), title: '', onClick: () => navigate('/patents/analysis') },
-              { key: 'patent-insight', label: renderMiniDropdownLabel('Insight'), title: '', onClick: () => navigate('/patents/insight') },
-              { key: 'patent-manage', label: renderMiniDropdownLabel('My 특허 관리'), title: '', onClick: () => navigate('/patents/manage') },
-            ],
-          }] : []),
-          {
-            key: 'papers',
-            label: renderMiniDropdownLabel('Papers'),
-            title: '',
-            popupClassName: 'app-sidebar-popup-menu',
-            children: [
-              { key: 'paper-manage', label: renderMiniDropdownLabel('My 논문 관리'), title: '', onClick: () => navigate('/papers/manage') },
-            ],
-          },
-        ],
+  const selectedKey = resolveSelectedKey(location.pathname, [...MAIN_NAV, ...BOTTOM_NAV]);
+
+  const isNavNodeSelected = (node: NavNode) => getSubtreeKeys(node).includes(selectedKey);
+
+  const getMiniDropdownMenu = (node: NavNode): MenuProps => ({
+    className: 'app-sidebar-dropdown-menu',
+    style: { minWidth: 200 },
+    items: [
+      {
+        key: `${node.key}-title`,
+        label: renderMiniDropdownLabel(node.label),
+        title: '',
+        disabled: true,
+        className: 'mini-menu-popup-title',
       },
-    },
-    {
-      key: 'compounds',
-      label: 'Compounds',
-      icon: <BenzeneIcon size={22} />,
-      activeKeys: ['compounds', 'compound-search', 'chem-space', 'clustering'],
-      menu: {
-        items: [
-          { key: 'compound-search', label: renderMiniDropdownLabel('Search'), title: '', onClick: () => navigate('/compounds/search') },
-          { key: 'chem-space', label: renderMiniDropdownLabel('Chemical space'), title: '', onClick: () => navigate('/chem-space') },
-          { key: 'clustering', label: renderMiniDropdownLabel('Clustering'), title: '', onClick: () => navigate('/clustering') },
-        ],
-      },
-    },
-    {
-      key: 'tools',
-      label: 'Tools',
-      icon: <FlaskConical size={22} />,
-      activeKeys: ['tools', 'reaction-predictor'],
-      menu: {
-        items: [
-          { key: 'reaction-predictor', label: renderMiniDropdownLabel('Reaction Site Predictor'), title: '', onClick: () => navigate('/reaction-predictor') },
-        ],
-      },
-    },
-    {
-      key: 'universal-search',
-      label: '통합검색',
-      icon: <Search size={22} />,
-      onClick: () => navigate('/universal-search'),
-    },
-    ...(canAccessConference ? [{
-      key: 'conferences',
-      label: 'Conference',
-      icon: <Presentation size={22} />,
-      onClick: () => navigate('/conferences'),
-    }] : []),
-  ];
+      { type: 'divider' },
+      ...(toMiniDropdownItems(node.children ?? []) ?? []),
+    ],
+  });
 
-  const workspaceAdminMenuItems = ([
-    {
-      key: 'access-registry',
-      label: '사용자 접근 관리',
-      icon: <ShieldCheck size={22} />,
-      path: '/workspace/access-registry',
-      requiredPermission: 'userAccess.manage',
-    },
-    {
-      key: 'conference-admin',
-      label: 'Conference 관리',
-      icon: <Database size={22} />,
-      path: '/workspace/conference-admin',
-      requiredPermission: 'conference.manage',
-    },
-    {
-      key: 'patent-analysis-admin',
-      label: '특허 분석 관리',
-      icon: <FileText size={22} />,
-      path: '/workspace/patent-analysis-admin',
-      requiredPermission: 'patentAnalysis.manage',
-    },
-  ] satisfies Array<{
-    key: string;
-    label: string;
-    icon: React.ReactNode;
-    path: string;
-    requiredPermission: WorkspacePermission;
-  }>).filter((item) => hasPermission(item.requiredPermission));
+  const renderMiniRail = (nodes: NavNode[]) => (
+    <div className="mini-menu-rail">
+      {nodes.map((node) => {
+        const button = (
+          <Button
+            key={node.key}
+            type="text"
+            aria-label={node.label}
+            style={miniMenuButtonStyle(isNavNodeSelected(node))}
+            onClick={node.children ? undefined : () => navigate(node.path!)}
+          >
+            {node.icon}
+          </Button>
+        );
 
-  const bottomMiniMenuItems: MiniMenuItem[] = [
-    ...workspaceAdminMenuItems.map((item) => ({
-      key: item.key,
-      label: item.label,
-      icon: item.icon,
-      onClick: () => navigate(item.path),
-    })),
-    {
-      key: 'monitoring',
-      label: '모니터링',
-      icon: <Monitor size={22} />,
-      onClick: () => navigate('/monitoring'),
-    },
-    {
-      key: 'development-status',
-      label: '수리응용2팀 서비스 개발 진행 현황',
-      icon: <Activity size={22} />,
-      onClick: () => navigate('/development-status'),
-    },
-    {
-      key: 'contact',
-      label: '문의하기',
-      icon: <HelpCircle size={22} />,
-      onClick: () => navigate('/contact'),
-    },
-  ];
+        if (!node.children) {
+          return (
+            <Tooltip key={node.key} title={node.label} placement="right">
+              {button}
+            </Tooltip>
+          );
+        }
 
-  // URL 경로에서 메뉴 키 추출 (예: /dashboard -> dashboard, /patents/write -> patent-write)
-  const getSelectedKey = () => {
-    const path = location.pathname;
-    if (path === '/dashboard') return 'dashboard';
-    if (path === '/design' || path === '/myboard') return 'design';
-    if (path === '/myboard/synthesis-board' || path === '/synthesis-board') return 'design';
-    if (path === '/synthesis') return 'synthesis';
-    if (path === '/myboard/sar-table' || path === '/sar-table') return 'design';
-    if (path === '/compounds/search' || path === '/my-tree') return 'compound-search';
-    if (path === '/chem-space') return 'chem-space';
-    if (path === '/clustering') return 'clustering';
-    if (path === '/reaction-predictor') return 'reaction-predictor';
-    if (path === '/patents/write') return 'patent-write';
-    if (path === '/patents/analysis' || path.startsWith('/patents/analysis/')) return 'patent-analysis';
-    if (path === '/patents/insight') return 'patent-insight';
-    if (path === '/patents/manage') return 'patent-manage';
-    if (path === '/papers/manage') return 'paper-manage';
-    if (path === '/conferences' || path.startsWith('/conferences/')) return 'conferences';
-    if (path === '/universal-search') return 'universal-search';
-    if (path === '/monitoring') return 'monitoring';
-    if (path === '/development-status') return 'development-status';
-    if (path === '/workspace/access-registry') return 'access-registry';
-    if (path === '/workspace/conference-admin') return 'conference-admin';
-    if (path === '/workspace/patent-analysis-admin') return 'patent-analysis-admin';
-    if (path === '/contact') return 'contact';
-    return 'dashboard';
-  };
+        return (
+          <Dropdown
+            key={node.key}
+            menu={getMiniDropdownMenu(node)}
+            placement="topLeft"
+            trigger={['hover']}
+            overlayClassName="app-sidebar-popup-menu"
+          >
+            {button}
+          </Dropdown>
+        );
+      })}
+    </div>
+  );
 
-  const selectedKey = getSelectedKey();
+
   const [openMenuKeys, setOpenMenuKeys] = useState<string[]>(() => (
-    getMenuAncestorKeys(selectedKey)
+    getAncestorKeys(selectedKey, MAIN_NAV)
   ));
 
   React.useEffect(() => {
-    const ancestorKeys = getMenuAncestorKeys(selectedKey);
+    const ancestorKeys = getAncestorKeys(selectedKey, MAIN_NAV);
     if (ancestorKeys.length === 0) return;
     setOpenMenuKeys((currentKeys) => (
       Array.from(new Set([...currentKeys, ...ancestorKeys]))
     ));
   }, [location.pathname, selectedKey]);
-
-  const isMiniItemSelected = (item: MiniMenuItem) => {
-    return item.key === selectedKey || item.activeKeys?.includes(selectedKey) === true;
-  };
-
-  const getMiniDropdownMenu = (item: MiniMenuItem): MenuProps => ({
-    ...item.menu,
-    className: 'app-sidebar-dropdown-menu',
-    style: { minWidth: 200 },
-    items: [
-      { key: `${item.key}-title`, label: renderMiniDropdownLabel(item.label), title: '', disabled: true, className: 'mini-menu-popup-title' },
-      { type: 'divider' },
-      ...(item.menu?.items ?? []),
-    ],
-  });
 
   return (
     <Layout style={{ minHeight: '100vh' }}>
@@ -343,11 +222,11 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                 <img
                   className="app-sidebar-mini-logo-image"
                   src="/sidebar-mini-logo.svg"
-                  alt="Medichem Workspace"
+                  alt="IP Workspace"
                 />
               </div>
-              <div className="app-sidebar-wordmark" aria-label="Medichem Workspace">
-                <div className="app-sidebar-wordmark-medichem">Medichem</div>
+              <div className="app-sidebar-wordmark" aria-label="IP Workspace">
+                <div className="app-sidebar-wordmark-brand">IP</div>
                 <div className="app-sidebar-wordmark-workspace">Workspace</div>
               </div>
             </>
@@ -356,7 +235,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
               <img
                 className="app-sidebar-mini-logo-image"
                 src="/sidebar-mini-logo.svg"
-                alt="Medichem Workspace"
+                alt="IP Workspace"
               />
             </div>
           )}
@@ -366,7 +245,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
           className={`app-sidebar-scroll-area app-sidebar-scroll-area-${sidebarMode}`}
           style={{ overflowY: 'auto', flex: '1 1 auto', minHeight: 0, padding: sidebarMode === 'full' ? '0 8px' : '0 4px', display: sidebarMode === 'hidden' ? 'none' : 'block' }}
         >
-          <Tooltip title={sidebarMode === 'mini' ? 'VORA' : ''} placement="right">
+          {/* <Tooltip title={sidebarMode === 'mini' ? 'VORA' : ''} placement="right">
             <Button
               className="vora-link-button"
               onClick={() => window.open(voraExternalUrl, '_blank', 'noopener,noreferrer')}
@@ -389,9 +268,9 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
               {sidebarMode === 'full' ? 'VORA' : 'V'}
             </Button>
           </Tooltip>
-          <Tooltip title={sidebarMode === 'mini' ? 'Medichem ELN' : ''} placement="right">
+          <Tooltip title={sidebarMode === 'mini' ? 'IP ELN' : ''} placement="right">
             <Button
-              className="medichem-eln-link-button"
+              className="eln-link-button"
               style={{
                 height: 34,
                 width: sidebarMode === 'full' ? '100%' : 34,
@@ -408,9 +287,9 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                 boxShadow: 'none',
               }}
             >
-              {sidebarMode === 'full' ? 'Medichem ELN' : 'M'}
+              {sidebarMode === 'full' ? 'IP ELN' : 'M'}
             </Button>
-          </Tooltip>
+          </Tooltip> */}
           <div
             style={{
               height: 1,
@@ -419,41 +298,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
             }}
           />
           {sidebarMode === 'mini' ? (
-            <div className="mini-menu-rail">
-              {mainMiniMenuItems.map((item) => {
-                const button = (
-                  <Button
-                    key={item.key}
-                    type="text"
-                    aria-label={item.label}
-                    style={miniMenuButtonStyle(isMiniItemSelected(item))}
-                    onClick={item.onClick}
-                  >
-                    {item.icon}
-                  </Button>
-                );
-
-                if (!item.menu) {
-                  return (
-                    <Tooltip key={item.key} title={item.label} placement="right">
-                      {button}
-                    </Tooltip>
-                  );
-                }
-
-                return (
-                  <Dropdown
-                    key={item.key}
-                    menu={getMiniDropdownMenu(item)}
-                    placement="topLeft"
-                    trigger={['hover']}
-                    overlayClassName="app-sidebar-popup-menu"
-                  >
-                    {button}
-                  </Dropdown>
-                );
-              })}
-            </div>
+            renderMiniRail(mainNav)
           ) : (
             <Menu
               mode="inline"
@@ -462,137 +307,21 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
               openKeys={openMenuKeys}
               onOpenChange={(keys) => setOpenMenuKeys(keys)}
               style={{ background: 'transparent', borderRight: 0 }}
-              items={[
-              {
-                key: 'dashboard',
-                icon: renderSidebarIcon(<LayoutDashboard size={22} />),
-                label: <span style={{ fontWeight: 600 }}>Dashboard</span>,
-                onClick: () => navigate('/dashboard')
-              },
-              ...(canAccessDesign ? [{
-                key: 'design',
-                icon: renderSidebarIcon(<Palette size={22} />),
-                label: <span style={{ fontWeight: 600 }}>Design</span>,
-                onClick: () => navigate('/design')
-              }] : []),
-              ...(canAccessSynthesis ? [{
-                key: 'synthesis',
-                icon: renderSidebarIcon(<Microscope size={22} />),
-                label: <span style={{ fontWeight: 600 }}>Synthesis</span>,
-                onClick: () => navigate('/synthesis')
-              }] : []),
-              {
-                key: 'documents',
-                icon: renderSidebarIcon(<FileText size={22} />),
-                label: <span style={{ fontWeight: 600 }}>Documents</span>,
-                popupClassName: 'app-sidebar-popup-menu',
-                children: [
-                  ...(canAccessPatentAnalysis ? [{
-                    key: 'patents',
-                    label: 'Patents',
-                    popupClassName: 'app-sidebar-popup-menu',
-                    children: [
-                      { key: 'patent-write', label: 'My 특허 쓰기', onClick: () => navigate('/patents/write') },
-                      { key: 'patent-analysis', label: 'My 특허 분석', onClick: () => navigate('/patents/analysis') },
-                      { key: 'patent-insight', label: 'Insight', onClick: () => navigate('/patents/insight') },
-                      { key: 'patent-manage', label: 'My 특허 관리', onClick: () => navigate('/patents/manage') },
-                    ]
-                  }] : []),
-                  {
-                    key: 'papers',
-                    label: 'Papers',
-                    popupClassName: 'app-sidebar-popup-menu',
-                    children: [
-                      { key: 'paper-manage', label: 'My 논문 관리', onClick: () => navigate('/papers/manage') },
-                    ]
-                  },
-                ],
-              },
-              {
-                key: 'compounds',
-                icon: renderSidebarIcon(<BenzeneIcon size={22} />),
-                label: <span style={{ fontWeight: 600 }}>Compounds</span>,
-                popupClassName: 'app-sidebar-popup-menu',
-                children: [
-                  { key: 'compound-search', label: 'Search', onClick: () => navigate('/compounds/search') },
-                  { key: 'chem-space', label: 'Chemical space', onClick: () => navigate('/chem-space') },
-                  { key: 'clustering', label: 'Clustering', onClick: () => navigate('/clustering') },
-                ],
-              },
-              {
-                key: 'tools',
-                icon: renderSidebarIcon(<FlaskConical size={22} />),
-                label: <span style={{ fontWeight: 600 }}>Tools</span>,
-                popupClassName: 'app-sidebar-popup-menu',
-                children: [
-                  { key: 'reaction-predictor', label: 'Reaction Site Predictor', onClick: () => navigate('/reaction-predictor') },
-                ],
-              },
-              {
-                key: 'universal-search',
-                icon: renderSidebarIcon(<Search size={22} />),
-                label: <span style={{ fontWeight: 600 }}>통합검색</span>,
-                onClick: () => navigate('/universal-search')
-              },
-              ...(canAccessConference ? [{
-                key: 'conferences',
-                icon: renderSidebarIcon(<Presentation size={22} />),
-                label: <span style={{ fontWeight: 600 }}>Conference</span>,
-                onClick: () => navigate('/conferences')
-              }] : []),
-              ]}
+              items={toFullMenuItems(mainNav)}
             />
           )}
         </div>
 
         <div style={{ marginTop: 'auto', padding: '12px 8px 0', flexShrink: 0, display: sidebarMode === 'hidden' ? 'none' : 'block' }}>
           {sidebarMode === 'mini' ? (
-            <div className="mini-menu-rail">
-              {bottomMiniMenuItems.map((item) => (
-                <Tooltip key={item.key} title={item.label} placement="right">
-                  <Button
-                    type="text"
-                    aria-label={item.label}
-                    style={miniMenuButtonStyle(isMiniItemSelected(item))}
-                    onClick={item.onClick}
-                  >
-                    {item.icon}
-                  </Button>
-                </Tooltip>
-              ))}
-            </div>
+            renderMiniRail(bottomNav)
           ) : (
             <Menu
               mode="inline"
               inlineIndent={8}
               selectedKeys={[selectedKey]}
               style={{ background: 'transparent', borderRight: 0 }}
-              items={[
-              ...workspaceAdminMenuItems.map((item) => ({
-                key: item.key,
-                icon: renderSidebarIcon(item.icon),
-                label: <span style={{ fontWeight: 600 }}>{item.label}</span>,
-                onClick: () => navigate(item.path),
-              })),
-              {
-                key: 'monitoring',
-                icon: renderSidebarIcon(<Monitor size={22} />),
-                label: <span style={{ fontWeight: 600 }}>모니터링</span>,
-                onClick: () => navigate('/monitoring')
-              },
-              {
-                key: 'development-status',
-                icon: renderSidebarIcon(<Activity size={22} />),
-                label: <span style={{ fontWeight: 600 }}>수리응용2팀 서비스 개발 진행 현황</span>,
-                onClick: () => navigate('/development-status')
-              },
-              {
-                key: 'contact',
-                icon: renderSidebarIcon(<HelpCircle size={22} />),
-                label: <span style={{ fontWeight: 600 }}>문의하기</span>,
-                onClick: () => navigate('/contact')
-              },
-              ]}
+              items={toFullMenuItems(bottomNav)}
             />
           )}
         </div>
@@ -726,7 +455,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
       <style>{`
         .app-sidebar .ant-menu-item-selected { 
           background-color: ${isDarkMode ? '#2b2b2b' : '#ffffff'} !important; 
-          color: #F87C63 !important; 
+          color: var(--brand-primary) !important; 
           border-radius: 10px !important;
           box-shadow: ${isDarkMode ? 'none' : '0 4px 6px -1px rgb(0 0 0 / 0.1)'} !important;
         }
@@ -853,13 +582,13 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
           border-color: ${isDarkMode ? '#7560a8' : '#c8b6ff'} !important;
           color: ${isDarkMode ? '#eee7ff' : '#5e35b1'} !important;
         }
-        .medichem-eln-link-button {
+        .eln-link-button {
           background: ${isDarkMode ? '#3a271f' : '#fff1e8'} !important;
           border-color: ${isDarkMode ? '#8a5a3c' : '#ffd3ba'} !important;
           color: ${isDarkMode ? '#ffd5bd' : '#c45a1c'} !important;
         }
-        .medichem-eln-link-button:hover,
-        .medichem-eln-link-button:focus {
+        .eln-link-button:hover,
+        .eln-link-button:focus {
           background: ${isDarkMode ? '#4a3328' : '#ffe8d8'} !important;
           border-color: ${isDarkMode ? '#a66f4a' : '#ffc19e'} !important;
           color: ${isDarkMode ? '#ffe6d8' : '#a94712'} !important;
@@ -892,8 +621,8 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
           min-width: 0;
           line-height: 1;
         }
-        .app-sidebar-wordmark-medichem {
-          color: #6abf4b;
+        .app-sidebar-wordmark-brand {
+          color: var(--brand-primary) !important; 
           font-size: 14px;
           font-weight: 800;
           letter-spacing: 0;
@@ -937,13 +666,13 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
           scrollbar-color: ${isDarkMode ? '#4b5563 transparent' : '#c4cbd3 transparent'};
         }
         .app-sidebar-scroll-area-full .vora-link-button,
-        .app-sidebar-scroll-area-full .medichem-eln-link-button {
+        .app-sidebar-scroll-area-full .eln-link-button {
           width: calc(100% - 24px) !important;
           margin-left: 12px !important;
           margin-right: 0 !important;
         }
         .app-sidebar-scroll-area-mini .vora-link-button,
-        .app-sidebar-scroll-area-mini .medichem-eln-link-button {
+        .app-sidebar-scroll-area-mini .eln-link-button {
           width: 34px !important;
           min-width: 34px !important;
           margin-left: auto !important;

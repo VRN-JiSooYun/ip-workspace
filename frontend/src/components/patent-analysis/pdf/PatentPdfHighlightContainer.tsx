@@ -148,7 +148,7 @@ const PatentPdfHighlightContainer: React.FC<PatentPdfHighlightContainerProps> = 
       highlight={highlight}
       isScrolledTo={isScrolledTo}
       style={{ 
-        background: isUserAnnotation ? 'rgba(255, 226, 143, 0.5)' : 'rgba(248, 124, 99, 0.3)', 
+        background: isUserAnnotation ? 'rgba(255, 226, 143, 0.5)' : 'rgba(var(--brand-primary-rgb), 0.3)', 
         borderRadius: '4px' 
       }}
     />

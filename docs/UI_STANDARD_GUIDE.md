@@ -31,7 +31,7 @@
   - 기본 위치는 하단 우측입니다.
   - `ant-pagination-total-text`는 표시하지 않습니다.
   - 기본 page size 옵션은 `[10, 30, 50, 100]`입니다.
-  - 선택된 page item은 primary 색상(`#F87C63`)을 사용합니다.
+  - 선택된 page item은 primary 색상을 사용합니다. hex 를 직접 쓰지 말고 CSS 에서는 `var(--brand-primary)`, 리터럴 색상 값이 필요한 곳(antd token, SVG `fill`/`stroke`, canvas 차트)에서는 `useBrandPrimary()` / `getBrandPrimary()` 를 사용합니다. 단일 출처는 `frontend/src/theme/brandColor.ts` 의 `DEFAULT_BRAND_PRIMARY` 입니다.
   - page item은 24px 높이와 32px 최소 폭을 기본으로 사용하고, page size select는 24px 높이를 기본으로 사용합니다.
   - page item, 선택된 page item, prev/next control은 pill radius(`990px`)를 사용합니다.
   - page number는 셋 자리 comma를 적용하고, page item은 auto width와 충분한 좌우 여백을 유지합니다.

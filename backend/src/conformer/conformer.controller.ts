@@ -1,9 +1,9 @@
-import { Body, Controller, Post } from '@nestjs/common';
-import { SkipTimeout } from '../common/decorators/skip-timeout.decorator';
-import { ConformerService } from './conformer.service';
-import { GenerateConformerDto } from './dto/generate-conformer.dto';
+import { Body, Controller, Post } from "@nestjs/common";
+import { SkipTimeout } from "../common/decorators/skip-timeout.decorator";
+import { ConformerService } from "./conformer.service";
+import { GenerateConformerDto } from "./dto/generate-conformer.dto";
 
-@Controller('api/3d-conformer')
+@Controller("api/3d-conformer")
 export class ConformerController {
   constructor(private readonly conformerService: ConformerService) {}
 

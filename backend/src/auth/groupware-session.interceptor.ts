@@ -3,13 +3,13 @@ import {
   ExecutionContext,
   Injectable,
   UnauthorizedException,
-} from '@nestjs/common';
-import type { Request } from 'express';
-import type { Observable } from 'rxjs';
-import { authRuntimeConfig } from './auth-config';
-import { validateGroupwareToken } from './groupware-login-check';
-import { GroupwareTokenService } from './groupware-token.service';
-import { PrismaService } from '../database/prisma.service';
+} from "@nestjs/common";
+import type { Request } from "express";
+import type { Observable } from "rxjs";
+import { authRuntimeConfig } from "./auth-config";
+import { validateGroupwareToken } from "./groupware-login-check";
+import { GroupwareTokenService } from "./groupware-token.service";
+import { PrismaService } from "../database/prisma.service";
 
 type AuthenticatedRequest = Request & {
   session?: { user?: { id?: string; status?: string } };
@@ -22,9 +22,15 @@ export class GroupwareSessionInterceptor {
     private readonly groupwareToken: GroupwareTokenService,
   ) {}
 
-  async intercept(context: ExecutionContext, next: CallHandler): Promise<Observable<unknown>> {
+  async intercept(
+    context: ExecutionContext,
+    next: CallHandler,
+  ): Promise<Observable<unknown>> {
     const request = context.switchToHttp().getRequest<AuthenticatedRequest>();
-    if (request.path.startsWith('/api/auth') || request.path.startsWith('/health')) {
+    if (
+      request.path.startsWith("/api/auth") ||
+      request.path.startsWith("/health")
+    ) {
       return next.handle();
     }
     const userId = request.session?.user?.id;
@@ -39,38 +45,40 @@ export class GroupwareSessionInterceptor {
         notificationRecipient: {
           select: { memberId: true, status: true },
         },
-        accounts: { where: { providerId: 'groupware' }, take: 1 },
+        accounts: { where: { providerId: "groupware" }, take: 1 },
       },
     });
-    if (!user || user.status !== 'ACTIVE') {
+    if (!user || user.status !== "ACTIVE") {
       await this.prisma.client.session.deleteMany({ where: { userId } });
-      throw new UnauthorizedException('AUTH_USER_INACTIVE');
+      throw new UnauthorizedException("AUTH_USER_INACTIVE");
     }
     if (
-      !user.notificationRecipient?.memberId
-      || user.notificationRecipient.status !== 'ACTIVE'
+      !user.notificationRecipient?.memberId ||
+      user.notificationRecipient.status !== "ACTIVE"
     ) {
       await this.prisma.client.session.deleteMany({ where: { userId } });
-      throw new UnauthorizedException('AUTH_MEMBER_ID_NOT_LINKED');
+      throw new UnauthorizedException("AUTH_MEMBER_ID_NOT_LINKED");
     }
     const account = user.accounts[0];
     if (!account) {
       await this.prisma.client.session.deleteMany({ where: { userId } });
-      throw new UnauthorizedException('GROUPWARE_ACCOUNT_NOT_FOUND');
+      throw new UnauthorizedException("GROUPWARE_ACCOUNT_NOT_FOUND");
     }
 
     const revalidateAfter = authRuntimeConfig.revalidateIntervalSeconds * 1000;
     if (
-      !user.team
-      || !user.fullname
-      || !account.tokenValidatedAt
-      || Date.now() - account.tokenValidatedAt.getTime() >= revalidateAfter
+      !user.team ||
+      !user.fullname ||
+      !account.tokenValidatedAt ||
+      Date.now() - account.tokenValidatedAt.getTime() >= revalidateAfter
     ) {
       try {
-        const token = await this.groupwareToken.decrypt(account.accessToken ?? '');
+        const token = await this.groupwareToken.decrypt(
+          account.accessToken ?? "",
+        );
         const identity = await validateGroupwareToken(token);
         if (identity.email !== account.accountId.toLowerCase()) {
-          throw new Error('GROUPWARE_ID_CHANGED');
+          throw new Error("GROUPWARE_ID_CHANGED");
         }
         await this.prisma.client.$transaction([
           this.prisma.client.user.update({
@@ -88,7 +96,7 @@ export class GroupwareSessionInterceptor {
         ]);
       } catch {
         await this.prisma.client.session.deleteMany({ where: { userId } });
-        throw new UnauthorizedException('GROUPWARE_REAUTH_REQUIRED');
+        throw new UnauthorizedException("GROUPWARE_REAUTH_REQUIRED");
       }
     }
     return next.handle();

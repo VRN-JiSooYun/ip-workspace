@@ -62,6 +62,7 @@ declare module '*.png' {
 }
 
 interface ImportMetaEnv {
+  readonly DEV: boolean;
   readonly PROD: boolean;
   readonly BASE_URL: string;
   readonly VITE_API_URL?: string;
@@ -71,6 +72,7 @@ interface ImportMetaEnv {
   readonly VITE_MONITORING_URL?: string;
   readonly VITE_CHEMDRAW_CLIPBOARD_FIXER_URL?: string;
   readonly VITE_GMAIL_ALLOWED_RECIPIENT_DOMAINS?: string;
+  readonly VITE_AUTH_BYPASS?: string;
 }
 
 interface ImportMeta {

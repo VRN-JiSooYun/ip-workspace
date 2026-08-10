@@ -6,11 +6,11 @@ import {
   IsString,
   MaxLength,
   MinLength,
-} from 'class-validator';
+} from "class-validator";
 
 export enum RequestedQuantumJobType {
-  PSA = 'PSA',
-  ESOL = 'ESOL',
+  PSA = "PSA",
+  ESOL = "ESOL",
 }
 
 export class CreateQuantumCalculationDto {

@@ -2,39 +2,25 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { App as AntApp, ConfigProvider, theme } from 'antd';
 import { useTheme } from './contexts/ThemeContext';
+import { brandAlpha, useBrandPrimary } from './theme/brandColor';
+import BrandColorDevPanel from './theme/BrandColorDevPanel';
 import MainLayout from './components/layout/MainLayout';
-import Dashboard from './pages/Dashboard';
-import MyBoard from './pages/MyBoard';
-import MyBoardSynthesisBoard from './pages/MyBoardSynthesisBoard';
-import SarTable from './pages/SarTable';
-import ChemSpace from './pages/ChemSpace';
-import ChemSpace3D from './pages/ChemSpace3D';
-import ReactionPredictor from './pages/ReactionPredictor';
-import PatentAnalysisList from './pages/PatentAnalysisList';
-import PatentAnalysisDetail from './pages/PatentAnalysisDetail';
-import PatentInsight from './pages/PatentInsight';
-import DevelopmentStatus from './pages/DevelopmentStatus';
-import Monitoring from './pages/Monitoring';
-import EmptyPage from './pages/EmptyPage';
-import UniversalSearch from './pages/UniversalSearch';
 import AuthGate from './components/auth/AuthGate';
-import AccessRegistry from './pages/AccessRegistry';
-import Contact from './pages/Contact';
-import ConferenceList from './pages/ConferenceList';
-import ConferenceAbstractDetail from './pages/ConferenceAbstractDetail';
-import ConferenceAdmin from './pages/ConferenceAdmin';
-import PatentAnalysisAdmin from './pages/PatentAnalysisAdmin';
 import RequirePermission from './components/auth/RequirePermission';
+import { APP_ROUTES } from './routes';
 
 const App: React.FC = () => {
   const { isDarkMode } = useTheme();
+  // antd parses this hex to derive its own palette, so it needs a literal
+  // value rather than var(--brand-primary).
+  const brandPrimary = useBrandPrimary();
 
   return (
     <ConfigProvider
       theme={{
         algorithm: isDarkMode ? theme.darkAlgorithm : theme.defaultAlgorithm,
         token: {
-          colorPrimary: '#F87C63',
+          colorPrimary: brandPrimary,
           borderRadius: 12,
           fontSize: 13,
           fontSizeSM: 11,
@@ -55,7 +41,7 @@ const App: React.FC = () => {
             borderRadius: 12,
             headerBg: isDarkMode ? '#2a2a2a' : '#edf0f3',
             headerColor: isDarkMode ? 'rgba(255,255,255,0.85)' : '#495057',
-            rowHoverBg: isDarkMode ? 'rgba(248, 124, 99, 0.18)' : 'rgba(248, 124, 99, 0.12)',
+            rowHoverBg: isDarkMode ? brandAlpha(0.18) : brandAlpha(0.12),
           },
           Input: {
             borderRadius: 12,
@@ -73,7 +59,7 @@ const App: React.FC = () => {
           Menu: {
             itemBg: 'transparent',
             itemSelectedBg: isDarkMode ? '#2b2b2b' : '#ffffff',
-            itemSelectedColor: '#F87C63',
+            itemSelectedColor: brandPrimary,
             itemHoverBg: isDarkMode ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)',
           },
           Button: {
@@ -88,62 +74,28 @@ const App: React.FC = () => {
           <AuthGate>
             <MainLayout>
             <Routes>
-              <Route path="/" element={<Navigate to="/dashboard" replace />} />
-              <Route path="/dashboard" element={<Dashboard />} />
-              <Route path="/design" element={<RequirePermission permission="design.read"><MyBoard /></RequirePermission>} />
-              <Route path="/synthesis" element={<RequirePermission permission="synthesis.read"><EmptyPage title="Synthesis" breadcrumb={[{ label: 'Synthesis' }]} /></RequirePermission>} />
-              <Route path="/myboard" element={<RequirePermission permission="design.read"><MyBoard /></RequirePermission>} />
-              <Route path="/compounds/search" element={<EmptyPage title="Search" breadcrumb={[{ label: 'Compounds' }, { label: 'Search' }]} />} />
-              <Route path="/my-tree" element={<EmptyPage title="My tree" breadcrumb={[{ label: 'Compounds' }, { label: 'My tree' }]} />} />
-              <Route path="/chem-space" element={<ChemSpace />} />
-              <Route path="/chem-space-3d" element={<ChemSpace3D />} />
-              <Route path="/clustering" element={<EmptyPage title="Clustering" breadcrumb={[{ label: 'Compounds' }, { label: 'Clustering' }]} />} />
-              <Route path="/reaction-predictor" element={<ReactionPredictor />} />
-              <Route path="/myboard/sar-table" element={<RequirePermission permission="sarTable.read"><SarTable /></RequirePermission>} />
-              <Route path="/myboard/synthesis-board" element={<RequirePermission permission="synthesis.read"><MyBoardSynthesisBoard /></RequirePermission>} />
-              <Route path="/sar-table" element={<Navigate to="/myboard/sar-table" replace />} />
-              <Route path="/synthesis-board" element={<Navigate to="/myboard/synthesis-board" replace />} />
-              <Route path="/patents/write" element={<RequirePermission permission="patentAnalysis.read"><EmptyPage title="My 특허 쓰기" breadcrumb={[{ label: 'Documents' }, { label: 'Patents' }, { label: 'My 특허 쓰기' }]} /></RequirePermission>} />
-              <Route path="/patents/analysis" element={<RequirePermission permission="patentAnalysis.read"><PatentAnalysisList /></RequirePermission>} />
-              <Route path="/patents/analysis/:id" element={<RequirePermission permission="patentAnalysis.read"><PatentAnalysisDetail /></RequirePermission>} />
-              <Route path="/patents/insight" element={<RequirePermission permission="patentAnalysis.read"><PatentInsight /></RequirePermission>} />
-              <Route path="/patents/manage" element={<RequirePermission permission="patentAnalysis.read"><EmptyPage title="My 특허 관리" breadcrumb={[{ label: 'Documents' }, { label: 'Patents' }, { label: 'My 특허 관리' }]} /></RequirePermission>} />
-              <Route path="/papers/manage" element={<EmptyPage title="My 논문 관리" breadcrumb={[{ label: 'Documents' }, { label: 'Papers' }, { label: 'My 논문 관리' }]} />} />
-              <Route path="/conferences" element={<RequirePermission permission="conference.read"><ConferenceList /></RequirePermission>} />
-              <Route path="/conferences/abstracts/:abstractId" element={<RequirePermission permission="conference.read"><ConferenceAbstractDetail /></RequirePermission>} />
-              <Route path="/pdbs" element={<EmptyPage title="PDBs" breadcrumb={[{ label: 'PDBs' }]} />} />
-              <Route path="/universal-search" element={<UniversalSearch />} />
-              <Route path="/monitoring" element={<Monitoring />} />
-              <Route path="/development-status" element={<DevelopmentStatus />} />
-              <Route
-                path="/workspace/access-registry"
-                element={(
-                  <RequirePermission permission="userAccess.manage">
-                    <AccessRegistry />
-                  </RequirePermission>
-                )}
-              />
-              <Route
-                path="/workspace/conference-admin"
-                element={(
-                  <RequirePermission permission="conference.manage">
-                    <ConferenceAdmin />
-                  </RequirePermission>
-                )}
-              />
-              <Route
-                path="/workspace/patent-analysis-admin"
-                element={(
-                  <RequirePermission permission="patentAnalysis.manage">
-                    <PatentAnalysisAdmin />
-                  </RequirePermission>
-                )}
-              />
-              <Route path="/contact" element={<Contact />} />
-              <Route path="*" element={<Navigate to="/dashboard" replace />} />
+              {APP_ROUTES.map((route) => (
+                <Route
+                  key={route.path}
+                  path={route.path}
+                  element={
+                    route.redirectTo
+                      ? <Navigate to={route.redirectTo} replace />
+                      : route.permission
+                        ? (
+                          <RequirePermission permission={route.permission}>
+                            {route.element}
+                          </RequirePermission>
+                        )
+                        : route.element
+                  }
+                />
+              ))}
             </Routes>
             </MainLayout>
           </AuthGate>
+          {/* Static false in production, so Rollup drops the panel entirely. */}
+          {import.meta.env.DEV && <BrandColorDevPanel />}
         </AntApp>
       </Router>
     </ConfigProvider>

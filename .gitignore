@@ -24,6 +24,10 @@ out/
 **/token.json
 **/*credential*.json
 
+# 그룹웨어 구성원 원본은 Git에 넣지 않는다 (docs/cicd_diagram.md 참고).
+# 배포 시 host의 파일을 mount하고, 로컬에서는 각자 채워 쓴다.
+backend/imports/groupware-members/getMembers.json
+
 # IDE / Editor
 .vscode/
 .idea/

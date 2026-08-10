@@ -1,4 +1,5 @@
 import React from 'react';
+import { useBrandPrimary } from '../../theme/brandColor';
 
 interface RadarChartProps {
   data: number[];
@@ -7,12 +8,15 @@ interface RadarChartProps {
   max?: number;
 }
 
-const RadarChart: React.FC<RadarChartProps> = ({ 
-  data, 
-  size = 60, 
-  color = '#F87C63', 
-  max = 100 
+const RadarChart: React.FC<RadarChartProps> = ({
+  data,
+  size = 60,
+  color,
+  max = 100
 }) => {
+  // Feeds the SVG `fill`/`stroke` attributes, which do not resolve var().
+  const brandPrimary = useBrandPrimary();
+  const strokeColor = color ?? brandPrimary;
   const center = size / 2;
   const radius = (size / 2) * 0.8;
   const totalPoints = data.length;
@@ -49,9 +53,9 @@ const RadarChart: React.FC<RadarChartProps> = ({
       {/* Data Polygon */}
       <polygon
         points={points}
-        fill={color}
+        fill={strokeColor}
         fillOpacity="0.4"
-        stroke={color}
+        stroke={strokeColor}
         strokeWidth="1.5"
       />
     </svg>

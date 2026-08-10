@@ -1,4 +1,4 @@
-import { defineConfig } from 'vite';
+import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
 
 const monitoringProxy = {
@@ -7,7 +7,17 @@ const monitoringProxy = {
 };
 
 // https://vitejs.dev/config/
-export default defineConfig({
+export default defineConfig(({ mode }) => {
+  // 컨테이너 hostname이 기본값이므로 docker compose 동작은 그대로 유지된다.
+  // 호스트에서 직접 `bun run dev`로 띄울 때는 .env.local에서 published port로 덮어쓴다.
+  const env = loadEnv(mode, process.cwd(), '');
+  const rdkitApiTarget =
+    env.RDKIT_API_PROXY_TARGET || 'http://local-myworkspace-rdkit-api:8000';
+  const compoundSearchApiTarget =
+    env.COMPOUND_SEARCH_API_PROXY_TARGET ||
+    'http://local-myworkspace-compound-search-api:8080';
+
+  return {
   plugins: [react()],
   define: {
     'process.env.DRAGGABLE_DEBUG': 'false',
@@ -17,12 +27,12 @@ export default defineConfig({
     port: 5173,
     proxy: {
       '/rdkit-api': {
-        target: 'http://local-myworkspace-rdkit-api:8000',
+        target: rdkitApiTarget,
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/rdkit-api/, ''),
       },
       '/compound-search-api': {
-        target: 'http://local-myworkspace-compound-search-api:8080',
+        target: compoundSearchApiTarget,
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/compound-search-api/, ''),
       },
@@ -58,4 +68,5 @@ export default defineConfig({
       include: [/pdfjs-dist/, /node_modules/],
     },
   },
+  };
 });
