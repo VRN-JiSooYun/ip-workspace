@@ -321,9 +321,7 @@ const PatentDocumentViewer: React.FC<Props> = ({
     >
       <div className="pm-card-header">
         <span className="pm-card-title">문서 뷰어</span>
-        <Button icon={<X size={14} />} onClick={onClose} style={{ height: 32 }}>
-          뷰어 닫기
-        </Button>
+        <Button icon={<X size={14} />} onClick={onClose} style={{ height: 32 }}/>
       </div>
 
       {!item ? (

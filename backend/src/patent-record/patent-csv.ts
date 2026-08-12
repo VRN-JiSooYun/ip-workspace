@@ -305,13 +305,19 @@ export const parseCsv = (input: string): string[][] => {
   return rows.filter((cells) => cells.some((value) => value.trim() !== ""));
 };
 
-/** `2026-08-10`, `2026.08.10`, `2026/08/10`, `20260810`을 모두 받는다. */
+/**
+ * `2026-08-10`, `2026.08.10`, `2026/08/10`, `20260810`을 모두 받는다.
+ *
+ * 구분자 주변 공백과 끝의 마침표도 허용한다. Sheets가 한국 로캘에서 날짜를
+ * `2026. 8. 10.`으로 써 내보내기 때문이다.
+ */
 export const parseCsvDate = (value: string): Date | null => {
   const trimmed = value.trim();
   if (!trimmed) return null;
 
   const compact = /^(\d{4})(\d{2})(\d{2})$/.exec(trimmed);
-  const delimited = /^(\d{4})[-./](\d{1,2})[-./](\d{1,2})$/.exec(trimmed);
+  const delimited =
+    /^(\d{4})\s*[-./]\s*(\d{1,2})\s*[-./]\s*(\d{1,2})\s*\.?$/.exec(trimmed);
   const match = compact ?? delimited;
   if (!match) return null;
 

@@ -2,8 +2,32 @@ import {
   PATENT_CSV_COLUMNS,
   buildTemplateCsv,
   parseCsv,
+  parseCsvDate,
   resolveHeaderField,
 } from "./patent-csv";
+
+describe("parseCsvDate", () => {
+  const iso = (value: string) => parseCsvDate(value)?.toISOString().slice(0, 10);
+
+  it("시트에서 실제로 나오는 표기를 모두 읽는다", () => {
+    expect(iso("2024-09-30")).toBe("2024-09-30");
+    expect(iso("2024.09.30")).toBe("2024-09-30");
+    expect(iso("2024/09/30")).toBe("2024-09-30");
+    expect(iso("20240930")).toBe("2024-09-30");
+    // Sheets 한국 로캘: 구분자 뒤 공백과 끝 마침표가 붙는다.
+    expect(iso("2024. 9. 30")).toBe("2024-09-30");
+    expect(iso("2024. 9. 30.")).toBe("2024-09-30");
+  });
+
+  it("빈 값은 null, 날짜가 아니면 null을 준다", () => {
+    // null이면 호출 쪽이 행 오류로 만든다. 문자열이 그대로 흘러가면 DateTime
+    // 컬럼에 들어가면서 500이 된다.
+    expect(parseCsvDate("")).toBeNull();
+    expect(parseCsvDate("   ")).toBeNull();
+    expect(parseCsvDate("미정")).toBeNull();
+    expect(parseCsvDate("2024-13-01")).toBeNull();
+  });
+});
 
 /**
  * PATENT_CSV_COLUMNS는 템플릿 생성과 import 헤더 인식을 동시에 담당한다.
