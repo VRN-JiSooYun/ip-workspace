@@ -1,4 +1,6 @@
 import { BadRequestException, Injectable, Logger } from "@nestjs/common";
+// 이 프로젝트는 @prisma/client가 아니라 generator output(src/generated/prisma)을 쓴다.
+import type { Prisma } from "../generated/prisma/client";
 import { PrismaService } from "../database/prisma.service";
 import { buildInternalRefColumns, normalizeInternalRef } from "./internal-ref";
 import {
@@ -36,6 +38,7 @@ export type ImportResult = {
     countries: string[];
     legalStatuses: string[];
     examStatuses: string[];
+    targets: string[];
   };
   issues: ImportIssue[];
 };
@@ -383,16 +386,17 @@ export class PatentRecordImportService {
   }
 
   /**
-   * country·legal_status·exam_status는 없으면 APPLY 때 만든다.
+   * country·legal_status·exam_status·target은 없으면 APPLY 때 만든다.
    * attorney는 PK가 외부 대리인번호라 임의 생성이 불가능해 오류로 남긴다.
    */
   private async resolveCodes(candidates: Candidate[], issues: ImportIssue[]) {
-    const [countries, legalStatuses, examStatuses, attorneys] =
+    const [countries, legalStatuses, examStatuses, attorneys, targets] =
       await Promise.all([
         this.prisma.client.country.findMany(),
         this.prisma.client.legalStatus.findMany(),
         this.prisma.client.examStatus.findMany(),
         this.prisma.client.attorney.findMany(),
+        this.prisma.client.patentTarget.findMany(),
       ]);
 
     const countryIds = new Map(
@@ -413,12 +417,17 @@ export class PatentRecordImportService {
           row.attorneyNumber,
         ]),
     );
+    const targetValues = new Map(
+      targets.map((row) => [normalizeCode(row.target), row.target]),
+    );
 
     const newCountries = new Map<string, string>();
     const newLegalStatuses = new Map<string, string>();
     const newExamStatuses = new Map<string, string>();
+    const newTargets = new Map<string, string>();
     const failedRows = new Set<number>();
     const attorneyByRow = new Map<number, number | null>();
+    const targetByRow = new Map<number, string | null>();
 
     for (const candidate of candidates) {
       const countryKey = normalizeCode(candidate.country);
@@ -437,6 +446,18 @@ export class PatentRecordImportService {
         if (!examStatusIds.has(key) && !newExamStatuses.has(key)) {
           newExamStatuses.set(key, candidate.examStatus);
         }
+      }
+      if (candidate.data.target) {
+        const key = normalizeCode(candidate.data.target);
+        const resolved = targetValues.get(key) ?? newTargets.get(key);
+        if (resolved) {
+          targetByRow.set(candidate.rowNumber, resolved);
+        } else {
+          newTargets.set(key, candidate.data.target);
+          targetByRow.set(candidate.rowNumber, candidate.data.target);
+        }
+      } else {
+        targetByRow.set(candidate.rowNumber, null);
       }
 
       // 대리인은 번호 우선, 없으면 이름으로 찾는다.
@@ -481,11 +502,13 @@ export class PatentRecordImportService {
       examStatusIds,
       attorneyIdsByName,
       attorneyByRow,
+      targetByRow,
       failedRows,
       newCodes: {
         countries: [...newCountries.values()],
         legalStatuses: [...newLegalStatuses.values()],
         examStatuses: [...newExamStatuses.values()],
+        targets: [...newTargets.values()],
       },
     };
   }
@@ -575,6 +598,9 @@ export class PatentRecordImportService {
         const created = await tx.examStatus.create({ data: { status: value } });
         examStatusIds.set(normalizeCode(value), created.id);
       }
+      for (const value of resolution.newCodes.targets) {
+        await tx.patentTarget.create({ data: { target: value } });
+      }
 
       for (const { candidate, existingId } of writable) {
         const countryId = countryIds.get(normalizeCode(candidate.country));
@@ -585,6 +611,7 @@ export class PatentRecordImportService {
 
         const data = {
           ...candidate.data,
+          target: resolution.targetByRow.get(candidate.rowNumber) ?? null,
           ...buildInternalRefColumns(candidate.internalRef),
           countryId,
           attorneyNumber,
@@ -598,12 +625,45 @@ export class PatentRecordImportService {
 
         if (existingId !== null) {
           await tx.patent.update({ where: { id: existingId }, data });
+          await this.syncLegacyTodo(
+            tx,
+            existingId,
+            candidate.data.todoDueDate,
+          );
         } else {
-          await tx.patent.create({
+          const created = await tx.patent.create({
             data: { ...data, applicationNumber: candidate.applicationNumber },
+            select: { id: true },
           });
+          await this.syncLegacyTodo(
+            tx,
+            created.id,
+            candidate.data.todoDueDate,
+          );
         }
       }
+    });
+  }
+
+  private async syncLegacyTodo(
+    tx: Prisma.TransactionClient,
+    patentId: number,
+    dueDate: Date | null,
+  ) {
+    const sourceKey = `PATENT_TODO_DUE_DATE:${patentId}`;
+    if (!dueDate) {
+      await tx.patentTodo.deleteMany({ where: { sourceKey } });
+      return;
+    }
+    await tx.patentTodo.upsert({
+      where: { sourceKey },
+      create: {
+        patentId,
+        title: "기존 To-do",
+        dueDate,
+        sourceKey,
+      },
+      update: { dueDate },
     });
   }
 }

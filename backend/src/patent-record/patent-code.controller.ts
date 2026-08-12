@@ -18,8 +18,8 @@ import {
 import { ParsePatentCodeTypePipe } from "./parse-patent-code-type.pipe";
 
 /**
- * 특허 도메인 코드 테이블(country, attorney, legal_status, exam_status) 관리.
- * 네 테이블의 모양이 같아 `:type`으로 묶었다. 허용값은 PATENT_CODE_TYPES뿐이다.
+ * 특허 도메인 코드 테이블(country, attorney, legal_status, exam_status, target) 관리.
+ * 테이블의 모양이 같아 `:type`으로 묶었다. 허용값은 PATENT_CODE_TYPES뿐이다.
  */
 @RequirePermissions("patentAnalysis.read")
 @Controller("api/patent-codes")

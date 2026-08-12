@@ -12,6 +12,7 @@ export const PATENT_CODE_TYPES = [
   "attorneys",
   "legal-statuses",
   "exam-statuses",
+  "targets",
 ] as const;
 
 export type PatentCodeType = (typeof PATENT_CODE_TYPES)[number];
@@ -73,6 +74,17 @@ export class PatentCodeService {
           usageCount: row._count.patents,
         }));
       }
+      case "targets": {
+        const rows = await this.prisma.client.patentTarget.findMany({
+          orderBy: { target: "asc" },
+          include: { _count: { select: { patents: true } } },
+        });
+        return rows.map((row) => ({
+          id: row.id,
+          value: row.target,
+          usageCount: row._count.patents,
+        }));
+      }
     }
   }
 
@@ -123,6 +135,13 @@ export class PatentCodeService {
           data: { status: value },
         });
         return { id: row.id, value: row.status, usageCount: 0 };
+      }
+      case "targets": {
+        await this.assertTargetNameFree(value);
+        const row = await this.prisma.client.patentTarget.create({
+          data: { target: value },
+        });
+        return { id: row.id, value: row.target, usageCount: 0 };
       }
     }
   }
@@ -186,13 +205,26 @@ export class PatentCodeService {
           usageCount: row._count.patents,
         };
       }
+      case "targets": {
+        await this.assertTargetNameFree(value, id);
+        const row = await this.prisma.client.patentTarget.update({
+          where: { id },
+          data: { target: value },
+          include: { _count: { select: { patents: true } } },
+        });
+        return {
+          id: row.id,
+          value: row.target,
+          usageCount: row._count.patents,
+        };
+      }
     }
   }
 
   /**
    * 사용 중인 코드는 지우지 않는다.
    * schema상 country는 Restrict라 어차피 막히지만, 나머지 셋은 SetNull이라
-   * 그대로 두면 특허 수백 건의 값이 조용히 비워진다. 네 종류 모두 동일하게 막는다.
+   * 그대로 두면 특허 수백 건의 값이 조용히 비워진다. 모든 종류를 동일하게 막는다.
    */
   async remove(type: PatentCodeType, id: number): Promise<{ id: number }> {
     await this.assertExists(type, id);
@@ -216,6 +248,9 @@ export class PatentCodeService {
       case "exam-statuses":
         await this.prisma.client.examStatus.delete({ where: { id } });
         break;
+      case "targets":
+        await this.prisma.client.patentTarget.delete({ where: { id } });
+        break;
     }
     return { id };
   }
@@ -234,6 +269,13 @@ export class PatentCodeService {
         });
       case "exam-statuses":
         return this.prisma.client.patent.count({ where: { examStatusId: id } });
+      case "targets": {
+        const row = await this.prisma.client.patentTarget.findUnique({
+          where: { id },
+          select: { _count: { select: { patents: true } } },
+        });
+        return row?._count.patents ?? 0;
+      }
     }
   }
 
@@ -260,6 +302,11 @@ export class PatentCodeService {
             where: { id },
             select: { id: true },
           });
+        case "targets":
+          return this.prisma.client.patentTarget.findUnique({
+            where: { id },
+            select: { id: true },
+          });
       }
     })();
     if (!found) throw new NotFoundException("PATENT_CODE_NOT_FOUND");
@@ -272,6 +319,16 @@ export class PatentCodeService {
     });
     if (existing && existing.id !== excludeId) {
       throw new ConflictException("PATENT_COUNTRY_DUPLICATED");
+    }
+  }
+
+  private async assertTargetNameFree(target: string, excludeId?: number) {
+    const existing = await this.prisma.client.patentTarget.findUnique({
+      where: { target },
+      select: { id: true },
+    });
+    if (existing && existing.id !== excludeId) {
+      throw new ConflictException("PATENT_TARGET_DUPLICATED");
     }
   }
 }

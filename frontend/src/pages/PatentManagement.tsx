@@ -5,8 +5,6 @@ import {
   Checkbox,
   Input,
   Pagination,
-  Segmented,
-  Select,
   Table,
   Tag,
   Tooltip,
@@ -23,7 +21,7 @@ import {
   FileCheck,
   Filter,
   Gavel,
-  Info,
+  ListTodo,
   Pencil,
   Plus,
   Reply,
@@ -33,24 +31,19 @@ import {
   UploadCloud,
 } from 'lucide-react';
 import PageHeaderBreadcrumb from '../components/common/PageHeaderBreadcrumb';
-import ResizableSidePanel from '../components/common/ResizableSidePanel';
 import PatentCsvImportModal from '../components/patent-management/PatentCsvImportModal';
-import PatentDocumentViewer from '../components/patent-management/PatentDocumentViewer';
 import PatentRecordFormModal from '../components/patent-management/PatentRecordFormModal';
+import PatentTodoModal from '../components/patent-management/PatentTodoModal';
 import { useAccessContext } from '../contexts/AccessContext';
 import {
   patentRecordApi,
   type CreatePatentRecordInput,
   type PatentRecord,
   type PatentRecordLookups,
+  type PatentScheduleEvent,
+  type PatentScheduleResult,
+  type PatentTargetSummary,
 } from '../services/patentRecordApi';
-import {
-  PATENT_SEARCH_KEYWORD_TARGET_LABELS,
-  PATENT_SEARCH_KEYWORD_TARGETS,
-  patentSearchApi,
-  type PatentSearchItem,
-  type PatentSearchKeywordTarget,
-} from '../services/patentSearchApi';
 import { useUIStore } from '../store/useUIStore';
 import { formatDisplayDateOnly, formatNumberWithComma } from '../utils/displayFormat';
 import './PatentManagement.css';
@@ -64,27 +57,17 @@ const getErrorMessage = (error: unknown) =>
 
 const emptyDash = (value: string | null | undefined) => value ?? '-';
 
-/** 관련 특허 목록의 데이터 출처. */
-type ListSource = 'search' | 'records';
-
-/** 문서가 하나라도 붙어 있는 행만 뷰어로 열 수 있다. */
-const hasDocuments = (item: PatentSearchItem): boolean =>
-  item.contentLength > 0 ||
-  item.documentPath !== null ||
-  item.submissions.length > 0;
-
 /**
  * 특허 관리 — compound-driven patent portfolio view.
  *
- * 관련 특허 목록은 두 출처를 토글로 바꿔 본다.
- * - `search`: `/api/patent-search` (외부 전문 검색). 결과 1건이 OA 1건이고 문서 본문이
- *   딸려 오므로 행을 클릭하면 오른쪽 문서 뷰어에 렌더링된다.
- * - `records`: `/api/patent-records` (로컬 `patent` table). 추가·변경·삭제 대상이다.
+ * 관련 특허 목록은 `/api/patent-records`(로컬 `patent` table)만 본다. 추가·변경·삭제
+ * 대상이 이 table이다.
  *
- * 두 출처는 조회할 수 있는 조건이 다르다. 검색 API에는 출원번호·명칭 부분 일치 검색이 없고
- * 문서 전문 키워드와 구조화된 filter만 있다. 반대로 로컬 table에는 문서 본문이 없다.
+ * 예전에는 `/api/patent-search`(외부 문서 전문 검색)를 토글로 함께 보여주고 행을 누르면
+ * 오른쪽 문서 뷰어를 띄웠다. 문서 검색은 의견제출통지서 화면(`OfficeActionAnalysis`)으로
+ * 일원화해서 여기서는 뺐다.
  *
- * 나머지 패널(마감 일정, 화합물, 단계)은 아직 placeholder 상수다.
+ * 진행 단계 pipeline은 아직 placeholder 상수다. 일정·To-do·Target은 로컬 DB를 조회한다.
  */
 
 type StageKey =
@@ -96,26 +79,6 @@ type StageKey =
   | 'registered'
   | 'closed';
 
-type Compound = { code: string; count: number };
-
-type Deadline = {
-  code: string;
-  country: string;
-  date: string;
-  daysLeft: number;
-};
-
-const COMPOUNDS: Compound[] = [
-  { code: 'A-1010', count: 12 },
-  { code: 'B-2020', count: 9 },
-  { code: 'C-3030', count: 7 },
-  { code: 'D-4040', count: 8 },
-  { code: 'E-5050', count: 6 },
-  { code: 'F-6060', count: 5 },
-  { code: 'G-7070', count: 4 },
-  { code: 'H-8080', count: 3 },
-];
-
 const STAGES: Array<{ key: StageKey; label: string; count: number; icon: React.ReactNode }> = [
   { key: 'prep', label: '출원 준비', count: 5, icon: <ClipboardList size={18} /> },
   { key: 'filed', label: '출원', count: 18, icon: <Send size={18} /> },
@@ -126,17 +89,31 @@ const STAGES: Array<{ key: StageKey; label: string; count: number; icon: React.R
   { key: 'closed', label: '종결', count: 3, icon: <Archive size={18} /> },
 ];
 
-const DEADLINES: Deadline[] = [
-  { code: 'A-1010', country: 'KR', date: '2024-05-24', daysLeft: 3 },
-  { code: 'B-2020', country: 'US', date: '2024-05-28', daysLeft: 7 },
-  { code: 'D-4040', country: 'EP', date: '2024-06-03', daysLeft: 12 },
-];
-
 const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'];
-const CALENDAR_YEAR = 2024;
-const CALENDAR_MONTH = 5;
-const SELECTED_DAY = 24;
-const DUE_DAYS = [3, 28];
+
+const toLocalDateKey = (date: Date): string => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+const parseDateKey = (value: string): Date => {
+  const [year, month, day] = value.split('-').map(Number);
+  return new Date(year, month - 1, day);
+};
+
+const calendarDayDifference = (dateKey: string): number => {
+  const dueDate = parseDateKey(dateKey);
+  const today = new Date();
+  const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  return Math.round((dueDate.getTime() - todayStart.getTime()) / 86_400_000);
+};
+
+const ddayLabel = (daysLeft: number): string => {
+  if (daysLeft === 0) return 'D-Day';
+  return daysLeft > 0 ? `D-${daysLeft}` : `D+${Math.abs(daysLeft)}`;
+};
 
 const ddayClassName = (daysLeft: number): string => {
   if (daysLeft <= 3) return 'pm-dday pm-dday-urgent';
@@ -148,30 +125,37 @@ const ddayClassName = (daysLeft: number): string => {
 const buildMonthGrid = (year: number, month: number) => {
   const firstOfMonth = new Date(year, month - 1, 1);
   const daysInMonth = new Date(year, month, 0).getDate();
-  const daysInPrevMonth = new Date(year, month - 1, 0).getDate();
   const leading = firstOfMonth.getDay();
-
-  const cells: Array<{ day: number; inMonth: boolean }> = [];
-  for (let i = leading - 1; i >= 0; i -= 1) {
-    cells.push({ day: daysInPrevMonth - i, inMonth: false });
-  }
-  for (let day = 1; day <= daysInMonth; day += 1) {
-    cells.push({ day, inMonth: true });
-  }
-  while (cells.length % 7 !== 0) {
-    cells.push({ day: cells.length - leading - daysInMonth + 1, inMonth: false });
-  }
-  return cells;
+  const cellCount = Math.ceil((leading + daysInMonth) / 7) * 7;
+  return Array.from({ length: cellCount }, (_, index) => {
+    const date = new Date(year, month - 1, index - leading + 1);
+    return {
+      day: date.getDate(),
+      date: toLocalDateKey(date),
+      inMonth: date.getMonth() === month - 1,
+    };
+  });
 };
 
 const PatentManagement: React.FC = () => {
   const { setHeaderContent } = useUIStore();
-  const [selectedCompounds, setSelectedCompounds] = useState<string[]>([
-    'A-1010',
-    'B-2020',
-    'D-4040',
-  ]);
-  const [compoundQuery, setCompoundQuery] = useState('');
+  const [targets, setTargets] = useState<PatentTargetSummary[]>([]);
+  const [selectedTargets, setSelectedTargets] = useState<string[]>([]);
+  const [targetQuery, setTargetQuery] = useState('');
+  const [targetSort, setTargetSort] = useState<'name' | 'count'>('name');
+  const [targetsLoading, setTargetsLoading] = useState(false);
+  const [targetsError, setTargetsError] = useState('');
+  const today = useMemo(() => new Date(), []);
+  const [calendarMonth, setCalendarMonth] = useState(() => ({
+    year: today.getFullYear(),
+    month: today.getMonth() + 1,
+  }));
+  const [selectedCalendarDate, setSelectedCalendarDate] = useState(() =>
+    toLocalDateKey(today),
+  );
+  const [schedule, setSchedule] = useState<PatentScheduleResult | null>(null);
+  const [scheduleLoading, setScheduleLoading] = useState(false);
+  const [scheduleError, setScheduleError] = useState('');
   const [activeStage, setActiveStage] = useState<StageKey>('filed');
 
   // ---- 특허 목록 (patent table) ----
@@ -192,31 +176,7 @@ const PatentManagement: React.FC = () => {
   const [editingRecord, setEditingRecord] = useState<PatentRecord | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [isImportOpen, setIsImportOpen] = useState(false);
-
-  // ---- 문서 검색 (/api/patent-search) ----
-  const [listSource, setListSource] = useState<ListSource>('search');
-  const [searchResults, setSearchResults] = useState<PatentSearchItem[]>([]);
-  const [searchTotal, setSearchTotal] = useState(0);
-  const [searchPage, setSearchPage] = useState(1);
-  const [keywordInput, setKeywordInput] = useState('');
-  const [keywordTarget, setKeywordTarget] = useState<PatentSearchKeywordTarget>('officeAction');
-  /** 실제로 조회에 반영된 조건. 입력 중에는 재조회하지 않는다. */
-  const [appliedSearch, setAppliedSearch] = useState<{
-    keyword: string;
-    target: PatentSearchKeywordTarget;
-    hasOpinion: boolean;
-    hasAmendment: boolean;
-  }>({ keyword: '', target: 'officeAction', hasOpinion: false, hasAmendment: false });
-  const [onlyWithOpinion, setOnlyWithOpinion] = useState(false);
-  const [onlyWithAmendment, setOnlyWithAmendment] = useState(false);
-  const [searchLoading, setSearchLoading] = useState(false);
-  const [searchError, setSearchError] = useState('');
-  const [selectedDocument, setSelectedDocument] = useState<PatentSearchItem | null>(null);
-  /**
-   * 뷰어는 선택된 문서가 있을 때만 열린다.
-   * 처음 진입하면 선택이 없으므로 접힌 상태이고, 목록이 온전한 폭을 쓴다.
-   */
-  const isViewerOpen = selectedDocument !== null;
+  const [todoPatent, setTodoPatent] = useState<PatentRecord | null>(null);
 
   useEffect(() => {
     setHeaderContent(<PageHeaderBreadcrumb items={[{ label: '특허 관리' }]} />);
@@ -229,6 +189,7 @@ const PatentManagement: React.FC = () => {
     try {
       const result = await patentRecordApi.list({
         q: search || undefined,
+        targets: selectedTargets.length > 0 ? selectedTargets : undefined,
         page,
         pageSize: PAGE_SIZE,
       });
@@ -241,12 +202,55 @@ const PatentManagement: React.FC = () => {
     } finally {
       setListLoading(false);
     }
-  }, [page, search]);
+  }, [page, search, selectedTargets]);
+
+  const loadTargets = useCallback(async () => {
+    setTargetsLoading(true);
+    setTargetsError('');
+    try {
+      const result = await patentRecordApi.targets();
+      setTargets(result);
+      // 삭제·수정·재임포트로 사라진 Target은 선택에서도 제거한다.
+      const availableTargets = new Set(result.map((item) => item.target));
+      setSelectedTargets((current) =>
+        current.filter((target) => availableTargets.has(target)),
+      );
+    } catch (error) {
+      setTargets([]);
+      setTargetsError(getErrorMessage(error));
+    } finally {
+      setTargetsLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    if (listSource !== 'records') return;
+    void loadTargets();
+  }, [loadTargets]);
+
+  const loadSchedule = useCallback(async () => {
+    setScheduleLoading(true);
+    setScheduleError('');
+    try {
+      setSchedule(await patentRecordApi.schedule({
+        year: calendarMonth.year,
+        month: calendarMonth.month,
+        targets: selectedTargets.length > 0 ? selectedTargets : undefined,
+      }));
+    } catch (error) {
+      setSchedule(null);
+      setScheduleError(getErrorMessage(error));
+    } finally {
+      setScheduleLoading(false);
+    }
+  }, [calendarMonth.month, calendarMonth.year, selectedTargets]);
+
+  useEffect(() => {
+    void loadSchedule();
+  }, [loadSchedule]);
+
+  useEffect(() => {
     void loadPatents();
-  }, [listSource, loadPatents]);
+  }, [loadPatents]);
 
   const applySearch = () => {
     setPage(1);
@@ -262,80 +266,6 @@ const PatentManagement: React.FC = () => {
       void message.error(`선택 목록을 불러오지 못했습니다: ${getErrorMessage(error)}`);
     }
   }, [lookups, message]);
-
-  const loadSearchResults = useCallback(async () => {
-    setSearchLoading(true);
-    setSearchError('');
-    try {
-      const result = await patentSearchApi.search({
-        page: searchPage,
-        size: PAGE_SIZE,
-        // 클릭 즉시 뷰어에 본문을 그리려면 목록에서 함께 받아야 한다.
-        // 검색 API에는 단건 조회 endpoint가 없어 재조회로는 가져올 수 없다.
-        includeContent: true,
-        filters: {
-          ...(appliedSearch.hasOpinion ? { hasOpinion: true } : {}),
-          ...(appliedSearch.hasAmendment ? { hasAmendment: true } : {}),
-        },
-        ...(appliedSearch.keyword
-          ? {
-              keywords: [
-                { query: appliedSearch.keyword, target: appliedSearch.target },
-              ],
-            }
-          : {}),
-      });
-      setSearchResults(result.items);
-      setSearchTotal(result.total);
-      // 목록이 바뀌면 이전 선택은 더 이상 화면에 없을 수 있다.
-      setSelectedDocument(null);
-    } catch (error) {
-      setSearchResults([]);
-      setSearchTotal(0);
-      setSelectedDocument(null);
-      setSearchError(getErrorMessage(error));
-    } finally {
-      setSearchLoading(false);
-    }
-  }, [appliedSearch, searchPage]);
-
-  useEffect(() => {
-    if (listSource !== 'search') return;
-    void loadSearchResults();
-  }, [listSource, loadSearchResults]);
-
-  /** 상태 코드(int)를 로컬 코드 테이블 명칭으로 바꾼다. 검색 API는 id만 준다. */
-  useEffect(() => {
-    if (listSource !== 'search') return;
-    void ensureLookups();
-  }, [listSource, ensureLookups]);
-
-  const legalStatusName = useCallback(
-    (id: number | null) =>
-      lookups?.legalStatuses.find((status) => status.id === id)?.status ?? null,
-    [lookups],
-  );
-
-  const examStatusName = useCallback(
-    (id: number | null) =>
-      lookups?.examStatuses.find((status) => status.id === id)?.status ?? null,
-    [lookups],
-  );
-
-  const applyDocumentSearch = () => {
-    setSearchPage(1);
-    setAppliedSearch({
-      keyword: keywordInput.trim(),
-      target: keywordTarget,
-      hasOpinion: onlyWithOpinion,
-      hasAmendment: onlyWithAmendment,
-    });
-  };
-
-  const openDocument = (item: PatentSearchItem) => {
-    if (!hasDocuments(item)) return;
-    setSelectedDocument(item);
-  };
 
   const openCreateModal = () => {
     setEditingRecord(null);
@@ -362,7 +292,7 @@ const PatentManagement: React.FC = () => {
       }
       setIsModalOpen(false);
       setEditingRecord(null);
-      await loadPatents();
+      await Promise.all([loadPatents(), loadTargets(), loadSchedule()]);
     } catch (error) {
       void message.error(getErrorMessage(error));
     } finally {
@@ -381,6 +311,8 @@ const PatentManagement: React.FC = () => {
         try {
           await patentRecordApi.remove(record.id);
           void message.success('특허를 삭제했습니다.');
+          void loadTargets();
+          void loadSchedule();
           // 마지막 항목을 지웠으면 이전 페이지로 물러난다.
           if (patents.length === 1 && page > 1) setPage(page - 1);
           else await loadPatents();
@@ -392,128 +324,50 @@ const PatentManagement: React.FC = () => {
     });
   };
 
-  const visibleCompounds = useMemo(() => {
-    const query = compoundQuery.trim().toLowerCase();
-    if (!query) return COMPOUNDS;
-    return COMPOUNDS.filter((compound) => compound.code.toLowerCase().includes(query));
-  }, [compoundQuery]);
-
-  const toggleCompound = (code: string) => {
-    setSelectedCompounds((current) =>
-      current.includes(code)
-        ? current.filter((item) => item !== code)
-        : [...current, code],
+  const visibleTargets = useMemo(() => {
+    const query = targetQuery.trim().toLocaleLowerCase();
+    const filtered = query
+      ? targets.filter((item) => item.target.toLocaleLowerCase().includes(query))
+      : targets;
+    return [...filtered].sort((a, b) =>
+      targetSort === 'count'
+        ? b.count - a.count || a.target.localeCompare(b.target)
+        : a.target.localeCompare(b.target),
     );
+  }, [targetQuery, targetSort, targets]);
+
+  const toggleTarget = (target: string) => {
+    setSelectedTargets((current) =>
+      current.includes(target)
+        ? current.filter((item) => item !== target)
+        : [...current, target],
+    );
+    setPage(1);
   };
 
   const calendarCells = useMemo(
-    () => buildMonthGrid(CALENDAR_YEAR, CALENDAR_MONTH),
-    [],
+    () => buildMonthGrid(calendarMonth.year, calendarMonth.month),
+    [calendarMonth.month, calendarMonth.year],
   );
+  const eventsByDate = useMemo(() => {
+    const grouped = new Map<string, PatentScheduleEvent[]>();
+    (schedule?.events ?? []).forEach((event) => {
+      grouped.set(event.date, [...(grouped.get(event.date) ?? []), event]);
+    });
+    return grouped;
+  }, [schedule?.events]);
+  const selectedDateEvents = eventsByDate.get(selectedCalendarDate) ?? [];
 
-  const searchColumns: TableColumnsType<PatentSearchItem> = [
-    {
-      title: '출원번호',
-      dataIndex: 'applicationNumber',
-      key: 'applicationNumber',
-      width: 148,
-      render: emptyDash,
-    },
-    {
-      title: '통지일',
-      dataIndex: 'actionDate',
-      key: 'actionDate',
-      width: 108,
-      render: (value: string | null) => formatDisplayDateOnly(value),
-    },
-    {
-      title: '명칭',
-      key: 'title',
-      width: 260,
-      render: (_, item) => (
-        <Tooltip title={item.englishTitle ?? item.koreanTitle ?? ''}>
-          <span className="pm-ellipsis">
-            {item.koreanTitle ?? item.englishTitle ?? '-'}
-          </span>
-        </Tooltip>
-      ),
-    },
-    {
-      title: '출원인',
-      dataIndex: 'applicant',
-      key: 'applicant',
-      width: 150,
-      render: (value: string | null) => (
-        <Tooltip title={value ?? ''}>
-          <span className="pm-ellipsis">{emptyDash(value)}</span>
-        </Tooltip>
-      ),
-    },
-    {
-      title: '심사관',
-      key: 'examiners',
-      width: 110,
-      render: (_, item) => {
-        if (item.examiners.length === 0) return '-';
-        const names = item.examiners.map((examiner) => examiner.name ?? '-');
-        return (
-          <Tooltip title={names.join(', ')}>
-            <span className="pm-ellipsis">
-              {names[0]}
-              {names.length > 1 && ` 외 ${names.length - 1}`}
-            </span>
-          </Tooltip>
-        );
-      },
-    },
-    {
-      title: '법적 상태',
-      key: 'legalStatus',
-      width: 100,
-      render: (_, item) => {
-        const name = legalStatusName(item.legalStatusId);
-        return name ? <Tag color="blue">{name}</Tag> : emptyDash(null);
-      },
-    },
-    {
-      title: '심사 상태',
-      key: 'examStatus',
-      width: 100,
-      render: (_, item) => {
-        const name = examStatusName(item.examStatusId);
-        return name ? <Tag>{name}</Tag> : emptyDash(null);
-      },
-    },
-    {
-      title: '거절이유',
-      key: 'rejections',
-      width: 84,
-      align: 'center',
-      render: (_, item) =>
-        item.rejections.length > 0
-          ? formatNumberWithComma(item.rejections.length)
-          : '-',
-    },
-    {
-      title: '문서',
-      key: 'documents',
-      width: 168,
-      render: (_, item) => {
-        const opinions = item.submissions.filter((s) => s.kind === 'OPINION').length;
-        const amendments = item.submissions.filter((s) => s.kind === 'AMENDMENT').length;
-        if (!hasDocuments(item)) {
-          return <Text type="secondary" style={{ fontSize: 12 }}>없음</Text>;
-        }
-        return (
-          <span className="pm-doc-badges">
-            {(item.contentLength > 0 || item.documentPath) && <Tag color="geekblue">통지서</Tag>}
-            {opinions > 0 && <Tag color="green">{`의견서${opinions > 1 ? ` ${opinions}` : ''}`}</Tag>}
-            {amendments > 0 && <Tag color="gold">{`보정서${amendments > 1 ? ` ${amendments}` : ''}`}</Tag>}
-          </span>
-        );
-      },
-    },
-  ];
+  const moveCalendarMonth = (offset: number) => {
+    const next = new Date(calendarMonth.year, calendarMonth.month - 1 + offset, 1);
+    const nextMonth = { year: next.getFullYear(), month: next.getMonth() + 1 };
+    setCalendarMonth(nextMonth);
+    setSelectedCalendarDate(
+      nextMonth.year === today.getFullYear() && nextMonth.month === today.getMonth() + 1
+        ? toLocalDateKey(today)
+        : toLocalDateKey(next),
+    );
+  };
 
   const columns: TableColumnsType<PatentRecord> = [
     {
@@ -591,10 +445,19 @@ const PatentManagement: React.FC = () => {
           {
             title: '',
             key: 'actions',
-            width: 96,
+            width: 128,
             align: 'center' as const,
             render: (_: unknown, record: PatentRecord) => (
               <span style={{ display: 'inline-flex', gap: 2 }}>
+                <Tooltip title="To-do 관리">
+                  <Button
+                    type="text"
+                    size="small"
+                    aria-label={`${record.applicationNumber} To-do 관리`}
+                    icon={<ListTodo size={15} />}
+                    onClick={() => setTodoPatent(record)}
+                  />
+                </Tooltip>
                 <Tooltip title="변경">
                   <Button
                     type="text"
@@ -630,9 +493,21 @@ const PatentManagement: React.FC = () => {
           <div className="pm-card-header">
             <span className="pm-card-title">일정</span>
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-              <Text style={{ fontSize: 12 }}>{`${CALENDAR_YEAR}년 ${CALENDAR_MONTH}월`}</Text>
-              <Button type="text" size="small" aria-label="이전 달" icon={<ChevronLeft size={14} />} />
-              <Button type="text" size="small" aria-label="다음 달" icon={<ChevronRight size={14} />} />
+              <Text style={{ fontSize: 12 }}>{`${calendarMonth.year}년 ${calendarMonth.month}월`}</Text>
+              <Button
+                type="text"
+                size="small"
+                aria-label="이전 달"
+                icon={<ChevronLeft size={14} />}
+                onClick={() => moveCalendarMonth(-1)}
+              />
+              <Button
+                type="text"
+                size="small"
+                aria-label="다음 달"
+                icon={<ChevronRight size={14} />}
+                onClick={() => moveCalendarMonth(1)}
+              />
             </span>
           </div>
 
@@ -642,32 +517,91 @@ const PatentManagement: React.FC = () => {
             ))}
             {calendarCells.map((cell, index) => {
               const classNames = ['pm-calendar-day'];
+              const dayEvents = eventsByDate.get(cell.date) ?? [];
               if (!cell.inMonth) classNames.push('pm-calendar-day-muted');
-              else if (cell.day === SELECTED_DAY) classNames.push('pm-calendar-day-selected');
-              else if (DUE_DAYS.includes(cell.day)) classNames.push('pm-calendar-day-due');
-              return (
-                <div key={`${cell.day}-${index}`} className={classNames.join(' ')}>
+              if (dayEvents.length > 0) classNames.push('pm-calendar-day-due');
+              if (cell.date === selectedCalendarDate) classNames.push('pm-calendar-day-selected');
+              const day = (
+                <button
+                  type="button"
+                  key={`${cell.date}-${index}`}
+                  className={classNames.join(' ')}
+                  disabled={!cell.inMonth}
+                  aria-label={`${formatDisplayDateOnly(cell.date)}${dayEvents.length > 0 ? `, 일정 ${dayEvents.length}건` : ''}`}
+                  onClick={() => cell.inMonth && setSelectedCalendarDate(cell.date)}
+                >
                   {cell.day}
-                </div>
+                </button>
               );
+              return dayEvents.length > 0 ? (
+                <Tooltip
+                  key={`${cell.date}-${index}`}
+                  title={dayEvents.map((event) => `${event.label} · ${event.internalRef ?? event.applicationNumber}`).join('\n')}
+                >
+                  {day}
+                </Tooltip>
+              ) : day;
             })}
+          </div>
+
+          <div className="pm-calendar-event-list">
+            {scheduleLoading ? (
+              <Text type="secondary">일정을 불러오는 중입니다.</Text>
+            ) : scheduleError ? (
+              <Text type="danger">일정을 불러오지 못했습니다: {scheduleError}</Text>
+            ) : selectedDateEvents.length > 0 ? (
+              selectedDateEvents.slice(0, 4).map((event) => (
+                <div
+                  key={`${event.patentId}-${event.todoId ?? event.type}-${event.date}`}
+                  className="pm-calendar-event-row"
+                >
+                  <Tag>{event.label}</Tag>
+                  <span title={event.title ?? undefined}>
+                    {event.type === 'TODO' && event.title ? `${event.title} · ` : ''}
+                    {event.internalRef ?? event.applicationNumber} ({event.country})
+                  </span>
+                </div>
+              ))
+            ) : (
+              <Text type="secondary">{formatDisplayDateOnly(selectedCalendarDate)} 일정이 없습니다.</Text>
+            )}
+            {selectedDateEvents.length > 4 && (
+              <Text type="secondary">외 {formatNumberWithComma(selectedDateEvents.length - 4)}건</Text>
+            )}
           </div>
         </section>
 
         <section className="pm-card">
           <div className="pm-card-header">
             <span className="pm-card-title" style={{ fontSize: 13 }}>To-do</span>
-            <Button type="link" size="small" style={{ padding: 0, fontSize: 12 }}>
-              더보기 <ChevronRight size={12} style={{ verticalAlign: 'middle' }} />
-            </Button>
+            <Text type="secondary" style={{ fontSize: 12 }}>
+              총 {formatNumberWithComma(schedule?.todoTotal ?? 0)}건
+            </Text>
           </div>
-          {DEADLINES.map((deadline) => (
-            <div key={`${deadline.code}-${deadline.country}`} className="pm-deadline-row">
-              <span className={ddayClassName(deadline.daysLeft)}>{`D-${deadline.daysLeft}`}</span>
-              <span className="pm-deadline-label">{`${deadline.code} (${deadline.country})`}</span>
-              <span className="pm-deadline-date">{deadline.date}</span>
-            </div>
-          ))}
+          {scheduleLoading ? (
+            <Text type="secondary" className="pm-schedule-status">To-do를 불러오는 중입니다.</Text>
+          ) : scheduleError ? (
+            <Text type="danger" className="pm-schedule-status">To-do를 불러오지 못했습니다.</Text>
+          ) : (schedule?.todos.length ?? 0) === 0 ? (
+            <Text type="secondary" className="pm-schedule-status">등록된 To-do 마감일이 없습니다.</Text>
+          ) : (
+            schedule?.todos.map((todo) => {
+              const daysLeft = calendarDayDifference(todo.dueDate);
+              return (
+                <div key={todo.todoId} className="pm-deadline-row">
+                  <span className={ddayClassName(daysLeft)}>{ddayLabel(daysLeft)}</span>
+                  <Tooltip
+                    title={[todo.patentTitle, todo.description].filter(Boolean).join(' · ') || todo.applicationNumber}
+                  >
+                    <span className="pm-deadline-label">
+                      {todo.title} · {todo.internalRef ?? todo.applicationNumber} ({todo.country})
+                    </span>
+                  </Tooltip>
+                  <span className="pm-deadline-date">{formatDisplayDateOnly(todo.dueDate)}</span>
+                </div>
+              );
+            })
+          )}
         </section>
 
         <section className="pm-card">
@@ -677,13 +611,20 @@ const PatentManagement: React.FC = () => {
           <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
             <Input
               allowClear
-              value={compoundQuery}
-              onChange={(event) => setCompoundQuery(event.target.value)}
+              value={targetQuery}
+              onChange={(event) => setTargetQuery(event.target.value)}
               placeholder="Target 검색"
               prefix={<Search size={14} />}
               style={{ height: 32 }}
             />
-            <Button aria-label="정렬" icon={<ArrowUpDown size={14} />} style={{ height: 32, width: 36 }} />
+            <Tooltip title={targetSort === 'name' ? '건수순으로 정렬' : '이름순으로 정렬'}>
+              <Button
+                aria-label={targetSort === 'name' ? 'Target 건수순 정렬' : 'Target 이름순 정렬'}
+                icon={<ArrowUpDown size={14} />}
+                onClick={() => setTargetSort((current) => current === 'name' ? 'count' : 'name')}
+                style={{ height: 32, width: 36 }}
+              />
+            </Tooltip>
           </div>
 
           <div className="pm-compound-head">
@@ -692,19 +633,35 @@ const PatentManagement: React.FC = () => {
             <span className="pm-compound-count">건수</span>
           </div>
 
-          {visibleCompounds.map((compound) => {
-            const checked = selectedCompounds.includes(compound.code);
-            return (
-              <label
-                key={compound.code}
-                className={`pm-compound-row${checked ? ' pm-compound-row-selected' : ''}`}
-              >
-                <Checkbox checked={checked} onChange={() => toggleCompound(compound.code)} />
-                <span>{compound.code}</span>
-                <span className="pm-compound-count">{compound.count}</span>
-              </label>
-            );
-          })}
+          <div className="pm-target-list">
+            {targetsLoading && (
+              <Text type="secondary" className="pm-target-status">Target 목록을 불러오는 중입니다.</Text>
+            )}
+            {!targetsLoading && targetsError && (
+              <Text type="danger" className="pm-target-status">
+                Target 목록을 불러오지 못했습니다: {targetsError}
+              </Text>
+            )}
+            {!targetsLoading && !targetsError && visibleTargets.length === 0 && (
+              <Text type="secondary" className="pm-target-status">
+                {targetQuery.trim() ? '검색 조건에 맞는 Target이 없습니다.' : '등록된 Target이 없습니다.'}
+              </Text>
+            )}
+
+            {visibleTargets.map((item) => {
+              const checked = selectedTargets.includes(item.target);
+              return (
+                <label
+                  key={item.target}
+                  className={`pm-compound-row${checked ? ' pm-compound-row-selected' : ''}`}
+                >
+                  <Checkbox checked={checked} onChange={() => toggleTarget(item.target)} />
+                  <span className="pm-target-name" title={item.target}>{item.target}</span>
+                  <span className="pm-compound-count">{formatNumberWithComma(item.count)}</span>
+                </label>
+              );
+            })}
+          </div>
 
           <div
             style={{
@@ -718,12 +675,11 @@ const PatentManagement: React.FC = () => {
             }}
           >
             <span>
-              총 {COMPOUNDS.length}건{' '}
+              총 {formatNumberWithComma(targets.length)}건{' '}
               <Text style={{ color: 'var(--brand-primary)', fontWeight: 600, fontSize: 12 }}>
-                {selectedCompounds.length}개 선택
+                {selectedTargets.length}개 선택
               </Text>
             </span>
-            <Pagination simple size="small" defaultCurrent={1} total={COMPOUNDS.length} pageSize={COMPOUNDS.length} />
           </div>
         </section>
       </div>
@@ -739,9 +695,9 @@ const PatentManagement: React.FC = () => {
 
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 14 }}>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-              {selectedCompounds.map((code) => (
-                <Tag key={code} closable onClose={() => toggleCompound(code)} style={{ margin: 0, padding: '4px 10px', borderRadius: 8 }}>
-                  {code}
+              {selectedTargets.map((target) => (
+                <Tag key={target} closable onClose={() => toggleTarget(target)} style={{ margin: 0, padding: '4px 10px', borderRadius: 8 }}>
+                  {target}
                 </Tag>
               ))}
             </div>
@@ -774,173 +730,64 @@ const PatentManagement: React.FC = () => {
           <div className="pm-card-header pm-list-header">
             <span className="pm-list-header-title">
               <span className="pm-card-title">관련 특허 목록</span>
-              <Segmented
-                size="small"
-                value={listSource}
-                onChange={(value) => setListSource(value as ListSource)}
-                options={[
-                  { label: '문서 검색', value: 'search' },
-                  { label: '관리 특허', value: 'records' },
-                ]}
-              />
             </span>
             <span className="pm-list-header-controls">
-              {listSource === 'search' ? (
-                <>
-                  <Select<PatentSearchKeywordTarget>
-                    value={keywordTarget}
-                    onChange={setKeywordTarget}
-                    style={{ width: 140, height: 34 }}
-                    options={PATENT_SEARCH_KEYWORD_TARGETS.map((target) => ({
-                      label: PATENT_SEARCH_KEYWORD_TARGET_LABELS[target],
-                      value: target,
-                    }))}
-                  />
-                  <Input
-                    allowClear
-                    value={keywordInput}
-                    onChange={(event) => setKeywordInput(event.target.value)}
-                    onPressEnter={applyDocumentSearch}
-                    placeholder="문서 전문 키워드"
-                    prefix={<Search size={14} />}
-                    style={{ width: 200, height: 34 }}
-                  />
-                  <Button
-                    icon={<Filter size={14} />}
-                    style={{ height: 34 }}
-                    onClick={applyDocumentSearch}
-                  >
-                    검색
-                  </Button>
-                </>
-              ) : (
-                <>
-                  <Input
-                    allowClear
-                    value={searchInput}
-                    onChange={(event) => setSearchInput(event.target.value)}
-                    onPressEnter={applySearch}
-                    placeholder="관리번호 · 출원번호 · 명칭 · 출원인"
-                    prefix={<Search size={14} />}
-                    style={{ width: 220, height: 34 }}
-                  />
-                  <Button icon={<Filter size={14} />} style={{ height: 34 }} onClick={applySearch}>
-                    검색
-                  </Button>
-                  {canManage && (
-                    <Button
-                      icon={<UploadCloud size={14} />}
-                      style={{ height: 34 }}
-                      onClick={() => setIsImportOpen(true)}
-                    >
-                      CSV로 업로드
-                    </Button>
-                  )}
-                  {canManage && (
-                    <Button
-                      type="primary"
-                      icon={<Plus size={14} />}
-                      style={{ height: 34 }}
-                      onClick={openCreateModal}
-                    >
-                      관리 특허 추가
-                    </Button>
-                  )}
-                </>
+              <Input
+                allowClear
+                value={searchInput}
+                onChange={(event) => setSearchInput(event.target.value)}
+                onPressEnter={applySearch}
+                placeholder="관리번호 · 출원번호 · 명칭 · 출원인"
+                prefix={<Search size={14} />}
+                style={{ width: 220, height: 34 }}
+              />
+              <Button icon={<Filter size={14} />} style={{ height: 34 }} onClick={applySearch}>
+                검색
+              </Button>
+              {canManage && (
+                <Button
+                  icon={<UploadCloud size={14} />}
+                  style={{ height: 34 }}
+                  onClick={() => setIsImportOpen(true)}
+                >
+                  CSV로 업로드
+                </Button>
+              )}
+              {canManage && (
+                <Button
+                  type="primary"
+                  icon={<Plus size={14} />}
+                  style={{ height: 34 }}
+                  onClick={openCreateModal}
+                >
+                  관리 특허 추가
+                </Button>
               )}
             </span>
           </div>
 
-          {listSource === 'search' ? (
-            <>
-              <div className="pm-search-filters">
-                <Checkbox
-                  checked={onlyWithOpinion}
-                  onChange={(event) => setOnlyWithOpinion(event.target.checked)}
-                >
-                  의견서 제출된 건만
-                </Checkbox>
-                <Checkbox
-                  checked={onlyWithAmendment}
-                  onChange={(event) => setOnlyWithAmendment(event.target.checked)}
-                >
-                  보정서 제출된 건만
-                </Checkbox>
-                <Tooltip title="검색 결과 1건은 특허가 아니라 의견제출통지서 1건입니다. 같은 특허의 통지서가 여러 건이면 여러 행으로 나옵니다.">
-                  <span className="pm-search-hint">
-                    <Info size={13} /> 행 = 의견제출통지서 1건
-                  </span>
-                </Tooltip>
-              </div>
+          <Table<PatentRecord>
+            columns={columns}
+            dataSource={patents}
+            rowKey="id"
+            loading={listLoading}
+            size="small"
+            pagination={false}
+            scroll={{ x: 'max-content' }}
+            locale={{ emptyText: listError ? `목록을 불러오지 못했습니다: ${listError}` : '등록된 특허가 없습니다.' }}
+          />
 
-              <Table<PatentSearchItem>
-                columns={searchColumns}
-                dataSource={searchResults}
-                rowKey={(item) => item.officeActionId ?? `${item.patentId}-${item.actionNumber}`}
-                loading={searchLoading}
-                size="small"
-                pagination={false}
-                scroll={{ x: 'max-content' }}
-                rowClassName={(item) => {
-                  const classNames = hasDocuments(item)
-                    ? ['pm-row-clickable']
-                    : ['pm-row-inert'];
-                  if (
-                    selectedDocument &&
-                    selectedDocument.officeActionId === item.officeActionId
-                  ) {
-                    classNames.push('pm-row-selected');
-                  }
-                  return classNames.join(' ');
-                }}
-                onRow={(item) => ({
-                  onClick: () => openDocument(item),
-                })}
-                locale={{
-                  emptyText: searchError
-                    ? `검색에 실패했습니다: ${searchError}`
-                    : '조건에 맞는 문서가 없습니다.',
-                }}
-              />
-
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 12, fontSize: 12 }}>
-                <span>총 {formatNumberWithComma(searchTotal)}건</span>
-                <Pagination
-                  simple
-                  size="small"
-                  current={searchPage}
-                  total={searchTotal}
-                  pageSize={PAGE_SIZE}
-                  onChange={setSearchPage}
-                />
-              </div>
-            </>
-          ) : (
-            <>
-              <Table<PatentRecord>
-                columns={columns}
-                dataSource={patents}
-                rowKey="id"
-                loading={listLoading}
-                size="small"
-                pagination={false}
-                scroll={{ x: 'max-content' }}
-                locale={{ emptyText: listError ? `목록을 불러오지 못했습니다: ${listError}` : '등록된 특허가 없습니다.' }}
-              />
-
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 12, fontSize: 12 }}>
-                <span>총 {formatNumberWithComma(total)}건</span>
-                <Pagination
-                  simple
-                  size="small"
-                  current={page}
-                  total={total}
-                  pageSize={PAGE_SIZE}
-                  onChange={setPage}
-                />
-              </div>
-            </>
-          )}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 12, fontSize: 12 }}>
+            <span>총 {formatNumberWithComma(total)}건</span>
+            <Pagination
+              simple
+              size="small"
+              current={page}
+              total={total}
+              pageSize={PAGE_SIZE}
+              onChange={setPage}
+            />
+          </div>
         </section>
       </div>
 
@@ -964,20 +811,18 @@ const PatentManagement: React.FC = () => {
           setLookups(null);
           setPage(1);
           void loadPatents();
+          void loadTargets();
+          void loadSchedule();
         }}
       />
 
-      {/* ---- right: document viewer ---- */}
-      {isViewerOpen && (
-        <ResizableSidePanel label="문서 뷰어 너비 조절">
-          <PatentDocumentViewer
-            item={selectedDocument}
-            legalStatusLabel={legalStatusName(selectedDocument?.legalStatusId ?? null)}
-            examStatusLabel={examStatusName(selectedDocument?.examStatusId ?? null)}
-            onClose={() => setSelectedDocument(null)}
-          />
-        </ResizableSidePanel>
-      )}
+      <PatentTodoModal
+        open={todoPatent !== null}
+        patent={todoPatent}
+        onClose={() => setTodoPatent(null)}
+        onChanged={() => void loadSchedule()}
+      />
+
     </div>
   );
 };

@@ -23,6 +23,7 @@ type FormValues = {
   countryId: number;
   applicationNumber: string;
   internalRef?: string;
+  target?: string;
   koreanTitle?: string;
   englishTitle?: string;
   applicationDate?: dayjs.Dayjs;
@@ -83,6 +84,7 @@ const PatentRecordFormModal: React.FC<Props> = ({
         countryId: record.countryId,
         applicationNumber: record.applicationNumber,
         internalRef: record.internalRef ?? undefined,
+        target: record.target ?? undefined,
         koreanTitle: record.koreanTitle ?? undefined,
         englishTitle: record.englishTitle ?? undefined,
         applicationDate: toDayjs(record.applicationDate),
@@ -113,6 +115,7 @@ const PatentRecordFormModal: React.FC<Props> = ({
       countryId: values.countryId,
       applicationNumber: values.applicationNumber.trim(),
       internalRef: trimmedOrNull(values.internalRef),
+      target: trimmedOrNull(values.target),
       koreanTitle: trimmedOrNull(values.koreanTitle),
       englishTitle: trimmedOrNull(values.englishTitle),
       applicationDate: fromDayjs(values.applicationDate),
@@ -149,7 +152,7 @@ const PatentRecordFormModal: React.FC<Props> = ({
     >
       <Form form={form} layout="vertical" disabled={submitting} preserve={false}>
         <Text type="secondary" style={{ display: 'block', marginBottom: 16 }}>
-          국가와 출원번호만 필수입니다. 등록·공개 정보는 확정된 뒤에 채우면 됩니다.
+          국가와 출원번호만 필수입니다. Target은 특허 코드 관리에서 먼저 등록할 수 있습니다.
         </Text>
 
         <Row gutter={16}>
@@ -161,6 +164,20 @@ const PatentRecordFormModal: React.FC<Props> = ({
               rules={[{ max: 50, message: '50자 이내로 입력해 주세요.' }]}
             >
               <Input placeholder="A25W001" />
+            </Form.Item>
+          </Col>
+          <Col span={8}>
+            <Form.Item name="target" label="Target">
+              <Select
+                placeholder="Target 선택"
+                allowClear
+                showSearch
+                optionFilterProp="label"
+                options={(lookups?.targets ?? []).map((target) => ({
+                  value: target.target,
+                  label: target.target,
+                }))}
+              />
             </Form.Item>
           </Col>
         </Row>

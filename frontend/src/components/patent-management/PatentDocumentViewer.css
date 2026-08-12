@@ -1,5 +1,5 @@
 /* 문서 뷰어의 `문서 전문` 탭 스타일.
-   나머지 pm-viewer-*/pm-doc-* 규칙은 아직 pages/PatentManagement.css에 있다. */
+   나머지 pm-viewer- / pm-doc- 접두 규칙은 아직 pages/PatentManagement.css에 있다. */
 
 /**
  * 이 뷰어는 두 화면(특허 관리·의견제출통지서)에서 모두 너비 조절 가능한 패널 안에 들어간다.

@@ -7,6 +7,7 @@ import { PrismaService } from "../database/prisma.service";
 import { buildInternalRefColumns, normalizeInternalRef } from "./internal-ref";
 import type { CreatePatentRecordDto } from "./dto/create-patent-record.dto";
 import type { PatentRecordListQueryDto } from "./dto/patent-record-list-query.dto";
+import type { PatentScheduleQueryDto } from "./dto/patent-schedule-query.dto";
 import type { UpdatePatentRecordDto } from "./dto/update-patent-record.dto";
 
 const LIST_INCLUDE = {
@@ -29,16 +30,46 @@ const toDate = (value: string | null | undefined): Date | null | undefined => {
   return new Date(value);
 };
 
+const SCHEDULE_DATE_FIELDS = [
+  ["applicationDate", "APPLICATION", "출원일"],
+  ["publicationDate", "PUBLICATION", "공개일"],
+  ["intApplicationDate", "INT_APPLICATION", "국제출원일"],
+  ["intPublicationDate", "INT_PUBLICATION", "국제공개일"],
+  ["examDate", "EXAM", "심사일"],
+  ["expectedExpiryDate", "EXPECTED_EXPIRY", "예상 만료일"],
+] as const;
+
+const toDateKey = (value: Date): string => value.toISOString().slice(0, 10);
+
+const parseRegistrationDate = (value: string | null): string | null => {
+  if (!value) return null;
+  const match = /^(\d{4})[-.](\d{2})[-.](\d{2})/.exec(value.trim());
+  if (!match) return null;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const parsed = new Date(Date.UTC(year, month - 1, day));
+  return parsed.getUTCFullYear() === year &&
+    parsed.getUTCMonth() === month - 1 &&
+    parsed.getUTCDate() === day
+    ? `${match[1]}-${match[2]}-${match[3]}`
+    : null;
+};
+
 @Injectable()
 export class PatentRecordService {
   constructor(private readonly prisma: PrismaService) {}
 
   async list(query: PatentRecordListQueryDto) {
     const q = query.q?.trim();
+    const targets = query.targets
+      ?.map((target) => target.trim())
+      .filter((target) => target.length > 0);
     const where = {
       ...(query.countryId ? { countryId: query.countryId } : {}),
       ...(query.legalStatusId ? { legalStatusId: query.legalStatusId } : {}),
       ...(query.examStatusId ? { examStatusId: query.examStatusId } : {}),
+      ...(targets?.length ? { target: { in: targets } } : {}),
       ...(q
         ? {
             OR: [
@@ -71,6 +102,221 @@ export class PatentRecordService {
     return { items, total, page: query.page, pageSize: query.pageSize };
   }
 
+  /** 관리 가능한 Target 코드와 각 코드의 관리 특허 건수. */
+  async listTargets() {
+    const rows = await this.prisma.client.patentTarget.findMany({
+      orderBy: { target: "asc" },
+      include: { _count: { select: { patents: true } } },
+    });
+    return rows.map((row) => ({
+      target: row.target,
+      count: row._count.patents,
+    }));
+  }
+
+  async schedule(query: PatentScheduleQueryDto) {
+    const targets = query.targets
+      ?.map((target) => target.trim())
+      .filter((target) => target.length > 0);
+    const targetWhere = targets?.length ? { target: { in: targets } } : {};
+    const todoTargetWhere = targets?.length
+      ? { patent: { target: { in: targets } } }
+      : {};
+    const monthStart = new Date(Date.UTC(query.year, query.month - 1, 1));
+    const monthEnd = new Date(Date.UTC(query.year, query.month, 1));
+    const monthPrefixDash = `${query.year}-${String(query.month).padStart(2, "0")}`;
+    const monthPrefixDot = `${query.year}.${String(query.month).padStart(2, "0")}`;
+    // 서비스 기준 시간대(Asia/Seoul)의 오늘을 date-only UTC key로 만든다.
+    const today = new Date(Date.now() + 9 * 60 * 60 * 1000);
+    const todayStart = new Date(
+      Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()),
+    );
+
+    const dateRange = { gte: monthStart, lt: monthEnd };
+    const scheduleSelect = {
+      id: true,
+      internalRef: true,
+      applicationNumber: true,
+      koreanTitle: true,
+      englishTitle: true,
+      target: true,
+      country: { select: { country: true } },
+      applicationDate: true,
+      registrationDate: true,
+      publicationDate: true,
+      intApplicationDate: true,
+      intPublicationDate: true,
+      examDate: true,
+      expectedExpiryDate: true,
+    } as const;
+    const todoSelect = {
+      id: true,
+      title: true,
+      description: true,
+      dueDate: true,
+      completed: true,
+      patent: {
+        select: {
+          id: true,
+          internalRef: true,
+          applicationNumber: true,
+          koreanTitle: true,
+          englishTitle: true,
+          target: true,
+          country: { select: { country: true } },
+        },
+      },
+    } as const;
+
+    const [monthPatents, monthTodos, overdueTodos, upcomingTodos, todoTotal] =
+      await Promise.all([
+        this.prisma.client.patent.findMany({
+          where: {
+            ...targetWhere,
+            OR: [
+              { applicationDate: dateRange },
+              { publicationDate: dateRange },
+              { intApplicationDate: dateRange },
+              { intPublicationDate: dateRange },
+              { examDate: dateRange },
+              { expectedExpiryDate: dateRange },
+              { registrationDate: { startsWith: monthPrefixDash } },
+              { registrationDate: { startsWith: monthPrefixDot } },
+            ],
+          },
+          select: scheduleSelect,
+        }),
+        this.prisma.client.patentTodo.findMany({
+          where: {
+            ...todoTargetWhere,
+            completed: false,
+            dueDate: dateRange,
+          },
+          orderBy: { dueDate: "asc" },
+          select: todoSelect,
+        }),
+        this.prisma.client.patentTodo.findMany({
+          where: {
+            ...todoTargetWhere,
+            completed: false,
+            dueDate: { lt: todayStart },
+          },
+          orderBy: { dueDate: "desc" },
+          take: 3,
+          select: todoSelect,
+        }),
+        this.prisma.client.patentTodo.findMany({
+          where: {
+            ...todoTargetWhere,
+            completed: false,
+            dueDate: { gte: todayStart },
+          },
+          orderBy: { dueDate: "asc" },
+          take: 7,
+          select: todoSelect,
+        }),
+        this.prisma.client.patentTodo.count({
+          where: {
+            ...todoTargetWhere,
+            completed: false,
+            dueDate: { not: null },
+          },
+        }),
+      ]);
+
+    const patentEvents = monthPatents
+      .flatMap((patent) => {
+        const common = {
+          patentId: patent.id,
+          internalRef: patent.internalRef,
+          applicationNumber: patent.applicationNumber,
+          title: patent.koreanTitle ?? patent.englishTitle,
+          country: patent.country.country,
+          target: patent.target,
+        };
+        const typedEvents = SCHEDULE_DATE_FIELDS.flatMap(
+          ([field, type, label]) => {
+            const value = patent[field];
+            if (!(value instanceof Date)) return [];
+            const date = toDateKey(value);
+            if (date < toDateKey(monthStart) || date >= toDateKey(monthEnd)) {
+              return [];
+            }
+            return [{ ...common, type, label, date }];
+          },
+        );
+        const registrationDate = parseRegistrationDate(
+          patent.registrationDate,
+        );
+        return registrationDate && registrationDate.startsWith(monthPrefixDash)
+          ? [
+              ...typedEvents,
+              {
+                ...common,
+                type: "REGISTRATION" as const,
+                label: "등록일",
+                date: registrationDate,
+              },
+            ]
+          : typedEvents;
+      })
+      .sort(
+        (a, b) =>
+          a.date.localeCompare(b.date) ||
+          a.label.localeCompare(b.label) ||
+          a.applicationNumber.localeCompare(b.applicationNumber),
+      );
+
+    const todoEvents = monthTodos.flatMap((todo) =>
+      todo.dueDate
+        ? [
+            {
+              patentId: todo.patent.id,
+              todoId: todo.id,
+              internalRef: todo.patent.internalRef,
+              applicationNumber: todo.patent.applicationNumber,
+              title: todo.title,
+              country: todo.patent.country.country,
+              target: todo.patent.target,
+              type: "TODO" as const,
+              label: "To-do 마감일",
+              date: toDateKey(todo.dueDate),
+            },
+          ]
+        : [],
+    );
+
+    const events = [...patentEvents, ...todoEvents].sort(
+      (a, b) =>
+        a.date.localeCompare(b.date) ||
+        a.label.localeCompare(b.label) ||
+        a.applicationNumber.localeCompare(b.applicationNumber),
+    );
+
+    const todos = [...overdueTodos, ...upcomingTodos].flatMap(
+      (todo) =>
+        todo.dueDate
+          ? [
+              {
+                todoId: todo.id,
+                patentId: todo.patent.id,
+                internalRef: todo.patent.internalRef,
+                applicationNumber: todo.patent.applicationNumber,
+                patentTitle:
+                  todo.patent.koreanTitle ?? todo.patent.englishTitle,
+                title: todo.title,
+                description: todo.description,
+                country: todo.patent.country.country,
+                target: todo.patent.target,
+                dueDate: toDateKey(todo.dueDate),
+              },
+            ]
+          : [],
+    );
+
+    return { year: query.year, month: query.month, events, todos, todoTotal };
+  }
+
   async get(id: number) {
     const patent = await this.prisma.client.patent.findUnique({
       where: { id },
@@ -82,7 +328,7 @@ export class PatentRecordService {
 
   /** 추가·변경 modal의 select 옵션. */
   async listLookups() {
-    const [countries, attorneys, legalStatuses, examStatuses] =
+    const [countries, attorneys, legalStatuses, examStatuses, targets] =
       await Promise.all([
         this.prisma.client.country.findMany({ orderBy: { country: "asc" } }),
         this.prisma.client.attorney.findMany({
@@ -90,8 +336,11 @@ export class PatentRecordService {
         }),
         this.prisma.client.legalStatus.findMany({ orderBy: { status: "asc" } }),
         this.prisma.client.examStatus.findMany({ orderBy: { status: "asc" } }),
+        this.prisma.client.patentTarget.findMany({
+          orderBy: { target: "asc" },
+        }),
       ]);
-    return { countries, attorneys, legalStatuses, examStatuses };
+    return { countries, attorneys, legalStatuses, examStatuses, targets };
   }
 
   async create(dto: CreatePatentRecordDto) {
@@ -122,6 +371,7 @@ export class PatentRecordService {
         examStatusId: dto.examStatusId ?? null,
         exam: dto.exam ?? null,
         examDate: toDate(dto.examDate) ?? null,
+        target: toTrimmedText(dto.target) ?? null,
       },
       include: LIST_INCLUDE,
     });
@@ -164,6 +414,9 @@ export class PatentRecordService {
       ...pick(dto, "examStatusId"),
       ...pick(dto, "exam"),
       ...pickDate(dto, "examDate"),
+      ...(dto.target !== undefined
+        ? { target: toTrimmedText(dto.target) }
+        : {}),
     };
 
     return this.prisma.client.patent.update({
@@ -214,6 +467,7 @@ export class PatentRecordService {
     attorneyNumber?: number | null;
     legalStatusId?: number | null;
     examStatusId?: number | null;
+    target?: string | null;
   }) {
     if (dto.countryId != null) {
       const country = await this.prisma.client.country.findUnique({
@@ -247,6 +501,16 @@ export class PatentRecordService {
         throw new NotFoundException("PATENT_EXAM_STATUS_NOT_FOUND");
       }
     }
+    const target = toTrimmedText(dto.target);
+    if (target) {
+      const foundTarget = await this.prisma.client.patentTarget.findUnique({
+        where: { target },
+        select: { id: true },
+      });
+      if (!foundTarget) {
+        throw new NotFoundException("PATENT_TARGET_NOT_FOUND");
+      }
+    }
   }
 }
 
@@ -258,4 +522,11 @@ const pickDate = <T extends object, K extends keyof T>(source: T, key: K) => {
   if (!(key in source) || source[key] === undefined) return {};
   const value = source[key] as string | null;
   return { [key]: value === null ? null : new Date(value) };
+};
+
+const toTrimmedText = (
+  value: string | null | undefined,
+): string | null | undefined => {
+  if (value === undefined || value === null) return value;
+  return value.trim() || null;
 };

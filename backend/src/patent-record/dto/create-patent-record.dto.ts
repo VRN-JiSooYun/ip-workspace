@@ -108,4 +108,9 @@ export class CreatePatentRecordDto {
   @IsOptional()
   @IsDateString()
   examDate?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  target?: string;
 }

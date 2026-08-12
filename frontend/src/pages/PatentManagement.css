@@ -93,6 +93,24 @@
   margin-bottom: 12px;
 }
 
+.pm-target-status {
+  display: block;
+  padding: 10px 4px;
+  font-size: 12px;
+}
+
+.pm-target-list {
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.pm-target-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* ---- deadline calendar -------------------------------------------------- */
 
 .pm-calendar-grid {
@@ -119,11 +137,17 @@
   border-radius: 999px;
   font-size: 12px;
   color: var(--text-primary);
+  border: 0;
+  padding: 0;
+  background: transparent;
+  cursor: pointer;
+  font-family: inherit;
 }
 
 .pm-calendar-day-muted {
   color: var(--text-secondary);
   opacity: 0.45;
+  cursor: default;
 }
 
 /* A deadline falls on this day. */
@@ -140,6 +164,37 @@
   font-weight: 700;
 }
 
+.pm-calendar-event-list {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-height: 24px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border-color);
+  font-size: 12px;
+}
+
+.pm-calendar-event-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.pm-calendar-event-row .ant-tag {
+  flex-shrink: 0;
+  margin-inline-end: 0;
+  font-size: 11px;
+}
+
+.pm-calendar-event-row > span:last-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* ---- upcoming deadlines ------------------------------------------------- */
 
 .pm-deadline-row {
@@ -149,6 +204,25 @@
   padding: 7px 0;
   font-size: 12px;
   color: var(--text-primary);
+}
+
+.pm-schedule-status {
+  display: block;
+  padding: 8px 0;
+  font-size: 12px;
+}
+
+.pm-todo-editor {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 180px;
+  gap: 12px;
+}
+
+@media (max-width: 640px) {
+  .pm-todo-editor {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+  }
 }
 
 .pm-dday {
@@ -386,43 +460,3 @@
   min-width: 0;
 }
 
-.pm-search-filters {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px 16px;
-  margin-bottom: 10px;
-  font-size: 12px;
-}
-
-.pm-search-hint {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  margin-left: auto;
-  color: var(--text-secondary);
-  white-space: nowrap;
-}
-
-/* 문서가 있는 행만 뷰어를 열 수 있다. */
-.pm-row-clickable {
-  cursor: pointer;
-}
-
-.pm-row-inert > td {
-  color: var(--text-secondary);
-}
-
-.pm-row-selected > td {
-  background: var(--c-row-selected-bg, rgba(22, 119, 255, 0.08));
-}
-
-.pm-doc-badges {
-  display: inline-flex;
-  flex-wrap: wrap;
-  gap: 4px;
-}
-
-.pm-doc-badges .ant-tag {
-  margin-inline-end: 0;
-}

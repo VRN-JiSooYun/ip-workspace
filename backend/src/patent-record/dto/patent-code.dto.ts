@@ -6,7 +6,7 @@ import {
   MinLength,
 } from "class-validator";
 
-/** 코드 테이블 4종의 공통 body. `value`는 표시값, `id`는 attorney 전용 PK다. */
+/** 코드 테이블의 공통 body. `value`는 표시값, `id`는 attorney 전용 PK다. */
 export class PatentCodeBodyDto {
   @IsString()
   @MinLength(1)

@@ -222,7 +222,8 @@ const PatentCsvImportModal: React.FC<Props> = ({ open, onCancel, onApplied }) =>
 
           {(result.newCodes.countries.length > 0 ||
             result.newCodes.legalStatuses.length > 0 ||
-            result.newCodes.examStatuses.length > 0) && (
+            result.newCodes.examStatuses.length > 0 ||
+            result.newCodes.targets.length > 0) && (
             <Alert
               type="info"
               showIcon
@@ -238,6 +239,9 @@ const PatentCsvImportModal: React.FC<Props> = ({ open, onCancel, onApplied }) =>
                   )}
                   {result.newCodes.examStatuses.length > 0 && (
                     <div>심사 상태: {result.newCodes.examStatuses.join(', ')}</div>
+                  )}
+                  {result.newCodes.targets.length > 0 && (
+                    <div>Target: {result.newCodes.targets.join(', ')}</div>
                   )}
                 </>
               }

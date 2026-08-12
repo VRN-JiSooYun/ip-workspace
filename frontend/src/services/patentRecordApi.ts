@@ -6,6 +6,7 @@ export type PatentCountry = { id: number; country: string };
 export type PatentAttorney = { attorneyNumber: number; attorneyName: string | null };
 export type PatentLegalStatus = { id: number; status: string };
 export type PatentExamStatus = { id: number; status: string };
+export type PatentTargetCode = { id: number; target: string };
 
 export type PatentRecord = {
   id: number;
@@ -36,6 +37,7 @@ export type PatentRecord = {
   examStatusId: number | null;
   exam: boolean | null;
   examDate: string | null;
+  target: string | null;
   country: PatentCountry;
   attorney: PatentAttorney | null;
   legalStatus: PatentLegalStatus | null;
@@ -54,10 +56,12 @@ export type PatentRecordLookups = {
   attorneys: PatentAttorney[];
   legalStatuses: PatentLegalStatus[];
   examStatuses: PatentExamStatus[];
+  targets: PatentTargetCode[];
 };
 
 export type PatentRecordListQuery = {
   q?: string;
+  targets?: string[];
   countryId?: number;
   legalStatusId?: number;
   examStatusId?: number;
@@ -132,14 +136,98 @@ const request = async <T>(path: string, options?: RequestInit): Promise<T> => {
   return body as T;
 };
 
-const toQueryString = (query: PatentRecordListQuery): string => {
+const toQueryString = (
+  query: PatentRecordListQuery | PatentScheduleQuery,
+): string => {
   const params = new URLSearchParams();
   for (const [key, value] of Object.entries(query)) {
     if (value === undefined || value === null || value === '') continue;
+    if (Array.isArray(value)) {
+      value.forEach((item) => params.append(key, String(item)));
+      continue;
+    }
     params.set(key, String(value));
   }
   const serialized = params.toString();
   return serialized ? `?${serialized}` : '';
+};
+
+export type PatentTargetSummary = {
+  target: string;
+  count: number;
+};
+
+export type PatentScheduleEventType =
+  | 'APPLICATION'
+  | 'REGISTRATION'
+  | 'PUBLICATION'
+  | 'INT_APPLICATION'
+  | 'INT_PUBLICATION'
+  | 'EXAM'
+  | 'TODO'
+  | 'EXPECTED_EXPIRY';
+
+export type PatentScheduleEvent = {
+  patentId: number;
+  todoId?: number;
+  internalRef: string | null;
+  applicationNumber: string;
+  title: string | null;
+  country: string;
+  target: string | null;
+  type: PatentScheduleEventType;
+  label: string;
+  date: string;
+};
+
+export type PatentTodoItem = {
+  todoId: number;
+  patentId: number;
+  internalRef: string | null;
+  applicationNumber: string;
+  patentTitle: string | null;
+  title: string;
+  description: string | null;
+  country: string;
+  target: string | null;
+  dueDate: string;
+};
+
+export type PatentTodo = {
+  id: number;
+  patentId: number;
+  title: string;
+  description: string | null;
+  dueDate: string | null;
+  completed: boolean;
+  completedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type CreatePatentTodoInput = {
+  patentId: number;
+  title: string;
+  description?: string | null;
+  dueDate?: string | null;
+};
+
+export type UpdatePatentTodoInput = Partial<
+  Omit<CreatePatentTodoInput, 'patentId'> & { completed: boolean }
+>;
+
+export type PatentScheduleResult = {
+  year: number;
+  month: number;
+  events: PatentScheduleEvent[];
+  todos: PatentTodoItem[];
+  todoTotal: number;
+};
+
+export type PatentScheduleQuery = {
+  year: number;
+  month: number;
+  targets?: string[];
 };
 
 export type PatentImportIssue = {
@@ -159,7 +247,12 @@ export type PatentImportResult = {
   skipCount: number;
   errorCount: number;
   ignoredHeaders: string[];
-  newCodes: { countries: string[]; legalStatuses: string[]; examStatuses: string[] };
+  newCodes: {
+    countries: string[];
+    legalStatuses: string[];
+    examStatuses: string[];
+    targets: string[];
+  };
   issues: PatentImportIssue[];
 };
 
@@ -198,12 +291,13 @@ export const patentImportApi = {
   },
 };
 
-/** 코드 테이블 4종. 백엔드의 PATENT_CODE_TYPES와 값이 일치해야 한다. */
+/** 특허 코드 테이블. 백엔드의 PATENT_CODE_TYPES와 값이 일치해야 한다. */
 export const PATENT_CODE_TYPES = [
   'countries',
   'attorneys',
   'legal-statuses',
   'exam-statuses',
+  'targets',
 ] as const;
 
 export type PatentCodeType = (typeof PATENT_CODE_TYPES)[number];
@@ -247,6 +341,32 @@ export const patentCodeApi = {
   },
 };
 
+export const patentTodoApi = {
+  list(patentId: number): Promise<PatentTodo[]> {
+    return request<PatentTodo[]>(`/patent-todos?patentId=${patentId}`);
+  },
+
+  create(input: CreatePatentTodoInput): Promise<PatentTodo> {
+    return request<PatentTodo>('/patent-todos', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    });
+  },
+
+  update(id: number, input: UpdatePatentTodoInput): Promise<PatentTodo> {
+    return request<PatentTodo>(`/patent-todos/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(input),
+    });
+  },
+
+  remove(id: number): Promise<{ id: number }> {
+    return request<{ id: number }>(`/patent-todos/${id}`, {
+      method: 'DELETE',
+    });
+  },
+};
+
 export const patentRecordApi = {
   list(query: PatentRecordListQuery = {}): Promise<PatentRecordListResult> {
     return request<PatentRecordListResult>(`/patent-records${toQueryString(query)}`);
@@ -254,6 +374,16 @@ export const patentRecordApi = {
 
   lookups(): Promise<PatentRecordLookups> {
     return request<PatentRecordLookups>('/patent-records/lookups');
+  },
+
+  targets(): Promise<PatentTargetSummary[]> {
+    return request<PatentTargetSummary[]>('/patent-records/targets');
+  },
+
+  schedule(query: PatentScheduleQuery): Promise<PatentScheduleResult> {
+    return request<PatentScheduleResult>(
+      `/patent-records/schedule${toQueryString(query)}`,
+    );
   },
 
   create(input: CreatePatentRecordInput): Promise<PatentRecord> {

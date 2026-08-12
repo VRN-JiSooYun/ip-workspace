@@ -19,6 +19,7 @@ import { SkipTimeout } from "../common/decorators/skip-timeout.decorator";
 import { CreatePatentRecordDto } from "./dto/create-patent-record.dto";
 import { ImportPatentRecordsDto } from "./dto/import-patent-records.dto";
 import { PatentRecordListQueryDto } from "./dto/patent-record-list-query.dto";
+import { PatentScheduleQueryDto } from "./dto/patent-schedule-query.dto";
 import { UpdatePatentRecordDto } from "./dto/update-patent-record.dto";
 import { buildTemplateCsv } from "./patent-csv";
 import { PatentRecordImportService } from "./patent-record-import.service";
@@ -43,6 +44,16 @@ export class PatentRecordController {
   @Get("lookups")
   listLookups() {
     return this.patents.listLookups();
+  }
+
+  @Get("targets")
+  listTargets() {
+    return this.patents.listTargets();
+  }
+
+  @Get("schedule")
+  schedule(@Query() query: PatentScheduleQueryDto) {
+    return this.patents.schedule(query);
   }
 
   /** Google Sheets에 붙여넣고 컬럼명을 맞출 수 있는 빈 CSV. */

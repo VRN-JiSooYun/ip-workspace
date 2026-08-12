@@ -406,6 +406,14 @@ model ExamStatus {
   @@map("exam_status")
 }
 
+model PatentTarget {
+  id      Int      @id @default(autoincrement())
+  target  String   @unique
+  patents Patent[]
+
+  @@map("patent_target")
+}
+
 model Patent {
   id                      Int          @id @default(autoincrement())
   countryId               Int          @map("country")
@@ -439,8 +447,8 @@ model Patent {
   exam                    Boolean?
   examDate                DateTime?    @map("exam_date")
 
-  /// IP팀 운영 시트에서 그대로 넘어오는 항목들. 코드 테이블로 정규화하지 않고
-  /// 시트에 적힌 문장을 보존한다.
+  /// Target은 patent_target의 코드명을 참조한다. 나머지 항목은 코드 테이블로
+  /// 정규화하지 않고 IP팀 운영 시트에 적힌 문장을 보존한다.
   target                  String?
   inventors               String?
   /// "현재 Status"(legal_status) 옆에 붙는 자유 서술.
@@ -459,18 +467,41 @@ model Patent {
   attorney    Attorney?    @relation(fields: [attorneyNumber], references: [attorneyNumber], onDelete: SetNull)
   legalStatus LegalStatus? @relation(fields: [legalStatusId], references: [id], onDelete: SetNull)
   examStatus  ExamStatus?  @relation(fields: [examStatusId], references: [id], onDelete: SetNull)
+  targetCode  PatentTarget? @relation(fields: [target], references: [target], onDelete: SetNull, onUpdate: Cascade)
   patentIpcs  PatentIpc[]
   admins      PatentAdmin[]
+  todos       PatentTodo[]
 
   @@index([countryId])
   @@index([attorneyNumber])
   @@index([legalStatusId])
   @@index([examStatusId])
+  @@index([target])
   @@index([applicationDate])
   @@index([publicationDate])
   // 구성요소별 조회와 다음 일련번호 채번(2단계)을 위한 index.
   @@index([refOrigin, refYear, refType, refSerial])
   @@map("patent")
+}
+
+model PatentTodo {
+  id          Int       @id @default(autoincrement())
+  patentId    Int       @map("patent_id")
+  title       String
+  description String?
+  dueDate     DateTime? @map("due_date")
+  completed   Boolean   @default(false)
+  completedAt DateTime? @map("completed_at")
+  /// 기존 patent.todo_due_date/CSV 값을 멱등하게 동기화하기 위한 내부 key.
+  /// 사용자가 UI에서 만드는 To-do는 NULL이다.
+  sourceKey   String?   @unique @map("source_key")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  patent      Patent    @relation(fields: [patentId], references: [id], onDelete: Cascade)
+
+  @@index([patentId])
+  @@index([completed, dueDate])
+  @@map("patent_todo")
 }
 
 model Ipc {

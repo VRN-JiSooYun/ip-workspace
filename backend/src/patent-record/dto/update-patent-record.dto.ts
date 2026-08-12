@@ -108,4 +108,9 @@ export class UpdatePatentRecordDto {
   @IsOptional()
   @IsDateString()
   examDate?: string | null;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  target?: string | null;
 }

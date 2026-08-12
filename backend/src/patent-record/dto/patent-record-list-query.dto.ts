@@ -1,5 +1,7 @@
 import { Transform } from "class-transformer";
 import {
+  ArrayMaxSize,
+  IsArray,
   IsIn,
   IsInt,
   IsOptional,
@@ -15,6 +17,15 @@ export class PatentRecordListQueryDto {
   @IsString()
   @MaxLength(200)
   q?: string;
+
+  /** 선택한 Target 중 하나와 정확히 일치하는 관리 특허만 조회한다. */
+  @IsOptional()
+  @Transform(({ value }) => (Array.isArray(value) ? value : [value]))
+  @IsArray()
+  @ArrayMaxSize(100)
+  @IsString({ each: true })
+  @MaxLength(200, { each: true })
+  targets?: string[];
 
   @IsOptional()
   @Transform(({ value }) => Number(value))

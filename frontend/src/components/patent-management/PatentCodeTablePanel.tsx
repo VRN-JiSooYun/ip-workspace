@@ -64,6 +64,14 @@ export const PATENT_CODE_TABS: PatentCodeTabConfig[] = [
     manualId: false,
     idLabel: 'ID',
   },
+  {
+    type: 'targets',
+    label: 'Target',
+    valueLabel: 'Target',
+    valuePlaceholder: 'EGFR',
+    manualId: false,
+    idLabel: 'ID',
+  },
 ];
 
 const getErrorMessage = (error: unknown) =>
@@ -77,6 +85,7 @@ const describeError = (error: unknown): string => {
     return `특허 ${inUse[1]}건이 사용 중이라 삭제할 수 없습니다. 해당 특허의 값을 먼저 바꿔주세요.`;
   }
   if (raw === 'PATENT_COUNTRY_DUPLICATED') return '이미 등록된 국가입니다.';
+  if (raw === 'PATENT_TARGET_DUPLICATED') return '이미 등록된 Target입니다.';
   if (raw === 'PATENT_ATTORNEY_NUMBER_DUPLICATED') {
     return '이미 등록된 대리인번호입니다.';
   }

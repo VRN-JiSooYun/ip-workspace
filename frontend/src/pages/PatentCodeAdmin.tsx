@@ -10,7 +10,7 @@ import { useUIStore } from '../store/useUIStore';
 const { Text } = Typography;
 
 /**
- * 특허 코드 관리 — `country`, `attorney`, `legal_status`, `exam_status` 네 코드 테이블.
+ * 특허 코드 관리 — 국가, 대리인, 법적 상태, 심사 상태, Target 코드 테이블.
  *
  * 특허 추가·변경 화면의 select 옵션이 여기서 나온다. 라우트가
  * `patentAnalysis.manage`를 요구하므로 메뉴도 같은 권한으로 자동 게이팅된다.
