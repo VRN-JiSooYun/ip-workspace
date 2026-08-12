@@ -20,7 +20,6 @@ export type WorkspaceAccessContext = {
   teams: Array<{ id: string; name: string }>;
   permissions: WorkspacePermission[];
   modules: {
-    conference: { read: boolean; write: boolean; manage: boolean };
     patentAnalysis: { read: boolean; write: boolean; manage: boolean };
   };
 };
@@ -97,11 +96,6 @@ export class WorkspaceAuthorizationService {
       })),
       permissions,
       modules: {
-        conference: {
-          read: has("conference.read"),
-          write: has("conference.manage"),
-          manage: has("conference.manage"),
-        },
         patentAnalysis: {
           read: has("patentAnalysis.read"),
           write: has("patentAnalysis.manage"),
@@ -128,19 +122,14 @@ export class WorkspaceAuthorizationService {
     }
   }
 
-  resolveDataScope(
-    accessContext: WorkspaceAccessContext,
-    domain: "conference" | "patentAnalysis",
-  ): WorkspaceDataScope {
+  // `patentAnalysis` is the only remaining domain, so there is nothing left to
+  // branch on. The TEAM scope this used to reach was only ever used by the
+  // conference and design/synthesis domains, which no longer exist.
+  resolveDataScope(accessContext: WorkspaceAccessContext): WorkspaceDataScope {
     if (accessContext.globalRoles.includes("SUPER_ADMIN")) {
       return { type: "GLOBAL" };
     }
-    if (
-      (domain === "conference" &&
-        accessContext.globalRoles.includes("CONFERENCE_ADMIN")) ||
-      (domain === "patentAnalysis" &&
-        accessContext.globalRoles.includes("PATENT_ANALYSIS_ADMIN"))
-    ) {
+    if (accessContext.globalRoles.includes("PATENT_ANALYSIS_ADMIN")) {
       if (!accessContext.organization) {
         throw new ForbiddenException("WORKSPACE_ORGANIZATION_REQUIRED");
       }
@@ -149,19 +138,7 @@ export class WorkspaceAuthorizationService {
         organizationId: accessContext.organization.id,
       };
     }
-    if (domain === "patentAnalysis") {
-      return { type: "OWN", userId: accessContext.userId };
-    }
-    if (!accessContext.organization) {
-      throw new ForbiddenException("WORKSPACE_ORGANIZATION_REQUIRED");
-    }
-    // Only `conference` remains, and it is organization-scoped. The TEAM scope
-    // this used to fall through to was reachable only from the design/synthesis
-    // domains, which no longer exist.
-    return {
-      type: "ORG",
-      organizationId: accessContext.organization.id,
-    };
+    return { type: "OWN", userId: accessContext.userId };
   }
 
   async isSuperAdmin(userId: string): Promise<boolean> {
@@ -182,16 +159,6 @@ export class WorkspaceAuthorizationService {
   }): WorkspacePermission[] {
     const canRead = access.canRead || access.canWrite || access.canManage;
     switch (access.module) {
-      case "CONFERENCE":
-        return [
-          ...(canRead ? ["conference.read" as const] : []),
-          ...(access.canManage
-            ? [
-                "conference.manage" as const,
-                "conference.comment.moderate" as const,
-              ]
-            : []),
-        ];
       case "PATENT_ANALYSIS":
         return [
           ...(canRead ? ["patentAnalysis.read" as const] : []),

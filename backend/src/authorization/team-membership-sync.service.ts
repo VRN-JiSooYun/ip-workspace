@@ -5,7 +5,6 @@ export const DEFAULT_ORGANIZATION_ID = "00000000-0000-4000-8000-000000000001";
 export const DEFAULT_ORGANIZATION_SLUG = "medichem-workspace";
 
 const DEFAULT_TEAM_MODULE_ACCESS = [
-  { module: "CONFERENCE", canRead: true, canWrite: false, canManage: false },
   {
     module: "PATENT_ANALYSIS",
     canRead: true,

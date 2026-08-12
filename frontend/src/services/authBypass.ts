@@ -15,9 +15,6 @@ export const AUTH_BYPASS = import.meta.env.VITE_AUTH_BYPASS === 'true';
 
 const ALL_PERMISSIONS: WorkspacePermission[] = [
   'userAccess.manage',
-  'conference.read',
-  'conference.manage',
-  'conference.comment.moderate',
   'patentAnalysis.read',
   'patentAnalysis.manage',
   'sarTable.read',
@@ -56,7 +53,6 @@ export const bypassAccessContext = (): WorkspaceAccessContext => ({
   teams: [{ id: 'bypass-team', name: 'Test Team' }],
   permissions: ALL_PERMISSIONS,
   modules: {
-    conference: fullCapability,
     patentAnalysis: fullCapability,
     sarTable: fullCapability,
     design: fullCapability,

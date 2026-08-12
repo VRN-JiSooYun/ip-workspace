@@ -1,8 +1,5 @@
 export const WORKSPACE_PERMISSIONS = [
   "userAccess.manage",
-  "conference.read",
-  "conference.manage",
-  "conference.comment.moderate",
   "patentAnalysis.read",
   "patentAnalysis.manage",
 ] as const;
@@ -11,7 +8,6 @@ export type WorkspacePermission = (typeof WORKSPACE_PERMISSIONS)[number];
 
 export const WORKSPACE_ADMIN_ROLES = [
   "SUPER_ADMIN",
-  "CONFERENCE_ADMIN",
   "PATENT_ANALYSIS_ADMIN",
 ] as const;
 
@@ -24,11 +20,6 @@ const ROLE_PERMISSION_GRANTS: Readonly<
   Record<WorkspaceAdminRole, readonly WorkspacePermission[]>
 > = {
   SUPER_ADMIN: WORKSPACE_PERMISSIONS,
-  CONFERENCE_ADMIN: [
-    "conference.read",
-    "conference.manage",
-    "conference.comment.moderate",
-  ],
   PATENT_ANALYSIS_ADMIN: ["patentAnalysis.read", "patentAnalysis.manage"],
 };
 

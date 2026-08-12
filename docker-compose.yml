@@ -69,10 +69,6 @@ services:
     volumes:
       - ./backend:/app
       - /app/node_modules
-      - local-myworkspace-conference-import-data:/app/imports/conference
-      - ./sample/conference/excel:/app/imports/conference/legacy/excel:ro
-      - ./sample/conference/conference_list.json:/app/imports/conference/legacy/conference_list.json:ro
-      - ./sample/conference/api_metadata:/app/imports/conference/api-metadata:ro
       - local-myworkspace-notification-recipient-import-data:/app/imports/notification-recipients
       - ./secrets/gmail/token.json:/run/secrets/gmail/token.json:ro
     environment:
@@ -100,8 +96,6 @@ services:
       - AUTH_SESSION_EXPIRES_IN_SECONDS=21600
       - AUTH_SESSION_UPDATE_AGE_SECONDS=1800
       - AUTH_BOOTSTRAP_ADMIN_EMAILS=${AUTH_BOOTSTRAP_ADMIN_EMAILS:-}
-      - CONFERENCE_IMPORT_ROOT=/app/imports/conference
-      - CONFERENCE_IMPORT_CHUNK_SIZE=${CONFERENCE_IMPORT_CHUNK_SIZE:-50}
       - NOTIFICATION_RECIPIENT_IMPORT_ROOT=/app/imports/notification-recipients
       - GMAIL_OAUTH_TOKEN_FILE=/run/secrets/gmail/token.json
       - GMAIL_FROM_EMAIL=${GMAIL_FROM_EMAIL:-vgw@voronoi.io}
@@ -146,5 +140,4 @@ networks:
 
 volumes:
   local-myworkspace-postgres-data:
-  local-myworkspace-conference-import-data:
   local-myworkspace-notification-recipient-import-data:

@@ -4,9 +4,6 @@ type RuntimeWindow = Window & { _env_?: { VITE_API_URL?: string } };
 
 export type WorkspacePermission =
   | 'userAccess.manage'
-  | 'conference.read'
-  | 'conference.manage'
-  | 'conference.comment.moderate'
   | 'patentAnalysis.read'
   | 'patentAnalysis.manage'
   | 'sarTable.read'
@@ -32,7 +29,6 @@ export type WorkspaceAccessContext = {
   teams: Array<{ id: string; name: string }>;
   permissions: WorkspacePermission[];
   modules: {
-    conference: ModuleCapability;
     patentAnalysis: ModuleCapability;
     sarTable: ModuleCapability;
     design: ModuleCapability;

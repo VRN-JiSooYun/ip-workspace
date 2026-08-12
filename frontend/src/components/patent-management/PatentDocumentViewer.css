@@ -1,0 +1,63 @@
+/* 문서 뷰어의 `문서 전문` 탭 스타일.
+   나머지 pm-viewer-*/pm-doc-* 규칙은 아직 pages/PatentManagement.css에 있다. */
+
+/**
+ * 이 뷰어는 두 화면(특허 관리·의견제출통지서)에서 모두 너비 조절 가능한 패널 안에 들어간다.
+ * 즉 가용 폭이 viewport와 무관하므로 내부 반응형 기준을 컨테이너 폭으로 잡는다.
+ * 규칙은 docs/UI_STANDARD_GUIDE.md의 "컨테이너 쿼리" 항목을 따른다.
+ */
+.pm-doc-viewer {
+  container-type: inline-size;
+  container-name: pm-doc-viewer;
+}
+
+/* 라벨 92px + 값의 2열 구성이 버거워지면 라벨을 값 위로 올린다. */
+@container pm-doc-viewer (max-width: 420px) {
+  .pm-doc-viewer .pm-doc-field {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+  }
+
+  .pm-doc-viewer .pm-doc-field-value {
+    padding-bottom: 4px;
+  }
+}
+
+.pm-doc-fulltext {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+.pm-doc-fulltext-switch {
+  align-self: flex-start;
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+/* toolbar는 고정 높이, 그 아래 viewer가 남은 높이를 채운다. */
+.pm-doc-pdf {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: min(78vh, 820px);
+}
+
+/* PatentPdfViewer는 Card가 flex:1·minHeight:0이라 부모가 높이를 정해 줘야 한다. */
+.pm-doc-pdf-viewer {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+/* Card 기본 여백이 좁은 패널에서 본문 폭을 더 줄이므로 없앤다. */
+.pm-doc-pdf .ant-card {
+  margin: 0;
+}
+
+/* 좁은 패널에서는 toolbar 항목이 여러 줄로 접힌다. 줄바꿈 간격만 정리한다. */
+.pm-doc-pdf .ant-input-number {
+  flex-shrink: 0;
+}

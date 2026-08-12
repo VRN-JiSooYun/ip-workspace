@@ -59,6 +59,114 @@ VORA는 다양한 해상도(UHD, QHD, FHD 등)에서 최적의 경험을 제공�
 - **1600px 이하**: 헤더 패딩 축소, 버튼/입력창 높이 조정 (44px -> 40px)
 - **1200px 이하**: 검색창 너비 축소 및 폰트 크기 최적화
 
+### 컨테이너 쿼리 (Container Queries)
+
+**판단 기준: 이 컴포넌트가 좁아지는 이유가 무엇인가?**
+
+| 좁아지는 이유 | 사용할 것 |
+| --- | --- |
+| 화면(브라우저) 자체가 좁다 | `@media` |
+| 화면은 그대로인데 **옆 패널이 자리를 차지**했다 | `@container` |
+
+사이드 패널·분할 화면·크기 조절 가능한 패널 안에 들어가는 컴포넌트는 **반드시
+`@container`** 를 씁니다. viewport는 넓은데 컴포넌트만 좁아지는 상황을 `@media`로는
+감지할 수 없어, 내부 입력 필드와 텍스트가 부모 카드 밖으로 삐져나옵니다.
+
+> 실제 사례: 의견제출통지서 화면에서 문서 뷰어를 최대로 넓히면 viewport가 1500px인데도
+> 좌측 검색 패널은 195px이 됩니다. `@media (max-width: 1100px)` 폴백이 있었지만
+> viewport 기준이라 발동하지 않아 조·항·호 입력과 `추가` 버튼이 최대 411px까지 넘쳤습니다.
+
+#### 적용 방법
+
+```css
+/* 1. 컴포넌트 루트에 컨테이너 컨텍스트를 선언한다. 이름을 붙여 의도를 드러낸다. */
+.oa-filters {
+  container-type: inline-size;
+  container-name: oa-filters;
+}
+
+/* 2. 자손이 그 컨테이너 폭을 기준으로 반응한다. (자기 자신은 질의할 수 없다) */
+@container oa-filters (max-width: 720px) {
+  .oa-subpanel-grid-ipc {
+    grid-template-columns: repeat(auto-fit, minmax(min(130px, 100%), 1fr));
+  }
+}
+```
+
+- `container-type: inline-size`는 가로 폭만 격리합니다. 높이는 내용에 따라 늘어납니다.
+- 컨테이너 자신에는 `@container` 규칙이 적용되지 않습니다. 반드시 **자손**에 겁니다.
+- antd의 dropdown·tooltip은 portal로 body에 렌더되므로 containment 영향을 받지 않습니다.
+- 모든 모던 브라우저에서 지원됩니다(2023년 Baseline).
+
+#### grid 하한은 반드시 접히게 (`min()`)
+
+컨테이너 쿼리와 **함께** 지켜야 하는 규칙입니다. breakpoint 사이 구간을 메워 줍니다.
+
+```css
+/* 나쁨: 컨테이너가 150px보다 좁아지면 열이 150px을 유지해 그대로 넘친다 */
+grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+
+/* 좋음: 하한이 컨테이너 폭까지 접힌다 */
+grid-template-columns: repeat(auto-fit, minmax(min(150px, 100%), 1fr));
+```
+
+고정 폭 열도 같습니다: `92px` → `min(92px, 40%)`.
+
+#### 넘침을 만드는 습관 3가지
+
+1. **고정 폭 인라인 스타일** — `style={{ width: 220 }}`. 폭은 CSS에 맡기고
+   `flex: 1 1 auto; min-width: 0; max-width: 240px` 형태로 상한만 둡니다.
+2. **`min-width: 0` 누락** — flex/grid 자식의 기본 `min-width: auto`는 콘텐츠보다 작아지지
+   않습니다. 줄어들어야 하는 모든 flex/grid 자식에 `min-width: 0`을 답니다.
+3. **라벨에 `white-space: nowrap`** — `심사진행상태` 같은 라벨이 열 폭을 밀어냅니다.
+   줄바꿈을 허용하거나(`overflow-wrap: anywhere`), ellipsis로 자릅니다.
+
+#### 가로 스크롤은 허용되는 탈출구
+
+표(antd Table `scroll={{ x: 'max-content' }}`)나 단계 파이프라인처럼 폭을 줄일 수 없는
+콘텐츠는 **자기 스크롤 컨테이너 안에서** 넘치게 둡니다(`overflow-x: auto`).
+카드 밖으로 나가지만 않으면 됩니다. 페이지 본문(body)에 가로 스크롤이 생기면 안 됩니다.
+
+#### 검증 방법
+
+브라우저 콘솔에서 실제로 넘친 요소를 셉니다. **가로 스크롤 조상이 있는 요소는 제외**해야
+정상 동작하는 표를 오탐하지 않습니다.
+
+```js
+const clips = (el) => ['auto','scroll','hidden','clip'].includes(getComputedStyle(el).overflowX);
+const root = document.querySelector('.oa-filters');
+const rr = root.getBoundingClientRect();
+[...root.querySelectorAll('*')].filter((el) => {
+  const r = el.getBoundingClientRect();
+  if (r.width === 0 || r.right - rr.right <= 1) return false;
+  for (let p = el.parentElement; p && p !== root; p = p.parentElement) if (clips(p)) return false;
+  return true;
+});   // 길이가 0이어야 한다
+```
+
+패널 너비를 최소~최대까지 훑으면서 각 지점에서 0인지 확인합니다.
+
+### 너비 조절 패널 (Resizable Side Panel)
+
+우측 문서/상세 패널은 공용 컴포넌트 `components/common/ResizableSidePanel`을 씁니다.
+직접 드래그 로직을 다시 구현하지 않습니다.
+
+```tsx
+<ResizableSidePanel label="문서 뷰어 너비 조절">
+  <PatentDocumentViewer … />
+</ResizableSidePanel>
+```
+
+- 기본값: 최소 380px / 기본 520px / 최대 1000px, 키보드 스텝 24px.
+- **본문 최소 폭을 항상 남깁니다**(`minSiblingWidth`, 기본 320px). 최대치로 끌어도 좌측
+  목록이 0px으로 사라지지 않습니다. 창을 줄이면 `ResizeObserver`가 폭을 다시 맞춥니다.
+- 키보드 조작을 지원합니다: `←` 넓히기 / `→` 좁히기 / `Home` 최소 / `End` 최대 /
+  `Enter`·`Space` 기본값. `role="separator"` + `aria-valuenow`를 노출합니다.
+- 핸들과 패널을 형제로 렌더하므로 부모는 flex를 씁니다. 가로 간격은 `gap`이 아니라 각 열의
+  `margin`으로 줍니다. 핸들 양옆에 `gap`이 겹치면 핸들이 본문에서 떠 보입니다.
+- 화면이 좁아 세로로 쌓이는 구간에서는 핸들을 숨기고 인라인 너비를 무시합니다
+  (`width: 100% !important`).
+
 ## 4. 적용 예시 (React/TSX)
 
 ```tsx
@@ -75,4 +183,4 @@ return (
 ```
 
 ---
-*Last Updated: 2026-05-15 by Antigravity*
+*Last Updated: 2026-08-12 — 컨테이너 쿼리·너비 조절 패널 항목 추가*

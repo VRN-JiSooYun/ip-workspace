@@ -58,6 +58,13 @@ type PatentPdfViewerProps = {
   onScrollToHighlight?: (highlight: any) => void;
   onHighlightClick?: (highlight: any) => void;
   thumbnailCollapsed?: boolean;
+  /**
+   * 문서를 자격증명과 함께 받을지. 기본값 true는 인증이 필요한 특허 분석 PDF 기준이다.
+   *
+   * 자격증명을 함께 보내면 브라우저가 `Access-Control-Allow-Origin: *` 응답을 거부하므로,
+   * 그런 호스트(예: OA 문서를 주는 SeaweedFS)에서는 false로 내려야 로드된다.
+   */
+  withCredentials?: boolean;
 };
 
 const ThumbnailSidebar: React.FC<{
@@ -219,14 +226,15 @@ const PatentPdfViewerComponent: React.FC<PatentPdfViewerProps> = ({
   onAddHighlight,
   onHighlightClick,
   thumbnailCollapsed,
+  withCredentials = true,
 }) => {
   const [highlighterUtils, setLocalHighlighterUtils] = React.useState<PdfHighlighterUtils | null>(null);
   const [pdfDoc, setPdfDoc] = React.useState<any>(null);
   const pdfDocumentParams = React.useMemo(() => ({
     url: document,
     wasmUrl: PDFJS_WASM_URL,
-    withCredentials: true,
-  }), [document]);
+    withCredentials,
+  }), [document, withCredentials]);
 
   React.useEffect(() => installPdfWorkerTerminationWarningFilter(), []);
 

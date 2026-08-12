@@ -40,7 +40,6 @@ const { Text } = Typography;
 const PAGE_SIZE_OPTIONS = ['10', '30', '50', '100'];
 
 const moduleLabels: Record<WorkspaceModuleCode, string> = {
-  CONFERENCE: 'Conference',
   PATENT_ANALYSIS: '특허 분석',
   SAR_TABLE: 'SAR Table',
   DESIGN: 'Design',
@@ -459,7 +458,6 @@ const AccessRegistry: React.FC = () => {
               placeholder="일반 사용자는 관리 역할을 선택하지 않습니다."
               options={[
                 { value: 'SUPER_ADMIN', label: 'Super Admin' },
-                { value: 'CONFERENCE_ADMIN', label: 'Conference 관리자' },
                 { value: 'PATENT_ANALYSIS_ADMIN', label: '특허 분석 관리자' },
               ]}
             />

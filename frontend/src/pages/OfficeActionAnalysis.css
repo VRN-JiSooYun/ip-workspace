@@ -1,0 +1,574 @@
+/* 의견제출통지서 전문 검색 — 색은 index.css의 공용 custom property를 따른다.
+   브랜드 색상은 var(--brand-primary)로만 참조하고 hex를 직접 쓰지 않는다. */
+
+/* MainLayout의 Content가 고정 높이 overflow:hidden 껍데기라 페이지가 스크롤을 소유한다
+   (.pm-layout, .conference-page와 같은 규약). */
+.oa-page {
+  display: flex;
+  gap: 0;
+  align-items: start;
+  padding: 0 16px 24px;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  box-sizing: border-box;
+}
+
+.oa-main {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+
+.oa-side {
+  width: 100%;
+  min-width: 0;
+}
+
+/* 좁은 화면에서는 뷰어를 목록 아래로 내리고 너비 조절 UI를 숨긴다. */
+@media (max-width: 1200px) {
+  .oa-page-viewer-open {
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .oa-page.oa-page-viewer-open .resizable-side-panel-handle {
+    display: none;
+  }
+
+  /* 세로로 쌓이면 폭 조절이 의미가 없어 인라인 width를 무시한다. */
+  .oa-page.oa-page-viewer-open .resizable-side-panel-pane {
+    position: static;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+  }
+}
+
+.oa-ellipsis {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.oa-card {
+  background: var(--card-bg);
+  border: 1px solid var(--c-card-border);
+  border-radius: 12px;
+  box-sizing: border-box;
+}
+
+/* ---- 검색 바 ------------------------------------------------------------- */
+
+.oa-searchbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 10px 10px 16px;
+}
+
+.oa-searchbar .ant-input-affix-wrapper {
+  padding-inline: 0;
+}
+
+.oa-searchbar-icon {
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+
+.oa-searchbar-button {
+  flex-shrink: 0;
+  min-width: 116px;
+  font-weight: 600;
+}
+
+/* ---- 고급 검색 ----------------------------------------------------------- */
+
+/**
+ * 이 패널의 가용 폭은 viewport가 아니라 **문서 뷰어를 얼마나 넓혔는지**로 정해진다.
+ * 그래서 반응형 기준을 viewport(@media)가 아니라 자기 컨테이너 폭(@container)으로 잡는다.
+ * viewport가 1500px이어도 뷰어를 최대로 키우면 이 패널은 200px 이하가 되므로,
+ * @media 기준으로는 좁아진 것을 알 수 없어 내부 요소가 카드 밖으로 삐져나왔다.
+ */
+.oa-filters {
+  padding: 4px 8px;
+  container-type: inline-size;
+  container-name: oa-filters;
+}
+
+/* Collapse ghost의 기본 padding이 카드와 이중으로 붙어 넓어지는 것을 정리한다. */
+.oa-filters .ant-collapse-header {
+  align-items: center !important;
+  padding: 12px 12px !important;
+}
+
+.oa-filters .ant-collapse-content-box {
+  padding: 0 12px 14px !important;
+}
+
+.oa-filters-header {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.oa-filters-header-icon {
+  color: var(--brand-primary);
+  flex-shrink: 0;
+}
+
+.oa-filters-header-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.oa-filters-header-chevron {
+  color: var(--text-secondary);
+  transition: transform 0.2s;
+}
+
+/* 펼쳐진 패널의 chevron만 뒤집는다. */
+.oa-filters .ant-collapse-item-active .oa-filters-header-chevron {
+  transform: rotate(180deg);
+}
+
+.oa-filters-count {
+  margin-inline-start: 4px;
+  margin-inline-end: 0;
+  border-color: var(--brand-primary);
+  color: var(--brand-primary);
+  background: transparent;
+}
+
+/**
+ * 필드가 좁아지면 줄바꿈된다.
+ *
+ * `minmax(150px, ...)`을 그대로 쓰면 컨테이너가 150px보다 좁을 때 열이 150px을 그대로
+ * 차지해 밖으로 넘친다. `min(150px, 100%)`으로 하한을 컨테이너 폭까지 접히게 해야
+ * 어떤 폭에서도 넘치지 않는다. 아래 grid들도 모두 같은 이유로 min()을 쓴다.
+ */
+.oa-filter-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(150px, 100%), 1fr));
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.oa-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.oa-field-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  /* 라벨이 빈 칸(추가 버튼 자리)에서도 높이를 유지해 입력들이 같은 baseline에 놓인다. */
+  min-height: 18px;
+  /* nowrap이면 '심사진행상태' 같은 라벨이 열 폭을 밀어내 넘친다. 줄바꿈을 허용한다. */
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.oa-field-hint {
+  color: var(--text-secondary);
+  opacity: 0.7;
+  flex-shrink: 0;
+}
+
+.oa-field .ant-select,
+.oa-field .ant-picker,
+.oa-field .ant-input-number {
+  width: 100%;
+}
+
+/* ---- 조건 빌더 sub-panel ------------------------------------------------- */
+
+.oa-subpanel {
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  /* 카드 배경과 구분되는 옅은 면. 브랜드 색을 아주 낮은 알파로 깔아
+     라이트/다크 어디서나 같은 방향으로 눌린 톤이 된다. */
+  background: rgba(var(--brand-primary-rgb), 0.04);
+  padding: 12px;
+  margin-bottom: 10px;
+}
+
+.oa-subpanel-grid {
+  display: grid;
+  gap: 12px;
+  align-items: end;
+}
+
+/* 넉넉할 때는 시안대로 한 줄에 늘어놓는다. */
+.oa-subpanel-grid-statute {
+  grid-template-columns:
+    minmax(min(160px, 100%), 2fr)
+    repeat(3, minmax(min(80px, 100%), 1fr))
+    auto;
+}
+
+.oa-subpanel-grid-ipc {
+  grid-template-columns: repeat(5, minmax(min(96px, 100%), 1fr)) auto;
+}
+
+.oa-subpanel-grid-date {
+  grid-template-columns: repeat(3, minmax(min(150px, 100%), 1fr));
+}
+
+/* 컨테이너가 좁아지면 고정 열 수를 버리고 들어가는 만큼만 배치한다. */
+@container oa-filters (max-width: 720px) {
+  .oa-subpanel-grid-statute,
+  .oa-subpanel-grid-ipc,
+  .oa-subpanel-grid-date {
+    grid-template-columns: repeat(auto-fit, minmax(min(130px, 100%), 1fr));
+  }
+}
+
+/* 두 열도 버거운 폭에서는 한 열로 쌓는다. */
+@container oa-filters (max-width: 320px) {
+  .oa-filter-grid,
+  .oa-subpanel-grid-statute,
+  .oa-subpanel-grid-ipc,
+  .oa-subpanel-grid-date {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.oa-tag-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: -2px 0 12px;
+}
+
+/* 추가된 조건 badge. 시안의 주황 pill은 브랜드 색을 따른다. */
+.oa-condition-tag {
+  margin-inline-end: 0;
+  border: none;
+  border-radius: 990px;
+  padding: 3px 10px;
+  background: var(--brand-primary);
+  color: #fff;
+  font-size: 12px;
+}
+
+.oa-condition-tag .ant-tag-close-icon {
+  color: #fff;
+  opacity: 0.85;
+  margin-inline-start: 6px;
+}
+
+.oa-condition-tag .ant-tag-close-icon:hover {
+  opacity: 1;
+}
+
+.oa-filters-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding-top: 4px;
+}
+
+/* ---- 결과 목록 ----------------------------------------------------------- */
+
+/* 고급 검색과 같은 이유로 컨테이너 폭을 기준으로 반응한다. */
+.oa-results {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  container-type: inline-size;
+  container-name: oa-results;
+}
+
+.oa-results-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+  flex-wrap: wrap;
+  padding: 0 4px;
+}
+
+.oa-results-count {
+  font-size: 15px;
+  color: var(--text-secondary);
+}
+
+.oa-results-count strong {
+  font-size: 19px;
+  font-weight: 700;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+  margin-inline-end: 4px;
+}
+
+/* Sort By 묶음이 헤더에서 줄어들 수 있어야 한다(min-width:0). 넘치면 아래 줄로 내려간다. */
+.oa-results-sort {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex: 0 1 auto;
+}
+
+.oa-results-sort-label {
+  font-size: 13px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* select는 고정 폭 대신 남는 만큼 차지한다. 고정 폭이 헤더를 밀어내던 원인이었다. */
+.oa-results-sort-select {
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 240px;
+}
+
+/* 좁아지면 Sort By를 왼쪽 정렬해 한 줄을 온전히 쓰게 한다. */
+@container oa-results (max-width: 420px) {
+  .oa-results-header {
+    justify-content: flex-start;
+  }
+
+  .oa-results-sort {
+    flex: 1 1 100%;
+  }
+
+  .oa-results-sort-select {
+    max-width: none;
+  }
+}
+
+.oa-results-empty {
+  padding: 40px 16px;
+}
+
+.oa-result-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+/* ---- 결과 카드 ----------------------------------------------------------- */
+
+.oa-result-card {
+  border: 1px solid var(--c-card-border);
+  border-radius: 12px;
+  /* 카드 면을 브랜드 색 아주 옅은 톤으로 깔아 목록 배경과 구분한다. */
+  background: rgba(var(--brand-primary-rgb), 0.03);
+  padding: 16px 18px;
+  box-sizing: border-box;
+  cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s;
+  min-width: 0;
+}
+
+.oa-result-card:hover {
+  border-color: var(--brand-primary);
+}
+
+.oa-result-card:focus-visible {
+  outline: 2px solid var(--brand-primary);
+  outline-offset: 2px;
+}
+
+.oa-result-card-selected {
+  border-color: var(--brand-primary);
+  box-shadow: 0 0 0 1px var(--brand-primary) inset;
+}
+
+.oa-result-card-skeleton {
+  cursor: default;
+}
+
+.oa-result-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+
+.oa-result-action-number {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--brand-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.oa-result-date-badge {
+  padding: 1px 8px;
+  border-radius: 6px;
+  background: rgba(var(--brand-primary-rgb), 0.1);
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 법적상태는 오른쪽 끝으로 밀어 둔다. */
+.oa-result-status {
+  margin-inline-start: auto;
+  margin-inline-end: 0;
+  border-radius: 990px;
+  padding: 1px 10px;
+  background: rgba(var(--brand-primary-rgb), 0.12);
+  color: var(--brand-primary);
+  font-size: 12px;
+}
+
+.oa-result-title-ko {
+  margin: 0 0 2px;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.5;
+  color: var(--text-primary);
+}
+
+.oa-result-title-en {
+  margin: 0 0 10px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+
+/* 거절이유: 왼쪽에 대상 청구항, 오른쪽에 근거 조문. */
+.oa-result-rejections {
+  margin: 0 0 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+/* 실제 청구항 표기가 "청구항 제1항 내지 제6항, 제35항"처럼 길어 시안보다 넓게 잡는다. */
+.oa-result-rejection {
+  display: grid;
+  grid-template-columns: minmax(min(120px, 40%), 230px) minmax(0, 1fr);
+  gap: 12px;
+  font-size: 12px;
+  line-height: 1.7;
+  align-items: baseline;
+}
+
+/* 카드가 좁아지면 청구항/조문을 위아래로 쌓는다. */
+@container oa-results (max-width: 380px) {
+  .oa-result-rejection {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+  }
+
+  .oa-result-rejection dd {
+    padding-bottom: 4px;
+  }
+}
+
+.oa-result-rejection dt {
+  color: var(--text-secondary);
+  font-weight: 400;
+}
+
+.oa-result-rejection dd {
+  margin: 0;
+  color: var(--text-primary);
+}
+
+.oa-result-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 20px;
+  flex-wrap: wrap;
+  padding-bottom: 12px;
+}
+
+.oa-result-docs {
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+}
+
+/* 제출되지 않은 문서는 흐리게 남겨 유무를 한눈에 보이게 한다. */
+.oa-result-doc {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  opacity: 0.45;
+}
+
+.oa-result-doc-on {
+  color: var(--brand-primary);
+  opacity: 1;
+  font-weight: 600;
+}
+
+.oa-result-people {
+  display: inline-flex;
+  align-items: center;
+  gap: 16px;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.oa-result-person {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  color: var(--text-primary);
+  min-width: 0;
+  /* 고정 상한이 좁은 카드에서 줄을 밀어내므로 컨테이너 폭도 함께 상한으로 둔다. */
+  max-width: min(320px, 100%);
+}
+
+.oa-result-person-icon {
+  color: var(--brand-primary);
+  flex-shrink: 0;
+}
+
+.oa-result-footer {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(130px, 100%), 1fr));
+  gap: 8px 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-color);
+}
+
+.oa-result-footer > span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.oa-result-footer-label {
+  font-size: 11px;
+}
+
+.oa-result-footer-value {
+  font-size: 13px;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.oa-results-pagination {
+  display: flex;
+  justify-content: flex-end;
+  padding: 4px 4px 0;
+}

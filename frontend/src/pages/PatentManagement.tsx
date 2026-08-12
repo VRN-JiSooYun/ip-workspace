@@ -1,11 +1,13 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
+  App as AntApp,
   Button,
   Checkbox,
   Input,
   Pagination,
+  Segmented,
+  Select,
   Table,
-  Tabs,
   Tag,
   Tooltip,
   Typography,
@@ -19,29 +21,70 @@ import {
   ChevronRight,
   ClipboardList,
   FileCheck,
-  FileText,
   Filter,
   Gavel,
   Info,
-  LayoutGrid,
-  MoreVertical,
+  Pencil,
+  Plus,
   Reply,
   Search,
   Send,
-  X,
+  Trash2,
+  UploadCloud,
 } from 'lucide-react';
 import PageHeaderBreadcrumb from '../components/common/PageHeaderBreadcrumb';
+import ResizableSidePanel from '../components/common/ResizableSidePanel';
+import PatentCsvImportModal from '../components/patent-management/PatentCsvImportModal';
+import PatentDocumentViewer from '../components/patent-management/PatentDocumentViewer';
+import PatentRecordFormModal from '../components/patent-management/PatentRecordFormModal';
+import { useAccessContext } from '../contexts/AccessContext';
+import {
+  patentRecordApi,
+  type CreatePatentRecordInput,
+  type PatentRecord,
+  type PatentRecordLookups,
+} from '../services/patentRecordApi';
+import {
+  PATENT_SEARCH_KEYWORD_TARGET_LABELS,
+  PATENT_SEARCH_KEYWORD_TARGETS,
+  patentSearchApi,
+  type PatentSearchItem,
+  type PatentSearchKeywordTarget,
+} from '../services/patentSearchApi';
 import { useUIStore } from '../store/useUIStore';
+import { formatDisplayDateOnly, formatNumberWithComma } from '../utils/displayFormat';
 import './PatentManagement.css';
 
 const { Text } = Typography;
 
+const PAGE_SIZE = 20;
+
+const getErrorMessage = (error: unknown) =>
+  error instanceof Error ? error.message : '알 수 없는 오류가 발생했습니다.';
+
+const emptyDash = (value: string | null | undefined) => value ?? '-';
+
+/** 관련 특허 목록의 데이터 출처. */
+type ListSource = 'search' | 'records';
+
+/** 문서가 하나라도 붙어 있는 행만 뷰어로 열 수 있다. */
+const hasDocuments = (item: PatentSearchItem): boolean =>
+  item.contentLength > 0 ||
+  item.documentPath !== null ||
+  item.submissions.length > 0;
+
 /**
  * 특허 관리 — compound-driven patent portfolio view.
  *
- * The layout is final; the data below is placeholder. Every list here is a
- * local constant so the shape each panel expects is explicit — swap these for
- * the real API once the endpoints exist.
+ * 관련 특허 목록은 두 출처를 토글로 바꿔 본다.
+ * - `search`: `/api/patent-search` (외부 전문 검색). 결과 1건이 OA 1건이고 문서 본문이
+ *   딸려 오므로 행을 클릭하면 오른쪽 문서 뷰어에 렌더링된다.
+ * - `records`: `/api/patent-records` (로컬 `patent` table). 추가·변경·삭제 대상이다.
+ *
+ * 두 출처는 조회할 수 있는 조건이 다르다. 검색 API에는 출원번호·명칭 부분 일치 검색이 없고
+ * 문서 전문 키워드와 구조화된 filter만 있다. 반대로 로컬 table에는 문서 본문이 없다.
+ *
+ * 나머지 패널(마감 일정, 화합물, 단계)은 아직 placeholder 상수다.
  */
 
 type StageKey =
@@ -60,19 +103,6 @@ type Deadline = {
   country: string;
   date: string;
   daysLeft: number;
-};
-
-type PatentRow = {
-  key: string;
-  compound: string;
-  country: string;
-  flag: string;
-  applicationNo: string;
-  stage: string;
-  status: string;
-  statusTone: 'attention' | 'neutral';
-  owner: string;
-  nextDeadline: string;
 };
 
 const COMPOUNDS: Compound[] = [
@@ -101,30 +131,6 @@ const DEADLINES: Deadline[] = [
   { code: 'B-2020', country: 'US', date: '2024-05-28', daysLeft: 7 },
   { code: 'D-4040', country: 'EP', date: '2024-06-03', daysLeft: 12 },
 ];
-
-const PATENTS: PatentRow[] = [
-  { key: '1', compound: 'A-1010', country: 'KR', flag: '🇰🇷', applicationNo: '10-2023-0123456', stage: '심사', status: 'OA 대응', statusTone: 'attention', owner: '김지현', nextDeadline: '2024-05-24' },
-  { key: '2', compound: 'B-2020', country: 'US', flag: '🇺🇸', applicationNo: '17/123,456', stage: '심사', status: 'OA 대응', statusTone: 'attention', owner: '이상민', nextDeadline: '2024-05-28' },
-  { key: '3', compound: 'D-4040', country: 'EP', flag: '🇪🇺', applicationNo: 'EP23123456.7', stage: '출원', status: '출원 대기', statusTone: 'neutral', owner: '박준혁', nextDeadline: '2024-06-03' },
-  { key: '4', compound: 'A-1010', country: 'JP', flag: '🇯🇵', applicationNo: 'JP2023-123456', stage: '등록 준비', status: '등록료 납부 대기', statusTone: 'neutral', owner: '이성민', nextDeadline: '2024-06-07' },
-  { key: '5', compound: 'B-2020', country: 'CN', flag: '🇨🇳', applicationNo: 'CN202310123456.X', stage: '대응', status: '의견서 준비', statusTone: 'neutral', owner: '김지현', nextDeadline: '2024-06-05' },
-  { key: '6', compound: 'D-4040', country: 'PCT', flag: '🌐', applicationNo: 'PCT/KR2023/012345', stage: '심사', status: 'SA 통지 대응', statusTone: 'attention', owner: '김지현', nextDeadline: '2024-05-30' },
-  { key: '7', compound: 'A-1010', country: 'CA', flag: '🇨🇦', applicationNo: '3,123,456', stage: '출원', status: '출원 대기', statusTone: 'neutral', owner: '이상민', nextDeadline: '2024-06-10' },
-  { key: '8', compound: 'B-2020', country: 'AU', flag: '🇦🇺', applicationNo: '2023901234', stage: '심사', status: 'OA 통지', statusTone: 'attention', owner: '박준혁', nextDeadline: '2024-06-12' },
-];
-
-const ACTIVE_DOCUMENT = {
-  fileName: 'OA 통지서.pdf',
-  country: 'KR',
-  applicationNo: '10-2023-0123456',
-  stage: '심사',
-  documentDate: '2024-05-15',
-  documentType: 'OA 통지',
-  filingDate: '2023년 04월 12일',
-  inventionTitle: 'AI 기반 이미지 분석 장치 및 방법',
-  applicant: '(주)바이오테크',
-  noticeDate: '2024년 05월 15일',
-};
 
 const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'];
 const CALENDAR_YEAR = 2024;
@@ -167,23 +173,230 @@ const PatentManagement: React.FC = () => {
   ]);
   const [compoundQuery, setCompoundQuery] = useState('');
   const [activeStage, setActiveStage] = useState<StageKey>('filed');
-  const [isViewerOpen, setIsViewerOpen] = useState(true);
+
+  // ---- 특허 목록 (patent table) ----
+  const { message, modal } = AntApp.useApp();
+  const { hasPermission } = useAccessContext();
+  const canManage = hasPermission('patentAnalysis.manage');
+
+  const [patents, setPatents] = useState<PatentRecord[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [searchInput, setSearchInput] = useState('');
+  const [search, setSearch] = useState('');
+  const [listLoading, setListLoading] = useState(false);
+  const [listError, setListError] = useState('');
+
+  const [lookups, setLookups] = useState<PatentRecordLookups | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingRecord, setEditingRecord] = useState<PatentRecord | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [isImportOpen, setIsImportOpen] = useState(false);
+
+  // ---- 문서 검색 (/api/patent-search) ----
+  const [listSource, setListSource] = useState<ListSource>('search');
+  const [searchResults, setSearchResults] = useState<PatentSearchItem[]>([]);
+  const [searchTotal, setSearchTotal] = useState(0);
+  const [searchPage, setSearchPage] = useState(1);
+  const [keywordInput, setKeywordInput] = useState('');
+  const [keywordTarget, setKeywordTarget] = useState<PatentSearchKeywordTarget>('officeAction');
+  /** 실제로 조회에 반영된 조건. 입력 중에는 재조회하지 않는다. */
+  const [appliedSearch, setAppliedSearch] = useState<{
+    keyword: string;
+    target: PatentSearchKeywordTarget;
+    hasOpinion: boolean;
+    hasAmendment: boolean;
+  }>({ keyword: '', target: 'officeAction', hasOpinion: false, hasAmendment: false });
+  const [onlyWithOpinion, setOnlyWithOpinion] = useState(false);
+  const [onlyWithAmendment, setOnlyWithAmendment] = useState(false);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [searchError, setSearchError] = useState('');
+  const [selectedDocument, setSelectedDocument] = useState<PatentSearchItem | null>(null);
+  /**
+   * 뷰어는 선택된 문서가 있을 때만 열린다.
+   * 처음 진입하면 선택이 없으므로 접힌 상태이고, 목록이 온전한 폭을 쓴다.
+   */
+  const isViewerOpen = selectedDocument !== null;
 
   useEffect(() => {
     setHeaderContent(<PageHeaderBreadcrumb items={[{ label: '특허 관리' }]} />);
     return () => setHeaderContent(null);
   }, [setHeaderContent]);
 
+  const loadPatents = useCallback(async () => {
+    setListLoading(true);
+    setListError('');
+    try {
+      const result = await patentRecordApi.list({
+        q: search || undefined,
+        page,
+        pageSize: PAGE_SIZE,
+      });
+      setPatents(result.items);
+      setTotal(result.total);
+    } catch (error) {
+      setPatents([]);
+      setTotal(0);
+      setListError(getErrorMessage(error));
+    } finally {
+      setListLoading(false);
+    }
+  }, [page, search]);
+
+  useEffect(() => {
+    if (listSource !== 'records') return;
+    void loadPatents();
+  }, [listSource, loadPatents]);
+
+  const applySearch = () => {
+    setPage(1);
+    setSearch(searchInput.trim());
+  };
+
+  /** modal의 select 옵션은 처음 열 때 한 번만 받아 둔다. */
+  const ensureLookups = useCallback(async () => {
+    if (lookups) return;
+    try {
+      setLookups(await patentRecordApi.lookups());
+    } catch (error) {
+      void message.error(`선택 목록을 불러오지 못했습니다: ${getErrorMessage(error)}`);
+    }
+  }, [lookups, message]);
+
+  const loadSearchResults = useCallback(async () => {
+    setSearchLoading(true);
+    setSearchError('');
+    try {
+      const result = await patentSearchApi.search({
+        page: searchPage,
+        size: PAGE_SIZE,
+        // 클릭 즉시 뷰어에 본문을 그리려면 목록에서 함께 받아야 한다.
+        // 검색 API에는 단건 조회 endpoint가 없어 재조회로는 가져올 수 없다.
+        includeContent: true,
+        filters: {
+          ...(appliedSearch.hasOpinion ? { hasOpinion: true } : {}),
+          ...(appliedSearch.hasAmendment ? { hasAmendment: true } : {}),
+        },
+        ...(appliedSearch.keyword
+          ? {
+              keywords: [
+                { query: appliedSearch.keyword, target: appliedSearch.target },
+              ],
+            }
+          : {}),
+      });
+      setSearchResults(result.items);
+      setSearchTotal(result.total);
+      // 목록이 바뀌면 이전 선택은 더 이상 화면에 없을 수 있다.
+      setSelectedDocument(null);
+    } catch (error) {
+      setSearchResults([]);
+      setSearchTotal(0);
+      setSelectedDocument(null);
+      setSearchError(getErrorMessage(error));
+    } finally {
+      setSearchLoading(false);
+    }
+  }, [appliedSearch, searchPage]);
+
+  useEffect(() => {
+    if (listSource !== 'search') return;
+    void loadSearchResults();
+  }, [listSource, loadSearchResults]);
+
+  /** 상태 코드(int)를 로컬 코드 테이블 명칭으로 바꾼다. 검색 API는 id만 준다. */
+  useEffect(() => {
+    if (listSource !== 'search') return;
+    void ensureLookups();
+  }, [listSource, ensureLookups]);
+
+  const legalStatusName = useCallback(
+    (id: number | null) =>
+      lookups?.legalStatuses.find((status) => status.id === id)?.status ?? null,
+    [lookups],
+  );
+
+  const examStatusName = useCallback(
+    (id: number | null) =>
+      lookups?.examStatuses.find((status) => status.id === id)?.status ?? null,
+    [lookups],
+  );
+
+  const applyDocumentSearch = () => {
+    setSearchPage(1);
+    setAppliedSearch({
+      keyword: keywordInput.trim(),
+      target: keywordTarget,
+      hasOpinion: onlyWithOpinion,
+      hasAmendment: onlyWithAmendment,
+    });
+  };
+
+  const openDocument = (item: PatentSearchItem) => {
+    if (!hasDocuments(item)) return;
+    setSelectedDocument(item);
+  };
+
+  const openCreateModal = () => {
+    setEditingRecord(null);
+    setIsModalOpen(true);
+    void ensureLookups();
+  };
+
+  const openEditModal = (record: PatentRecord) => {
+    setEditingRecord(record);
+    setIsModalOpen(true);
+    void ensureLookups();
+  };
+
+  const handleSubmit = async (values: CreatePatentRecordInput) => {
+    setSubmitting(true);
+    try {
+      if (editingRecord) {
+        await patentRecordApi.update(editingRecord.id, values);
+        void message.success('특허를 변경했습니다.');
+      } else {
+        await patentRecordApi.create(values);
+        void message.success('특허를 추가했습니다.');
+        setPage(1);
+      }
+      setIsModalOpen(false);
+      setEditingRecord(null);
+      await loadPatents();
+    } catch (error) {
+      void message.error(getErrorMessage(error));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const confirmDelete = (record: PatentRecord) => {
+    modal.confirm({
+      title: '특허를 삭제할까요?',
+      content: `출원번호 ${record.applicationNumber}. 연결된 IPC와 행정 처리 이력도 함께 삭제됩니다.`,
+      okText: '삭제',
+      okButtonProps: { danger: true },
+      cancelText: '취소',
+      onOk: async () => {
+        try {
+          await patentRecordApi.remove(record.id);
+          void message.success('특허를 삭제했습니다.');
+          // 마지막 항목을 지웠으면 이전 페이지로 물러난다.
+          if (patents.length === 1 && page > 1) setPage(page - 1);
+          else await loadPatents();
+        } catch (error) {
+          void message.error(getErrorMessage(error));
+          throw error;
+        }
+      },
+    });
+  };
+
   const visibleCompounds = useMemo(() => {
     const query = compoundQuery.trim().toLowerCase();
     if (!query) return COMPOUNDS;
     return COMPOUNDS.filter((compound) => compound.code.toLowerCase().includes(query));
   }, [compoundQuery]);
-
-  const visiblePatents = useMemo(() => {
-    if (selectedCompounds.length === 0) return PATENTS;
-    return PATENTS.filter((patent) => selectedCompounds.includes(patent.compound));
-  }, [selectedCompounds]);
 
   const toggleCompound = (code: string) => {
     setSelectedCompounds((current) =>
@@ -198,57 +411,224 @@ const PatentManagement: React.FC = () => {
     [],
   );
 
-  const columns: TableColumnsType<PatentRow> = [
-    { title: '화합물', dataIndex: 'compound', key: 'compound', width: 92 },
+  const searchColumns: TableColumnsType<PatentSearchItem> = [
     {
-      title: '국가',
-      dataIndex: 'country',
-      key: 'country',
-      width: 90,
-      render: (country: string, record) => (
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-          <span aria-hidden>{record.flag}</span>
-          {country}
-        </span>
-      ),
-    },
-    { title: '출원번호', dataIndex: 'applicationNo', key: 'applicationNo', width: 168 },
-    {
-      title: '현재 단계',
-      dataIndex: 'stage',
-      key: 'stage',
-      width: 104,
-      render: (stage: string) => <Tag color="blue">{stage}</Tag>,
-    },
-    {
-      title: '상태',
-      dataIndex: 'status',
-      key: 'status',
+      title: '출원번호',
+      dataIndex: 'applicationNumber',
+      key: 'applicationNumber',
       width: 148,
-      render: (status: string, record) => (
-        <Tag color={record.statusTone === 'attention' ? 'orange' : 'default'}>{status}</Tag>
+      render: emptyDash,
+    },
+    {
+      title: '통지일',
+      dataIndex: 'actionDate',
+      key: 'actionDate',
+      width: 108,
+      render: (value: string | null) => formatDisplayDateOnly(value),
+    },
+    {
+      title: '명칭',
+      key: 'title',
+      width: 260,
+      render: (_, item) => (
+        <Tooltip title={item.englishTitle ?? item.koreanTitle ?? ''}>
+          <span className="pm-ellipsis">
+            {item.koreanTitle ?? item.englishTitle ?? '-'}
+          </span>
+        </Tooltip>
       ),
     },
-    { title: '담당자', dataIndex: 'owner', key: 'owner', width: 90 },
-    { title: '다음 마감일', dataIndex: 'nextDeadline', key: 'nextDeadline', width: 118 },
     {
-      title: '',
-      key: 'actions',
-      width: 48,
-      align: 'center',
-      render: () => (
-        <Button type="text" size="small" aria-label="행 작업" icon={<MoreVertical size={16} />} />
+      title: '출원인',
+      dataIndex: 'applicant',
+      key: 'applicant',
+      width: 150,
+      render: (value: string | null) => (
+        <Tooltip title={value ?? ''}>
+          <span className="pm-ellipsis">{emptyDash(value)}</span>
+        </Tooltip>
       ),
+    },
+    {
+      title: '심사관',
+      key: 'examiners',
+      width: 110,
+      render: (_, item) => {
+        if (item.examiners.length === 0) return '-';
+        const names = item.examiners.map((examiner) => examiner.name ?? '-');
+        return (
+          <Tooltip title={names.join(', ')}>
+            <span className="pm-ellipsis">
+              {names[0]}
+              {names.length > 1 && ` 외 ${names.length - 1}`}
+            </span>
+          </Tooltip>
+        );
+      },
+    },
+    {
+      title: '법적 상태',
+      key: 'legalStatus',
+      width: 100,
+      render: (_, item) => {
+        const name = legalStatusName(item.legalStatusId);
+        return name ? <Tag color="blue">{name}</Tag> : emptyDash(null);
+      },
+    },
+    {
+      title: '심사 상태',
+      key: 'examStatus',
+      width: 100,
+      render: (_, item) => {
+        const name = examStatusName(item.examStatusId);
+        return name ? <Tag>{name}</Tag> : emptyDash(null);
+      },
+    },
+    {
+      title: '거절이유',
+      key: 'rejections',
+      width: 84,
+      align: 'center',
+      render: (_, item) =>
+        item.rejections.length > 0
+          ? formatNumberWithComma(item.rejections.length)
+          : '-',
+    },
+    {
+      title: '문서',
+      key: 'documents',
+      width: 168,
+      render: (_, item) => {
+        const opinions = item.submissions.filter((s) => s.kind === 'OPINION').length;
+        const amendments = item.submissions.filter((s) => s.kind === 'AMENDMENT').length;
+        if (!hasDocuments(item)) {
+          return <Text type="secondary" style={{ fontSize: 12 }}>없음</Text>;
+        }
+        return (
+          <span className="pm-doc-badges">
+            {(item.contentLength > 0 || item.documentPath) && <Tag color="geekblue">통지서</Tag>}
+            {opinions > 0 && <Tag color="green">{`의견서${opinions > 1 ? ` ${opinions}` : ''}`}</Tag>}
+            {amendments > 0 && <Tag color="gold">{`보정서${amendments > 1 ? ` ${amendments}` : ''}`}</Tag>}
+          </span>
+        );
+      },
     },
   ];
 
+  const columns: TableColumnsType<PatentRecord> = [
+    {
+      title: '내부관리번호',
+      key: 'internalRef',
+      width: 132,
+      render: (_, record) => {
+        if (!record.internalRef) return emptyDash(null);
+        // 파싱된 구성요소가 없으면 IP팀 규칙에서 벗어난 값이다. 막지 않고 표시만 한다.
+        const unparsed = record.refOrigin === null;
+        return (
+          <Tooltip title={unparsed ? '알려진 번호 규칙과 형식이 다릅니다' : undefined}>
+            <span>
+              {record.internalRef}
+              {unparsed && <Tag color="orange" style={{ marginLeft: 6 }}>규칙 외</Tag>}
+            </span>
+          </Tooltip>
+        );
+      },
+    },
+    {
+      title: '국가',
+      key: 'country',
+      width: 80,
+      render: (_, record) => record.country?.country ?? '-',
+    },
+    { title: '출원번호', dataIndex: 'applicationNumber', key: 'applicationNumber', width: 168 },
+    {
+      title: '출원일',
+      dataIndex: 'applicationDate',
+      key: 'applicationDate',
+      width: 110,
+      render: (value: string | null) => formatDisplayDateOnly(value),
+    },
+    {
+      title: '명칭',
+      key: 'title',
+      width: 260,
+      render: (_, record) => (
+        <Tooltip title={record.englishTitle ?? record.koreanTitle ?? ''}>
+          <span className="pm-ellipsis">{record.koreanTitle ?? record.englishTitle ?? '-'}</span>
+        </Tooltip>
+      ),
+    },
+    { title: '출원인', dataIndex: 'applicant', key: 'applicant', width: 140, render: emptyDash },
+    {
+      title: '대리인',
+      key: 'attorney',
+      width: 110,
+      render: (_, record) => record.attorney?.attorneyName ?? emptyDash(null),
+    },
+    {
+      title: '법적 상태',
+      key: 'legalStatus',
+      width: 110,
+      render: (_, record) =>
+        record.legalStatus ? <Tag color="blue">{record.legalStatus.status}</Tag> : emptyDash(null),
+    },
+    {
+      title: '심사 상태',
+      key: 'examStatus',
+      width: 110,
+      render: (_, record) =>
+        record.examStatus ? <Tag>{record.examStatus.status}</Tag> : emptyDash(null),
+    },
+    {
+      title: '등록번호',
+      dataIndex: 'registrationNumber',
+      key: 'registrationNumber',
+      width: 140,
+      render: emptyDash,
+    },
+    ...(canManage
+      ? [
+          {
+            title: '',
+            key: 'actions',
+            width: 96,
+            align: 'center' as const,
+            render: (_: unknown, record: PatentRecord) => (
+              <span style={{ display: 'inline-flex', gap: 2 }}>
+                <Tooltip title="변경">
+                  <Button
+                    type="text"
+                    size="small"
+                    aria-label={`${record.applicationNumber} 변경`}
+                    icon={<Pencil size={15} />}
+                    onClick={() => openEditModal(record)}
+                  />
+                </Tooltip>
+                <Tooltip title="삭제">
+                  <Button
+                    type="text"
+                    size="small"
+                    danger
+                    aria-label={`${record.applicationNumber} 삭제`}
+                    icon={<Trash2 size={15} />}
+                    onClick={() => confirmDelete(record)}
+                  />
+                </Tooltip>
+              </span>
+            ),
+          },
+        ]
+      : []),
+  ];
+
   return (
-    <div className={`pm-layout${isViewerOpen ? '' : ' pm-layout-viewer-closed'}`}>
+    // flex 배치라 뷰어 유무를 클래스로 구분할 필요가 없다. 열이 있으면 자리를 차지한다.
+    <div className="pm-layout">
       {/* ---- left: deadlines and compounds ---- */}
-      <div className="pm-column">
+      <div className="pm-column pm-column-aside">
         <section className="pm-card">
           <div className="pm-card-header">
-            <span className="pm-card-title">마감 일정</span>
+            <span className="pm-card-title">일정</span>
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
               <Text style={{ fontSize: 12 }}>{`${CALENDAR_YEAR}년 ${CALENDAR_MONTH}월`}</Text>
               <Button type="text" size="small" aria-label="이전 달" icon={<ChevronLeft size={14} />} />
@@ -276,7 +656,7 @@ const PatentManagement: React.FC = () => {
 
         <section className="pm-card">
           <div className="pm-card-header">
-            <span className="pm-card-title" style={{ fontSize: 13 }}>다가오는 마감</span>
+            <span className="pm-card-title" style={{ fontSize: 13 }}>To-do</span>
             <Button type="link" size="small" style={{ padding: 0, fontSize: 12 }}>
               더보기 <ChevronRight size={12} style={{ verticalAlign: 'middle' }} />
             </Button>
@@ -292,14 +672,14 @@ const PatentManagement: React.FC = () => {
 
         <section className="pm-card">
           <div className="pm-card-header">
-            <span className="pm-card-title">화합물 목록</span>
+            <span className="pm-card-title">Target</span>
           </div>
           <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
             <Input
               allowClear
               value={compoundQuery}
               onChange={(event) => setCompoundQuery(event.target.value)}
-              placeholder="화합물 검색"
+              placeholder="Target 검색"
               prefix={<Search size={14} />}
               style={{ height: 32 }}
             />
@@ -308,7 +688,7 @@ const PatentManagement: React.FC = () => {
 
           <div className="pm-compound-head">
             <span />
-            <span>화합물</span>
+            <span>이름</span>
             <span className="pm-compound-count">건수</span>
           </div>
 
@@ -349,15 +729,12 @@ const PatentManagement: React.FC = () => {
       </div>
 
       {/* ---- centre: stage pipeline and patent table ---- */}
-      <div className="pm-column">
+      <div className="pm-column pm-column-main">
         <section className="pm-card">
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 12 }}>
             <span style={{ fontSize: 19, fontWeight: 700, color: 'var(--text-primary)' }}>
-              선택 화합물 <span style={{ color: 'var(--brand-primary)' }}>{selectedCompounds.length}개</span>
+              진행 현황 
             </span>
-            <Text type="secondary" style={{ fontSize: 12 }}>
-              단계별 현황은 선택한 화합물의 합산 기준
-            </Text>
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 14 }}>
@@ -368,11 +745,6 @@ const PatentManagement: React.FC = () => {
                 </Tag>
               ))}
             </div>
-            <Tooltip title="화합물을 선택하지 않으면 전체 현황을 보여줍니다.">
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: 'var(--text-secondary)', fontSize: 12, whiteSpace: 'nowrap' }}>
-                <Info size={14} /> 선택 없음 시 전체 현황
-              </span>
-            </Tooltip>
           </div>
 
           <div className="pm-pipeline">
@@ -399,151 +771,212 @@ const PatentManagement: React.FC = () => {
         </section>
 
         <section className="pm-card">
-          <div className="pm-card-header">
-            <span className="pm-card-title">관련 특허 목록</span>
-            <span style={{ display: 'inline-flex', gap: 8 }}>
-              <Button icon={<Filter size={14} />} style={{ height: 34 }}>필터</Button>
-              <Button icon={<LayoutGrid size={14} />} style={{ height: 34 }}>컬럼 설정</Button>
+          <div className="pm-card-header pm-list-header">
+            <span className="pm-list-header-title">
+              <span className="pm-card-title">관련 특허 목록</span>
+              <Segmented
+                size="small"
+                value={listSource}
+                onChange={(value) => setListSource(value as ListSource)}
+                options={[
+                  { label: '문서 검색', value: 'search' },
+                  { label: '관리 특허', value: 'records' },
+                ]}
+              />
+            </span>
+            <span className="pm-list-header-controls">
+              {listSource === 'search' ? (
+                <>
+                  <Select<PatentSearchKeywordTarget>
+                    value={keywordTarget}
+                    onChange={setKeywordTarget}
+                    style={{ width: 140, height: 34 }}
+                    options={PATENT_SEARCH_KEYWORD_TARGETS.map((target) => ({
+                      label: PATENT_SEARCH_KEYWORD_TARGET_LABELS[target],
+                      value: target,
+                    }))}
+                  />
+                  <Input
+                    allowClear
+                    value={keywordInput}
+                    onChange={(event) => setKeywordInput(event.target.value)}
+                    onPressEnter={applyDocumentSearch}
+                    placeholder="문서 전문 키워드"
+                    prefix={<Search size={14} />}
+                    style={{ width: 200, height: 34 }}
+                  />
+                  <Button
+                    icon={<Filter size={14} />}
+                    style={{ height: 34 }}
+                    onClick={applyDocumentSearch}
+                  >
+                    검색
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <Input
+                    allowClear
+                    value={searchInput}
+                    onChange={(event) => setSearchInput(event.target.value)}
+                    onPressEnter={applySearch}
+                    placeholder="관리번호 · 출원번호 · 명칭 · 출원인"
+                    prefix={<Search size={14} />}
+                    style={{ width: 220, height: 34 }}
+                  />
+                  <Button icon={<Filter size={14} />} style={{ height: 34 }} onClick={applySearch}>
+                    검색
+                  </Button>
+                  {canManage && (
+                    <Button
+                      icon={<UploadCloud size={14} />}
+                      style={{ height: 34 }}
+                      onClick={() => setIsImportOpen(true)}
+                    >
+                      CSV로 업로드
+                    </Button>
+                  )}
+                  {canManage && (
+                    <Button
+                      type="primary"
+                      icon={<Plus size={14} />}
+                      style={{ height: 34 }}
+                      onClick={openCreateModal}
+                    >
+                      관리 특허 추가
+                    </Button>
+                  )}
+                </>
+              )}
             </span>
           </div>
 
-          <Table<PatentRow>
-            columns={columns}
-            dataSource={visiblePatents}
-            size="small"
-            pagination={false}
-            scroll={{ x: 'max-content' }}
-          />
+          {listSource === 'search' ? (
+            <>
+              <div className="pm-search-filters">
+                <Checkbox
+                  checked={onlyWithOpinion}
+                  onChange={(event) => setOnlyWithOpinion(event.target.checked)}
+                >
+                  의견서 제출된 건만
+                </Checkbox>
+                <Checkbox
+                  checked={onlyWithAmendment}
+                  onChange={(event) => setOnlyWithAmendment(event.target.checked)}
+                >
+                  보정서 제출된 건만
+                </Checkbox>
+                <Tooltip title="검색 결과 1건은 특허가 아니라 의견제출통지서 1건입니다. 같은 특허의 통지서가 여러 건이면 여러 행으로 나옵니다.">
+                  <span className="pm-search-hint">
+                    <Info size={13} /> 행 = 의견제출통지서 1건
+                  </span>
+                </Tooltip>
+              </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 12, fontSize: 12 }}>
-            <span>총 {visiblePatents.length}건</span>
-            <Pagination simple size="small" defaultCurrent={1} total={visiblePatents.length} pageSize={visiblePatents.length || 1} />
-          </div>
+              <Table<PatentSearchItem>
+                columns={searchColumns}
+                dataSource={searchResults}
+                rowKey={(item) => item.officeActionId ?? `${item.patentId}-${item.actionNumber}`}
+                loading={searchLoading}
+                size="small"
+                pagination={false}
+                scroll={{ x: 'max-content' }}
+                rowClassName={(item) => {
+                  const classNames = hasDocuments(item)
+                    ? ['pm-row-clickable']
+                    : ['pm-row-inert'];
+                  if (
+                    selectedDocument &&
+                    selectedDocument.officeActionId === item.officeActionId
+                  ) {
+                    classNames.push('pm-row-selected');
+                  }
+                  return classNames.join(' ');
+                }}
+                onRow={(item) => ({
+                  onClick: () => openDocument(item),
+                })}
+                locale={{
+                  emptyText: searchError
+                    ? `검색에 실패했습니다: ${searchError}`
+                    : '조건에 맞는 문서가 없습니다.',
+                }}
+              />
+
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 12, fontSize: 12 }}>
+                <span>총 {formatNumberWithComma(searchTotal)}건</span>
+                <Pagination
+                  simple
+                  size="small"
+                  current={searchPage}
+                  total={searchTotal}
+                  pageSize={PAGE_SIZE}
+                  onChange={setSearchPage}
+                />
+              </div>
+            </>
+          ) : (
+            <>
+              <Table<PatentRecord>
+                columns={columns}
+                dataSource={patents}
+                rowKey="id"
+                loading={listLoading}
+                size="small"
+                pagination={false}
+                scroll={{ x: 'max-content' }}
+                locale={{ emptyText: listError ? `목록을 불러오지 못했습니다: ${listError}` : '등록된 특허가 없습니다.' }}
+              />
+
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 12, fontSize: 12 }}>
+                <span>총 {formatNumberWithComma(total)}건</span>
+                <Pagination
+                  simple
+                  size="small"
+                  current={page}
+                  total={total}
+                  pageSize={PAGE_SIZE}
+                  onChange={setPage}
+                />
+              </div>
+            </>
+          )}
         </section>
       </div>
 
+      <PatentRecordFormModal
+        open={isModalOpen}
+        record={editingRecord}
+        lookups={lookups}
+        submitting={submitting}
+        onCancel={() => {
+          setIsModalOpen(false);
+          setEditingRecord(null);
+        }}
+        onSubmit={(values) => void handleSubmit(values)}
+      />
+
+      <PatentCsvImportModal
+        open={isImportOpen}
+        onCancel={() => setIsImportOpen(false)}
+        onApplied={() => {
+          // 코드가 새로 생겼을 수 있으니 select 옵션 캐시도 버린다.
+          setLookups(null);
+          setPage(1);
+          void loadPatents();
+        }}
+      />
+
       {/* ---- right: document viewer ---- */}
       {isViewerOpen && (
-        <div className="pm-column">
-          <section className="pm-card">
-            <div className="pm-card-header">
-              <span className="pm-card-title">문서 뷰어</span>
-              <Button icon={<X size={14} />} onClick={() => setIsViewerOpen(false)} style={{ height: 32 }}>
-                뷰어 닫기
-              </Button>
-            </div>
-
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-              <FileText size={20} style={{ color: 'var(--brand-primary)' }} />
-              <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)' }}>
-                {ACTIVE_DOCUMENT.fileName}
-              </span>
-            </div>
-
-            <div className="pm-viewer-meta" style={{ marginBottom: 6 }}>
-              <span>국가 <span className="pm-viewer-meta-value">{ACTIVE_DOCUMENT.country}</span></span>
-              <span className="pm-viewer-divider">|</span>
-              <span>출원번호 <span className="pm-viewer-meta-value">{ACTIVE_DOCUMENT.applicationNo}</span></span>
-              <span className="pm-viewer-divider">|</span>
-              <span>단계 <span className="pm-viewer-meta-value">{ACTIVE_DOCUMENT.stage}</span></span>
-            </div>
-            <div className="pm-viewer-meta" style={{ marginBottom: 12 }}>
-              <span>문서일 <span className="pm-viewer-meta-value">{ACTIVE_DOCUMENT.documentDate}</span></span>
-              <span className="pm-viewer-divider">|</span>
-              <span>문서구분 <span className="pm-viewer-meta-value">{ACTIVE_DOCUMENT.documentType}</span></span>
-            </div>
-
-            <Tabs
-              defaultActiveKey="preview"
-              items={[
-                {
-                  key: 'preview',
-                  label: '미리보기',
-                  children: (
-                    <div className="pm-viewer-preview">
-                      <div style={{ textAlign: 'center', marginBottom: 18 }}>
-                        <Text type="secondary" style={{ fontSize: 11 }}>
-                          특허청 Korean Intellectual Property Office
-                        </Text>
-                        <div style={{ fontSize: 17, fontWeight: 700, marginTop: 10, color: 'var(--text-primary)' }}>
-                          의견제출통지서
-                        </div>
-                      </div>
-
-                      <div className="pm-doc-field">
-                        <span className="pm-doc-field-label">출원번호</span>
-                        <span className="pm-doc-field-value">{ACTIVE_DOCUMENT.applicationNo}</span>
-                      </div>
-                      <div className="pm-doc-field">
-                        <span className="pm-doc-field-label">출원일</span>
-                        <span className="pm-doc-field-value">{ACTIVE_DOCUMENT.filingDate}</span>
-                      </div>
-                      <div className="pm-doc-field">
-                        <span className="pm-doc-field-label">발명의 명칭</span>
-                        <span className="pm-doc-field-value">{ACTIVE_DOCUMENT.inventionTitle}</span>
-                      </div>
-                      <div className="pm-doc-field">
-                        <span className="pm-doc-field-label">출원인</span>
-                        <span className="pm-doc-field-value">{ACTIVE_DOCUMENT.applicant}</span>
-                      </div>
-                      <div className="pm-doc-field">
-                        <span className="pm-doc-field-label">통지일</span>
-                        <span className="pm-doc-field-value">{ACTIVE_DOCUMENT.noticeDate}</span>
-                      </div>
-
-                      <div style={{ borderTop: '1px solid var(--border-color)', margin: '16px 0' }} />
-
-                      <p style={{ fontSize: 12, lineHeight: 1.8, color: 'var(--text-primary)' }}>
-                        이 출원에 대하여 심사한 결과 다음과 같은 거절이유가 있어 특허법 제63조에 따라
-                        의견제출을 통지합니다.
-                      </p>
-
-                      <div style={{ fontSize: 13, fontWeight: 700, margin: '16px 0 8px', color: 'var(--text-primary)' }}>
-                        1. 거절이유
-                      </div>
-                      <p style={{ fontSize: 12, lineHeight: 1.8, color: 'var(--text-primary)' }}>
-                        가. 신규성 및 진보성 관련 거절이유
-                      </p>
-                      <p style={{ fontSize: 12, lineHeight: 1.8, color: 'var(--text-secondary)' }}>
-                        선행기술문헌 1, 2에 의해 본 발명은 신규성이 부정되거나 진보성이 부정될 수 있습니다.
-                      </p>
-                      <p style={{ fontSize: 12, lineHeight: 1.8, color: 'var(--text-primary)' }}>
-                        나. 기재불비 관련 거절이유
-                      </p>
-                      <p style={{ fontSize: 12, lineHeight: 1.8, color: 'var(--text-secondary)' }}>
-                        청구범위의 일부 기재가 불분명하여 명확성을 결여하고 있습니다.
-                      </p>
-                    </div>
-                  ),
-                },
-                {
-                  key: 'info',
-                  label: '정보',
-                  children: (
-                    <div className="pm-viewer-preview">
-                      <div className="pm-doc-field">
-                        <span className="pm-doc-field-label">문서명</span>
-                        <span className="pm-doc-field-value">{ACTIVE_DOCUMENT.fileName}</span>
-                      </div>
-                      <div className="pm-doc-field">
-                        <span className="pm-doc-field-label">문서구분</span>
-                        <span className="pm-doc-field-value">{ACTIVE_DOCUMENT.documentType}</span>
-                      </div>
-                      <div className="pm-doc-field">
-                        <span className="pm-doc-field-label">문서일</span>
-                        <span className="pm-doc-field-value">{ACTIVE_DOCUMENT.documentDate}</span>
-                      </div>
-                      <div className="pm-doc-field">
-                        <span className="pm-doc-field-label">단계</span>
-                        <span className="pm-doc-field-value">{ACTIVE_DOCUMENT.stage}</span>
-                      </div>
-                    </div>
-                  ),
-                },
-              ]}
-            />
-          </section>
-        </div>
+        <ResizableSidePanel label="문서 뷰어 너비 조절">
+          <PatentDocumentViewer
+            item={selectedDocument}
+            legalStatusLabel={legalStatusName(selectedDocument?.legalStatusId ?? null)}
+            examStatusLabel={examStatusName(selectedDocument?.examStatusId ?? null)}
+            onClose={() => setSelectedDocument(null)}
+          />
+        </ResizableSidePanel>
       )}
     </div>
   );

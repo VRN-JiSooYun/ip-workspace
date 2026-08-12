@@ -11,12 +11,10 @@ export class UpdateUserAccessDto {
   @IsOptional()
   @IsArray()
   @ArrayUnique()
-  @IsIn(["SUPER_ADMIN", "CONFERENCE_ADMIN", "PATENT_ANALYSIS_ADMIN"], {
+  @IsIn(["SUPER_ADMIN", "PATENT_ANALYSIS_ADMIN"], {
     each: true,
   })
-  adminRoles?: Array<
-    "SUPER_ADMIN" | "CONFERENCE_ADMIN" | "PATENT_ANALYSIS_ADMIN"
-  >;
+  adminRoles?: Array<"SUPER_ADMIN" | "PATENT_ANALYSIS_ADMIN">;
 
   @IsOptional()
   @IsIn(["ACTIVE", "INACTIVE"])

@@ -24,7 +24,7 @@ import {
 } from "./notification-recipient-import-upload.service";
 import { NotificationRecipientSyncService } from "./notification-recipient-sync.service";
 
-@RequirePermissions("conference.manage")
+@RequirePermissions("userAccess.manage")
 @Controller("api/admin/notification-recipient-imports")
 export class NotificationRecipientImportController {
   constructor(

@@ -3,12 +3,14 @@
    follows the brand colour and dark mode without hardcoding hex values. */
 
 /* MainLayout's Content is a fixed-height, overflow:hidden shell, so each page
-   owns its own scrolling (same contract as .conference-page and PatentInsight).
+   owns its own scrolling (same contract as PatentInsight).
    Without this the stacked single-column layout is simply clipped. */
+/* 문서 뷰어 너비를 끌어서 조절하므로(ResizableSidePanel) 고정 3열 grid가 아니라 flex다.
+   가로 간격은 gap이 아니라 각 열의 margin으로 준다. 드래그 핸들 양옆에 gap이 겹치면
+   핸들이 본문에서 붕 떠 보이기 때문이다(의견제출통지서 화면과 같은 구조). */
 .pm-layout {
-  display: grid;
-  grid-template-columns: 340px minmax(0, 1fr) 500px;
-  gap: 16px;
+  display: flex;
+  gap: 0;
   align-items: start;
   padding: 0 16px 24px;
   width: 100%;
@@ -19,20 +21,46 @@
   box-sizing: border-box;
 }
 
-.pm-layout.pm-layout-viewer-closed {
-  grid-template-columns: 340px minmax(0, 1fr);
+.pm-column-aside {
+  flex: 0 0 340px;
+  width: 340px;
+  margin-inline-end: 16px;
+}
+
+.pm-column-main {
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 @media (max-width: 1600px) {
-  .pm-layout {
-    grid-template-columns: 300px minmax(0, 1fr) 420px;
+  .pm-column-aside {
+    flex-basis: 300px;
+    width: 300px;
   }
 }
 
+/* 좁은 화면에서는 세로로 쌓고 너비 조절 UI를 숨긴다. */
 @media (max-width: 1280px) {
-  .pm-layout,
-  .pm-layout.pm-layout-viewer-closed {
-    grid-template-columns: minmax(0, 1fr);
+  .pm-layout {
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .pm-column-aside {
+    flex: 0 0 auto;
+    width: 100%;
+    margin-inline-end: 0;
+  }
+
+  .pm-layout .resizable-side-panel-handle {
+    display: none;
+  }
+
+  .pm-layout .resizable-side-panel-pane {
+    position: static;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
   }
 }
 
@@ -296,9 +324,10 @@
   overflow-y: auto;
 }
 
+/* 라벨 폭 하한이 접히도록 min()을 쓴다(UI_STANDARD_GUIDE의 grid 하한 규칙). */
 .pm-doc-field {
   display: grid;
-  grid-template-columns: 92px minmax(0, 1fr);
+  grid-template-columns: min(92px, 40%) minmax(0, 1fr);
   gap: 8px;
   padding: 3px 0;
   font-size: 12px;
@@ -310,4 +339,90 @@
 
 .pm-doc-field-value {
   color: var(--text-primary);
+}
+
+/* 외부 API가 주는 문서 본문은 평문이라 줄바꿈만 살려 그대로 보여준다. */
+.pm-doc-body {
+  margin: 0;
+  font-family: inherit;
+  font-size: 12px;
+  line-height: 1.8;
+  color: var(--text-primary);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.pm-viewer-section-title {
+  margin: 16px 0 6px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-color);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+/* ---- 문서 검색 목록 ------------------------------------------------------ */
+
+/* 가운데 열이 좁아 제목과 검색 컨트롤이 한 줄에 안 들어간다.
+   그대로 두면 제목이 한 글자씩 세로로 접히므로 줄바꿈을 허용하고 제목은 고정한다. */
+.pm-list-header {
+  flex-wrap: wrap;
+  row-gap: 10px;
+}
+
+.pm-list-header-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.pm-list-header-controls {
+  display: inline-flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  min-width: 0;
+}
+
+.pm-search-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  margin-bottom: 10px;
+  font-size: 12px;
+}
+
+.pm-search-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+/* 문서가 있는 행만 뷰어를 열 수 있다. */
+.pm-row-clickable {
+  cursor: pointer;
+}
+
+.pm-row-inert > td {
+  color: var(--text-secondary);
+}
+
+.pm-row-selected > td {
+  background: var(--c-row-selected-bg, rgba(22, 119, 255, 0.08));
+}
+
+.pm-doc-badges {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.pm-doc-badges .ant-tag {
+  margin-inline-end: 0;
 }

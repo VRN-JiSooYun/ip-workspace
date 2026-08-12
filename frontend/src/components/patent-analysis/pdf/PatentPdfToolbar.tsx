@@ -23,8 +23,14 @@ const PdfToolbarButton: React.FC<PdfToolbarButtonProps> = ({
 );
 
 type PatentPdfToolbarProps = {
-  splitRatio: number;
-  minSplitPercent: number;
+  /**
+   * 분할 화면의 PDF 영역 비율. `onToggleFit`과 함께 쓰인다.
+   *
+   * 분할이 없는 화면(예: 문서 뷰어 사이드 패널)에서는 이 셋을 모두 생략하면 확대/축소
+   * 버튼이 빠진다. 접힌 패널에서 아무 일도 하지 않는 버튼을 남기지 않기 위함이다.
+   */
+  splitRatio?: number;
+  minSplitPercent?: number;
   borderColor: string;
   backgroundColor: string;
   textColor: string;
@@ -34,7 +40,7 @@ type PatentPdfToolbarProps = {
   searchExecuted: boolean;
   currentPage: number;
   totalPages: number;
-  onToggleFit: () => void;
+  onToggleFit?: () => void;
   onOpenPdfInBrowser?: () => void;
   onSearchQueryChange: (value: string) => void;
   onRunSearch: (value?: string) => void;
@@ -45,6 +51,8 @@ type PatentPdfToolbarProps = {
   onGoToPage?: (page: number) => void;
   onPageStep?: (step: number) => void;
   onDownloadPdf?: () => void;
+  /** 기본값은 특허 분석의 OCR PDF 기준. 원본을 그대로 받는 화면에서는 바꿔 넘긴다. */
+  downloadTooltip?: string;
   thumbnailCollapsed?: boolean;
   onToggleThumbnail?: () => void;
 };
@@ -72,6 +80,7 @@ const PatentPdfToolbar: React.FC<PatentPdfToolbarProps> = ({
   onGoToPage,
   onPageStep,
   onDownloadPdf,
+  downloadTooltip = 'OCR PDF 다운로드',
   thumbnailCollapsed,
   onToggleThumbnail,
 }) => {
@@ -113,14 +122,20 @@ const PatentPdfToolbar: React.FC<PatentPdfToolbarProps> = ({
         tooltip={thumbnailCollapsed ? 'PDF 썸네일 펼치기' : 'PDF 썸네일 접기'}
       />
 
-      <PdfToolbarButton
-        icon={splitRatio <= minSplitPercent ? <Maximize2 size={16} /> : <Minimize2 size={16} />}
-        size="small"
-        onClick={onToggleFit}
-        tooltip={splitRatio <= minSplitPercent
-          ? 'PDF Viewer 영역 확대 (45%)'
-          : `PDF Viewer 영역 축소 (${minSplitPercent}%)`}
-      />
+      {onToggleFit && (
+        <PdfToolbarButton
+          icon={
+            (splitRatio ?? 0) <= (minSplitPercent ?? 0)
+              ? <Maximize2 size={16} />
+              : <Minimize2 size={16} />
+          }
+          size="small"
+          onClick={onToggleFit}
+          tooltip={(splitRatio ?? 0) <= (minSplitPercent ?? 0)
+            ? 'PDF Viewer 영역 확대 (45%)'
+            : `PDF Viewer 영역 축소 (${minSplitPercent}%)`}
+        />
+      )}
 
       <PdfToolbarButton
         icon={<ExternalLink size={16} />}
@@ -216,7 +231,7 @@ const PatentPdfToolbar: React.FC<PatentPdfToolbarProps> = ({
           icon={<Download size={14} />}
           onClick={onDownloadPdf}
           disabled={!onDownloadPdf}
-          tooltip="OCR PDF 다운로드"
+          tooltip={downloadTooltip}
         />
         <InputNumber
           size="small"

@@ -24,10 +24,7 @@ describe("TeamMembershipSyncService", () => {
           slug: "medichem-workspace",
         },
         aliases: [{ id: "alias-1" }],
-        moduleAccess: [
-          { module: "CONFERENCE" },
-          { module: "PATENT_ANALYSIS" },
-        ],
+        moduleAccess: [{ module: "PATENT_ANALYSIS" }],
       },
       user: {
         organizationMembers: [{ organizationId: "organization-1" }],

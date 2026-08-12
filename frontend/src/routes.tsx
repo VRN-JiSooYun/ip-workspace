@@ -1,14 +1,13 @@
 import React from 'react';
 import AccessRegistry from './pages/AccessRegistry';
-import ConferenceAbstractDetail from './pages/ConferenceAbstractDetail';
-import ConferenceAdmin from './pages/ConferenceAdmin';
-import ConferenceList from './pages/ConferenceList';
 import Contact from './pages/Contact';
 import Dashboard from './pages/Dashboard';
 import EmptyPage from './pages/EmptyPage';
+import OfficeActionAnalysis from './pages/OfficeActionAnalysis';
 import PatentAnalysisAdmin from './pages/PatentAnalysisAdmin';
 import PatentAnalysisDetail from './pages/PatentAnalysisDetail';
 import PatentAnalysisList from './pages/PatentAnalysisList';
+import PatentCodeAdmin from './pages/PatentCodeAdmin';
 import PatentInsight from './pages/PatentInsight';
 import PatentManagement from './pages/PatentManagement';
 import UniversalSearch from './pages/UniversalSearch';
@@ -76,31 +75,33 @@ export const APP_ROUTES: AppRoute[] = [
   // ---- 특허 관리 -----------------------------------------------------------
   { path: '/patent-management', permission: 'patentAnalysis.read', element: <PatentManagement /> },
 
-  // Need to Create IP Dashboard
-  { path: '/dashboard', element: <Dashboard /> },
-
-  // ---- Conference --------------------------------------------------------
-  { path: '/conferences', permission: 'conference.read', element: <ConferenceList /> },
+  // ---- 분석 ----------------------------------------------------------------
   {
-    path: '/conferences/abstracts/:abstractId',
-    permission: 'conference.read',
-    element: <ConferenceAbstractDetail />,
+    path: '/analysis/office-actions',
+    permission: 'patentAnalysis.read',
+    element: <OfficeActionAnalysis />,
   },
 
+  // Need to Create IP Dashboard
+  // { path: '/dashboard', element: <Dashboard /> },
 
-  { path: '/universal-search', element: <UniversalSearch /> },
+  // { path: '/universal-search', element: <UniversalSearch /> },
 
   // ---- Workspace administration ------------------------------------------
   { path: '/workspace/access-registry', permission: 'userAccess.manage', element: <AccessRegistry /> },
-  { path: '/workspace/conference-admin', permission: 'conference.manage', element: <ConferenceAdmin /> },
   {
     path: '/workspace/patent-analysis-admin',
     permission: 'patentAnalysis.manage',
     element: <PatentAnalysisAdmin />,
   },
+  {
+    path: '/workspace/patent-code-admin',
+    permission: 'patentAnalysis.manage',
+    element: <PatentCodeAdmin />,
+  },
 
   { path: '/contact', element: <Contact /> },
-  { path: '*', redirectTo: '/dashboard' },
+  { path: '*', redirectTo: '/patent-management' },
 ];
 
 const permissionByPath = new Map<string, WorkspacePermission>(

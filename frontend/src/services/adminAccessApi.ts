@@ -3,10 +3,7 @@ import { AUTH_REQUIRED_EVENT, notifyIfAuthRequired } from './authApi';
 type RuntimeWindow = Window & { _env_?: { VITE_API_URL?: string } };
 
 export type AdminUserRole = 'USER' | 'ADMIN';
-export type WorkspaceAdminRole =
-  | 'SUPER_ADMIN'
-  | 'CONFERENCE_ADMIN'
-  | 'PATENT_ANALYSIS_ADMIN';
+export type WorkspaceAdminRole = 'SUPER_ADMIN' | 'PATENT_ANALYSIS_ADMIN';
 export type AdminUserStatus = 'ACTIVE' | 'INACTIVE';
 
 export type AdminUser = {
@@ -29,7 +26,6 @@ export type UpdateAdminUserAccess = {
 };
 
 export type WorkspaceModuleCode =
-  | 'CONFERENCE'
   | 'PATENT_ANALYSIS'
   | 'SAR_TABLE'
   | 'DESIGN'

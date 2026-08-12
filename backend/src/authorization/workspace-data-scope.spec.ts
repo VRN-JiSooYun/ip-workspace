@@ -8,9 +8,8 @@ const context = (
   globalRoles: [],
   organization: { id: "org-1", name: "Workspace" },
   teams: [{ id: "team-1", name: "Research" }],
-  permissions: ["conference.read", "patentAnalysis.read"],
+  permissions: ["patentAnalysis.read"],
   modules: {
-    conference: { read: true, write: false, manage: false },
     patentAnalysis: { read: true, write: false, manage: false },
   },
   ...overrides,
@@ -24,30 +23,33 @@ describe("workspace data scope", () => {
 
   it("grants global scope only to a super admin", () => {
     expect(
-      service.resolveDataScope(
-        context({ globalRoles: ["SUPER_ADMIN"] }),
-        "conference",
-      ),
+      service.resolveDataScope(context({ globalRoles: ["SUPER_ADMIN"] })),
     ).toEqual({ type: "GLOBAL" });
   });
 
-  it("keeps conference catalog access in the current organization", () => {
-    expect(service.resolveDataScope(context(), "conference")).toEqual({
-      type: "ORG",
-      organizationId: "org-1",
-    });
-  });
-
   it("keeps regular patent helper access owned by the signed-in user", () => {
-    expect(service.resolveDataScope(context(), "patentAnalysis")).toEqual({
+    expect(service.resolveDataScope(context())).toEqual({
       type: "OWN",
       userId: "user-1",
     });
   });
 
-  it("requires an organization before scoping conference access", () => {
+  it("widens a patent analysis admin to the current organization", () => {
+    expect(
+      service.resolveDataScope(
+        context({ globalRoles: ["PATENT_ANALYSIS_ADMIN"] }),
+      ),
+    ).toEqual({ type: "ORG", organizationId: "org-1" });
+  });
+
+  it("requires an organization before widening an admin", () => {
     expect(() =>
-      service.resolveDataScope(context({ organization: null }), "conference"),
+      service.resolveDataScope(
+        context({
+          globalRoles: ["PATENT_ANALYSIS_ADMIN"],
+          organization: null,
+        }),
+      ),
     ).toThrow("WORKSPACE_ORGANIZATION_REQUIRED");
   });
 });

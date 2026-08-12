@@ -2509,61 +2509,6 @@ span.ant-typography {
   background: var(--patent-scrollbar-thumb-hover);
 }
 
-/* ===== Conference Admin scrollbars ===== */
-.conference-admin-page,
-.conference-admin-page .ant-tabs-tabpane,
-.conference-admin-page .ant-table-body,
-.conference-admin-page .ant-table-content,
-.conference-admin-modal .ant-modal-body,
-.conference-admin-modal .ant-table-body,
-.conference-admin-modal .ant-table-content {
-  scrollbar-width: thin;
-  scrollbar-color: var(--patent-scrollbar-thumb) var(--patent-scrollbar-track);
-}
-
-.conference-admin-page::-webkit-scrollbar,
-.conference-admin-page .ant-tabs-tabpane::-webkit-scrollbar,
-.conference-admin-page .ant-table-body::-webkit-scrollbar,
-.conference-admin-page .ant-table-content::-webkit-scrollbar,
-.conference-admin-modal .ant-modal-body::-webkit-scrollbar,
-.conference-admin-modal .ant-table-body::-webkit-scrollbar,
-.conference-admin-modal .ant-table-content::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
-}
-
-.conference-admin-page::-webkit-scrollbar-track,
-.conference-admin-page .ant-tabs-tabpane::-webkit-scrollbar-track,
-.conference-admin-page .ant-table-body::-webkit-scrollbar-track,
-.conference-admin-page .ant-table-content::-webkit-scrollbar-track,
-.conference-admin-modal .ant-modal-body::-webkit-scrollbar-track,
-.conference-admin-modal .ant-table-body::-webkit-scrollbar-track,
-.conference-admin-modal .ant-table-content::-webkit-scrollbar-track {
-  background: var(--patent-scrollbar-track);
-}
-
-.conference-admin-page::-webkit-scrollbar-thumb,
-.conference-admin-page .ant-tabs-tabpane::-webkit-scrollbar-thumb,
-.conference-admin-page .ant-table-body::-webkit-scrollbar-thumb,
-.conference-admin-page .ant-table-content::-webkit-scrollbar-thumb,
-.conference-admin-modal .ant-modal-body::-webkit-scrollbar-thumb,
-.conference-admin-modal .ant-table-body::-webkit-scrollbar-thumb,
-.conference-admin-modal .ant-table-content::-webkit-scrollbar-thumb {
-  background: var(--patent-scrollbar-thumb);
-  border: 2px solid var(--patent-scrollbar-border);
-  border-radius: 999px;
-}
-
-.conference-admin-page::-webkit-scrollbar-thumb:hover,
-.conference-admin-page .ant-tabs-tabpane::-webkit-scrollbar-thumb:hover,
-.conference-admin-page .ant-table-body::-webkit-scrollbar-thumb:hover,
-.conference-admin-page .ant-table-content::-webkit-scrollbar-thumb:hover,
-.conference-admin-modal .ant-modal-body::-webkit-scrollbar-thumb:hover,
-.conference-admin-modal .ant-table-body::-webkit-scrollbar-thumb:hover,
-.conference-admin-modal .ant-table-content::-webkit-scrollbar-thumb:hover {
-  background: var(--patent-scrollbar-thumb-hover);
-}
-
 /* ===== Patent Insight ===== */
 .patent-insight-page {
   width: 100%;

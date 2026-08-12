@@ -28,6 +28,11 @@ export default () => ({
       20,
     ),
   },
+  patentSearch: {
+    apiUrl: process.env.PATENT_SEARCH_API_URL ?? "http://172.16.1.210:10000",
+    // OA 본문이 건당 10KB를 넘어 size가 커지면 응답도 커진다. 기본 30s로는 빠듯하다.
+    timeoutMs: parseNumber(process.env.PATENT_SEARCH_API_TIMEOUT_MS, 60000),
+  },
   conformer: {
     apiUrl: process.env.CONFORMER_API_URL ?? "http://172.16.1.203:8000",
     timeoutMs: parseNumber(process.env.CONFORMER_API_TIMEOUT_MS, 120000),
@@ -37,56 +42,10 @@ export default () => ({
     authToken: process.env.COMPOUND_API_AUTH_TOKEN ?? "",
     timeoutMs: parseNumber(process.env.COMPOUND_API_TIMEOUT_MS, 30000),
   },
-  conferenceMedia: {
-    legacyBaseUrl:
-      process.env.CONFERENCE_LEGACY_MEDIA_BASE_URL ?? "https://voronoi.app",
-    legacyPathPrefix:
-      process.env.CONFERENCE_LEGACY_MEDIA_PATH_PREFIX ?? "/media/conference/",
-    redirectMode: process.env.CONFERENCE_MEDIA_REDIRECT_MODE ?? "DIRECT",
-    requestTimeoutMs: parseNumber(
-      process.env.CONFERENCE_MEDIA_REQUEST_TIMEOUT_MS,
-      30000,
-    ),
-    probeSampleLimit: parseNumber(
-      process.env.CONFERENCE_MEDIA_PROBE_SAMPLE_LIMIT,
-      20,
-    ),
-  },
-  conferenceImport: {
-    root: process.env.CONFERENCE_IMPORT_ROOT ?? "/app/imports/conference",
-    pollIntervalMs: parseNumber(
-      process.env.CONFERENCE_IMPORT_POLL_INTERVAL_MS,
-      5000,
-    ),
-    maxIssuesPerRun: parseNumber(
-      process.env.CONFERENCE_IMPORT_MAX_ISSUES_PER_RUN,
-      1000,
-    ),
-    chunkSize: parseNumber(process.env.CONFERENCE_IMPORT_CHUNK_SIZE, 50),
-  },
   notificationRecipient: {
     importRoot:
       process.env.NOTIFICATION_RECIPIENT_IMPORT_ROOT ??
       "/app/imports/notification-recipients",
-  },
-  gmail: {
-    oauthTokenFile:
-      process.env.GMAIL_OAUTH_TOKEN_FILE ?? "/run/secrets/gmail/token.json",
-    fromEmail: process.env.GMAIL_FROM_EMAIL?.trim() || "vgw@voronoi.io",
-    allowedRecipientDomains: parseCsv(
-      process.env.GMAIL_ALLOWED_RECIPIENT_DOMAINS ?? "voronoi.io",
-    ).map((domain) => domain.toLowerCase()),
-    publicAppBaseUrl:
-      process.env.PUBLIC_APP_BASE_URL ?? "http://localhost:5174",
-    pollIntervalMs: parseNumber(
-      process.env.GMAIL_OUTBOX_POLL_INTERVAL_MS,
-      5000,
-    ),
-    leaseDurationMs: parseNumber(
-      process.env.GMAIL_OUTBOX_LEASE_DURATION_MS,
-      60000,
-    ),
-    maxAttempts: parseNumber(process.env.GMAIL_OUTBOX_MAX_ATTEMPTS, 5),
   },
   auth: {
     groupwareOrigin: process.env.GROUPWARE_ORIGIN ?? "https://voronoi.app",

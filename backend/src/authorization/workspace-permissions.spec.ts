@@ -11,42 +11,32 @@ describe("workspace permissions", () => {
     expect(getWorkspacePermissions("ADMIN")).toContain("userAccess.manage");
   });
 
-  it("combines permissions for multiple stored roles", () => {
-    const permissions = getWorkspacePermissions(
-      "CONFERENCE_ADMIN,PATENT_ANALYSIS_ADMIN",
-    );
+  it("grants a domain admin its own permissions only", () => {
+    const permissions = getWorkspacePermissions("PATENT_ANALYSIS_ADMIN");
     expect(permissions).toEqual(
-      expect.arrayContaining([
-        "conference.manage",
-        "conference.comment.moderate",
-        "patentAnalysis.manage",
-      ]),
+      expect.arrayContaining(["patentAnalysis.read", "patentAnalysis.manage"]),
     );
     expect(permissions).not.toContain("userAccess.manage");
   });
 
   it("normalizes and deduplicates comma-separated roles", () => {
-    expect(parseStoredRoles(" conference_admin,CONFERENCE_ADMIN ")).toEqual([
-      "CONFERENCE_ADMIN",
-    ]);
+    expect(
+      parseStoredRoles(" patent_analysis_admin,PATENT_ANALYSIS_ADMIN "),
+    ).toEqual(["PATENT_ANALYSIS_ADMIN"]);
   });
 
   it("serializes selected admin roles in a stable order", () => {
     expect(
-      serializeWorkspaceAdminRoles([
-        "PATENT_ANALYSIS_ADMIN",
-        "CONFERENCE_ADMIN",
-      ]),
-    ).toBe("CONFERENCE_ADMIN,PATENT_ANALYSIS_ADMIN");
+      serializeWorkspaceAdminRoles(["PATENT_ANALYSIS_ADMIN", "SUPER_ADMIN"]),
+    ).toBe("SUPER_ADMIN,PATENT_ANALYSIS_ADMIN");
     expect(serializeWorkspaceAdminRoles([])).toBe("USER");
   });
 
   it("adds team-scoped permissions without granting global administration", () => {
     const permissions = getWorkspacePermissions("USER", [
-      "conference.read",
       "patentAnalysis.read",
     ]);
-    expect(permissions).toEqual(["conference.read", "patentAnalysis.read"]);
+    expect(permissions).toEqual(["patentAnalysis.read"]);
     expect(permissions).not.toContain("userAccess.manage");
   });
 });

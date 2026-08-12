@@ -1,0 +1,273 @@
+# 특허 전문 검색 API
+
+OA(의견제출통지서)·의견서·보정서 **전문(full-text) 검색** 기능의 기준 문서다.
+`backend/src/patent-search/`와 `frontend/src/services/patentSearchApi.ts`가 이 문서를 따른다.
+
+## 왜 외부 API를 중계하는가
+
+로컬 `patent` table 묶음(`docs/patent_database_schema.md`)에는 특허 본체와 코드 테이블만
+IP팀 CSV로 적재되어 있고 `office_action`·`response` 본문은 비어 있다. 검색 대상 문서 전문은
+외부 서비스에만 있으므로 이 검색은 Prisma 조회가 아니라 외부 API 중계로 구현했다.
+
+- 외부 endpoint: `POST {PATENT_SEARCH_API_URL}/patents/search` (FastAPI, OpenAPI 제공)
+- 기본값: `http://172.16.1.210:10000`
+- 스키마가 로컬 Prisma 특허 도메인과 동일하다. 응답의 `legal_status`·`exam_status`는
+  로컬 `legal_status.id`·`exam_status.id`와 같은 값이라 명칭은 `patentRecordApi.lookups()`로 해석한다.
+
+## 우리 endpoint
+
+```
+POST /api/patent-search       (권한: patentAnalysis.read)
+```
+
+조건이 중첩 객체라 GET이 아닌 POST를 쓴다. 로컬 CRUD인 `api/patent-records`,
+특허 분석 helper 중계인 `api/patents`와는 별개 prefix다.
+
+### Request
+
+```jsonc
+{
+  "page": 1,              // 1부터. 최소 1
+  "size": 20,             // 1~100
+  "includeContent": true, // false면 본문 대신 contentLength만 받는다
+  "includePatentDetail": false, // true면 각 결과에 patent 상세를 붙인다 (아래 참고)
+  "filters": {
+    "legalStatusText": ["등록"],     // legal_status.status 원문
+    "examStatusText": ["심사중"],
+    "examRequested": true,           // 심사청구 여부
+    "attorneyNames": ["홍길동"],
+    "examinerNames": ["김심사"],
+    "hasOpinion": true,              // 의견서가 제출된 OA만
+    "hasAmendment": true,            // 보정서가 제출된 OA만
+    "ipc": [{ "section": "A", "classCode": "61", "subclass": "K",
+              "mainGroup": "31", "subgroup": "00" }],
+    "statutes": [{ "lawTypeText": "특허법", "lawType": 1,
+                   "article": 29, "paragraph": 2, "subParagraph": 1 }],
+    "dateRanges": [{ "field": "applicationDate",
+                     "from": "2023-01-01", "to": "2023-12-31" }]
+  },
+  "keywords": [
+    { "query": "egfr", "target": "officeAction", "operator": "AND" },
+    { "query": "egfr", "target": "opinion", "operator": "AND" }
+  ]
+}
+```
+
+- `filters`·`keywords`를 모두 생략하면 조건 없이 전체를 조회한다.
+- `keywords` 항목이 여러 개면 **서로 AND**로 묶인다.
+- `statutes[].lawTypeText`와 `lawType`을 함께 주면 명칭(`lawTypeText`)이 우선한다.
+  외부 API가 `law_type`을 `int | str`로 받기 때문이다.
+- 값이 비어 있는 `ipc`/`statutes`/`dateRanges` 항목과 빈 배열은 서버가 제거하고 보내지 않는다.
+
+`dateRanges[].field`는 다음 5개다.
+
+| 값 | column |
+| --- | --- |
+| `applicationDate` | `application_date` |
+| `publicationDate` | `publication_date` |
+| `intApplicationDate` | `int_application_date` |
+| `intPublicationDate` | `int_publication_date` |
+| `examDate` | `exam_date` |
+
+`keywords[].target`은 `officeAction`(의견제출통지서) / `opinion`(의견서) / `amendment`(보정서),
+`operator`는 `AND` / `OR` / `NOT`(생략 시 `AND`)이다.
+
+### Response
+
+결과 1건은 **특허가 아니라 OA 1건**이다. 같은 특허에 OA가 여러 건이면 여러 행으로 나온다.
+
+```jsonc
+{
+  "total": 96,
+  "page": 1,
+  "size": 20,
+  "items": [{
+    "officeActionId": 11933,
+    "adminId": 108858,
+    "content": "발송번호: ...",   // includeContent=false면 null
+    "contentLength": 3135,        // 항상 원문 길이
+    "documentPath": "http://172.16.1.210:8888/oa/2023/..._의견제출통지서_20260526.pdf",
+    "actionDate": "2026-05-26T00:00:00",
+    "action": "의견제출통지서",
+    "actionNumber": "952026047366213",
+    "patentId": 10625,
+    "applicationNumber": "1020237016326",
+    "koreanTitle": "...", "englishTitle": "...", "applicant": "...",
+    "legalStatusId": 1, "examStatusId": 1, "exam": true,
+    "examiners": [{ "id": 949, "office": "지식재산처", "bureau": "특허심사기획국",
+                    "department": "가전제품심사과", "name": "김재호" }],
+    "submissions": [{ "id": 9369, "typeCode": 1, "kind": "OPINION",
+                      "content": "# 의견서...", "contentLength": 547,
+                      "documentPath": "..." }],
+    "rejections": [{ "rejectionId": 11933, "claim": "청구항 제4항, 제15항 내지 제19항",
+                     "lawType": 1, "article": 42, "paragraph": 4, "subParagraph": 2 }]
+  }]
+}
+```
+
+이름을 바꾼 부분은 다음과 같다.
+
+| 외부 응답 | 우리 응답 | 이유 |
+| --- | --- | --- |
+| `office_action_content` | `content` | item 자체가 OA라 접두어가 중복된다 |
+| `office_action_document_path` | `documentPath` | 같음 |
+| `admin_id`, `admin_id_ref` | `adminId` | 두 값이 항상 같아 하나만 내보낸다 |
+| `responses` | `submissions` | TS `Response`와 이름이 겹친다 |
+| `legal_statutes` | `rejections` | `rejection_id`·`claim`이 rejection의 column이라 실제로 rejection 행이다 |
+| `legal_status`, `exam_status` | `legalStatusId`, `examStatusId` | FK int임을 드러낸다 |
+
+`legalStatus`는 `legalStatusId`를 외부 코드 테이블 값으로 옮긴 것이다. 목록 endpoint가 없어
+`GET /legal_statuses/?status=...`로 6개를 하나씩 확인해 service의 `LEGAL_STATUS_BY_ID`에 넣었다.
+
+| id | 1 | 2 | 3 | 4 | 5 | 6 |
+| --- | --- | --- | --- | --- | --- | --- |
+| status | 공개 | 취하 | 거절 | 등록 | 포기 | 소멸 (등록료불납) |
+
+`examStatus`는 없다. 외부 `exam_status` 코드 테이블이 비어 있어 옮길 값이 없다(아래 참고).
+
+## `includePatentDetail` — 검색 응답에 없는 column 채우기
+
+검색 응답에는 **출원일자·공개번호·공개일자·등록번호·등록일자**가 없다. 목록 카드가 이 값들을
+쓰기 때문에 `includePatentDetail: true`를 주면 서버가 결과의 출원번호마다
+`GET /patents/?application_number=...`를 한 번 더 불러 `patent`에 붙인다.
+
+- 출원번호를 **중복 제거한 뒤 병렬로** 조회한다. 같은 특허에 OA가 여러 건이면 한 번만 부른다.
+- 20건 기준 0.2초 내로 끝난다(측정값).
+- 개별 조회가 실패하면 해당 항목의 `patent`만 `null`이 되고 검색 결과는 그대로 쓴다.
+- 응답에 함께 오는 `title_embedding`(벡터)은 전달하지 않는다.
+- 필요 없는 호출자에게 비용을 지우지 않으려고 기본값은 `false`다.
+
+```jsonc
+"patent": {
+  "applicationDate": "2021-05-25T00:00:00",
+  "registrationNumber": null,
+  "registrationDate": null,
+  "publicationNumber": "1020230015954",
+  "publicationDate": "2023-01-31T00:00:00",
+  "intApplicationNumber": "PCT/US2021/034000",
+  "intApplicationDate": "2021-05-25T00:00:00",
+  "intPublicationNumber": "WO2021242728",
+  "intPublicationDate": "2021-12-02T00:00:00",
+  "parentApplicationNumber": null,
+  "examDate": "2024-05-13T00:00:00",
+  "countryId": 1,
+  "attorneyNumber": null
+}
+```
+
+## 정렬
+
+외부 API에 정렬 parameter가 없다. 결과는 항상 **의견제출통지서 발행일자(`action_date`)
+내림차순**으로 온다(확인함). 다른 정렬이 필요하면 외부 API에 지원이 먼저 추가되어야 한다.
+
+## 비어 있는 외부 코드 테이블
+
+`attorney`와 `exam_status` 테이블에 행이 없다. `GET /attorney/?attorney_name=...`,
+`GET /exam_statuses/?status=...`가 어떤 값에도 `null`을 준다. 따라서 `attorneyNames`,
+`examStatusText` 조건은 **지금 넣으면 항상 0건**이다. 필터 자체는 정상이라 외부에서 테이블이
+채워지면 그대로 동작한다. `legal_status`와 `examiner`는 채워져 있어 정상 동작한다.
+
+`legal_status`의 전체 값과 건수(합 13,486 / 전체 13,488):
+
+| 등록 | 공개 | 거절 | 취하 | 포기 | 소멸 (등록료불납) |
+| --- | --- | --- | --- | --- | --- |
+| 7,329 | 3,102 | 2,474 | 158 | 177 | 246 |
+
+`law_type`은 1=특허법(13,488) / 2=특허법 시행령(2,452)뿐이고 3 이상은 0건이다.
+명칭으로 넘길 때는 공백까지 정확해야 한다("특허법시행령"은 0건).
+
+`documentPath`는 PDF 원본의 절대 URL이다(SeaweedFS). 이 호스트는
+`Access-Control-Allow-Origin: *`로 응답하므로 **자격증명을 함께 보내면 브라우저가 요청을
+막는다**(`credentials: 'include'` 실패 / `'omit'` 200 확인). 화면에서 PDF를 직접 렌더할 때는
+`withCredentials: false`로 받아야 한다 — `PatentDocumentPdfPane`이 그렇게 넘긴다.
+
+`submissions[].typeCode`는 외부 `response.type` 원본이고 `kind`는 그 해석값이다.
+
+| `typeCode` | `kind` | 문서 |
+| --- | --- | --- |
+| 1 | `OPINION` | 의견서 |
+| 2 | `AMENDMENT` | 보정서 |
+
+정의되지 않은 코드가 오면 `kind`는 `null`이 되고 `typeCode`는 원본이 유지된다.
+
+## 외부 API 결함으로 막아 둔 조건
+
+아래 두 가지는 **어떤 입력으로도 성공할 수 없어** 우리 계약에서 제외했다. 외부에서 고쳐지면
+표시한 위치만 되돌리면 된다.
+
+### 1. keyword의 target 2개 이상 → 외부 500
+
+`targets`에 2개 이상을 넣으면 operator와 무관하게 실패한다.
+
+```
+데이터베이스 에러: index should have a `WITH (key_field='...')` option
+```
+
+외부 스키마의 `targets` **기본값이 3개 전부**라 `targets`를 생략해도 이 오류가 난다.
+그래서 우리 DTO는 배열 `targets`가 아니라 단일 `target`만 받는다. 여러 문서를 함께 조건에
+넣으려면 항목을 여러 개 보내면 되고(항목 간 AND), notebook 예시도 같은 방식이다.
+
+- 위치: `PatentSearchKeywordDto.target` (`backend/src/patent-search/dto/patent-search.dto.ts`)
+- 되돌릴 때: `target` → `targets: string[]`로 바꾸고 service의 `toUpstreamKeyword`에서 배열을 그대로 전달
+
+### 2. `registrationDate` 기간 조건 → 외부 500
+
+```
+operator does not exist: text >= timestamp without time zone
+```
+
+`patent.registration_date`가 timestamp가 아닌 **text** column이기 때문이다(로컬 Prisma도
+`registrationDate String?`). 다른 5개 날짜 column은 정상 동작한다.
+
+- 위치: `PATENT_SEARCH_DATE_FIELDS` (backend DTO / frontend `patentSearchApi.ts`)
+- 되돌릴 때: 양쪽 배열에 `registrationDate`를 추가하고 service의 `DATE_FIELD_TO_UPSTREAM`에 매핑 추가
+
+### 그 밖의 방어
+
+| 입력 | 외부에서 일어나는 일 | 우리 처리 |
+| --- | --- | --- |
+| `page: 0` | `OFFSET must not be negative` 500 | DTO `@Min(1)`로 차단 |
+| `size > 100` | 응답이 수 MB로 커진다 (건당 본문 10KB 초과) | DTO `@Max(100)`로 차단 |
+| 범위를 넘는 `page` | `data: []`와 함께 요청한 page를 그대로 반사 | 그대로 전달. 응답의 `page`/`size`는 요청값을 돌려준다 |
+
+## 오류 형식
+
+외부 오류는 그대로 노출하지 않고 아래 code로 감싼다. 원문은 `detail`에 남긴다.
+
+| code | HTTP | 상황 |
+| --- | --- | --- |
+| `PATENT_SEARCH_UPSTREAM_ERROR` | 502 | 외부가 4xx/5xx로 응답하거나 연결 불가. `upstreamStatus`에 원래 status |
+| `PATENT_SEARCH_UPSTREAM_TIMEOUT` | 504 | `PATENT_SEARCH_API_TIMEOUT_MS` 초과 |
+| `PATENT_SEARCH_UPSTREAM_INVALID_RESPONSE` | 502 | 200이지만 `data` 배열이 없는 응답 |
+
+외부 API는 검증 실패를 FastAPI 형식(`{"detail": [...]}`)으로 주므로 `detail`을 보면 원인을 알 수 있다.
+
+## 환경 변수
+
+| 변수 | 기본값 | 설명 |
+| --- | --- | --- |
+| `PATENT_SEARCH_API_URL` | `http://172.16.1.210:10000` | 외부 검색 API base URL |
+| `PATENT_SEARCH_API_TIMEOUT_MS` | `60000` | 본문이 커서 전역 30s보다 길게 잡았다 |
+
+controller에는 `@SkipTimeout()`이 붙어 있어 전역 `TimeoutInterceptor`가 적용되지 않는다.
+실제 제한은 위 client timeout이다.
+
+## 사용 예시 (frontend)
+
+```ts
+import { patentSearchApi } from '@/services/patentSearchApi';
+
+// notebook의 예시와 같은 조건
+const result = await patentSearchApi.search({
+  filters: { hasOpinion: true, hasAmendment: true },
+  keywords: [
+    { query: 'egfr', target: 'officeAction' },
+    { query: 'egfr', target: 'opinion' },
+  ],
+});
+
+// 목록 화면: 본문 없이 조회해 응답 크기를 줄인다
+const list = await patentSearchApi.search({ size: 50, includeContent: false });
+```
+
+원본 참고 구현은 저장소 루트의 `search_client.ipynb`다.

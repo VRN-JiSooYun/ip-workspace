@@ -45,7 +45,7 @@ export const getPatentPdfFilename = (publicationNumber?: string | null): string 
   return `${filenameBase.replace(/[^A-Za-z0-9_-]/g, '_')}.pdf`;
 };
 
-const saveBlob = (blob: Blob, filename: string) => {
+export const saveBlob = (blob: Blob, filename: string) => {
   const objectUrl = window.URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = objectUrl;

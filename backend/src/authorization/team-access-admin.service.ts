@@ -9,10 +9,7 @@ import {
   TeamMembershipSyncService,
 } from "./team-membership-sync.service";
 
-const WORKSPACE_MODULES = [
-  "CONFERENCE",
-  "PATENT_ANALYSIS",
-] as const;
+const WORKSPACE_MODULES = ["PATENT_ANALYSIS"] as const;
 
 type WorkspaceModuleCode = (typeof WORKSPACE_MODULES)[number];
 type ModuleAccessInput = {

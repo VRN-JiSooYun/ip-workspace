@@ -1,0 +1,43 @@
+/* 우측 패널 너비 조절 핸들. 색은 index.css의 공용 custom property를 따른다. */
+
+.resizable-side-panel-handle {
+  display: flex;
+  flex: 0 0 14px;
+  align-self: stretch;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  min-width: 14px;
+  cursor: col-resize;
+  outline: none;
+}
+
+.resizable-side-panel-handle-bar {
+  width: 4px;
+  height: 88px;
+  border-radius: 999px;
+  background: var(--border-color);
+  transition: background-color 0.16s ease, height 0.16s ease;
+}
+
+.resizable-side-panel-handle:hover .resizable-side-panel-handle-bar,
+.resizable-side-panel-handle:focus-visible .resizable-side-panel-handle-bar,
+.resizable-side-panel-handle.is-resizing .resizable-side-panel-handle-bar {
+  height: 112px;
+  background: var(--brand-primary);
+}
+
+.resizable-side-panel-pane {
+  position: sticky;
+  top: 0;
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  min-height: 0;
+  box-sizing: border-box;
+}
+
+/* 패널 안의 카드가 폭을 넘기지 않도록 한다. */
+.resizable-side-panel-pane > * {
+  min-width: 0;
+}

@@ -24,10 +24,6 @@ model User {
   updatedAt     DateTime       @updatedAt
   sessions      Session[]
   accounts      Account[]
-  abstractBookmarks AbstractBookmark[]
-  abstractComments ConferenceAbstractComment[]
-  conferenceImportRuns ConferenceImportRun[]
-  conferenceImportBatches ConferenceImportBatch[]
   notificationRecipient NotificationRecipient? @relation("NotificationRecipientLinkedUser")
   notificationRecipientImportBatches NotificationRecipientImportBatch[]
   notificationRecipientImportRuns NotificationRecipientImportRun[]
@@ -45,7 +41,6 @@ model User {
 }
 
 enum WorkspaceModule {
-  CONFERENCE
   PATENT_ANALYSIS
 }
 
@@ -60,7 +55,6 @@ model Organization {
   invitations Invitation[]
   teams       Team[]
   teamAliases TeamAlias[]
-  conferences Conference[]
 
   @@map("organization")
 }
@@ -173,83 +167,6 @@ model TeamModuleAccess {
   @@map("team_module_access")
 }
 
-enum ConferenceStatus {
-  OPEN
-  NOT_OPENED
-}
-
-enum ConferenceAssetKind {
-  LOGO
-}
-
-enum ConferenceAbstractAssetKind {
-  POSTER
-  DOCUMENT
-  VIDEO
-  REFERENCE_IMAGE
-  ATTACHMENT
-}
-
-enum ConferenceStorageProvider {
-  LEGACY_HTTP
-  NAS
-}
-
-enum ConferenceAssetMigrationStatus {
-  NOT_PLANNED
-  PENDING
-  MIGRATING
-  READY
-  FAILED
-}
-
-enum ConferenceImportStatus {
-  PENDING
-  RUNNING
-  COMPLETED
-  PARTIAL
-  FAILED
-}
-
-enum ConferenceImportMode {
-  DRY_RUN
-  APPLY
-}
-
-enum ConferenceImportIssueSeverity {
-  WARNING
-  ERROR
-}
-
-enum ConferenceImportBatchStatus {
-  UPLOADING
-  READY
-  INVALID
-  ARCHIVED
-}
-
-enum ConferenceImportBatchKind {
-  LEGACY
-  API_METADATA
-}
-
-enum ConferenceCommentSource {
-  WORKSPACE
-  LEGACY_DJANGO
-}
-
-enum ConferenceMailOutboxType {
-  COMMENT_MENTION
-}
-
-enum ConferenceMailOutboxStatus {
-  PENDING
-  PROCESSING
-  RETRY
-  SENT
-  FAILED
-}
-
 enum NotificationRecipientSource {
   GROUPWARE_IMPORT
   WORKSPACE_USER
@@ -258,6 +175,11 @@ enum NotificationRecipientSource {
 enum NotificationRecipientStatus {
   ACTIVE
   INACTIVE
+}
+
+enum NotificationRecipientImportMode {
+  DRY_RUN
+  APPLY
 }
 
 enum NotificationRecipientImportStatus {
@@ -279,177 +201,6 @@ enum NotificationRecipientImportIssueSeverity {
   ERROR
 }
 
-model Conference {
-  id            String           @id @default(uuid()) @db.Uuid
-  organizationId String          @db.Uuid
-  legacyId      Int?
-  sourceSystem  String           @default("LEGACY_DJANGO")
-  status        ConferenceStatus @default(OPEN)
-  title         String
-  abbreviation  String
-  fullTitle     String?
-  year          Int
-  sourceUrl     String?          @db.Text
-  dateStart     DateTime?        @db.Date
-  dateEnd       DateTime?        @db.Date
-  createdAt     DateTime         @default(now())
-  updatedAt     DateTime         @updatedAt
-  deletedAt     DateTime?
-  organization  Organization     @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  abstracts     ConferenceAbstract[]
-  assets        ConferenceAsset[]
-
-  @@unique([sourceSystem, legacyId])
-  @@unique([abbreviation, year])
-  @@index([dateStart, dateEnd, deletedAt])
-  @@index([organizationId, deletedAt])
-  @@index([year, deletedAt])
-  @@index([status, deletedAt])
-  @@map("conference")
-}
-
-model ConferenceAbstract {
-  id                              String         @id @default(uuid()) @db.Uuid
-  conferenceId                    String         @db.Uuid
-  legacyId                        Int?
-  sourceSystem                    String         @default("LEGACY_DJANGO")
-  title                           String         @db.Text
-  sourceUrl                       String?        @db.Text
-  firstAuthorName                 String?
-  firstAuthorOrganization         String?        @db.Text
-  firstAuthorUrl                  String?        @db.Text
-  authors                         Json?
-  authorOrganizations             Json?
-  organizations                   Json?
-  contents                        Json?
-  meeting                         String?
-  meetingUrl                      String?        @db.Text
-  sessionType                     String?
-  sessionTypeUrl                  String?        @db.Text
-  sessionTitle                    String?        @db.Text
-  sessionTitleUrl                 String?        @db.Text
-  track                           String?        @db.Text
-  trackUrl                        String?        @db.Text
-  subTrack                        String?
-  subTrackUrl                     String?        @db.Text
-  abstractNumber                  String?
-  posterNumber                    String?
-  clinicalTrialRegistrationNumber String?
-  dateOpen                        DateTime?       @db.Date
-  createdAt                       DateTime        @default(now())
-  updatedAt                       DateTime        @updatedAt
-  deletedAt                       DateTime?
-  conference                      Conference      @relation(fields: [conferenceId], references: [id], onDelete: Restrict)
-  assets                          ConferenceAbstractAsset[]
-  bookmarks                       AbstractBookmark[]
-  comments                        ConferenceAbstractComment[]
-
-  @@unique([sourceSystem, legacyId])
-  @@index([conferenceId, deletedAt, abstractNumber])
-  @@index([conferenceId, dateOpen])
-  @@index([conferenceId, sourceUrl])
-  @@map("conference_abstract")
-}
-
-model ConferenceAsset {
-  id              String                         @id @default(uuid()) @db.Uuid
-  conferenceId    String                         @db.Uuid
-  kind            ConferenceAssetKind
-  storageProvider ConferenceStorageProvider      @default(LEGACY_HTTP)
-  legacySourceUrl String?                        @db.Text
-  storageKey      String?
-  originalFilename String
-  mimeType        String?
-  byteSize        BigInt?
-  sha256          String?
-  migrationStatus ConferenceAssetMigrationStatus @default(NOT_PLANNED)
-  migrationError  String?                        @db.Text
-  migratedAt      DateTime?
-  createdAt       DateTime                       @default(now())
-  conference      Conference                     @relation(fields: [conferenceId], references: [id], onDelete: Restrict)
-
-  @@unique([conferenceId, kind, legacySourceUrl])
-  @@index([conferenceId, kind])
-  @@index([migrationStatus])
-  @@map("conference_asset")
-}
-
-model ConferenceAbstractAsset {
-  id              String                                 @id @default(uuid()) @db.Uuid
-  abstractId      String                                 @db.Uuid
-  kind            ConferenceAbstractAssetKind
-  storageProvider ConferenceStorageProvider              @default(LEGACY_HTTP)
-  legacySourceUrl String?                                @db.Text
-  storageKey      String?
-  originalFilename String
-  mimeType        String?
-  byteSize        BigInt?
-  sha256          String?
-  sortOrder       Int                                    @default(0)
-  migrationStatus ConferenceAssetMigrationStatus         @default(NOT_PLANNED)
-  migrationError  String?                                @db.Text
-  migratedAt      DateTime?
-  createdAt       DateTime                               @default(now())
-  abstract        ConferenceAbstract                     @relation(fields: [abstractId], references: [id], onDelete: Restrict)
-
-  @@unique([abstractId, kind, legacySourceUrl])
-  @@index([abstractId, kind, sortOrder])
-  @@index([migrationStatus])
-  @@map("conference_abstract_asset")
-}
-
-model AbstractBookmark {
-  userId     String             @db.Uuid
-  abstractId String             @db.Uuid
-  createdAt  DateTime           @default(now())
-  user       User               @relation(fields: [userId], references: [id], onDelete: Restrict)
-  abstract   ConferenceAbstract @relation(fields: [abstractId], references: [id], onDelete: Restrict)
-
-  @@id([userId, abstractId])
-  @@index([abstractId, createdAt])
-  @@map("conference_abstract_bookmark")
-}
-
-model ConferenceAbstractComment {
-  id                      String                             @id @default(uuid()) @db.Uuid
-  abstractId              String                             @db.Uuid
-  authorUserId            String?                            @db.Uuid
-  legacyAuthorRecipientId String?                            @db.Uuid
-  authorNameSnapshot      String?
-  sourceSystem            ConferenceCommentSource            @default(WORKSPACE)
-  legacyCommentKey        String?                            @unique
-  legacyCommentId         Int?
-  legacyOrder             Int?
-  sourceCreatedAt         DateTime?
-  content                 String                             @db.Text
-  createdAt               DateTime                           @default(now())
-  updatedAt               DateTime                           @updatedAt
-  deletedAt               DateTime?
-  abstract                ConferenceAbstract                 @relation(fields: [abstractId], references: [id], onDelete: Restrict)
-  author                  User?                              @relation(fields: [authorUserId], references: [id], onDelete: Restrict)
-  legacyAuthorRecipient   NotificationRecipient?             @relation("ConferenceCommentLegacyAuthor", fields: [legacyAuthorRecipientId], references: [id], onDelete: Restrict)
-  mentions                ConferenceAbstractCommentMention[]
-  mailOutboxes            ConferenceMailOutbox[]
-
-  @@index([abstractId, deletedAt, createdAt])
-  @@index([authorUserId, deletedAt])
-  @@index([legacyAuthorRecipientId, deletedAt])
-  @@map("conference_abstract_comment")
-}
-
-model ConferenceAbstractCommentMention {
-  commentId              String                @db.Uuid
-  mentionedRecipientId   String                @db.Uuid
-  readAt                 DateTime?
-  createdAt              DateTime              @default(now())
-  comment                ConferenceAbstractComment @relation(fields: [commentId], references: [id], onDelete: Restrict)
-  mentionedRecipient     NotificationRecipient @relation(fields: [mentionedRecipientId], references: [id], onDelete: Restrict)
-
-  @@id([commentId, mentionedRecipientId])
-  @@index([mentionedRecipientId, readAt, createdAt])
-  @@map("conference_abstract_comment_mention")
-}
-
 model NotificationRecipient {
   id                String                      @id @default(uuid()) @db.Uuid
   memberId          Int?                        @unique
@@ -465,54 +216,16 @@ model NotificationRecipient {
   createdAt         DateTime                    @default(now())
   updatedAt         DateTime                    @updatedAt
   linkedUser        User?                       @relation("NotificationRecipientLinkedUser", fields: [linkedUserId], references: [id], onDelete: SetNull)
-  commentMentions   ConferenceAbstractCommentMention[]
-  legacyAuthoredComments ConferenceAbstractComment[] @relation("ConferenceCommentLegacyAuthor")
-  mailOutboxes      ConferenceMailOutbox[]
 
   @@index([status, mailEnabled, name])
   @@index([lastSyncedAt])
   @@map("notification_recipient")
 }
 
-model ConferenceMailOutbox {
-  id                     String                       @id @default(uuid()) @db.Uuid
-  type                   ConferenceMailOutboxType     @default(COMMENT_MENTION)
-  status                 ConferenceMailOutboxStatus   @default(PENDING)
-  commentId              String                       @db.Uuid
-  recipientId            String?                      @db.Uuid
-  recipientEmailSnapshot String
-  recipientNormalizedEmail String
-  recipientNameSnapshot  String
-  subjectSnapshot        String
-  textBodySnapshot       String                       @db.Text
-  htmlBodySnapshot       String                       @db.Text
-  messageId              String                       @unique
-  providerMessageId      String?
-  attemptCount           Int                          @default(0)
-  maxAttempts            Int                          @default(5)
-  nextAttemptAt          DateTime                     @default(now())
-  leaseOwner             String?
-  leaseExpiresAt         DateTime?
-  lastErrorCode          String?
-  lastErrorMessage       String?                      @db.Text
-  sentAt                 DateTime?
-  createdAt              DateTime                     @default(now())
-  updatedAt              DateTime                     @updatedAt
-  comment                ConferenceAbstractComment    @relation(fields: [commentId], references: [id], onDelete: Restrict)
-  recipient              NotificationRecipient?       @relation(fields: [recipientId], references: [id], onDelete: Restrict)
-
-  @@unique([type, commentId, recipientNormalizedEmail], map: "conference_mail_outbox_type_comment_email_key")
-  @@index([status, nextAttemptAt])
-  @@index([leaseExpiresAt])
-  @@index([commentId, createdAt])
-  @@index([recipientId, createdAt])
-  @@map("conference_mail_outbox")
-}
-
 model NotificationRecipientImportRun {
   id                String                            @id @default(uuid()) @db.Uuid
   batchId           String?                           @db.Uuid
-  mode              ConferenceImportMode
+  mode              NotificationRecipientImportMode
   status            NotificationRecipientImportStatus @default(RUNNING)
   profileVersion    String
   sourceChecksum    String
@@ -572,92 +285,6 @@ model NotificationRecipientImportIssue {
   @@index([runId, severity, rowNumber])
   @@index([errorCode])
   @@map("notification_recipient_import_issue")
-}
-
-model ConferenceImportBatch {
-  id                 String                      @id @default(uuid()) @db.Uuid
-  batchKey           String                      @unique
-  kind               ConferenceImportBatchKind
-  status             ConferenceImportBatchStatus @default(UPLOADING)
-  sourceChecksum     String?                     @unique
-  fileCount          Int                         @default(0)
-  excelCount         Int                         @default(0)
-  totalByteSize      BigInt                      @default(0)
-  hasManifest        Boolean                     @default(false)
-  uploadedByUserId   String                      @db.Uuid
-  createdAt          DateTime                    @default(now())
-  updatedAt          DateTime                    @updatedAt
-  readyAt            DateTime?
-  archivedAt         DateTime?
-  uploadedBy         User                        @relation(fields: [uploadedByUserId], references: [id], onDelete: Restrict)
-  files              ConferenceImportBatchFile[]
-  runs               ConferenceImportRun[]
-
-  @@index([status, createdAt])
-  @@index([uploadedByUserId, createdAt])
-  @@map("conference_import_batch")
-}
-
-model ConferenceImportBatchFile {
-  id               String                @id @default(uuid()) @db.Uuid
-  batchId          String                @db.Uuid
-  logicalPath      String
-  originalFilename String
-  mimeType         String?
-  byteSize         BigInt
-  sha256           String
-  createdAt        DateTime              @default(now())
-  batch            ConferenceImportBatch @relation(fields: [batchId], references: [id], onDelete: Restrict)
-
-  @@unique([batchId, logicalPath])
-  @@index([sha256])
-  @@map("conference_import_batch_file")
-}
-
-model ConferenceImportRun {
-  id                String                 @id @default(uuid()) @db.Uuid
-  batchId           String?                @db.Uuid
-  status            ConferenceImportStatus @default(PENDING)
-  mode              ConferenceImportMode
-  batchKey          String
-  profileVersion    String
-  sourceChecksum    String
-  idempotencyKey    String?
-  insertedCount     Int                    @default(0)
-  updatedCount      Int                    @default(0)
-  skippedCount      Int                    @default(0)
-  errorCount        Int                    @default(0)
-  startedByUserId   String                 @db.Uuid
-  startedAt         DateTime               @default(now())
-  finishedAt        DateTime?
-  batch             ConferenceImportBatch? @relation(fields: [batchId], references: [id], onDelete: Restrict)
-  startedBy         User                   @relation(fields: [startedByUserId], references: [id], onDelete: Restrict)
-  issues            ConferenceImportIssue[]
-
-  @@unique([sourceChecksum, profileVersion, mode])
-  @@unique([idempotencyKey])
-  @@index([batchId, startedAt])
-  @@index([status, startedAt])
-  @@index([startedByUserId, startedAt])
-  @@map("conference_import_run")
-}
-
-model ConferenceImportIssue {
-  id             String                        @id @default(uuid()) @db.Uuid
-  runId          String                        @db.Uuid
-  sourceFile     String
-  rowNumber      Int?
-  entityType     String
-  severity       ConferenceImportIssueSeverity
-  errorCode      String
-  message        String                        @db.Text
-  sourceSnapshot Json?
-  createdAt      DateTime                      @default(now())
-  run            ConferenceImportRun           @relation(fields: [runId], references: [id], onDelete: Restrict)
-
-  @@index([runId, severity, rowNumber])
-  @@index([errorCode])
-  @@map("conference_import_issue")
 }
 
 model Session {
@@ -736,4 +363,229 @@ model AuthAuditLog {
   @@index([requestId])
   @@index([createdAt])
   @@map("auth_audit_log")
+}
+
+// ---------------------------------------------------------------------------
+// 특허 도메인
+//
+// 외부 특허 데이터를 적재하는 테이블 묶음이라 ERD 원본을 그대로 따른다.
+// - PK/FK는 uuid가 아닌 int (외부 시스템의 정수 식별자를 그대로 쓴다)
+// - column명은 snake_case (@map). 기존 model들은 camelCase column을 쓰므로
+//   이 묶음만 규칙이 다르다.
+// ---------------------------------------------------------------------------
+
+model Country {
+  id      Int      @id @default(autoincrement())
+  country String   @unique
+  patents Patent[]
+
+  @@map("country")
+}
+
+model Attorney {
+  attorneyNumber Int      @id @map("attorney_number")
+  attorneyName   String?  @map("attorney_name")
+  patents        Patent[]
+
+  @@map("attorney")
+}
+
+model LegalStatus {
+  id      Int      @id @default(autoincrement())
+  status  String
+  patents Patent[]
+
+  @@map("legal_status")
+}
+
+model ExamStatus {
+  id      Int      @id @default(autoincrement())
+  status  String
+  patents Patent[]
+
+  @@map("exam_status")
+}
+
+model Patent {
+  id                      Int          @id @default(autoincrement())
+  countryId               Int          @map("country")
+
+  /// IP팀이 자체 운영하는 내부관리번호. 원문이 정본이고 아래 ref_* 는 파싱 결과다.
+  /// 규칙(A25W001, F25W001US ...)에 맞지 않아도 저장은 허용하고, 이때 ref_* 는 비워 둔다.
+  internalRef             String?      @unique @map("internal_ref")
+  refOrigin               String?      @map("ref_origin")
+  refYear                 Int?         @map("ref_year")
+  refType                 String?      @map("ref_type")
+  refSerial               Int?         @map("ref_serial")
+  refCountry              String?      @map("ref_country")
+
+  koreanTitle             String?      @map("korean_title")
+  englishTitle            String?      @map("english_title")
+  applicationNumber       String       @unique @map("application_number")
+  applicationDate         DateTime?    @map("application_date")
+  applicant               String?
+  attorneyNumber          Int?         @map("attorney_number")
+  registrationNumber      String?      @map("registration_number")
+  registrationDate        String?      @map("registration_date")
+  publicationNumber       String?      @map("publication_number")
+  publicationDate         DateTime?    @map("publication_date")
+  intApplicationNumber    String?      @map("int_application_number")
+  intApplicationDate      DateTime?    @map("int_application_date")
+  intPublicationNumber    String?      @map("int_publication_number")
+  intPublicationDate      DateTime?    @map("int_publication_date")
+  parentApplicationNumber String?      @map("parent_application_number")
+  legalStatusId           Int?         @map("legal_status")
+  examStatusId            Int?         @map("exam_status")
+  exam                    Boolean?
+  examDate                DateTime?    @map("exam_date")
+
+  /// IP팀 운영 시트에서 그대로 넘어오는 항목들. 코드 테이블로 정규화하지 않고
+  /// 시트에 적힌 문장을 보존한다.
+  target                  String?
+  inventors               String?
+  /// "현재 Status"(legal_status) 옆에 붙는 자유 서술.
+  statusNote              String?      @map("status_note")
+  todoDueDate             DateTime?    @map("todo_due_date")
+  /// 분할/계속 등 원출원과의 관계. 상대 출원은 parent_application_number에 적는다.
+  relationType            String?      @map("relation_type")
+  licenseAgreement        String?      @map("license_agreement")
+  rightsChange            String?      @map("rights_change")
+  /// 지분약정(지분율 변경) 기존 출원인.
+  shareAgreement          String?      @map("share_agreement")
+  expectedExpiryDate      DateTime?    @map("expected_expiry_date")
+  note                    String?
+
+  country     Country      @relation(fields: [countryId], references: [id])
+  attorney    Attorney?    @relation(fields: [attorneyNumber], references: [attorneyNumber], onDelete: SetNull)
+  legalStatus LegalStatus? @relation(fields: [legalStatusId], references: [id], onDelete: SetNull)
+  examStatus  ExamStatus?  @relation(fields: [examStatusId], references: [id], onDelete: SetNull)
+  patentIpcs  PatentIpc[]
+  admins      PatentAdmin[]
+
+  @@index([countryId])
+  @@index([attorneyNumber])
+  @@index([legalStatusId])
+  @@index([examStatusId])
+  @@index([applicationDate])
+  @@index([publicationDate])
+  // 구성요소별 조회와 다음 일련번호 채번(2단계)을 위한 index.
+  @@index([refOrigin, refYear, refType, refSerial])
+  @@map("patent")
+}
+
+model Ipc {
+  id         Int         @id @default(autoincrement())
+  ipcCode    String      @unique @map("ipc_code")
+  section    String?
+  classCode  String?     @map("class_code")
+  subclass   String?
+  mainGroup  String?     @map("main_group")
+  subgroup   String?
+  patentIpcs PatentIpc[]
+
+  @@map("ipc")
+}
+
+model PatentIpc {
+  id       Int    @id @default(autoincrement())
+  patentId Int    @map("patent_id")
+  ipcId    Int    @map("ipc_id")
+  ordinal  Int
+  patent   Patent @relation(fields: [patentId], references: [id], onDelete: Cascade)
+  ipc      Ipc    @relation(fields: [ipcId], references: [id], onDelete: Cascade)
+
+  @@unique([patentId, ipcId])
+  @@index([patentId])
+  @@index([ipcId])
+  @@map("patent_ipc")
+}
+
+/// ERD의 `admin` 테이블. 사용자 관리(AdminModule)와 구분하려고 model명만 다르게 둔다.
+model PatentAdmin {
+  id            Int            @id @default(autoincrement())
+  patentId      Int            @map("patent_id")
+  actionDate    DateTime?      @map("action_date")
+  action        String?
+  actionNumber  String?        @map("action_number")
+  patent        Patent         @relation(fields: [patentId], references: [id], onDelete: Cascade)
+  officeActions OfficeAction[]
+
+  @@index([patentId])
+  @@index([actionDate])
+  @@map("admin")
+}
+
+model OfficeAction {
+  id           Int                    @id @default(autoincrement())
+  adminId      Int                    @map("admin_id")
+  content      String?
+  documentPath String?                @map("document_path")
+  admin        PatentAdmin            @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  responses    OfficeActionResponse[]
+  oaExaminers  OaExaminer[]
+  rejections   Rejection[]
+
+  @@index([adminId])
+  @@map("office_action")
+}
+
+/// ERD의 `response` 테이블. TypeScript의 express/DOM `Response`와 겹치지 않도록 model명만 다르게 둔다.
+model OfficeActionResponse {
+  id           Int          @id @default(autoincrement())
+  oaId         Int          @map("oa_id")
+  type         Int?
+  content      String?
+  documentPath String?      @map("document_path")
+  officeAction OfficeAction @relation(fields: [oaId], references: [id], onDelete: Cascade)
+
+  @@index([oaId])
+  @@map("response")
+}
+
+model Examiner {
+  id          Int          @id @default(autoincrement())
+  office      String?
+  bureau      String?
+  department  String?
+  name        String
+  oaExaminers OaExaminer[]
+
+  @@map("examiner")
+}
+
+model OaExaminer {
+  id           Int          @id @default(autoincrement())
+  oaId         Int          @map("oa_id")
+  examinerId   Int          @map("examiner_id")
+  officeAction OfficeAction @relation(fields: [oaId], references: [id], onDelete: Cascade)
+  examiner     Examiner     @relation(fields: [examinerId], references: [id], onDelete: Cascade)
+
+  @@unique([oaId, examinerId])
+  @@index([oaId])
+  @@index([examinerId])
+  @@map("oa_examiner")
+}
+
+model LegalStatute {
+  id           Int         @id @default(autoincrement())
+  lawType      Int?        @map("law_type")
+  article      Int?
+  paragraph    Int?
+  subParagraph Int?        @map("sub_paragraph")
+  rejections   Rejection[]
+
+  @@map("legal_statutes")
+}
+
+model Rejection {
+  id           Int           @id @default(autoincrement())
+  oaId         Int           @map("oa_id")
+  claim        String?
+  statuteId    Int?          @map("statute_id")
+  officeAction OfficeAction  @relation(fields: [oaId], references: [id], onDelete: Cascade)
+  statute      LegalStatute? @relation(fields: [statuteId], references: [id], onDelete: SetNull)
+
+  @@index([oaId])
+  @@index([statuteId])
+  @@map("rejection")
 }

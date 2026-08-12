@@ -1,10 +1,11 @@
 import React from 'react';
 import {
-  Database,
+  BarChart3,
   FileText,
   FolderKanban,
   HelpCircle,
   LayoutDashboard,
+  ListChecks,
   Presentation,
   Search,
   ShieldCheck,
@@ -52,12 +53,12 @@ export type NavNode = {
 };
 
 export const MAIN_NAV: NavNode[] = [
-  {
-    key: 'dashboard',
-    label: 'Dashboard',
-    icon: <LayoutDashboard size={22} />,
-    path: '/dashboard',
-  },
+  // {
+  //   key: 'dashboard',
+  //   label: 'Dashboard',
+  //   icon: <LayoutDashboard size={22} />,
+  //   path: '/dashboard',
+  // },
   {
     key: 'patent-management',
     label: '특허 관리',
@@ -65,40 +66,52 @@ export const MAIN_NAV: NavNode[] = [
     path: '/patent-management',
   },
   {
-    key: 'documents',
-    label: 'Documents',
-    icon: <FileText size={22} />,
+    key: 'analysis',
+    label: '분석',
+    icon: <BarChart3 size={22} />,
     children: [
       {
-        key: 'patents',
-        label: 'Patents',
-        children: [
-          { key: 'patent-write', label: 'My 특허 쓰기', path: '/patents/write' },
-          {
-            key: 'patent-analysis',
-            label: 'My 특허 분석',
-            path: '/patents/analysis',
-            pathPrefixes: ['/patents/analysis/'],
-          },
-          { key: 'patent-insight', label: 'Insight', path: '/patents/insight' },
-          { key: 'patent-manage', label: 'My 특허 관리', path: '/patents/manage' },
-        ],
-      },
-      {
-        key: 'papers',
-        label: 'Papers',
-        children: [
-          { key: 'paper-manage', label: 'My 논문 관리', path: '/papers/manage' },
-        ],
+        key: 'office-actions',
+        label: '의견제출통지서',
+        path: '/analysis/office-actions',
       },
     ],
   },
-  {
-    key: 'universal-search',
-    label: '통합검색',
-    icon: <Search size={22} />,
-    path: '/universal-search',
-  },
+  // {
+  //   key: 'documents',
+  //   label: 'Documents',
+  //   icon: <FileText size={22} />,
+  //   children: [
+  //     {
+  //       key: 'patents',
+  //       label: 'Patents',
+  //       children: [
+  //         { key: 'patent-write', label: 'My 특허 쓰기', path: '/patents/write' },
+  //         {
+  //           key: 'patent-analysis',
+  //           label: 'My 특허 분석',
+  //           path: '/patents/analysis',
+  //           pathPrefixes: ['/patents/analysis/'],
+  //         },
+  //         { key: 'patent-insight', label: 'Insight', path: '/patents/insight' },
+  //         { key: 'patent-manage', label: 'My 특허 관리', path: '/patents/manage' },
+  //       ],
+  //     },
+  //     {
+  //       key: 'papers',
+  //       label: 'Papers',
+  //       children: [
+  //         { key: 'paper-manage', label: 'My 논문 관리', path: '/papers/manage' },
+  //       ],
+  //     },
+  //   ],
+  // },
+  // {
+  //   key: 'universal-search',
+  //   label: '통합검색',
+  //   icon: <Search size={22} />,
+  //   path: '/universal-search',
+  // },
 ];
 
 export const BOTTOM_NAV: NavNode[] = [
@@ -108,23 +121,23 @@ export const BOTTOM_NAV: NavNode[] = [
     icon: <ShieldCheck size={22} />,
     path: '/workspace/access-registry',
   },
+  // {
+  //   key: 'patent-analysis-admin',
+  //   label: '특허 분석 관리',
+  //   icon: <FileText size={22} />,
+  //   path: '/workspace/patent-analysis-admin',
+  // },
   {
-    key: 'conference-admin',
-    label: 'Conference 관리',
-    icon: <Database size={22} />,
-    path: '/workspace/conference-admin',
-  },
-  {
-    key: 'patent-analysis-admin',
-    label: '특허 분석 관리',
-    icon: <FileText size={22} />,
-    path: '/workspace/patent-analysis-admin',
+    key: 'patent-code-admin',
+    label: '특허 코드 관리',
+    icon: <ListChecks size={22} />,
+    path: '/workspace/patent-code-admin',
   },
   { key: 'contact', label: '문의하기', icon: <HelpCircle size={22} />, path: '/contact' },
 ];
 
 /** Key selected when the current URL matches nothing in the tree. */
-export const FALLBACK_NAV_KEY = 'dashboard';
+export const FALLBACK_NAV_KEY = 'patent-management';
 
 /**
  * Drops nodes the user lacks permission for, then drops any group left with no
