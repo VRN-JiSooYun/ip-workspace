@@ -1,7 +1,8 @@
 services:
   dev-ipworkspace-postgres:
     container_name: dev-ipworkspace-postgres
-    image: harbor.dev.voronoi/math2/ip-workspace/db:1.0.0
+    image: postgres:17
+      #image: harbor.dev.voronoi/math2/ip-workspace/db:1.0.0
     restart: always
     environment:
       - POSTGRES_DB=${POSTGRES_DB:-ip_ws}
@@ -109,32 +110,6 @@ services:
         condition: service_completed_successfully
     networks:
       - dev-ipworkspace-net
-
-        #  dev-ipworkspace-rdkit-api:
-        #    container_name: dev-ipworkspace-rdkit-api
-        #    build:
-        #      context: .
-        #      dockerfile: docker/rdkit-api.Dockerfile
-        #    restart: always
-        #    ports:
-        #      - "18081:8000"
-        #    volumes:
-        #      - ./rdkit:/app
-        #    networks:
-        #      - dev-ipworkspace-net
-        #
-        #  dev-ipworkspace-compound-search-api:
-        #    container_name: dev-ipworkspace-compound-search-api
-        #    build:
-        #      context: .
-        #      dockerfile: docker/compound-search-api.Dockerfile
-        #    restart: always
-        #    ports:
-        #      - "18083:8080"
-        #    volumes:
-        #      - ./compound_search:/app
-        #    networks:
-        #      - dev-ipworkspace-net
 
 networks:
   dev-ipworkspace-net:
