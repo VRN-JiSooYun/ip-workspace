@@ -1,16 +1,16 @@
 services:
-  local-myworkspace-postgres:
-    container_name: local-myworkspace-postgres
+  local-ipworkspace-postgres:
+    container_name: local-ipworkspace-postgres
     image: postgres:14.23-alpine3.24
     environment:
-      - POSTGRES_DB=${POSTGRES_DB:-medichem}
-      - POSTGRES_USER=${POSTGRES_USER:-medichem}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-medichem_local_password}
+      - POSTGRES_DB=${POSTGRES_DB:-ip_ws}
+      - POSTGRES_USER=${POSTGRES_USER:-ip_ws}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-ip_ws_local_password}
       - TZ=UTC
     ports:
       - "5432:5432"
     volumes:
-      - local-myworkspace-postgres-data:/var/lib/postgresql/data
+      - local-ipworkspace-postgres-data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 5s
@@ -18,25 +18,25 @@ services:
       retries: 10
     restart: unless-stopped
     networks:
-      - myworkspace-net
+      - ipworkspace-net
 
-  local-myworkspace-migrate:
-    container_name: local-myworkspace-migrate
+  local-ipworkspace-migrate:
+    container_name: local-ipworkspace-migrate
     build:
       context: ./backend
       dockerfile: Dockerfile
     command: ["bun", "run", "prisma:migrate:deploy"]
     environment:
-      - DATABASE_URL=postgresql://${POSTGRES_USER:-medichem}:${POSTGRES_PASSWORD:-medichem_local_password}@local-myworkspace-postgres:5432/${POSTGRES_DB:-medichem}?schema=public
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-ip_ws}:${POSTGRES_PASSWORD:-ip_ws_local_password}@local-ipworkspace-postgres:5432/${POSTGRES_DB:-ip_ws}?schema=public
     depends_on:
-      local-myworkspace-postgres:
+      local-ipworkspace-postgres:
         condition: service_healthy
     restart: "no"
     networks:
-      - myworkspace-net
+      - ipworkspace-net
 
-  local-myworkspace-frontend:
-    container_name: local-myworkspace-frontend
+  local-ipworkspace-frontend:
+    container_name: local-ipworkspace-frontend
     build:
       context: ./frontend
       dockerfile: Dockerfile
@@ -53,14 +53,14 @@ services:
       - VITE_GROUPWARE_ORIGIN=${VITE_GROUPWARE_ORIGIN:-https://voronoi.app}
       - VITE_GMAIL_ALLOWED_RECIPIENT_DOMAINS=${GMAIL_ALLOWED_RECIPIENT_DOMAINS:-voronoi.io}
     depends_on:
-      - local-myworkspace-backend
-      - local-myworkspace-rdkit-api
-      - local-myworkspace-compound-search-api
+      - local-ipworkspace-backend
+      - local-ipworkspace-rdkit-api
+      - local-ipworkspace-compound-search-api
     networks:
-      - myworkspace-net
+      - ipworkspace-net
 
-  local-myworkspace-backend:
-    container_name: local-myworkspace-backend
+  local-ipworkspace-backend:
+    container_name: local-ipworkspace-backend
     build:
       context: ./backend
       dockerfile: Dockerfile
@@ -69,7 +69,7 @@ services:
     volumes:
       - ./backend:/app
       - /app/node_modules
-      - local-myworkspace-notification-recipient-import-data:/app/imports/notification-recipients
+      - local-ipworkspace-notification-recipient-import-data:/app/imports/notification-recipients
       - ./secrets/gmail/token.json:/run/secrets/gmail/token.json:ro
     environment:
       - NODE_ENV=development
@@ -85,7 +85,7 @@ services:
       - COMPOUND_API_AUTH_TOKEN=${COMPOUND_API_AUTH_TOKEN:-}
       - COMPOUND_API_TIMEOUT_MS=30000
       - HTTP_TIMEOUT_MS=30000
-      - DATABASE_URL=postgresql://${POSTGRES_USER:-medichem}:${POSTGRES_PASSWORD:-medichem_local_password}@local-myworkspace-postgres:5432/${POSTGRES_DB:-medichem}?schema=public
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-ip_ws}:${POSTGRES_PASSWORD:-ip_ws_local_password}@local-ipworkspace-postgres:5432/${POSTGRES_DB:-ip_ws}?schema=public
       - BETTER_AUTH_URL=${BETTER_AUTH_URL:-http://localhost:3000}
       - BETTER_AUTH_TRUSTED_ORIGINS=${BETTER_AUTH_TRUSTED_ORIGINS:-http://localhost:5174,https://voronoi.app:28000}
       - BETTER_AUTH_SECRETS=${BETTER_AUTH_SECRETS:-1:local-development-secret-change-before-production-2026}
@@ -105,13 +105,13 @@ services:
       - GMAIL_OUTBOX_LEASE_DURATION_MS=60000
       - GMAIL_OUTBOX_MAX_ATTEMPTS=5
     depends_on:
-      local-myworkspace-migrate:
+      local-ipworkspace-migrate:
         condition: service_completed_successfully
     networks:
-      - myworkspace-net
+      - ipworkspace-net
 
-  local-myworkspace-rdkit-api:
-    container_name: local-myworkspace-rdkit-api
+  local-ipworkspace-rdkit-api:
+    container_name: local-ipworkspace-rdkit-api
     build:
       context: .
       dockerfile: docker/rdkit-api.Dockerfile
@@ -120,10 +120,10 @@ services:
     volumes:
       - ./rdkit:/app
     networks:
-      - myworkspace-net
+      - ipworkspace-net
 
-  local-myworkspace-compound-search-api:
-    container_name: local-myworkspace-compound-search-api
+  local-ipworkspace-compound-search-api:
+    container_name: local-ipworkspace-compound-search-api
     build:
       context: .
       dockerfile: docker/compound-search-api.Dockerfile
@@ -132,12 +132,12 @@ services:
     volumes:
       - ./compound_search:/app
     networks:
-      - myworkspace-net
+      - ipworkspace-net
 
 networks:
-  myworkspace-net:
+  ipworkspace-net:
     driver: bridge
 
 volumes:
-  local-myworkspace-postgres-data:
-  local-myworkspace-notification-recipient-import-data:
+  local-ipworkspace-postgres-data:
+  local-ipworkspace-notification-recipient-import-data:
