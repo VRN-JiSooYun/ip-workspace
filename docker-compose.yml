@@ -1,80 +1,75 @@
 services:
-  local-ipworkspace-postgres:
-    container_name: local-ipworkspace-postgres
-    image: postgres:14.23-alpine3.24
+  dev-ipworkspace-postgres:
+    container_name: dev-ipworkspace-postgres
+    image: harbor.dev.voronoi/math2/ip-workspace/db:1.0.0
+    restart: always
     environment:
       - POSTGRES_DB=${POSTGRES_DB:-ip_ws}
       - POSTGRES_USER=${POSTGRES_USER:-ip_ws}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-ip_ws_local_password}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
       - TZ=UTC
-    ports:
-      - "5432:5432"
     volumes:
-      - local-ipworkspace-postgres-data:/var/lib/postgresql/data
+      - dev-ipworkspace-postgres-data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 5s
       timeout: 5s
       retries: 10
-    restart: unless-stopped
     networks:
-      - ipworkspace-net
+      - dev-ipworkspace-net
 
-  local-ipworkspace-migrate:
-    container_name: local-ipworkspace-migrate
+  dev-ipworkspace-migrate:
+    container_name: dev-ipworkspace-migrate
     build:
       context: ./backend
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.dev
+      target: build
+    restart: "no"
     command: ["bun", "run", "prisma:migrate:deploy"]
     environment:
-      - DATABASE_URL=postgresql://${POSTGRES_USER:-ip_ws}:${POSTGRES_PASSWORD:-ip_ws_local_password}@local-ipworkspace-postgres:5432/${POSTGRES_DB:-ip_ws}?schema=public
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-ip_ws}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@dev-ipworkspace-postgres:5432/${POSTGRES_DB:-ip_ws}?schema=public
     depends_on:
-      local-ipworkspace-postgres:
+      dev-ipworkspace-postgres:
         condition: service_healthy
-    restart: "no"
     networks:
-      - ipworkspace-net
+      - dev-ipworkspace-net
 
-  local-ipworkspace-frontend:
-    container_name: local-ipworkspace-frontend
+  dev-ipworkspace-frontend:
+    container_name: dev-ipworkspace-frontend
+    image: harbor.dev.voronoi/math2/ip-workspace/web:1.0.0
     build:
       context: ./frontend
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.dev
+    restart: always
     ports:
-      - "5174:5173"
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
+      - "25443:443"
     environment:
-      - VITE_API_URL=http://localhost:3000/api
+      - VITE_API_URL=/api
       - VITE_RDKIT_API_URL=/rdkit-api
       - VITE_COMPOUND_SEARCH_API_URL=/compound-search-api
       - VITE_CHEMDRAW_CLIPBOARD_FIXER_URL=http://localhost:47823
       - VITE_GROUPWARE_ORIGIN=${VITE_GROUPWARE_ORIGIN:-https://voronoi.app}
       - VITE_GMAIL_ALLOWED_RECIPIENT_DOMAINS=${GMAIL_ALLOWED_RECIPIENT_DOMAINS:-voronoi.io}
+      - MONITORING_PROXY_TARGET=http://172.16.1.200:2026
     depends_on:
-      - local-ipworkspace-backend
-      - local-ipworkspace-rdkit-api
-      - local-ipworkspace-compound-search-api
+      - dev-ipworkspace-backend
+        #- dev-ipworkspace-rdkit-api
+        #- dev-ipworkspace-compound-search-api
     networks:
-      - ipworkspace-net
+      - dev-ipworkspace-net
 
-  local-ipworkspace-backend:
-    container_name: local-ipworkspace-backend
+  dev-ipworkspace-backend:
+    container_name: dev-ipworkspace-backend
     build:
       context: ./backend
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.dev
+    restart: always
     ports:
-      - "3000:3000"
-    volumes:
-      - ./backend:/app
-      - /app/node_modules
-      - local-ipworkspace-notification-recipient-import-data:/app/imports/notification-recipients
-      - ./secrets/gmail/token.json:/run/secrets/gmail/token.json:ro
+      - "25444:3000"
     environment:
-      - NODE_ENV=development
+      - NODE_ENV=production
       - PORT=3000
-      - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:5174,http://localhost:18080,https://voronoi.app:28000}
+      - CORS_ORIGINS=${PUBLIC_ORIGIN:-https://voronoi.app:28000},https://localhost:18080,https://172.16.1.183:18080
       - PATENT_ANALYSIS_HELPER_API_URL=http://172.16.1.210:10130
       - PATENT_ANALYSIS_UPLOAD_API_URL=http://172.16.1.210:8000
       - PATENT_INSIGHT_API_URL=http://172.16.1.210:8000
@@ -85,10 +80,10 @@ services:
       - COMPOUND_API_AUTH_TOKEN=${COMPOUND_API_AUTH_TOKEN:-}
       - COMPOUND_API_TIMEOUT_MS=30000
       - HTTP_TIMEOUT_MS=30000
-      - DATABASE_URL=postgresql://${POSTGRES_USER:-ip_ws}:${POSTGRES_PASSWORD:-ip_ws_local_password}@local-ipworkspace-postgres:5432/${POSTGRES_DB:-ip_ws}?schema=public
-      - BETTER_AUTH_URL=${BETTER_AUTH_URL:-http://localhost:3000}
-      - BETTER_AUTH_TRUSTED_ORIGINS=${BETTER_AUTH_TRUSTED_ORIGINS:-http://localhost:5174,https://voronoi.app:28000}
-      - BETTER_AUTH_SECRETS=${BETTER_AUTH_SECRETS:-1:local-development-secret-change-before-production-2026}
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-ip_ws}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@dev-ipworkspace-postgres:5432/${POSTGRES_DB:-ip_ws}?schema=public
+      - BETTER_AUTH_URL=${PUBLIC_ORIGIN:-https://voronoi.app:28000}
+      - BETTER_AUTH_TRUSTED_ORIGINS=${PUBLIC_ORIGIN:-https://voronoi.app:28000},https://localhost:18080,https://172.16.1.183:18080
+      - BETTER_AUTH_SECRETS=${BETTER_AUTH_SECRETS:?BETTER_AUTH_SECRETS is required}
       - GROUPWARE_ORIGIN=${GROUPWARE_ORIGIN:-https://voronoi.app}
       - GROUPWARE_LOGIN_CHECK_URL=${GROUPWARE_LOGIN_CHECK_URL:-http://172.16.1.32:10050/login_check}
       - GROUPWARE_LOGIN_CHECK_TIMEOUT_MS=10000
@@ -100,44 +95,51 @@ services:
       - GMAIL_OAUTH_TOKEN_FILE=/run/secrets/gmail/token.json
       - GMAIL_FROM_EMAIL=${GMAIL_FROM_EMAIL:-vgw@voronoi.io}
       - GMAIL_ALLOWED_RECIPIENT_DOMAINS=${GMAIL_ALLOWED_RECIPIENT_DOMAINS:-voronoi.io}
-      - PUBLIC_APP_BASE_URL=${PUBLIC_APP_BASE_URL:-http://localhost:5174}
+      - PUBLIC_APP_BASE_URL=${PUBLIC_ORIGIN:-https://voronoi.app:28000}
       - GMAIL_OUTBOX_POLL_INTERVAL_MS=5000
       - GMAIL_OUTBOX_LEASE_DURATION_MS=60000
       - GMAIL_OUTBOX_MAX_ATTEMPTS=5
+    volumes:
+      - dev-ipworkspace-notification-recipient-import-data:/app/imports/notification-recipients
+      - ./secrets/gmail/token.json:/run/secrets/gmail/token.json:ro
     depends_on:
-      local-ipworkspace-migrate:
+      dev-ipworkspace-postgres:
+        condition: service_healthy
+      dev-ipworkspace-migrate:
         condition: service_completed_successfully
     networks:
-      - ipworkspace-net
+      - dev-ipworkspace-net
 
-  local-ipworkspace-rdkit-api:
-    container_name: local-ipworkspace-rdkit-api
-    build:
-      context: .
-      dockerfile: docker/rdkit-api.Dockerfile
-    ports:
-      - "8010:8000"
-    volumes:
-      - ./rdkit:/app
-    networks:
-      - ipworkspace-net
-
-  local-ipworkspace-compound-search-api:
-    container_name: local-ipworkspace-compound-search-api
-    build:
-      context: .
-      dockerfile: docker/compound-search-api.Dockerfile
-    ports:
-      - "8020:8080"
-    volumes:
-      - ./compound_search:/app
-    networks:
-      - ipworkspace-net
+        #  dev-ipworkspace-rdkit-api:
+        #    container_name: dev-ipworkspace-rdkit-api
+        #    build:
+        #      context: .
+        #      dockerfile: docker/rdkit-api.Dockerfile
+        #    restart: always
+        #    ports:
+        #      - "18081:8000"
+        #    volumes:
+        #      - ./rdkit:/app
+        #    networks:
+        #      - dev-ipworkspace-net
+        #
+        #  dev-ipworkspace-compound-search-api:
+        #    container_name: dev-ipworkspace-compound-search-api
+        #    build:
+        #      context: .
+        #      dockerfile: docker/compound-search-api.Dockerfile
+        #    restart: always
+        #    ports:
+        #      - "18083:8080"
+        #    volumes:
+        #      - ./compound_search:/app
+        #    networks:
+        #      - dev-ipworkspace-net
 
 networks:
-  ipworkspace-net:
+  dev-ipworkspace-net:
     driver: bridge
 
 volumes:
-  local-ipworkspace-postgres-data:
-  local-ipworkspace-notification-recipient-import-data:
+  dev-ipworkspace-postgres-data:
+  dev-ipworkspace-notification-recipient-import-data:

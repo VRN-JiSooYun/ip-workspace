@@ -1,0 +1,143 @@
+services:
+  local-ipworkspace-postgres:
+    container_name: local-ipworkspace-postgres
+    image: postgres:14.23-alpine3.24
+    environment:
+      - POSTGRES_DB=${POSTGRES_DB:-ip_ws}
+      - POSTGRES_USER=${POSTGRES_USER:-ip_ws}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-ip_ws_local_password}
+      - TZ=UTC
+    ports:
+      - "5432:5432"
+    volumes:
+      - local-ipworkspace-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+    networks:
+      - ipworkspace-net
+
+  local-ipworkspace-migrate:
+    container_name: local-ipworkspace-migrate
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    command: ["bun", "run", "prisma:migrate:deploy"]
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-ip_ws}:${POSTGRES_PASSWORD:-ip_ws_local_password}@local-ipworkspace-postgres:5432/${POSTGRES_DB:-ip_ws}?schema=public
+    depends_on:
+      local-ipworkspace-postgres:
+        condition: service_healthy
+    restart: "no"
+    networks:
+      - ipworkspace-net
+
+  local-ipworkspace-frontend:
+    container_name: local-ipworkspace-frontend
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "5174:5173"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    environment:
+      - VITE_API_URL=http://localhost:3000/api
+      - VITE_RDKIT_API_URL=/rdkit-api
+      - VITE_COMPOUND_SEARCH_API_URL=/compound-search-api
+      - VITE_CHEMDRAW_CLIPBOARD_FIXER_URL=http://localhost:47823
+      - VITE_GROUPWARE_ORIGIN=${VITE_GROUPWARE_ORIGIN:-https://voronoi.app}
+      - VITE_GMAIL_ALLOWED_RECIPIENT_DOMAINS=${GMAIL_ALLOWED_RECIPIENT_DOMAINS:-voronoi.io}
+    depends_on:
+      - local-ipworkspace-backend
+      - local-ipworkspace-rdkit-api
+      - local-ipworkspace-compound-search-api
+    networks:
+      - ipworkspace-net
+
+  local-ipworkspace-backend:
+    container_name: local-ipworkspace-backend
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./backend:/app
+      - /app/node_modules
+      - local-ipworkspace-notification-recipient-import-data:/app/imports/notification-recipients
+      - ./secrets/gmail/token.json:/run/secrets/gmail/token.json:ro
+    environment:
+      - NODE_ENV=development
+      - PORT=3000
+      - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:5174,http://localhost:18080,https://voronoi.app:28000}
+      - PATENT_ANALYSIS_HELPER_API_URL=http://172.16.1.210:10130
+      - PATENT_ANALYSIS_UPLOAD_API_URL=http://172.16.1.210:8000
+      - PATENT_INSIGHT_API_URL=http://172.16.1.210:8000
+      - PATENT_ANALYSIS_OWNER_ID=171
+      - CONFORMER_API_URL=http://172.16.1.203:8000
+      - CONFORMER_API_TIMEOUT_MS=120000
+      - COMPOUND_API_URL=http://172.16.1.32:10050
+      - COMPOUND_API_AUTH_TOKEN=${COMPOUND_API_AUTH_TOKEN:-}
+      - COMPOUND_API_TIMEOUT_MS=30000
+      - HTTP_TIMEOUT_MS=30000
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-ip_ws}:${POSTGRES_PASSWORD:-ip_ws_local_password}@local-ipworkspace-postgres:5432/${POSTGRES_DB:-ip_ws}?schema=public
+      - BETTER_AUTH_URL=${BETTER_AUTH_URL:-http://localhost:3000}
+      - BETTER_AUTH_TRUSTED_ORIGINS=${BETTER_AUTH_TRUSTED_ORIGINS:-http://localhost:5174,https://voronoi.app:28000}
+      - BETTER_AUTH_SECRETS=${BETTER_AUTH_SECRETS:-1:local-development-secret-change-before-production-2026}
+      - GROUPWARE_ORIGIN=${GROUPWARE_ORIGIN:-https://voronoi.app}
+      - GROUPWARE_LOGIN_CHECK_URL=${GROUPWARE_LOGIN_CHECK_URL:-http://172.16.1.32:10050/login_check}
+      - GROUPWARE_LOGIN_CHECK_TIMEOUT_MS=10000
+      - GROUPWARE_REVALIDATE_INTERVAL_SECONDS=${GROUPWARE_REVALIDATE_INTERVAL_SECONDS:-600}
+      - AUTH_SESSION_EXPIRES_IN_SECONDS=21600
+      - AUTH_SESSION_UPDATE_AGE_SECONDS=1800
+      - AUTH_BOOTSTRAP_ADMIN_EMAILS=${AUTH_BOOTSTRAP_ADMIN_EMAILS:-}
+      - NOTIFICATION_RECIPIENT_IMPORT_ROOT=/app/imports/notification-recipients
+      - GMAIL_OAUTH_TOKEN_FILE=/run/secrets/gmail/token.json
+      - GMAIL_FROM_EMAIL=${GMAIL_FROM_EMAIL:-vgw@voronoi.io}
+      - GMAIL_ALLOWED_RECIPIENT_DOMAINS=${GMAIL_ALLOWED_RECIPIENT_DOMAINS:-voronoi.io}
+      - PUBLIC_APP_BASE_URL=${PUBLIC_APP_BASE_URL:-http://localhost:5174}
+      - GMAIL_OUTBOX_POLL_INTERVAL_MS=5000
+      - GMAIL_OUTBOX_LEASE_DURATION_MS=60000
+      - GMAIL_OUTBOX_MAX_ATTEMPTS=5
+    depends_on:
+      local-ipworkspace-migrate:
+        condition: service_completed_successfully
+    networks:
+      - ipworkspace-net
+
+  local-ipworkspace-rdkit-api:
+    container_name: local-ipworkspace-rdkit-api
+    build:
+      context: .
+      dockerfile: docker/rdkit-api.Dockerfile
+    ports:
+      - "8010:8000"
+    volumes:
+      - ./rdkit:/app
+    networks:
+      - ipworkspace-net
+
+  local-ipworkspace-compound-search-api:
+    container_name: local-ipworkspace-compound-search-api
+    build:
+      context: .
+      dockerfile: docker/compound-search-api.Dockerfile
+    ports:
+      - "8020:8080"
+    volumes:
+      - ./compound_search:/app
+    networks:
+      - ipworkspace-net
+
+networks:
+  ipworkspace-net:
+    driver: bridge
+
+volumes:
+  local-ipworkspace-postgres-data:
+  local-ipworkspace-notification-recipient-import-data:
