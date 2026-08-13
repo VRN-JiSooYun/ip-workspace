@@ -4,7 +4,7 @@ FROM oven/bun:latest
 WORKDIR /app
 
 # 기본 패키지 설치를 위한 파일 복사 (없을 경우 빈 파일 생성 방지)
-COPY package.json bun.lockb* ./
+COPY package.json bun.lock* bun.lockb* ./
 
 # 의존성 설치
 RUN bun install
