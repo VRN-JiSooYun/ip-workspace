@@ -13,6 +13,7 @@ import {
   PanelLeftClose,
 } from 'lucide-react';
 import RdkitDrawOptionsModal from '../common/RdkitDrawOptionsModal';
+import { withBasePath } from '../../config/basePath';
 import { useAuthSession } from '../../contexts/AuthSessionContext';
 import { useAccessContext } from '../../contexts/AccessContext';
 import {
@@ -221,7 +222,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
               <div className="app-sidebar-mini-logo">
                 <img
                   className="app-sidebar-mini-logo-image"
-                  src="/sidebar-mini-logo.svg"
+                  src={withBasePath("sidebar-mini-logo.svg")}
                   alt="IP Workspace"
                 />
               </div>
@@ -234,7 +235,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
             <div className="app-sidebar-mini-logo">
               <img
                 className="app-sidebar-mini-logo-image"
-                src="/sidebar-mini-logo.svg"
+                src={withBasePath("sidebar-mini-logo.svg")}
                 alt="IP Workspace"
               />
             </div>

@@ -75,6 +75,32 @@ RDKit API와 Compound Search API 컨테이너는 dev 배포 구성에서 제거�
 
 Frontend Nginx는 TLS를 직접 종단하지 않고 평문 HTTP만 서빙합니다. HTTPS가 필요한 경우 앞단 reverse proxy에서 종단합니다.
 
+## Base path (`/ip-workspace/`)
+
+서비스는 앞단 nginx에서 path 기반으로 라우팅됩니다.
+
+```nginx
+location /ip-workspace/ {
+    proxy_pass http://172.16.1.183:25443/;
+}
+```
+
+`proxy_pass` 끝의 `/` 때문에 prefix는 벗겨진 채 컨테이너로 전달됩니다. 즉 **컨테이너 안의 nginx와 backend는 계속 `/`, `/api/...`를 받고**, prefix를 알아야 하는 쪽은 브라우저가 보는 URL을 만드는 프론트엔드뿐입니다.
+
+prefix의 단일 출처는 빌드 인자 `BASE_PATH`(기본 `/ip-workspace/`)입니다.
+
+| 위치 | 사용 방식 |
+| --- | --- |
+| `frontend/Dockerfile.dev` | `ARG BASE_PATH` → 빌드 시 env로 전달 |
+| `frontend/vite.config.ts` | `base: BASE_PATH`. dev 서버 proxy 규칙도 같은 prefix로 매칭하고 target에 넘길 때 벗김 |
+| `frontend/src/config/basePath.ts` | `import.meta.env.BASE_URL`을 읽어 `withBasePath()`와 API 기본 경로 상수를 제공 |
+| `src/App.tsx` | react-router `basename` |
+| `docker-compose.yml` | `build.args.BASE_PATH`와 `VITE_*_URL` 값에 동일 변수 사용 |
+
+prefix 없이 루트로 배포하려면 `BASE_PATH=/`를 지정하면 됩니다. 이 경우 basename은 빈 문자열이 되고 모든 경로가 기존과 동일해집니다.
+
+Backend는 prefix를 인식하지 않습니다. Better Auth의 `basePath`는 prefix가 벗겨진 뒤의 `/api/auth`가 맞고, `trustedOrigins`/`CORS_ORIGINS`는 origin만 비교하므로 path의 영향을 받지 않습니다.
+
 ## Frontend Proxy 경로
 
 `frontend/nginx.conf` 기준으로 프론트엔드 컨테이너는 다음 경로를 내부 서비스로 전달합니다.

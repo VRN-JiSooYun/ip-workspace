@@ -1,3 +1,4 @@
+import { DEFAULT_API_BASE_PATH } from '../config/basePath';
 import { notifyIfAuthRequired } from './authApi';
 
 type RuntimeWindow = Window & {
@@ -38,10 +39,10 @@ const getApiBaseUrl = () => {
   const runtimeValue = typeof window !== 'undefined'
     ? (window as RuntimeWindow)._env_?.VITE_API_URL
     : undefined;
-  const value = runtimeValue || import.meta.env.VITE_API_URL || '/api';
+  const value = runtimeValue || import.meta.env.VITE_API_URL || DEFAULT_API_BASE_PATH;
 
   if (value.includes('${')) {
-    return '/api';
+    return DEFAULT_API_BASE_PATH;
   }
   return value.replace(/\/$/, '');
 };

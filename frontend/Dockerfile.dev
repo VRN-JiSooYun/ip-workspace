@@ -8,6 +8,9 @@ RUN bun install
 
 # 소스 복사 및 빌드
 COPY . .
+# 앞단 nginx의 path 기반 라우팅 prefix. asset/route/API 경로가 모두 이 값을 기준으로 생성된다.
+ARG BASE_PATH=/ip-workspace/
+ENV BASE_PATH=${BASE_PATH}
 RUN bun run build
 
 # Production stage

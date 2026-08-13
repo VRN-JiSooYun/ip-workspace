@@ -8,6 +8,7 @@ import MainLayout from './components/layout/MainLayout';
 import AuthGate from './components/auth/AuthGate';
 import RequirePermission from './components/auth/RequirePermission';
 import { APP_ROUTES } from './routes';
+import { ROUTER_BASENAME } from './config/basePath';
 
 const App: React.FC = () => {
   const { isDarkMode } = useTheme();
@@ -69,7 +70,10 @@ const App: React.FC = () => {
         },
       }}
     >
-      <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+      <Router
+        basename={ROUTER_BASENAME}
+        future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+      >
         <AntApp>
           <AuthGate>
             <MainLayout>

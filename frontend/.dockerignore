@@ -1,0 +1,13 @@
+# 이미지 안에서 bun install로 다시 설치한다.
+node_modules
+dist
+*.tsbuildinfo
+
+# 로컬 네이티브 개발용 값. 이미지에 들어가면 빌드 타임 import.meta.env로 구워져
+# 컨테이너 런타임 env.js보다 먼저 잡히는 경우가 생긴다(예: VITE_API_URL이
+# http://localhost:3000/api로 고정).
+.env
+.env.*
+
+.git
+.gitignore

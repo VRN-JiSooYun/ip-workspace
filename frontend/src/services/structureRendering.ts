@@ -1,4 +1,5 @@
 import { CHEMDRAW_CONFIG } from '../config/chemdraw';
+import { DEFAULT_RDKIT_API_BASE_PATH } from '../config/basePath';
 import { waitForChemDrawEditorReady } from '../utils/chemdrawCommit';
 import { installCanvasReadbackPatch } from '../utils/canvasReadback';
 import { installPassiveWheelListenerPatch } from '../utils/passiveWheelListenerPatch';
@@ -373,7 +374,7 @@ const createRdkitClusterCacheKey = ({
 };
 
 const getRdkitApiBaseUrl = () => {
-  return (import.meta.env.VITE_RDKIT_API_URL || '/rdkit-api').replace(/\/$/, '');
+  return (import.meta.env.VITE_RDKIT_API_URL || DEFAULT_RDKIT_API_BASE_PATH).replace(/\/$/, '');
 };
 
 export const renderRdkitSvg = async ({

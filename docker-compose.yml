@@ -41,13 +41,17 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile.dev
+      args:
+        # 앞단 nginx가 `location /ip-workspace/`로 라우팅하므로 앱은 이 prefix 아래에서 서빙된다.
+        BASE_PATH: ${BASE_PATH:-/ip-workspace/}
     restart: always
     ports:
       - "25443:80"
     environment:
-      - VITE_API_URL=/api
-      - VITE_RDKIT_API_URL=/rdkit-api
-      - VITE_COMPOUND_SEARCH_API_URL=/compound-search-api
+      # 브라우저가 보내는 경로이므로 prefix를 포함해야 하고, 앞단 nginx가 이를 벗겨 컨테이너로 넘긴다.
+      - VITE_API_URL=${BASE_PATH:-/ip-workspace/}api
+      - VITE_RDKIT_API_URL=${BASE_PATH:-/ip-workspace/}rdkit-api
+      - VITE_COMPOUND_SEARCH_API_URL=${BASE_PATH:-/ip-workspace/}compound-search-api
       - VITE_CHEMDRAW_CLIPBOARD_FIXER_URL=http://localhost:47823
       - VITE_GROUPWARE_ORIGIN=${VITE_GROUPWARE_ORIGIN:-https://voronoi.app}
       - VITE_GMAIL_ALLOWED_RECIPIENT_DOMAINS=${GMAIL_ALLOWED_RECIPIENT_DOMAINS:-voronoi.io}

@@ -8,13 +8,14 @@ import {
   writeRdkitDrawOptions,
   type RdkitDrawGlobalOptions,
 } from '../../services/rdkitDrawOptions';
+import { DEFAULT_RDKIT_API_BASE_PATH } from '../../config/basePath';
 
 const { Text } = Typography;
 
 const DEFAULT_PREVIEW_SMILES = 'Nc1ncc(Nc2ccccc2)nc1';
 
 const getRdkitApiBaseUrl = () => {
-  return (import.meta.env.VITE_RDKIT_API_URL || '/rdkit-api').replace(/\/$/, '');
+  return (import.meta.env.VITE_RDKIT_API_URL || DEFAULT_RDKIT_API_BASE_PATH).replace(/\/$/, '');
 };
 
 type OptionNumberProps = {

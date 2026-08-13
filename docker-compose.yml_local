@@ -46,9 +46,12 @@ services:
       - ./frontend:/app
       - /app/node_modules
     environment:
+      # 앞단 nginx의 path 기반 라우팅 prefix. vite dev 서버도 이 경로 아래에서 서빙된다.
+      # (http://localhost:5174/ip-workspace/) prefix 없이 띄우려면 BASE_PATH=/
+      - BASE_PATH=${BASE_PATH:-/ip-workspace/}
       - VITE_API_URL=http://localhost:3000/api
-      - VITE_RDKIT_API_URL=/rdkit-api
-      - VITE_COMPOUND_SEARCH_API_URL=/compound-search-api
+      - VITE_RDKIT_API_URL=${BASE_PATH:-/ip-workspace/}rdkit-api
+      - VITE_COMPOUND_SEARCH_API_URL=${BASE_PATH:-/ip-workspace/}compound-search-api
       - VITE_CHEMDRAW_CLIPBOARD_FIXER_URL=http://localhost:47823
       - VITE_GROUPWARE_ORIGIN=${VITE_GROUPWARE_ORIGIN:-https://voronoi.app}
       - VITE_GMAIL_ALLOWED_RECIPIENT_DOMAINS=${GMAIL_ALLOWED_RECIPIENT_DOMAINS:-voronoi.io}

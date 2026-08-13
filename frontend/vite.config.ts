@@ -1,9 +1,17 @@
 import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
 
-const monitoringProxy = {
+const monitoringTarget = {
   target: 'http://172.16.1.200:2026',
   changeOrigin: true,
+};
+
+// 앞단 nginx가 `/ip-workspace/`로 path 기반 라우팅을 하므로 앱은 그 prefix 아래에서
+// 서빙된다. 환경별로 다르게 두거나 prefix 없이 배포하려면 BASE_PATH를 지정한다.
+// (`BASE_PATH=/`이면 기존처럼 루트 배포)
+const normalizeBasePath = (value: string): string => {
+  const trimmed = value.trim().replace(/^\/+|\/+$/g, '');
+  return trimmed ? `/${trimmed}/` : '/';
 };
 
 // https://vitejs.dev/config/
@@ -17,7 +25,18 @@ export default defineConfig(({ mode }) => {
     env.COMPOUND_SEARCH_API_PROXY_TARGET ||
     'http://local-ipworkspace-compound-search-api:8080';
 
+  const basePath = normalizeBasePath(env.BASE_PATH ?? '/ip-workspace/');
+  // dev 서버는 앞단 nginx 없이 직접 요청을 받으므로, 앱이 붙이는 prefix를
+  // proxy 규칙에서도 그대로 매칭하고 target으로 넘길 때 벗겨준다.
+  const prefix = basePath.replace(/\/$/, '');
+  const stripPrefix = (path: string) => path.slice(prefix.length) || '/';
+  const monitoringProxy = {
+    ...monitoringTarget,
+    rewrite: stripPrefix,
+  };
+
   return {
+  base: basePath,
   plugins: [react()],
   define: {
     'process.env.DRAGGABLE_DEBUG': 'false',
@@ -26,28 +45,28 @@ export default defineConfig(({ mode }) => {
     host: true,
     port: 5173,
     proxy: {
-      '/rdkit-api': {
+      [`${prefix}/rdkit-api`]: {
         target: rdkitApiTarget,
         changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/rdkit-api/, ''),
+        rewrite: (path) => stripPrefix(path).replace(/^\/rdkit-api/, ''),
       },
-      '/compound-search-api': {
+      [`${prefix}/compound-search-api`]: {
         target: compoundSearchApiTarget,
         changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/compound-search-api/, ''),
+        rewrite: (path) => stripPrefix(path).replace(/^\/compound-search-api/, ''),
       },
-      '/monitoring/': {
-        ...monitoringProxy,
+      [`${prefix}/monitoring/`]: {
+        ...monitoringTarget,
         ws: true,
-        rewrite: (path) => path.replace(/^\/monitoring/, ''),
+        rewrite: (path) => stripPrefix(path).replace(/^\/monitoring/, ''),
       },
-      '/api/servers': monitoringProxy,
-      '/api/status': monitoringProxy,
-      '/api/notices': monitoringProxy,
-      '/api/monitor-errors': monitoringProxy,
-      '/api/register': monitoringProxy,
-      '/api/reservations': monitoringProxy,
-      '/api/cancel': monitoringProxy,
+      [`${prefix}/api/servers`]: monitoringProxy,
+      [`${prefix}/api/status`]: monitoringProxy,
+      [`${prefix}/api/notices`]: monitoringProxy,
+      [`${prefix}/api/monitor-errors`]: monitoringProxy,
+      [`${prefix}/api/register`]: monitoringProxy,
+      [`${prefix}/api/reservations`]: monitoringProxy,
+      [`${prefix}/api/cancel`]: monitoringProxy,
     },
   },
   resolve: {

@@ -1,3 +1,4 @@
+import { DEFAULT_API_BASE_PATH } from '../config/basePath';
 import { notifyIfAuthRequired } from './authApi';
 
 type RuntimeWindow = Window & { _env_?: { VITE_API_URL?: string } };
@@ -5,8 +6,8 @@ const apiBase = () => {
   const runtime = typeof window === 'undefined'
     ? undefined
     : (window as RuntimeWindow)._env_?.VITE_API_URL;
-  const value = runtime || import.meta.env.VITE_API_URL || '/api';
-  return value.includes('${') ? '/api' : value.replace(/\/$/, '');
+  const value = runtime || import.meta.env.VITE_API_URL || DEFAULT_API_BASE_PATH;
+  return value.includes('${') ? DEFAULT_API_BASE_PATH : value.replace(/\/$/, '');
 };
 
 const request = async <T>(path: string, init?: RequestInit): Promise<T> => {

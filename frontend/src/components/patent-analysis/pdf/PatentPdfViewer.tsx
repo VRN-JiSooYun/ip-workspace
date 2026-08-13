@@ -5,9 +5,10 @@ import { PdfLoader, ThumbnailPanel, usePageNavigation } from 'react-pdf-highligh
 import type { PdfHighlighterUtils } from 'react-pdf-highlighter-plus';
 import PatentPdfRenderer from './Viewer/PatentPdfRenderer';
 import './patentPdfViewer.css';
+import { withBasePath } from '../../../config/basePath';
 
 const PDFJS_WASM_URL = import.meta.env.PROD
-  ? '/pdfjs/wasm/'
+  ? withBasePath('pdfjs/wasm/')
   : 'https://cdn.jsdelivr.net/npm/pdfjs-dist@5.7.284/wasm/';
 
 let pdfWorkerTerminationWarningFilterCount = 0;

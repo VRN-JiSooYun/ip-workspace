@@ -1,3 +1,4 @@
+import { DEFAULT_COMPOUND_SEARCH_API_BASE_PATH } from '../config/basePath';
 type RuntimeWindow = Window & {
   _env_?: {
     VITE_COMPOUND_SEARCH_API_URL?: string;
@@ -108,10 +109,10 @@ const getCompoundSearchApiBaseUrl = () => {
   const runtimeValue = typeof window !== 'undefined'
     ? (window as RuntimeWindow)._env_?.VITE_COMPOUND_SEARCH_API_URL
     : undefined;
-  const value = runtimeValue || import.meta.env.VITE_COMPOUND_SEARCH_API_URL || '/compound-search-api';
+  const value = runtimeValue || import.meta.env.VITE_COMPOUND_SEARCH_API_URL || DEFAULT_COMPOUND_SEARCH_API_BASE_PATH;
 
   if (value.includes('${')) {
-    return '/compound-search-api';
+    return DEFAULT_COMPOUND_SEARCH_API_BASE_PATH;
   }
   return value.replace(/\/$/, '');
 };

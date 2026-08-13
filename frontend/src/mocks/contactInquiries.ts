@@ -1,3 +1,5 @@
+import { withBasePath } from '../config/basePath';
+
 export type ContactCategory =
   | 'Dashboard'
   | 'Compounds'
@@ -86,7 +88,7 @@ export const contactInquiryMocks: ContactInquiry[] = [
     contentHtml: [
       '<p><strong>SAR table 개선 요청</strong></p>',
       '<ul><li>테이블 셀 원래대로 연하게 표시</li><li>이미지 사이즈 사용자 조절</li><li>이미지 기울기 조절</li></ul>',
-      '<p><img src="/sidebar-mini-logo.svg" alt="첨부 화면 예시" /></p>',
+      `<p><img src="${withBasePath('sidebar-mini-logo.svg')}" alt="첨부 화면 예시" /></p>`,
     ].join(''),
     status: 'PROCESSING',
     appliedVersion: '2.1.8',
