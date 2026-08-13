@@ -1,10 +1,10 @@
-# MyWorkspace
-- myWorkspace는 합성연구원들이 나만의 아이디어로 화합물을 디자인 하고 관리하기 위한 공간
-- groupware의 존재하는 내부 화합물을 myWorkspace로 가져와서 관리 - groupware와 연동 필요
+# IP Workspace
+- IP Workspace는 합성연구원들이 나만의 아이디어로 화합물을 디자인 하고 관리하기 위한 공간
+- groupware의 존재하는 내부 화합물을 IP Workspace로 가져와서 관리 - groupware와 연동 필요
 - 우선 프론트엔드만 프로토타입을 만들고 UI/UX를 개선해 나감
 - 최종 컨펌 받고 백엔드와 DB등 개발 예정
-- 현재는 로그인 되어 있는걸로 가정하고 개발 진행(로그인 기능은 향후 groupware와 연동하여 사용 - groupware에서 로그인 후 myWorkspace로 이동시 자동 로그인 되도록 구현)
-- 현재는 myWorkspace 바로 접근 가능 하도록 개발 진행(myWorkspace로 바로 접근 시 groupware main 페이지로 이동)
+- 현재는 로그인 되어 있는걸로 가정하고 개발 진행(로그인 기능은 향후 groupware와 연동하여 사용 - groupware에서 로그인 후 IP Workspace로 이동시 자동 로그인 되도록 구현)
+- 현재는 IP Workspace 바로 접근 가능 하도록 개발 진행(IP Workspace로 바로 접근 시 groupware main 페이지로 이동)
 - 기획자의 UI디자인은 docs/prototype/* 경로 이미지 정리
 
 ## UI 기획서

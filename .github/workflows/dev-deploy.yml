@@ -38,12 +38,10 @@ jobs:
           POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
           BETTER_AUTH_SECRETS: ${{ secrets.BETTER_AUTH_SECRETS }}
           AUTH_BOOTSTRAP_ADMIN_EMAILS: ${{ vars.AUTH_BOOTSTRAP_ADMIN_EMAILS }}
-          TLS_CERT_PATH: ${{ vars.TLS_CERT_PATH }}
-          TLS_KEY_PATH: ${{ vars.TLS_KEY_PATH }}
           PUBLIC_ORIGIN: ${{ vars.PUBLIC_ORIGIN }}
         run: |
           # self-hosted runner는 checkout한 디렉토리에서 직접 실행됩니다.
-          docker compose -f docker-compose.dev.yml up --build -d --force-recreate
+          docker compose -f docker-compose.yml up --build -d --force-recreate
           
           # 사용하지 않는 이미지 정리
           docker image prune -f

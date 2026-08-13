@@ -12,10 +12,10 @@ export default defineConfig(({ mode }) => {
   // 호스트에서 직접 `bun run dev`로 띄울 때는 .env.local에서 published port로 덮어쓴다.
   const env = loadEnv(mode, process.cwd(), '');
   const rdkitApiTarget =
-    env.RDKIT_API_PROXY_TARGET || 'http://local-myworkspace-rdkit-api:8000';
+    env.RDKIT_API_PROXY_TARGET || 'http://local-ipworkspace-rdkit-api:8000';
   const compoundSearchApiTarget =
     env.COMPOUND_SEARCH_API_PROXY_TARGET ||
-    'http://local-myworkspace-compound-search-api:8080';
+    'http://local-ipworkspace-compound-search-api:8080';
 
   return {
   plugins: [react()],

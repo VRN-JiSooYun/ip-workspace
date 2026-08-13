@@ -3,7 +3,7 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "my-workspace-frontend",
+      "name": "ip-workspace-frontend",
       "dependencies": {
         "antd": "^5.12.0",
         "echarts": "^6.0.0",

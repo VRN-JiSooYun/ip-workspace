@@ -43,7 +43,7 @@ services:
       dockerfile: Dockerfile.dev
     restart: always
     ports:
-      - "25443:443"
+      - "25443:80"
     environment:
       - VITE_API_URL=/api
       - VITE_RDKIT_API_URL=/rdkit-api
@@ -70,7 +70,7 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=3000
-      - CORS_ORIGINS=${PUBLIC_ORIGIN:-https://voronoi.app:28000},https://localhost:18080,https://172.16.1.183:18080
+      - CORS_ORIGINS=${PUBLIC_ORIGIN:-https://voronoi.app:28000},http://localhost:25443,http://172.16.1.183:25443
       - PATENT_ANALYSIS_HELPER_API_URL=http://172.16.1.210:10130
       - PATENT_ANALYSIS_UPLOAD_API_URL=http://172.16.1.210:8000
       - PATENT_INSIGHT_API_URL=http://172.16.1.210:8000
@@ -83,7 +83,7 @@ services:
       - HTTP_TIMEOUT_MS=30000
       - DATABASE_URL=postgresql://${POSTGRES_USER:-ip_ws}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@dev-ipworkspace-postgres:5432/${POSTGRES_DB:-ip_ws}?schema=public
       - BETTER_AUTH_URL=${PUBLIC_ORIGIN:-https://voronoi.app:28000}
-      - BETTER_AUTH_TRUSTED_ORIGINS=${PUBLIC_ORIGIN:-https://voronoi.app:28000},https://localhost:18080,https://172.16.1.183:18080
+      - BETTER_AUTH_TRUSTED_ORIGINS=${PUBLIC_ORIGIN:-https://voronoi.app:28000},http://localhost:25443,http://172.16.1.183:25443
       - BETTER_AUTH_SECRETS=${BETTER_AUTH_SECRETS:?BETTER_AUTH_SECRETS is required}
       - GROUPWARE_ORIGIN=${GROUPWARE_ORIGIN:-https://voronoi.app}
       - GROUPWARE_LOGIN_CHECK_URL=${GROUPWARE_LOGIN_CHECK_URL:-http://172.16.1.32:10050/login_check}

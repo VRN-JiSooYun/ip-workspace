@@ -1,7 +1,7 @@
 {
   "name": "backend",
   "version": "0.0.1",
-  "description": "MyWorkspace NestJS backend",
+  "description": "IP Workspace NestJS backend",
   "author": "",
   "private": true,
   "type": "module",
