@@ -290,7 +290,7 @@ const OfficeActionAdvancedFilters: React.FC<Props> = ({ value, onChange }) => {
                   </Field>
                   <Field
                     label="심사관"
-                    hint="심사관 목록을 주는 API가 없어 이름을 직접 입력합니다. Enter로 여러 명을 추가할 수 있습니다."
+                    hint="API 연동 예정"
                   >
                     <Select
                       mode="tags"
@@ -303,7 +303,7 @@ const OfficeActionAdvancedFilters: React.FC<Props> = ({ value, onChange }) => {
                       suffixIcon={null}
                     />
                   </Field>
-                  <Field label="대리인" hint={UPSTREAM_EMPTY_HINT}>
+                  <Field label="대리인" hint="API 연동 예정">
                     <Select
                       mode="tags"
                       allowClear
@@ -337,7 +337,7 @@ const OfficeActionAdvancedFilters: React.FC<Props> = ({ value, onChange }) => {
                       options={YES_NO_OPTIONS}
                     />
                   </Field>
-                  <Field label="심사진행상태" hint={UPSTREAM_EMPTY_HINT}>
+                  <Field label="심사진행상태" hint="API 연동 예정">
                     <Select
                       mode="tags"
                       allowClear
@@ -551,7 +551,7 @@ const OfficeActionAdvancedFilters: React.FC<Props> = ({ value, onChange }) => {
                   <div className="oa-subpanel-grid oa-subpanel-grid-date">
                     <Field
                       label="날짜 유형"
-                      hint="의견제출통지서 발행일자는 외부 검색 API가 기간 조건으로 받지 않아 목록에 없습니다."
+                      hint="API 연동 예정"
                     >
                       <Select
                         value={value.dateField}

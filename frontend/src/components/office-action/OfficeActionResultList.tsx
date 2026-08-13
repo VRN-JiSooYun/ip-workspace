@@ -19,7 +19,7 @@ const SORT_OPTIONS = [
 ];
 
 const SORT_HINT =
-  '외부 검색 API가 정렬 조건을 받지 않아 발행일자 내림차순만 제공합니다.';
+  '추가 예정';
 
 type Props = {
   items: PatentSearchItem[];
