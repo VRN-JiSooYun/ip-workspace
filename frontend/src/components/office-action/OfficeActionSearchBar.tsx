@@ -43,7 +43,7 @@ const OfficeActionSearchBar: React.FC<Props> = ({
       icon={<Search size={16} />}
       className="oa-searchbar-button"
     >
-      Search
+      검색
     </Button>
   </div>
 );

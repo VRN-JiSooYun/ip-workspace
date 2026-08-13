@@ -46,11 +46,11 @@ const App: React.FC = () => {
           },
           Input: {
             borderRadius: 12,
-            controlHeight: 40,
+            controlHeight: 30,
           },
           Select: {
             borderRadius: 12,
-            controlHeight: 40,
+            controlHeight: 30,
           },
           Layout: {
             bodyBg: isDarkMode ? '#141414' : '#f8f9fa',
@@ -65,7 +65,7 @@ const App: React.FC = () => {
           },
           Button: {
             borderRadius: 12,
-            controlHeight: 40,
+            controlHeight: 30,
           }
         },
       }}
