@@ -18,7 +18,7 @@ export const auth = betterAuth({
   database: prismaAdapter(prisma, { provider: "postgresql" }),
   advanced: {
     database: { generateId: "uuid" },
-    cookiePrefix: "medichem",
+    cookiePrefix: "ipws",
     useSecureCookies: process.env.NODE_ENV === "production",
   },
   account: {
