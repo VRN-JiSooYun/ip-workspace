@@ -62,9 +62,18 @@ export const validateEnv = (config: EnvConfig): EnvConfig => {
   ensureUrl("BETTER_AUTH_URL", config.BETTER_AUTH_URL);
   ensureUrl("GROUPWARE_ORIGIN", config.GROUPWARE_ORIGIN);
   ensureUrl("GROUPWARE_LOGIN_CHECK_URL", config.GROUPWARE_LOGIN_CHECK_URL);
+  ensureNumber(
+    "GOOGLE_CALENDAR_API_TIMEOUT_MS",
+    config.GOOGLE_CALENDAR_API_TIMEOUT_MS,
+  );
+  ensureNumber("HOLIDAY_CACHE_TTL_MS", config.HOLIDAY_CACHE_TTL_MS);
   ensureAbsolutePath(
     "NOTIFICATION_RECIPIENT_IMPORT_ROOT",
     config.NOTIFICATION_RECIPIENT_IMPORT_ROOT,
+  );
+  ensureAbsolutePath(
+    "GOOGLE_CALENDAR_SA_FILE",
+    config.GOOGLE_CALENDAR_SA_FILE,
   );
   return config;
 };

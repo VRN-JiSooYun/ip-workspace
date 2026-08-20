@@ -104,9 +104,18 @@ services:
       - GMAIL_OUTBOX_POLL_INTERVAL_MS=5000
       - GMAIL_OUTBOX_LEASE_DURATION_MS=60000
       - GMAIL_OUTBOX_MAX_ATTEMPTS=5
+      # 공휴일 캘린더 연동. 자격증명이 없으면 비활성이고 프런트가 로컬 표로 폴백한다.
+      # 켜는 방법: secrets/google/calendar-sa.json 배치 → 아래 SA_FILE과 volumes의 마운트를 함께 활성화.
+      # (docs/holiday_calendar_setup.md)
+      - GOOGLE_CALENDAR_SA_FILE=${GOOGLE_CALENDAR_SA_FILE:-}
+      - GOOGLE_HOLIDAY_CALENDAR_IDS=${GOOGLE_HOLIDAY_CALENDAR_IDS:-ko.south_korea#holiday@group.v.calendar.google.com}
+      - GOOGLE_CALENDAR_API_TIMEOUT_MS=15000
+      - HOLIDAY_CACHE_TTL_MS=43200000
     volumes:
       - dev-ipworkspace-notification-recipient-import-data:/app/imports/notification-recipients
       - ./secrets/gmail/token.json:/run/secrets/gmail/token.json:ro
+      # 파일이 없으면 compose가 디렉터리를 만들어 버리므로, 키를 배치한 뒤 주석을 푼다.
+      # - ./secrets/google/calendar-sa.json:/run/secrets/google/calendar-sa.json:ro
     depends_on:
       dev-ipworkspace-postgres:
         condition: service_healthy

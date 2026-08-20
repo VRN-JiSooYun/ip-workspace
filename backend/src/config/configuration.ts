@@ -42,6 +42,31 @@ export default () => ({
     authToken: process.env.COMPOUND_API_AUTH_TOKEN ?? "",
     timeoutMs: parseNumber(process.env.COMPOUND_API_TIMEOUT_MS, 30000),
   },
+  /**
+   * 달력 공휴일 소스. 서비스 계정 JSON을 read-only로 마운트하고, 읽을 캘린더 ID를
+   * CSV로 넘긴다. 사내 휴무 캘린더를 추가하려면 그 캘린더를 서비스 계정 이메일에
+   * 공유하고 여기 ID만 덧붙이면 된다(코드 수정 불필요).
+   */
+  googleCalendar: {
+    serviceAccountFile: process.env.GOOGLE_CALENDAR_SA_FILE ?? "",
+    holidayCalendarIds: parseCsv(
+      process.env.GOOGLE_HOLIDAY_CALENDAR_IDS ??
+        "ko.south_korea#holiday@group.v.calendar.google.com",
+    ),
+    /**
+     * Google 공휴일 캘린더는 공휴일이 아닌 기념일도 담고 description으로만 구분한다.
+     * 실제 응답의 표기를 확인한 뒤 조정하라(HolidayService가 걸러낸 값을 debug 로그로 남긴다).
+     */
+    observanceMarkers: parseCsv(
+      process.env.GOOGLE_HOLIDAY_OBSERVANCE_MARKERS ??
+        "observance,관습일,기념일,절기,season",
+    ),
+    timeoutMs: parseNumber(process.env.GOOGLE_CALENDAR_API_TIMEOUT_MS, 15000),
+    cacheTtlMs: parseNumber(
+      process.env.HOLIDAY_CACHE_TTL_MS,
+      12 * 60 * 60 * 1000,
+    ),
+  },
   notificationRecipient: {
     importRoot:
       process.env.NOTIFICATION_RECIPIENT_IMPORT_ROOT ??

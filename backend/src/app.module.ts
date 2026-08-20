@@ -3,6 +3,7 @@ import { ConfigModule } from "@nestjs/config";
 import configuration from "./config/configuration";
 import { validateEnv } from "./config/env.validation";
 import { HealthModule } from "./health/health.module";
+import { HolidayModule } from "./holiday/holiday.module";
 import { PatentAnalysisModule } from "./patent-analysis/patent-analysis.module";
 import { PatentRecordModule } from "./patent-record/patent-record.module";
 import { PatentSearchModule } from "./patent-search/patent-search.module";
@@ -36,6 +37,7 @@ import { AuthorizationModule } from "./authorization/authorization.module";
     AuthorizationModule,
     AdminModule,
     HealthModule,
+    HolidayModule,
     PatentAnalysisModule,
     PatentRecordModule,
     PatentSearchModule,

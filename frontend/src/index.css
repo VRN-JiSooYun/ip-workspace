@@ -27,6 +27,9 @@
   --patent-scrollbar-thumb-hover: #9aa3aa;
   --patent-scrollbar-track: transparent;
   --patent-scrollbar-border: var(--bg-color);
+  /* 달력의 주말·공휴일 글자색. */
+  --pm-calendar-sunday: #e5484d;
+  --pm-calendar-saturday: #3b9ae1;
 }
 
 [data-theme='dark'] {
@@ -45,6 +48,8 @@
   --patent-scrollbar-thumb-hover: #6b7280;
   --patent-scrollbar-track: transparent;
   --patent-scrollbar-border: var(--bg-color);
+  --pm-calendar-sunday: #ff6369;
+  --pm-calendar-saturday: #5cb8ff;
 }
 
 body {

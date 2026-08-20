@@ -66,6 +66,8 @@ export type PatentRecordListQuery = {
   countryId?: number;
   legalStatusId?: number;
   examStatusId?: number;
+  /** 진행 단계 대분류. UNMAPPED_STAGE_GROUP은 단계에 연결되지 않은 건이다. */
+  stageGroup?: string;
   sort?: 'applicationDateDesc' | 'applicationDateAsc' | 'applicationNumberAsc' | 'idDesc';
   page?: number;
   pageSize?: number;
@@ -138,7 +140,7 @@ const request = async <T>(path: string, options?: RequestInit): Promise<T> => {
 };
 
 const toQueryString = (
-  query: PatentRecordListQuery | PatentScheduleQuery,
+  query: PatentRecordListQuery | PatentScheduleQuery | PatentStageQuery,
 ): string => {
   const params = new URLSearchParams();
   for (const [key, value] of Object.entries(query)) {
@@ -216,6 +218,47 @@ export type CreatePatentTodoInput = {
 export type UpdatePatentTodoInput = Partial<
   Omit<CreatePatentTodoInput, 'patentId'> & { completed: boolean }
 >;
+
+/** 단계에 연결되지 않은 건을 가리키는 예약 값(백엔드 UNMAPPED_STAGE_GROUP과 같다). */
+export const UNMAPPED_STAGE_GROUP = 'UNMAPPED';
+
+export type PatentStageQuery = {
+  q?: string;
+  targets?: string[];
+  countryId?: number;
+  legalStatusId?: number;
+  examStatusId?: number;
+  stageGroup?: string;
+};
+
+export type PatentStageItem = {
+  code: string;
+  label: string;
+  description: string | null;
+  /** 이 단계가 의미를 갖는 국가/제도. null은 공통이다. */
+  scope: string | null;
+  active: boolean;
+  count: number;
+};
+
+export type PatentStageGroupItem = {
+  code: string;
+  label: string;
+  ordinal: number;
+  count: number;
+  stages: PatentStageItem[];
+};
+
+export type PatentStageSummary = {
+  total: number;
+  groups: PatentStageGroupItem[];
+  /** 매핑되지 않은 legal_status. 조용히 버리지 않고 함께 보여 준다. */
+  unmapped: {
+    groupCode: string;
+    count: number;
+    statuses: { legalStatusId: number | null; status: string | null; count: number }[];
+  };
+};
 
 export type PatentScheduleResult = {
   year: number;
@@ -384,6 +427,12 @@ export const patentRecordApi = {
   schedule(query: PatentScheduleQuery): Promise<PatentScheduleResult> {
     return request<PatentScheduleResult>(
       `/patent-records/schedule${toQueryString(query)}`,
+    );
+  },
+
+  stages(query: PatentStageQuery = {}): Promise<PatentStageSummary> {
+    return request<PatentStageSummary>(
+      `/patent-records/stages${toQueryString(query)}`,
     );
   },
 

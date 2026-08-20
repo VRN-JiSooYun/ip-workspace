@@ -5,14 +5,15 @@
 /* MainLayout's Content is a fixed-height, overflow:hidden shell, so each page
    owns its own scrolling (same contract as PatentInsight).
    Without this the stacked single-column layout is simply clipped. */
-/* 문서 뷰어 너비를 끌어서 조절하므로(ResizableSidePanel) 고정 3열 grid가 아니라 flex다.
-   가로 간격은 gap이 아니라 각 열의 margin으로 준다. 드래그 핸들 양옆에 gap이 겹치면
-   핸들이 본문에서 붕 떠 보이기 때문이다(의견제출통지서 화면과 같은 구조). */
-.pm-layout {
+/* 페이지가 스크롤을 소유한다. 상단 3열(진행 현황·일정·To-do) 아래로
+   Target 사이드와 특허 목록이 오는 2단 구조다. */
+/* 상단 3열의 열 폭 정의. 비율은 여기서만 조절한다. */
+.pm-page {
+  --pm-toprow-cols: minmax(0, 5fr) minmax(260px, 1fr) minmax(260px, 1fr);
   display: flex;
-  gap: 0;
-  align-items: start;
-  padding: 0 16px 24px;
+  flex-direction: column;
+  gap: 8px;
+  /* padding: 0 16px 16px; */
   width: 100%;
   height: 100%;
   min-height: 0;
@@ -21,10 +22,293 @@
   box-sizing: border-box;
 }
 
+/* Target 사이드와 관리 특허 목록을 flex로 나란히 둔다. 예전에는 드래그 핸들(ResizableSidePanel)
+   양옆에 gap이 겹치는 문제가 있어 열의 margin으로 간격을 줬지만, 이 화면은 더 이상 그 컴포넌트를
+   쓰지 않으므로 그냥 flex gap을 쓴다. */
+/* 상단 3열 아래 영역은 남는 높이를 모두 차지하고(flex), 짧은 화면에서는
+   --pm-layout-min-height가 바닥을 잡아 페이지가 스크롤된다. 높이는 이 값만 조절한다. */
+.pm-layout {
+  --pm-layout-min-height: 420px;
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+  flex: 1 0 auto;
+  min-height: var(--pm-layout-min-height);
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+/* ---- top row: 진행 현황 · 일정 · To-do ---------------------------------- */
+/* 세 카드의 높이를 진행 현황 카드 기준으로 통일한다. 넘치는 내용(캘린더 일정,
+   To-do 목록)은 카드 안에서 스크롤한다. */
+.pm-toprow {
+  --pm-toprow-height: 300px;
+  display: grid;
+  grid-template-columns: var(--pm-toprow-cols);
+  gap: 8px;
+  width: 100%;
+}
+
+/* ---- header line: breadcrumb + 목록 검색 --------------------------------- */
+/* MainLayout의 headerContent 영역(사이드바 토글 오른쪽)에 들어간다. breadcrumb은
+   자기 폭만 쓰고, 검색바는 남는 폭 가운데로 온다(margin-inline: auto).
+   채움색은 MainLayout 기본 헤더 검색과 같은 값이라 화면 전체와 톤이 맞는다. */
+.pm-header-row {
+  --pm-search-fill: #f2f4f6;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+[data-theme='dark'] .pm-header-row {
+  --pm-search-fill: #2b2b2b;
+}
+
+.pm-header-row > :first-child {
+  flex: 0 0 auto;
+}
+
+.pm-search-bar {
+  display: flex;
+  gap: 8px;
+  min-width: 0;
+}
+
+/* 검색을 이 화면의 주 동작으로 보이게 한다: 헤더 높이(40px)에 맞추고 폭을 넓게 잡고
+   가운데로 보낸다. */
+.pm-search-bar-header {
+  flex: 1 1 560px;
+  min-width: 240px;
+  max-width: 560px;
+  margin-inline: auto;
+}
+
+.pm-search-bar-header .ant-input-affix-wrapper {
+  height: 40px;
+  border-radius: 12px;
+}
+
+.pm-search-bar-header .ant-input {
+  background: transparent;
+  font-size: 13px;
+}
+
+.pm-search-bar-header .ant-btn {
+  height: 40px;
+  border-radius: 12px;
+}
+
+/* prefix가 있는 Input은 affix wrapper가 실제 박스라 둘 다 늘려 준다. */
+.pm-search-bar .ant-input-affix-wrapper,
+.pm-search-bar .ant-input {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.pm-search-bar .ant-btn {
+  flex: 0 0 auto;
+}
+
+/* ---- 단계 상세 popover ---------------------------------------------------- */
+/* 줄바꿈 문자열 tooltip은 정렬이 안 맞아 읽기 어렵다. 라벨·국가·건수를 grid로 세우고
+   0건은 흐리게 죽여 눈이 실제 건수에 먼저 가게 한다. */
+.pm-stage-popover-body {
+  padding: 10px 12px;
+  max-width: 300px;
+}
+
+.pm-stage-detail-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.pm-stage-detail-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.pm-stage-detail-total {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--brand-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 0건이면 브랜드색으로 강조할 이유가 없다. */
+.pm-stage-detail-total-empty {
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
+.pm-stage-detail-note {
+  margin: 8px 0 0;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+
+.pm-stage-detail-list {
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pm-stage-detail-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 0;
+  font-size: 12px;
+  color: var(--text-primary);
+}
+
+.pm-stage-detail-row-empty {
+  opacity: 0.45;
+}
+
+.pm-stage-detail-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 이 단계가 어느 청에만 있는지(EP, KR,JP ...). */
+.pm-stage-detail-scope {
+  flex-shrink: 0;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--table-row-hover-bg);
+  color: var(--text-secondary);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.pm-stage-detail-count {
+  min-width: 28px;
+  text-align: right;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.pm-stage-detail-hint {
+  margin: 8px 0 0;
+  padding-top: 8px;
+  border-top: 1px solid var(--border-color);
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+/* 검색어 일치 강조. 브라우저 기본 <mark>는 노란 배경 + 검은 글자라 다크 모드에서 깨진다.
+   배경만 브랜드색으로 옅게 깔고 글자색은 셀에서 물려받는다. */
+.pm-highlight {
+  padding: 0 1px;
+  border-radius: 3px;
+  background: rgba(var(--brand-primary-rgb), 0.28);
+  color: inherit;
+  font-weight: 700;
+}
+
+/* 어두운 배경에서는 옅은 배경이 묻히므로 조금 더 진하게 깔고 글자를 밝게 유지한다. */
+[data-theme='dark'] .pm-highlight {
+  background: rgba(var(--brand-primary-rgb), 0.4);
+  color: var(--text-primary);
+}
+
+.pm-toprow-card {
+  display: flex;
+  flex-direction: column;
+  height: var(--pm-toprow-height);
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* 행 높이(--pm-toprow-height)는 캘린더가 필요한 높이라, 파이프라인 한 줄뿐인 이 카드에는
+   위아래로 70~80px씩 빈 공간이 남았다. 늘리지 않고 내용 높이만 갖게 한다. */
+.pm-progress-card {
+  height: auto;
+  align-self: start;
+}
+
+.pm-progress-title {
+  font-size: 19px;
+  font-weight: 700;
+  color: var(--text-primary);
+  flex-shrink: 0;
+}
+
+/* 선택한 Target 태그가 늘어나도 카드가 계속 자라지 않게 이 영역만 스크롤한다.
+   카드 height가 auto라 %는 기준이 없다(무제한이 된다). px로 못 박는다. */
+.pm-progress-tags {
+  flex: 0 1 auto;
+  min-height: 0;
+  max-height: 96px;
+  overflow-y: auto;
+  margin-bottom: 10px;
+}
+
+.pm-progress-tag-list {
+  display: flex;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  gap: 8px;
+}
+
+/* 카드가 내용 높이를 따르므로 파이프라인도 자기 높이만 쓴다. */
+.pm-toprow .pm-pipeline {
+  flex: 0 0 auto;
+}
+
+.pm-toprow .pm-stage {
+  min-width: 76px;
+  padding: 14px 4px;
+}
+
+.pm-toprow .pm-stage-count {
+  font-size: 17px;
+}
+
+.pm-toprow .pm-stage-separator > svg {
+  width: 12px;
+  height: 12px;
+}
+
+/* 캘린더는 상단 행 높이에 맞게 셀을 줄인다. */
+.pm-schedule-card .pm-calendar-grid {
+  flex: 0 0 auto;
+}
+
+.pm-schedule-card .pm-calendar-weekday {
+  height: 22px;
+}
+
+.pm-schedule-card .pm-calendar-day {
+  height: 25px;
+}
+
+.pm-schedule-card .pm-calendar-day-mark {
+  width: 23px;
+  height: 23px;
+}
+
+.pm-todo-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+
 .pm-column-aside {
   flex: 0 0 340px;
   width: 340px;
-  margin-inline-end: 16px;
 }
 
 .pm-column-main {
@@ -39,11 +323,46 @@
   }
 }
 
+@media (max-width: 1440px) {
+  .pm-toprow {
+    grid-template-columns: minmax(0, 1fr) minmax(240px, 1fr);
+  }
+
+  /* 진행 현황이 첫 줄을 모두 쓰고, 일정·To-do가 그 아래 두 칸으로 간다. */
+  .pm-progress-card {
+    grid-column: 1 / -1;
+    height: auto;
+  }
+}
+
 /* 좁은 화면에서는 세로로 쌓고 너비 조절 UI를 숨긴다. */
 @media (max-width: 1280px) {
+  .pm-toprow {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .pm-toprow-card {
+    height: auto;
+    max-height: var(--pm-toprow-height);
+  }
+
+  .pm-progress-card {
+    max-height: none;
+  }
+
   .pm-layout {
     flex-direction: column;
-    gap: 16px;
+    gap: 8px;
+    min-height: 0;
+  }
+
+  /* 1열로 쌓이면 카드가 내용만큼만 차지하고, Target 목록은 다시 상한을 둔다. */
+  .pm-column > .pm-card {
+    flex: 0 0 auto;
+  }
+
+  .pm-target-list {
+    max-height: 280px;
   }
 
   .pm-column-aside {
@@ -67,8 +386,41 @@
 .pm-column {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 8px;
   min-width: 0;
+}
+
+/* 카드가 열 높이를 채운다. 내용이 더 길면 줄어들지 않고(=잘리지 않고) 페이지가 스크롤된다. */
+.pm-column > .pm-card {
+  display: flex;
+  flex-direction: column;
+  flex: 1 0 auto;
+}
+
+/* 페이지네이션은 카드 맨 아래에 붙는다(표가 짧아도 바닥 정렬). */
+.pm-list-footer {
+  margin-top: auto;
+  padding-top: 12px;
+}
+
+/* 가로 스크롤바의 주인은 .ant-table-content다(scroll.x 때문에 rc-table이 overflow-x를
+   여기에 준다). 기본 높이가 헤더+행뿐이라 카드가 늘어나면 스크롤바가 표 바로 아래,
+   즉 카드 중간에 떠 보인다. wrapper부터 content까지 높이를 물려줘서 스크롤바가
+   카드 하단(페이지네이션 위)에 붙게 한다. */
+.pm-column-main > .pm-card > .ant-table-wrapper,
+.pm-column-main .ant-spin-nested-loading,
+.pm-column-main .ant-spin-container,
+.pm-column-main .ant-table,
+.pm-column-main .ant-table-container {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.pm-column-main .ant-table-content {
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 .pm-card {
@@ -99,8 +451,11 @@
   font-size: 12px;
 }
 
+/* flex-basis 0이라 목록 내용이 카드(=아래 영역) 높이를 밀어 올리지 않는다.
+   남는 높이는 채우고, 넘치면 목록 안에서만 스크롤한다. */
 .pm-target-list {
-  max-height: 280px;
+  flex: 1 1 0;
+  min-height: 120px;
   overflow-y: auto;
 }
 
@@ -113,10 +468,30 @@
 
 /* ---- deadline calendar -------------------------------------------------- */
 
+/* `<< < 2026년 8월 > >>` 형태의 이동 컨트롤. 달력 상단 가운데에 둔다. */
+.pm-calendar-nav {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  margin-bottom: 6px;
+}
+
+.pm-calendar-nav-label {
+  min-width: 88px;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+/* 요일 열 간격을 이전(전체 폭) 대비 80%로 좁히고 가운데 정렬한다. */
 .pm-calendar-grid {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
   gap: 2px;
+  width: 80%;
+  margin-inline: auto;
 }
 
 .pm-calendar-weekday {
@@ -129,12 +504,19 @@
   color: var(--text-secondary);
 }
 
+.pm-calendar-weekday-sun {
+  color: var(--pm-calendar-sunday);
+}
+
+.pm-calendar-weekday-sat {
+  color: var(--pm-calendar-saturday);
+}
+
 .pm-calendar-day {
   display: flex;
   align-items: center;
   justify-content: center;
   height: 30px;
-  border-radius: 999px;
   font-size: 12px;
   color: var(--text-primary);
   border: 0;
@@ -144,6 +526,27 @@
   font-family: inherit;
 }
 
+/* 강조 표시는 셀이 아니라 이 정사각형 마커에 준다. 셀 폭이 넓어도 타원이 되지 않는다. */
+.pm-calendar-day-mark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border: 1px solid transparent;
+  border-radius: 50%;
+  box-sizing: border-box;
+}
+
+/* 일요일·공휴일은 빨강, 토요일은 하늘색. */
+.pm-calendar-day-holiday {
+  color: var(--pm-calendar-sunday);
+}
+
+.pm-calendar-day-saturday {
+  color: var(--pm-calendar-saturday);
+}
+
 .pm-calendar-day-muted {
   color: var(--text-secondary);
   opacity: 0.45;
@@ -151,48 +554,34 @@
 }
 
 /* A deadline falls on this day. */
-.pm-calendar-day-due {
+.pm-calendar-day-due .pm-calendar-day-mark {
   background: rgba(var(--brand-primary-rgb), 0.16);
+  font-weight: 700;
+}
+
+.pm-calendar-day-due {
   color: var(--brand-primary);
   font-weight: 700;
 }
 
-/* The day currently in focus. */
+/* 오늘은 테두리 원, 선택된 날은 채워진 원 — 둘이 겹쳐도 구분된다. */
+.pm-calendar-day-today .pm-calendar-day-mark {
+  border-color: currentColor;
+  font-weight: 700;
+}
+
 .pm-calendar-day-selected {
-  background: var(--brand-primary);
   color: #fff;
   font-weight: 700;
 }
 
-.pm-calendar-event-list {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-  min-height: 24px;
-  margin-top: 10px;
-  padding-top: 10px;
-  border-top: 1px solid var(--border-color);
-  font-size: 12px;
+.pm-calendar-day-selected .pm-calendar-day-mark {
+  background: var(--brand-primary);
+  border-color: var(--brand-primary);
 }
 
-.pm-calendar-event-row {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  min-width: 0;
-}
-
-.pm-calendar-event-row .ant-tag {
-  flex-shrink: 0;
-  margin-inline-end: 0;
-  font-size: 11px;
-}
-
-.pm-calendar-event-row > span:last-child {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.pm-calendar-day-selected.pm-calendar-day-today .pm-calendar-day-mark {
+  box-shadow: 0 0 0 1px var(--card-bg, #fff), 0 0 0 2px var(--brand-primary);
 }
 
 /* ---- upcoming deadlines ------------------------------------------------- */
@@ -441,7 +830,7 @@
    그대로 두면 제목이 한 글자씩 세로로 접히므로 줄바꿈을 허용하고 제목은 고정한다. */
 .pm-list-header {
   flex-wrap: wrap;
-  row-gap: 10px;
+  row-gap: 8px;
 }
 
 .pm-list-header-title {

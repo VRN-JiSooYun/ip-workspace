@@ -83,7 +83,7 @@ export const APP_ROUTES: AppRoute[] = [
   },
 
   // Need to Create IP Dashboard
-  // { path: '/dashboard', element: <Dashboard /> },
+  { path: '/dashboard', element: <Dashboard /> },
 
   // { path: '/universal-search', element: <UniversalSearch /> },
 

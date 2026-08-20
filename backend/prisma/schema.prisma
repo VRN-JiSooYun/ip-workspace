@@ -390,11 +390,47 @@ model Attorney {
   @@map("attorney")
 }
 
+/// 파이프라인에 그려지는 진행 단계의 대분류. 상세 단계 14개를 한 줄에 늘어놓을 수
+/// 없어 표시용 상위 묶음을 따로 둔다.
+model PatentStageGroup {
+  code    String        @id
+  label   String
+  ordinal Int
+  stages  PatentStage[]
+
+  @@map("patent_stage_group")
+}
+
+/// 진행 현황(진행 단계) 코드. 정의와 매핑 근거는 docs/patent_stage_definitions.md.
+model PatentStage {
+  code        String  @id
+  label       String
+  description String?
+  ordinal     Int
+  groupCode   String  @map("group_code")
+  /// 이 단계가 의미를 갖는 국가/제도. country.country 코드를 콤마로 나열하며
+  /// NULL은 공통이다.
+  scope       String?
+  active      Boolean @default(true)
+
+  group         PatentStageGroup @relation(fields: [groupCode], references: [code], onUpdate: Cascade)
+  legalStatuses LegalStatus[]
+
+  @@index([groupCode])
+  @@map("patent_stage")
+}
+
 model LegalStatus {
-  id      Int      @id @default(autoincrement())
-  status  String
+  id     Int    @id @default(autoincrement())
+  status String
+  /// 운영 시트의 "현재 Status"를 진행 단계에 연결한다. 값이 자유 서술이라 매핑은
+  /// 사람이 채우고, 아직 연결하지 않은 코드는 NULL로 남는다.
+  stageCode String? @map("stage_code")
+
+  stage   PatentStage? @relation(fields: [stageCode], references: [code], onDelete: SetNull, onUpdate: Cascade)
   patents Patent[]
 
+  @@index([stageCode])
   @@map("legal_status")
 }
 

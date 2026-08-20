@@ -8,6 +8,7 @@ import { buildInternalRefColumns, normalizeInternalRef } from "./internal-ref";
 import type { CreatePatentRecordDto } from "./dto/create-patent-record.dto";
 import type { PatentRecordListQueryDto } from "./dto/patent-record-list-query.dto";
 import type { PatentScheduleQueryDto } from "./dto/patent-schedule-query.dto";
+import type { PatentStageQueryDto } from "./dto/patent-stage-query.dto";
 import type { UpdatePatentRecordDto } from "./dto/update-patent-record.dto";
 
 const LIST_INCLUDE = {
@@ -41,6 +42,12 @@ const SCHEDULE_DATE_FIELDS = [
 
 const toDateKey = (value: Date): string => value.toISOString().slice(0, 10);
 
+/**
+ * 진행 단계에 연결되지 않은 건을 가리키는 예약 값. 집계 응답과 목록 필터가 함께 쓴다.
+ * 미분류를 조용히 버리면 파이프라인 합계가 목록 총건수와 어긋나 신뢰를 잃는다.
+ */
+export const UNMAPPED_STAGE_GROUP = "UNMAPPED";
+
 const parseRegistrationDate = (value: string | null): string | null => {
   if (!value) return null;
   const match = /^(\d{4})[-.](\d{2})[-.](\d{2})/.exec(value.trim());
@@ -60,33 +67,51 @@ const parseRegistrationDate = (value: string | null): string | null => {
 export class PatentRecordService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async list(query: PatentRecordListQueryDto) {
+  /**
+   * 목록과 진행 현황 집계가 같은 모집단을 보게 하려고 where를 한 곳에서 만든다.
+   * 여기가 갈리면 파이프라인 합계와 목록 총건수가 어긋난다.
+   *
+   * 조건이 여러 개일 때 OR가 서로를 덮어쓰지 않도록 AND 배열에 담는다.
+   */
+  private buildListWhere(query: PatentStageQueryDto) {
     const q = query.q?.trim();
     const targets = query.targets
       ?.map((target) => target.trim())
       .filter((target) => target.length > 0);
-    const where = {
+    const and: Record<string, unknown>[] = [];
+
+    if (q) {
+      and.push({
+        OR: [
+          { internalRef: { contains: q, mode: "insensitive" as const } },
+          { applicationNumber: { contains: q, mode: "insensitive" as const } },
+          { koreanTitle: { contains: q, mode: "insensitive" as const } },
+          { englishTitle: { contains: q, mode: "insensitive" as const } },
+          { applicant: { contains: q, mode: "insensitive" as const } },
+        ],
+      });
+    }
+
+    if (query.stageGroup === UNMAPPED_STAGE_GROUP) {
+      // status가 없거나, 있어도 단계에 연결되지 않은 건.
+      and.push({
+        OR: [{ legalStatusId: null }, { legalStatus: { stageCode: null } }],
+      });
+    } else if (query.stageGroup) {
+      and.push({ legalStatus: { stage: { groupCode: query.stageGroup } } });
+    }
+
+    return {
       ...(query.countryId ? { countryId: query.countryId } : {}),
       ...(query.legalStatusId ? { legalStatusId: query.legalStatusId } : {}),
       ...(query.examStatusId ? { examStatusId: query.examStatusId } : {}),
       ...(targets?.length ? { target: { in: targets } } : {}),
-      ...(q
-        ? {
-            OR: [
-              { internalRef: { contains: q, mode: "insensitive" as const } },
-              {
-                applicationNumber: {
-                  contains: q,
-                  mode: "insensitive" as const,
-                },
-              },
-              { koreanTitle: { contains: q, mode: "insensitive" as const } },
-              { englishTitle: { contains: q, mode: "insensitive" as const } },
-              { applicant: { contains: q, mode: "insensitive" as const } },
-            ],
-          }
-        : {}),
+      ...(and.length ? { AND: and } : {}),
     };
+  }
+
+  async list(query: PatentRecordListQueryDto) {
+    const where = this.buildListWhere(query);
 
     const [total, items] = await Promise.all([
       this.prisma.client.patent.count({ where }),
@@ -112,6 +137,89 @@ export class PatentRecordService {
       target: row.target,
       count: row._count.patents,
     }));
+  }
+
+  /**
+   * 진행 현황 파이프라인용 집계. 목록과 같은 필터(q·targets·...)를 받아
+   * legal_status → patent_stage 매핑을 따라 단계별 건수를 낸다.
+   *
+   * 단계 정의는 patent_stage 테이블이 정본이다(docs/patent_stage_definitions.md).
+   * 매핑되지 않은 status는 버리지 않고 unmapped로 함께 돌려준다.
+   */
+  async stages(query: PatentStageQueryDto) {
+    const where = this.buildListWhere(query);
+
+    const [groups, statuses, grouped, total] = await Promise.all([
+      this.prisma.client.patentStageGroup.findMany({
+        orderBy: { ordinal: "asc" },
+        include: { stages: { orderBy: { ordinal: "asc" } } },
+      }),
+      this.prisma.client.legalStatus.findMany({
+        select: { id: true, status: true, stageCode: true },
+      }),
+      this.prisma.client.patent.groupBy({
+        by: ["legalStatusId"],
+        where,
+        _count: { _all: true },
+      }),
+      this.prisma.client.patent.count({ where }),
+    ]);
+
+    const statusById = new Map(statuses.map((row) => [row.id, row]));
+    const countByStage = new Map<string, number>();
+    const unmappedStatuses: {
+      legalStatusId: number | null;
+      status: string | null;
+      count: number;
+    }[] = [];
+
+    for (const row of grouped) {
+      const count = row._count._all;
+      const status =
+        row.legalStatusId === null
+          ? undefined
+          : statusById.get(row.legalStatusId);
+
+      if (!status?.stageCode) {
+        unmappedStatuses.push({
+          legalStatusId: row.legalStatusId,
+          status: status?.status ?? null,
+          count,
+        });
+        continue;
+      }
+
+      countByStage.set(
+        status.stageCode,
+        (countByStage.get(status.stageCode) ?? 0) + count,
+      );
+    }
+
+    return {
+      total,
+      groups: groups.map((group) => {
+        const stages = group.stages.map((stage) => ({
+          code: stage.code,
+          label: stage.label,
+          description: stage.description,
+          scope: stage.scope,
+          active: stage.active,
+          count: countByStage.get(stage.code) ?? 0,
+        }));
+        return {
+          code: group.code,
+          label: group.label,
+          ordinal: group.ordinal,
+          count: stages.reduce((sum, stage) => sum + stage.count, 0),
+          stages,
+        };
+      }),
+      unmapped: {
+        groupCode: UNMAPPED_STAGE_GROUP,
+        count: unmappedStatuses.reduce((sum, row) => sum + row.count, 0),
+        statuses: unmappedStatuses.sort((a, b) => b.count - a.count),
+      },
+    };
   }
 
   async schedule(query: PatentScheduleQueryDto) {
@@ -334,7 +442,12 @@ export class PatentRecordService {
         this.prisma.client.attorney.findMany({
           orderBy: { attorneyNumber: "asc" },
         }),
-        this.prisma.client.legalStatus.findMany({ orderBy: { status: "asc" } }),
+        // select를 명시해 프런트 타입(id·status)과 응답을 맞춘다. 컬럼을 추가해도
+        // 코드 목록 응답이 함께 커지지 않는다.
+        this.prisma.client.legalStatus.findMany({
+          select: { id: true, status: true },
+          orderBy: { status: "asc" },
+        }),
         this.prisma.client.examStatus.findMany({ orderBy: { status: "asc" } }),
         this.prisma.client.patentTarget.findMany({
           orderBy: { target: "asc" },

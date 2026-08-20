@@ -18,6 +18,8 @@ erDiagram
     country ||--o{ patent : "특허 출원 국가"
     attorney ||--o{ patent : "대리인"
     legal_status ||--o{ patent : "법적 상태"
+    patent_stage_group ||--o{ patent_stage : "단계 대분류"
+    patent_stage ||--o{ legal_status : "진행 단계 매핑"
     exam_status ||--o{ patent : "심사 상태"
     patent_target ||--o{ patent : "Target"
     patent ||--o{ patent_todo : "To-do"
@@ -44,6 +46,23 @@ erDiagram
     legal_status {
         int id PK
         text status
+        text stage_code FK
+    }
+
+    patent_stage_group {
+        text code PK
+        text label
+        int ordinal
+    }
+
+    patent_stage {
+        text code PK
+        text label
+        text description
+        int ordinal
+        text group_code FK
+        text scope
+        bool active
     }
 
     exam_status {
@@ -176,7 +195,9 @@ erDiagram
 | --- | --- | --- |
 | `country` | `Country` | 출원 국가 코드. `country`에 unique. |
 | `attorney` | `Attorney` | 대리인. PK가 외부 시스템의 `attorney_number`라 autoincrement를 쓰지 않는다. |
-| `legal_status` | `LegalStatus` | 특허의 법적 상태 코드 테이블. |
+| `legal_status` | `LegalStatus` | 특허의 법적 상태 코드 테이블. `stage_code`로 진행 단계에 연결한다(매핑은 사람이 채우고 미매핑은 NULL). |
+| `patent_stage_group` | `PatentStageGroup` | 진행 현황 파이프라인에 그리는 단계 대분류. |
+| `patent_stage` | `PatentStage` | 진행 현황의 상세 단계 코드. 정의·국가별 적용 범위·매핑 근거는 [`patent_stage_definitions.md`](patent_stage_definitions.md). |
 | `exam_status` | `ExamStatus` | 특허의 심사 상태 코드 테이블. |
 | `patent_target` | `PatentTarget` | 관리 특허의 Target 코드. `target`에 unique이며 코드명 변경은 참조 중인 특허에 cascade된다. |
 | `patent` | `Patent` | 특허 본체. `application_number`에 unique. 국내·국제 출원/공개 번호와 일자를 함께 보관한다. IP팀 내부관리번호는 `internal_ref`(원문, unique)에 두고 `ref_*`에 파싱 결과를 함께 저장한다. |

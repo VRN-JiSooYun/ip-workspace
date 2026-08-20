@@ -20,6 +20,7 @@ import { CreatePatentRecordDto } from "./dto/create-patent-record.dto";
 import { ImportPatentRecordsDto } from "./dto/import-patent-records.dto";
 import { PatentRecordListQueryDto } from "./dto/patent-record-list-query.dto";
 import { PatentScheduleQueryDto } from "./dto/patent-schedule-query.dto";
+import { PatentStageQueryDto } from "./dto/patent-stage-query.dto";
 import { UpdatePatentRecordDto } from "./dto/update-patent-record.dto";
 import { buildTemplateCsv } from "./patent-csv";
 import { PatentRecordImportService } from "./patent-record-import.service";
@@ -54,6 +55,12 @@ export class PatentRecordController {
   @Get("schedule")
   schedule(@Query() query: PatentScheduleQueryDto) {
     return this.patents.schedule(query);
+  }
+
+  /** 진행 현황 파이프라인용 단계별 건수. 목록과 같은 필터를 받는다. */
+  @Get("stages")
+  stages(@Query() query: PatentStageQueryDto) {
+    return this.patents.stages(query);
   }
 
   /** Google Sheets에 붙여넣고 컬럼명을 맞출 수 있는 빈 CSV. */
