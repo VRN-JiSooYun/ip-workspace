@@ -62,6 +62,34 @@ graph TD
 5. runner의 checkout 디렉토리에서 `docker compose -f docker-compose.yml up --build -d --force-recreate`를 실행합니다.
 6. 배포 후 `docker image prune -f`로 사용하지 않는 Docker 이미지를 정리합니다.
 
+## Harbor 수동 배포 스크립트
+
+저장소 루트의 `buildAndPush.sh`와 `pullAndStart.sh`는 Compose 서비스 하나와 이미지 태그 하나를 인자로 받는다. 스크립트가 내보내는 `TAG_VERSION`은 `docker-compose.yml`의 애플리케이션 이미지 태그에 반영된다. `TAG_VERSION`을 직접 지정하지 않는 기존 Compose 실행은 `1.0.0`을 기본값으로 사용한다.
+
+| Compose 서비스 | Harbor 이미지 |
+| --- | --- |
+| `dev-ipworkspace-frontend` | `harbor.dev.voronoi/math2/ip-workspace/web:${TAG_VERSION}` |
+| `dev-ipworkspace-backend` | `harbor.dev.voronoi/math2/ip-workspace/backend:${TAG_VERSION}` |
+| `dev-ipworkspace-migrate` | `harbor.dev.voronoi/math2/ip-workspace/migrate:${TAG_VERSION}` |
+
+이미지를 빌드하고 Harbor에 push하려면 다음처럼 실행한다.
+
+```bash
+./buildAndPush.sh dev-ipworkspace-frontend 20260821
+./buildAndPush.sh dev-ipworkspace-backend 20260821
+./buildAndPush.sh dev-ipworkspace-migrate 20260821
+```
+
+배포 서버에서는 같은 태그로 migration, backend, frontend 순서로 pull·기동한다. 각 실행은 선택한 서비스만 중지하고 새 이미지로 강제 재생성하며 다른 Compose 서비스는 내리지 않는다.
+
+```bash
+./pullAndStart.sh dev-ipworkspace-migrate 20260821
+./pullAndStart.sh dev-ipworkspace-backend 20260821
+./pullAndStart.sh dev-ipworkspace-frontend 20260821
+```
+
+두 스크립트 모두 Harbor 인증이 필요하면 실행 전에 `docker login harbor.dev.voronoi`를 완료해야 한다. `COMPOSE_FILE` 환경변수로 다른 Compose 파일을 선택할 수 있다.
+
 ## 개발 서버 컨테이너 구성
 
 | 서비스 | 컨테이너 | 역할 | 포트 |
