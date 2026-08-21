@@ -314,11 +314,9 @@ const PatentDocumentViewer: React.FC<Props> = ({
     ? (fileNameOf(item.documentPath) ?? item.action ?? '문서')
     : null;
 
+  // 높이·flex 배치는 PatentDocumentViewer.css의 .pm-doc-viewer가 갖는다.
   return (
-    <section
-      className="pm-card pm-doc-viewer h-full"
-      style={{ minHeight: 0, display: 'flex', flexDirection: 'column' }}
-    >
+    <section className="pm-card pm-doc-viewer">
       <div className="pm-card-header">
         <span className="pm-card-title">문서 뷰어</span>
         <Button icon={<X size={14} />} onClick={onClose} style={{ height: 32 }}/>

@@ -1,4 +1,5 @@
 import { DEFAULT_API_BASE_PATH } from '../config/basePath';
+import type { PatentSearchItem } from './patentSearchApi';
 import { AUTH_REQUIRED_EVENT, notifyIfAuthRequired } from './authApi';
 
 type RuntimeWindow = Window & { _env_?: { VITE_API_URL?: string } };
@@ -43,6 +44,8 @@ export type PatentRecord = {
   attorney: PatentAttorney | null;
   legalStatus: PatentLegalStatus | null;
   examStatus: PatentExamStatus | null;
+  /** 이 특허에 딸린 문서 건수. 목록 조회에서만 채워진다(단건 조회에는 없다). */
+  documentCount?: number;
 };
 
 export type PatentRecordListResult = {
@@ -68,6 +71,8 @@ export type PatentRecordListQuery = {
   examStatusId?: number;
   /** 진행 단계 대분류. UNMAPPED_STAGE_GROUP은 단계에 연결되지 않은 건이다. */
   stageGroup?: string;
+  /** 세부 진행 단계(patent_stage.code). 대분류보다 좁다. */
+  stageCode?: string;
   sort?: 'applicationDateDesc' | 'applicationDateAsc' | 'applicationNumberAsc' | 'idDesc';
   page?: number;
   pageSize?: number;
@@ -155,6 +160,16 @@ const toQueryString = (
   return serialized ? `?${serialized}` : '';
 };
 
+/**
+ * 관리 특허의 문서. 의견제출통지서 화면과 같은 뷰어를 쓰므로 항목 모양도 같다
+ * (`PatentSearchItem`). 통지서 하나가 항목 하나이고, 의견서·보정서는 그 안의
+ * `submissions`로 들어간다.
+ */
+export type PatentDocumentsResult = {
+  patentId: number;
+  items: PatentSearchItem[];
+};
+
 export type PatentTargetSummary = {
   target: string;
   count: number;
@@ -229,6 +244,7 @@ export type PatentStageQuery = {
   legalStatusId?: number;
   examStatusId?: number;
   stageGroup?: string;
+  stageCode?: string;
 };
 
 export type PatentStageItem = {
@@ -414,6 +430,10 @@ export const patentTodoApi = {
 export const patentRecordApi = {
   list(query: PatentRecordListQuery = {}): Promise<PatentRecordListResult> {
     return request<PatentRecordListResult>(`/patent-records${toQueryString(query)}`);
+  },
+
+  documents(patentId: number): Promise<PatentDocumentsResult> {
+    return request<PatentDocumentsResult>(`/patent-records/${patentId}/documents`);
   },
 
   lookups(): Promise<PatentRecordLookups> {

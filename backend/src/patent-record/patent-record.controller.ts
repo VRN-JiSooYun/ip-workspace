@@ -107,6 +107,12 @@ export class PatentRecordController {
     return this.patents.get(id);
   }
 
+  /** 관리 특허에 딸린 문서(통지서·제출 서류) 목록. 우측 문서 뷰어가 쓴다. */
+  @Get(":id/documents")
+  listDocuments(@Param("id", ParseIntPipe) id: number) {
+    return this.patents.listDocuments(id);
+  }
+
   @RequirePermissions("patentAnalysis.manage")
   @Post()
   create(@Body() body: CreatePatentRecordDto) {

@@ -1,5 +1,4 @@
-/* 문서 뷰어의 `문서 전문` 탭 스타일.
-   나머지 pm-viewer- / pm-doc- 접두 규칙은 아직 pages/PatentManagement.css에 있다. */
+/* 문서 뷰어 스타일. 이 뷰어를 쓰는 화면(특허 관리·의견제출통지서)이 함께 쓴다. */
 
 /**
  * 이 뷰어는 두 화면(특허 관리·의견제출통지서)에서 모두 너비 조절 가능한 패널 안에 들어간다.
@@ -9,6 +8,38 @@
 .pm-doc-viewer {
   container-type: inline-size;
   container-name: pm-doc-viewer;
+  /* 카드가 받은 높이를 그대로 쓰고, 내부는 위(제목·메타)를 고정한 채 본문만 늘어난다.
+     패널이 내용 높이인 화면(세로로 쌓인 좁은 화면)에서는 100%가 auto로 풀려 그대로 흐른다. */
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+/* ---- 탭이 카드의 남는 높이를 채운다 ---------------------------------------
+   antd Tabs는 기본이 내용 높이라, 카드가 화면 높이를 받아도 본문은 자기 길이에서 멈춘다.
+   그러면 뷰어 아래가 통째로 비므로 nav 아래를 남는 높이로 늘려 준다. */
+
+.pm-doc-viewer > .ant-tabs {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.pm-doc-viewer > .ant-tabs > .ant-tabs-content-holder,
+.pm-doc-viewer .ant-tabs-content,
+.pm-doc-viewer .ant-tabs-tabpane-active {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+/* 본문 하한(.pm-viewer-preview·.pm-doc-pdf)보다도 낮은 패널에서는 여기서 스크롤을 받아
+   내용이 카드 밖으로 삐져나오지 않게 한다. 높이가 넉넉하면 아무 일도 하지 않는다. */
+.pm-doc-viewer .ant-tabs-tabpane-active {
+  overflow-y: auto;
 }
 
 /* 라벨 92px + 값의 2열 구성이 버거워지면 라벨을 값 위로 올린다. */
@@ -28,6 +59,8 @@
   flex-direction: column;
   gap: 10px;
   min-width: 0;
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 .pm-doc-fulltext-switch {
@@ -36,12 +69,14 @@
   overflow-x: auto;
 }
 
-/* toolbar는 고정 높이, 그 아래 viewer가 남은 높이를 채운다. */
+/* toolbar는 고정 높이, 그 아래 viewer가 남은 높이를 채운다.
+   높이는 탭 본문이 받은 만큼 쓴다. min-height는 채울 높이가 없는 컨테이너에 놓였을 때
+   PDF가 0px로 접히는 것만 막는 하한이다(패널 높이보다 크면 안 된다). */
 .pm-doc-pdf {
   display: flex;
   flex-direction: column;
-  min-height: 0;
-  height: min(78vh, 820px);
+  flex: 1 1 auto;
+  min-height: 240px;
 }
 
 /* PatentPdfViewer는 Card가 flex:1·minHeight:0이라 부모가 높이를 정해 줘야 한다. */
@@ -60,4 +95,78 @@
 /* 좁은 패널에서는 toolbar 항목이 여러 줄로 접힌다. 줄바꿈 간격만 정리한다. */
 .pm-doc-pdf .ant-input-number {
   flex-shrink: 0;
+}
+
+/* ---- 문서 본문·정보 탭 공통 ------------------------------------------------
+   원래 pages/PatentManagement.css에 있던 규칙이다. 그 화면에서 뷰어가 빠졌을 때
+   죽은 CSS로 남았다가, 두 화면(특허 관리·의견제출통지서)이 다시 이 뷰어를 함께 쓰게 되면서
+   실제로 쓰는 컴포넌트 옆으로 옮겼다. 페이지 CSS에 두면 그 페이지를 거치지 않고
+   들어온 화면에서 스타일이 빠진다. */
+
+.pm-viewer-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.pm-viewer-meta-value {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.pm-viewer-divider {
+  color: var(--border-color);
+}
+
+/* 탭 본문이 받은 높이를 그대로 채우고, 넘치는 본문은 이 안에서만 스크롤한다.
+   상한(옛 max-height: 620px)을 두면 넓은 화면에서 박스 아래가 그대로 빈 채 남는다.
+   min-height는 패널이 아주 낮을 때 본문이 0px로 접히지 않게 잡아 준다. */
+.pm-viewer-preview {
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  padding: 20px;
+  background: var(--card-bg);
+  flex: 1 1 auto;
+  min-height: 160px;
+  overflow-y: auto;
+}
+
+/* 라벨 폭 하한이 접히도록 min()을 쓴다(UI_STANDARD_GUIDE의 grid 하한 규칙). */
+.pm-doc-field {
+  display: grid;
+  grid-template-columns: min(92px, 40%) minmax(0, 1fr);
+  gap: 8px;
+  padding: 3px 0;
+  font-size: 12px;
+}
+
+.pm-doc-field-label {
+  color: var(--text-secondary);
+}
+
+.pm-doc-field-value {
+  color: var(--text-primary);
+}
+
+/* 문서 본문은 평문이라 줄바꿈만 살려 그대로 보여준다. */
+.pm-doc-body {
+  margin: 0;
+  font-family: inherit;
+  font-size: 12px;
+  line-height: 1.8;
+  color: var(--text-primary);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.pm-viewer-section-title {
+  margin: 16px 0 6px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-color);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-primary);
 }

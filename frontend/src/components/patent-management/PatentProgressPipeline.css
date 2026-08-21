@@ -1,0 +1,343 @@
+/* 진행 단계 파이프라인. '필터' 카드 안에 들어가는 블록이라 카드 껍데기는 없다.
+   상세 popover는 antd Popover가 body로 portal하므로 전역에 깔려야 한다. */
+
+/* 내용 높이만 갖는다. 늘어나면 파이프라인 아래에 빈 면이 생겨 sub-card 테두리 안이 뜬다. */
+.pm-progress-pipeline {
+  display: flex;
+  flex-direction: column;
+  flex: 0 0 auto;
+  min-height: 0;
+}
+
+/* 제목은 왼쪽, 보기 모드 전환은 오른쪽 끝. 상세 검색의 머리줄과 같은 구조다. */
+.pm-progress-pipeline-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.pm-progress-pipeline .filter-subpanel-header {
+  margin-bottom: 0;
+  min-width: 0;
+}
+
+.pm-progress-pipeline-head .ant-segmented {
+  flex: 0 0 auto;
+}
+
+.pm-progress-pipeline .pm-pipeline {
+  margin-top: 8px;
+}
+
+/* ---- 단계 상세 popover ---------------------------------------------------- */
+/* 줄바꿈 문자열 tooltip은 정렬이 안 맞아 읽기 어렵다. 라벨·국가·건수를 grid로 세우고
+   0건은 흐리게 죽여 눈이 실제 건수에 먼저 가게 한다. */
+/* popover는 다른 영역을 덮어도 되므로 넉넉히 잡는다. 타일 이름이 짧아도
+   목록의 단계 이름이 잘리지 않을 만큼은 확보한다. */
+.pm-stage-popover-body {
+  /* border-box라야 min/max-width가 padding까지 포함한 실제 폭이 된다. */
+  box-sizing: border-box;
+  padding: 10px 12px;
+  min-width: 140px;
+  max-width: 360px;
+}
+
+.pm-stage-detail-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.pm-stage-detail-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.pm-stage-detail-total {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--brand-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 0건이면 브랜드색으로 강조할 이유가 없다. */
+.pm-stage-detail-total-empty {
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
+.pm-stage-detail-note {
+  margin: 8px 0 0;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+
+/* 목록 전체가 하나의 grid다. 줄마다 grid를 따로 두면 각 줄이 자기 내용만큼만 넓어져
+   이름 시작점과 건수 끝점이 줄마다 어긋난다(scope 배지 유무 때문에 특히 심하다).
+   여기서 track을 잡고 각 줄이 subgrid로 물려받으면 세 열이 한 줄로 선다. */
+.pm-stage-detail-list {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  column-gap: 6px;
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* li는 자리만 차지하지 않고 사라져서, 그 안의 줄이 목록 grid의 직접 자식이 된다. */
+.pm-stage-detail-item {
+  display: contents;
+}
+
+
+/* button과 span 두 형태를 같은 줄로 그린다(조건을 걸 수 없는 줄은 span).
+   세 칸을 모두 차지하되 track은 목록에서 물려받는다. width:100%로 늘리면 안 된다 —
+   그러면 이 줄의 내용 폭이 popover 너비 계산에 안 잡혀 이름이 잘린다. */
+.pm-stage-detail-row {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: subgrid;
+  align-items: center;
+  padding: 3px 4px;
+  margin-inline: -4px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  font-family: inherit;
+  font-size: 12px;
+  text-align: left;
+  color: var(--text-primary);
+}
+
+/* 누를 수 있는 줄만 반응한다. */
+.pm-stage-detail-row-pickable {
+  cursor: pointer;
+}
+
+.pm-stage-detail-row-pickable:hover {
+  background: rgba(var(--brand-primary-rgb), 0.1);
+}
+
+.pm-stage-detail-row-pickable:focus-visible {
+  outline: 2px solid var(--brand-primary);
+  outline-offset: -2px;
+}
+
+/* 이미 상세 검색에 들어가 있는 조건. */
+.pm-stage-detail-row-active {
+  background: rgba(var(--brand-primary-rgb), 0.16);
+  color: var(--brand-primary);
+  font-weight: 700;
+}
+
+.pm-stage-detail-row-active .pm-stage-detail-count {
+  color: var(--brand-primary);
+}
+
+/* 0건이어도 조건으로는 걸 수 있으므로 흐리게만 하고 막지는 않는다. */
+.pm-stage-detail-row-empty {
+  opacity: 0.45;
+}
+
+.pm-stage-detail-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 이 단계가 어느 청에만 있는지(EP, KR,JP ...). */
+.pm-stage-detail-scope {
+  flex-shrink: 0;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--table-row-hover-bg);
+  color: var(--text-secondary);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+/* scope 배지(KR,JP)가 없는 줄은 건수가 2번 칸으로 당겨져 6px 어긋난다.
+   항상 마지막 칸에 고정해 오른쪽 끝을 맞춘다. */
+.pm-stage-detail-count {
+  grid-column: 3;
+  min-width: 28px;
+  text-align: right;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/* popover 안내문. 목록과 살짝 띄운다. */
+.pm-stage-detail-hint {
+  margin: 8px 0 0;
+  padding-top: 8px;
+  border-top: 1px solid var(--border-color);
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+/* 좁아진 폭에 맞춰 파이프라인 단계를 조금 촘촘하게 그린다.
+   '필터' 카드 안에서는 상세 검색 필터 아래에 붙으므로 세로 가운데 정렬(margin-block:auto)은
+   더 이상 쓰지 않는다. 남는 높이는 카드가 가진다. */
+.pm-toprow .pm-pipeline {
+  flex: 0 0 auto;
+  /* sub-card padding과 겹치므로 자체 padding은 없앤다. */
+  padding: 0;
+}
+
+.pm-toprow .pm-stage {
+  min-width: 76px;
+  padding: 8px 4px;
+}
+
+.pm-toprow .pm-stage-count {
+  font-size: 17px;
+}
+
+.pm-toprow .pm-stage-separator > svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* ---- stage pipeline ----------------------------------------------------- */
+
+.pm-pipeline {
+  display: flex;
+  align-items: stretch;
+  gap: 2px;
+  overflow-x: auto;
+  padding: 4px;
+}
+
+.pm-stage {
+  position: relative;
+  flex: 1 1 0;
+  min-width: 104px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: 12px 18px;
+  border: none;
+  background: transparent;
+  color: var(--text-primary);
+  cursor: pointer;
+  font-family: inherit;
+}
+
+/* Only the active step is drawn as a filled chevron; the rest stay flat with a
+   thin separator between them, matching the design. */
+.pm-stage-active {
+  background: var(--brand-primary);
+  color: #fff;
+  clip-path: polygon(0 0, calc(100% - 14px) 0, 100% 50%, calc(100% - 14px) 100%, 0 100%, 14px 50%);
+}
+
+.pm-stage:first-child.pm-stage-active {
+  clip-path: polygon(0 0, calc(100% - 14px) 0, 100% 50%, calc(100% - 14px) 100%, 0 100%);
+}
+
+.pm-stage:last-child.pm-stage-active {
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%, 14px 50%);
+}
+
+/* 단계를 잇는 화살표. --border-color(hairline용)를 쓰면 sub-card의 옅은 배경에 묻혀
+   보이지 않는다. 글자만큼 진하면 과하므로 보조 텍스트 색에 선을 굵혀 또렷하게 만든다. */
+.pm-stage-separator {
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+  color: var(--text-secondary);
+}
+
+.pm-stage-separator > svg {
+  stroke-width: 2.5;
+}
+
+.pm-stage:not(.pm-stage-active):hover {
+  background: rgba(var(--brand-primary-rgb), 0.1);
+}
+
+.pm-stage-label {
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.pm-stage-count {
+  font-size: 19px;
+  font-weight: 700;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+}
+
+
+/* ---- '전체' 보기 --------------------------------------------------------- */
+
+/* 세부 단계를 모두 늘어놓으므로 칸이 잘아진다. 넘치면 가로로 스크롤한다
+   (.pm-pipeline이 이미 overflow-x: auto). */
+.pm-pipeline-full {
+  gap: 0;
+}
+
+/* 아이콘이 없어 한 칸이 이름·건수 두 줄뿐이다. 폭 하한을 낮춰 더 많이 들어가게 한다. */
+.pm-toprow .pm-stage-slim {
+  min-width: 58px;
+  padding: 8px 10px;
+  gap: 1px;
+}
+
+.pm-toprow .pm-stage-slim .pm-stage-label {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.pm-toprow .pm-stage-slim .pm-stage-count {
+  font-size: 14px;
+}
+
+/* 선택되면 '간이' 보기와 같이 채워진 화살표가 된다(clip-path는 .pm-stage-active가 갖는다). */
+.pm-toprow .pm-stage-slim.pm-stage-active .pm-stage-label {
+  color: #fff;
+}
+
+/* 칸이 좁아 조금 줄이되, 보일 만큼은 남긴다. */
+.pm-pipeline-full .pm-stage-separator > svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* 단계가 많으면 가로로 넘친다. 줄바꿈 대신 스크롤을 택했다 — 화살표로 이어지는
+   한 줄이 진행 순서를 읽는 방식이라, 여러 줄로 접으면 그 의미가 흐려진다.
+   기본 스크롤바는 15px이라 카드 높이를 먹는다. 얇게 그려 자리를 돌려받는다
+   (색은 index.css의 --patent-scrollbar-* 를 그대로 쓴다). */
+.pm-pipeline {
+  scrollbar-width: thin;
+  scrollbar-color: var(--patent-scrollbar-thumb) transparent;
+}
+
+.pm-pipeline::-webkit-scrollbar {
+  height: 6px;
+}
+
+.pm-pipeline::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.pm-pipeline::-webkit-scrollbar-thumb {
+  background: var(--patent-scrollbar-thumb);
+  border-radius: 999px;
+}
+
+.pm-pipeline::-webkit-scrollbar-thumb:hover {
+  background: var(--patent-scrollbar-thumb-hover);
+}

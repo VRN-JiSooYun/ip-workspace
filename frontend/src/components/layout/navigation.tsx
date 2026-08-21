@@ -53,12 +53,12 @@ export type NavNode = {
 };
 
 export const MAIN_NAV: NavNode[] = [
-  // {
-  //   key: 'dashboard',
-  //   label: 'Dashboard',
-  //   icon: <LayoutDashboard size={22} />,
-  //   path: '/dashboard',
-  // },
+  {
+    key: 'dashboard',
+    label: 'Dashboard',
+    icon: <LayoutDashboard size={22} />,
+    path: '/dashboard',
+  },
   {
     key: 'patent-management',
     label: '특허 관리',

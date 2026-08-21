@@ -1,0 +1,49 @@
+/* 관리 특허 목록 상세 검색 필터. 레이아웃 프리미티브는 styles/filter-system.css에 있고,
+   여기에는 이 화면에서만 필요한 것만 둔다. */
+
+.pm-detail-filters {
+  flex: 0 0 auto;
+}
+
+/* 제목은 왼쪽, 초기화는 오른쪽 끝. */
+.pm-detail-filters-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+/* filter-subpanel-header의 아래 여백은 이 줄(head)이 대신 갖는다. */
+.pm-detail-filters .filter-subpanel-header {
+  margin-bottom: 0;
+  min-width: 0;
+}
+
+.pm-detail-filters-head .ant-btn {
+  flex: 0 0 auto;
+}
+
+/* select는 sm보다 한 급 낮은 밀도가 필요하다. 카드가 좁아 기본 높이면 답답하다. */
+.pm-detail-filters .filter-grid {
+  margin-top: 10px;
+}
+
+.pm-detail-filters .filter-field .ant-select-single {
+  height: 28px;
+}
+
+/* 진행 단계 칩. 라벨이 길어도 머리줄을 밀어내지 않게 잘라 준다. */
+.pm-detail-filters-stage-tag {
+  max-width: 170px;
+  margin-inline: 4px 0;
+  padding: 0 8px;
+  border-radius: 8px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 조건이 없어 못 누르는 초기화 버튼에 금지 커서까지 띄우면 과하다. */
+.pm-detail-filters-head .ant-btn:disabled {
+  cursor: default;
+}

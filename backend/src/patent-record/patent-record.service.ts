@@ -9,6 +9,10 @@ import type { CreatePatentRecordDto } from "./dto/create-patent-record.dto";
 import type { PatentRecordListQueryDto } from "./dto/patent-record-list-query.dto";
 import type { PatentScheduleQueryDto } from "./dto/patent-schedule-query.dto";
 import type { PatentStageQueryDto } from "./dto/patent-stage-query.dto";
+import {
+  countDocumentsByPatent,
+  toPatentDocumentItems,
+} from "./patent-record-documents";
 import type { UpdatePatentRecordDto } from "./dto/update-patent-record.dto";
 
 const LIST_INCLUDE = {
@@ -63,6 +67,16 @@ const parseRegistrationDate = (value: string | null): string | null => {
     : null;
 };
 
+/**
+ * `response.type`은 코드 테이블 없이 정수만 들어 있다. 운영에서 쓰는 값만 이름을 붙이고
+ * 모르는 값은 일반 명칭으로 접는다. 코드 테이블이 생기면 이 표를 지우고 join으로 바꾼다.
+ */
+const RESPONSE_TYPE_LABELS: Record<number, string> = {
+  1: "의견서",
+  2: "보정서",
+  3: "의견서 · 보정서",
+};
+
 @Injectable()
 export class PatentRecordService {
   constructor(private readonly prisma: PrismaService) {}
@@ -101,6 +115,11 @@ export class PatentRecordService {
       and.push({ legalStatus: { stage: { groupCode: query.stageGroup } } });
     }
 
+    // 세부 단계. 대분류와 같은 관계를 한 칸 더 좁혀 들어간다.
+    if (query.stageCode) {
+      and.push({ legalStatus: { stageCode: query.stageCode } });
+    }
+
     return {
       ...(query.countryId ? { countryId: query.countryId } : {}),
       ...(query.legalStatusId ? { legalStatusId: query.legalStatusId } : {}),
@@ -124,7 +143,115 @@ export class PatentRecordService {
       }),
     ]);
 
-    return { items, total, page: query.page, pageSize: query.pageSize };
+    const documentCounts = await this.countDocuments(items.map((item) => item.id));
+
+    return {
+      items: items.map((item) => ({
+        ...item,
+        documentCount: documentCounts.get(item.id) ?? 0,
+      })),
+      total,
+      page: query.page,
+      pageSize: query.pageSize,
+    };
+  }
+
+  /**
+   * 목록 한 페이지 분량의 문서 건수. 통지서 1건 + 그 아래 제출 서류 n건으로 센다
+   * (listDocuments가 펼치는 것과 같은 기준이라 배지 숫자와 뷰어 목록 길이가 일치한다).
+   *
+   * 목록 include에 넣지 않고 따로 세는 이유: 문서는 admin을 한 단계 거쳐 매달려 있어
+   * Prisma의 `_count`로는 한 번에 못 세고, 중첩 include로 끌어오면 목록 응답에 본문까지
+   * 딸려 온다. 페이지에 보이는 id만 모아 한 번 더 묻는 편이 싸다.
+   */
+  private async countDocuments(patentIds: number[]): Promise<Map<number, number>> {
+    if (patentIds.length === 0) return new Map();
+
+    const admins = await this.prisma.client.patentAdmin.findMany({
+      where: { patentId: { in: patentIds } },
+      select: { patentId: true, _count: { select: { officeActions: true } } },
+    });
+
+    return countDocumentsByPatent(admins);
+  }
+
+  /**
+   * 관리 특허 한 건에 딸린 문서 목록.
+   *
+   * ERD상 문서는 `patent → admin → office_action`(통지서)과 그 아래
+   * `response`(의견서·보정서)에 매달려 있다. 화면에서는 이 두 계층을 구분할 이유가 없어
+   * 한 줄짜리 목록으로 펼쳐서 준다. 정렬은 처분일 최신순, 같은 날이면 통지서 → 응답 순.
+   */
+  async listDocuments(patentId: number) {
+    const patent = await this.prisma.client.patent.findUnique({
+      where: { id: patentId },
+      select: {
+        id: true,
+        applicationNumber: true,
+        koreanTitle: true,
+        englishTitle: true,
+        applicant: true,
+        legalStatusId: true,
+        legalStatus: { select: { status: true } },
+        examStatusId: true,
+        examStatus: { select: { status: true } },
+        exam: true,
+      },
+    });
+    if (!patent) throw new NotFoundException("PATENT_NOT_FOUND");
+
+    const admins = await this.prisma.client.patentAdmin.findMany({
+      where: { patentId },
+      orderBy: [{ actionDate: "desc" }, { id: "desc" }],
+      select: {
+        id: true,
+        action: true,
+        actionDate: true,
+        actionNumber: true,
+        officeActions: {
+          orderBy: { id: "asc" },
+          select: {
+            id: true,
+            content: true,
+            documentPath: true,
+            responses: {
+              orderBy: { id: "asc" },
+              select: { id: true, type: true, content: true, documentPath: true },
+            },
+            oaExaminers: {
+              select: {
+                examiner: {
+                  select: {
+                    id: true,
+                    office: true,
+                    bureau: true,
+                    department: true,
+                    name: true,
+                  },
+                },
+              },
+            },
+            rejections: {
+              orderBy: { id: "asc" },
+              select: {
+                id: true,
+                claim: true,
+                statute: {
+                  select: {
+                    lawType: true,
+                    article: true,
+                    paragraph: true,
+                    subParagraph: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    return { patentId, items: toPatentDocumentItems(patent, admins) }
   }
 
   /** 관리 가능한 Target 코드와 각 코드의 관리 특허 건수. */

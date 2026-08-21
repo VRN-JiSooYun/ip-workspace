@@ -1,0 +1,102 @@
+/**
+ * 필터 UI 공통 프리미티브.
+ *
+ * 의견제출통지서 화면(OfficeActionAnalysis.css의 `.oa-filter-grid`·`.oa-field`·
+ * `.oa-subpanel`)에서 자리를 잡은 규칙을 화면에 종속되지 않는 이름으로 옮겨 놓은 것이다.
+ * 값은 그쪽과 같게 유지한다 — 한쪽만 바꾸면 두 화면의 필터가 어긋난다.
+ *
+ * 지금은 특허 관리 화면이 쓰고, 의견제출통지서는 아직 자기 `.oa-*`를 쓴다.
+ * 그쪽을 이 파일로 옮기는 것은 해당 화면 회귀 확인이 필요해 별도 작업으로 둔다.
+ */
+
+/**
+ * 필드가 좁아지면 줄바꿈된다.
+ *
+ * `minmax(150px, ...)`을 그대로 쓰면 컨테이너가 150px보다 좁을 때 열이 150px을 그대로
+ * 차지해 밖으로 넘친다. `min(150px, 100%)`으로 하한을 컨테이너 폭까지 접히게 해야
+ * 어떤 폭에서도 넘치지 않는다.
+ *
+ * 상한을 `1fr`이 아니라 px로 두는 것도 같은 이유의 반대편이다. 1fr이면 넓은 화면에서
+ * 열이 남는 폭을 모두 나눠 가져 '전체' 하나 고르는 select가 300px 넘게 늘어난다.
+ */
+.filter-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(150px, 100%), 180px));
+  justify-content: start;
+  gap: 12px;
+}
+
+/** 라벨을 위에 두는 필드 한 칸. */
+.filter-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.filter-field-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  /* 라벨이 빈 칸에서도 높이를 유지해 입력들이 같은 baseline에 놓인다. */
+  min-height: 18px;
+  /* nowrap이면 긴 라벨이 열 폭을 밀어내 넘친다. 줄바꿈을 허용한다. */
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.filter-field-hint {
+  color: var(--text-secondary);
+  opacity: 0.7;
+  flex-shrink: 0;
+}
+
+.filter-field .ant-select,
+.filter-field .ant-picker,
+.filter-field .ant-input-number,
+.filter-field .ant-input {
+  width: 100%;
+}
+
+/**
+ * 카드 안에 한 겹 더 들어가는 면. 카드 배경과 구분되는 옅은 면을 브랜드 색의 아주 낮은
+ * 알파로 깔아 라이트/다크 어디서나 같은 방향으로 눌린 톤이 된다.
+ */
+.filter-subpanel {
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  background: rgba(var(--brand-primary-rgb), 0.04);
+  padding: 12px;
+  box-sizing: border-box;
+}
+
+/** sub-panel 머리. 아이콘은 브랜드 색, 제목은 카드 제목과 같은 급이다. */
+.filter-subpanel-header {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.filter-subpanel-header-icon {
+  color: var(--brand-primary);
+  flex-shrink: 0;
+  display: inline-flex;
+}
+
+.filter-subpanel-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+/** 적용된 조건 개수 badge. */
+.filter-count-tag {
+  margin-inline-start: 4px;
+  margin-inline-end: 0;
+  border-color: var(--brand-primary);
+  color: var(--brand-primary);
+  background: transparent;
+}

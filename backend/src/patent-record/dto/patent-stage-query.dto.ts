@@ -52,4 +52,13 @@ export class PatentStageQueryDto {
   @IsString()
   @MaxLength(64)
   stageGroup?: string;
+
+  /**
+   * 세부 진행 단계(patent_stage.code). 대분류보다 좁은 조건이라 stageGroup과 함께
+   * 넘기면 둘 다 AND로 걸린다. stageGroup과 마찬가지로 값은 검증하지 않는다.
+   */
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
+  stageCode?: string;
 }
