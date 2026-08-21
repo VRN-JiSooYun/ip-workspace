@@ -30,6 +30,13 @@
 - pull한 이미지가 같은 태그를 재사용하는 경우에도 컨테이너가 반드시 교체되도록 `up`에 `--force-recreate`를 추가했다.
 - `--no-deps`, `--no-build`를 유지해 선택하지 않은 서비스의 재기동이나 배포 서버의 로컬 빌드를 막았다.
 
+### 일괄 실행 지원
+
+- 서비스 인자로 `all`을 추가했다.
+- `./buildAndPush.sh all <tag>`는 migration, backend, frontend 세 이미지를 한 번에 빌드·push한다.
+- `./pullAndStart.sh all <tag>`는 세 이미지를 pull한 뒤 migration → backend → frontend 순서로 기동한다.
+- migration은 foreground와 `--exit-code-from`으로 완료 및 실패를 확인한 뒤 다음 서비스로 넘어간다.
+
 ### 운영 문서
 
 - `docs/cicd_diagram.md`에 서비스별 Harbor 이미지와 빌드·배포 명령, 권장 배포 순서를 추가했다.

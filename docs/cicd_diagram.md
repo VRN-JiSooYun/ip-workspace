@@ -80,12 +80,24 @@ graph TD
 ./buildAndPush.sh dev-ipworkspace-migrate 20260821
 ```
 
+세 서비스를 같은 태그로 함께 처리할 때는 `all`을 사용한다. 빌드·push는 세 애플리케이션 이미지를 한 번에 처리한다.
+
+```bash
+./buildAndPush.sh all 20260821
+```
+
 배포 서버에서는 같은 태그로 migration, backend, frontend 순서로 pull·기동한다. 각 실행은 선택한 서비스만 중지하고 새 이미지로 강제 재생성하며 다른 Compose 서비스는 내리지 않는다.
 
 ```bash
 ./pullAndStart.sh dev-ipworkspace-migrate 20260821
 ./pullAndStart.sh dev-ipworkspace-backend 20260821
 ./pullAndStart.sh dev-ipworkspace-frontend 20260821
+```
+
+세 서비스를 한 번에 배포하려면 다음처럼 실행한다. 이 경우 migration 완료를 확인한 뒤 backend와 frontend를 순서대로 기동한다.
+
+```bash
+./pullAndStart.sh all 20260821
 ```
 
 두 스크립트 모두 Harbor 인증이 필요하면 실행 전에 `docker login harbor.dev.voronoi`를 완료해야 한다. `COMPOSE_FILE` 환경변수로 다른 Compose 파일을 선택할 수 있다.
