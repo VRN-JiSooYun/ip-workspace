@@ -8,6 +8,7 @@ import { PatentRecordService } from "./patent-record.service";
 import { PatentTodoController } from "./patent-todo.controller";
 import { PatentTodoService } from "./patent-todo.service";
 import { PatentNoteImageService } from "./patent-note-image.service";
+import { PatentDocumentLinkService } from "./patent-document-link.service";
 
 @Module({
   controllers: [
@@ -22,6 +23,7 @@ import { PatentNoteImageService } from "./patent-note-image.service";
     PatentRecordImportService,
     PatentTodoService,
     PatentNoteImageService,
+    PatentDocumentLinkService,
   ],
 })
 export class PatentRecordModule {}

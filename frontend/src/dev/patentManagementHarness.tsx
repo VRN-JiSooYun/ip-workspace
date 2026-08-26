@@ -58,6 +58,30 @@ const installFetchStub = (getRecord: () => Record<string, unknown>) => {
       return json({ items: [...auditRows].reverse(), nextCursor: null });
     }
 
+    // 문서 연결. 상류(OA DB)가 있어야 도는 기능이라 하네스에서는 성공 한 가지를 흉내 낸다.
+    if (/\/patent-records\/\d+\/documents\/link$/.test(url) && init?.method === 'POST') {
+      auditRows.push({
+        id: `log-${auditRows.length + 1}`,
+        eventType: 'PATENT_DOCUMENTS_LINKED',
+        field: null,
+        fieldLabel: null,
+        beforeValue: null,
+        afterValue: null,
+        requestId: null,
+        metadata: { linkedOfficeActions: 2, linkedResponses: 1, linkedPatentDocument: false },
+        createdAt: new Date().toISOString(),
+        actor: { id: 'u1', name: '윤지수' },
+      });
+      return json({
+        matched: true,
+        normalizedApplicationNumber: '1020227002845',
+        created: { admins: 2, officeActions: 2, responses: 1 },
+        skipped: 0,
+        patentDocumentLinked: false,
+        documentCount: 2,
+      });
+    }
+
     if (/\/patent-records\/\d+$/.test(url) && init?.method === 'PATCH') {
       const body = typeof init.body === 'string'
         ? (JSON.parse(init.body) as Record<string, unknown>)
@@ -219,10 +243,31 @@ const measureModalChecks = (): Check[] => {
     expect(`본문에 '${name}' 섹션이 있다',`.replace("',", "'"),
       sections.some((text) => text.startsWith(name)), sections.join(' | '));
   }
+  // 본문은 '지금 고치는 것'과 '지나간 기록'을 7:3으로 나눈다. 글 길이와 무관하게
+  // 비율이 유지돼야 한다 — 흔들리면 활동이 설명의 꼬리처럼 딸려 다닌다.
+  const main = el('.pm-detail-main');
+  const primary = el('.pm-detail-primary');
+  const activity = el('.pm-detail-activity');
+  if (main && primary && activity) {
+    const usable = main.getBoundingClientRect().height - 18; // 두 칸 사이 gap
+    const share = primary.getBoundingClientRect().height / usable;
+    expect('본문이 7:3으로 나뉜다', Math.abs(share - 0.7) < 0.02,
+      `위 ${(share * 10).toFixed(1)} : 아래 ${((1 - share) * 10).toFixed(1)}`);
+    // 나눈 자리를 넘기면 안에서 흘러야 한다. 바깥이 늘어나면 비율이 깨진다.
+    expect('본문 바깥은 스크롤하지 않는다',
+      main.scrollHeight <= main.clientHeight,
+      `${main.scrollHeight}/${main.clientHeight}`);
+  }
+
   expect('본문에 필드 묶음 섹션이 남아 있지 않다',
     !sections.some((text) => ['첨부 파일', '하위 작업', '연결된 업무 항목'].some((gone) => text.startsWith(gone))),
     sections.join(' | '));
   expect('설명 자리가 서식 편집기다', !!el('.pm-detail-main .rich-text-field'));
+  // 문서가 없어도 이어 붙일 길은 보여야 한다. 여기가 유일한 진입점이다.
+  expect('문서 줄에 연결 버튼이 있다',
+    [...document.querySelectorAll('.pm-detail-documents button')]
+      .some((node) => (node.textContent ?? '').includes('연결')),
+    el('.pm-detail-documents')?.textContent ?? '');
   // 옮겨 온 값들이 사이드바에서 실제로 보이는지. 그룹이 접혀 있으면 옮긴 뜻이 없다.
   const sideLabels = [...document.querySelectorAll('.pm-detail-side .pm-detail-row-label')]
     .map((node) => node.textContent ?? '');

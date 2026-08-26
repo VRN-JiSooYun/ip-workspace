@@ -111,15 +111,33 @@ export class PatentStageQueryDto {
   @IsInt()
   countryId?: number;
 
+  /** OA DB country.country 명칭. 상세 검색은 외부 코드 ID를 로컬 FK로 오인하지 않는다. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  countryText?: string;
+
   @IsOptional()
   @Transform(({ value }) => Number(value))
   @IsInt()
   legalStatusId?: number;
 
+  /** OA DB legal_status.status 원문. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  legalStatusText?: string;
+
   @IsOptional()
   @Transform(({ value }) => Number(value))
   @IsInt()
   examStatusId?: number;
+
+  /** OA DB exam_status.status 원문. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  examStatusText?: string;
 
   /**
    * 진행 단계 대분류(patent_stage_group.code). 예약 값 `UNMAPPED`은 단계에 연결되지

@@ -187,13 +187,20 @@ const runChecks = (): Check[] => {
     );
   }
 
-  // ---- 기본 배치가 위젯 전부를 올리는가 ----
+  // ---- 기본 배치가 무엇을 올리는가 ----
   {
     const mounted = collectMountedTabs(buildDefaultDashboardLayout()).sort();
+    // 데이터 품질은 점검용이라 기본에서 뺐다. 나머지 위젯은 처음부터 보여야 한다.
+    const expected = DASHBOARD_PANEL_TYPES.filter((id) => id !== 'dataQuality').sort();
     expect(
-      `기본 배치에 위젯 ${DASHBOARD_PANEL_TYPES.length}종이 모두 올라간다`,
-      JSON.stringify(mounted) === JSON.stringify([...DASHBOARD_PANEL_TYPES].sort()),
+      `기본 배치에 위젯 ${expected.length}종이 올라간다(데이터 품질 제외)`,
+      JSON.stringify(mounted) === JSON.stringify(expected),
       mounted.join(', '),
+    );
+    // 기본에서 뺀 위젯도 탭 목록에는 남아 있어야 사용자가 꺼내 붙일 수 있다.
+    expect(
+      '데이터 품질은 기본에 없지만 붙일 수는 있다',
+      !mounted.includes('dataQuality') && DASHBOARD_PANEL_TYPES.includes('dataQuality'),
     );
     expect(
       'KPI만 닫을 수 없다',
@@ -272,8 +279,11 @@ const runChecks = (): Check[] => {
       stageGroup: 'EXAM',
       stageCode: 'EXAM_REQUEST',
       countryId: 1,
+      countryText: 'KR',
       legalStatusId: 2,
+      legalStatusText: '등록',
       examStatusId: 3,
+      examStatusText: '심사청구',
       quality: 'refParseFailed' as const,
     };
     const parsed = readPatentListQueryParams(
@@ -286,8 +296,11 @@ const runChecks = (): Check[] => {
         && parsed.stageGroup === seed.stageGroup
         && parsed.filters.stageCode === seed.stageCode
         && parsed.filters.countryId === seed.countryId
+        && parsed.filters.countryText === seed.countryText
         && parsed.filters.legalStatusId === seed.legalStatusId
+        && parsed.filters.legalStatusText === seed.legalStatusText
         && parsed.filters.examStatusId === seed.examStatusId
+        && parsed.filters.examStatusText === seed.examStatusText
         && parsed.filters.quality === seed.quality,
       JSON.stringify(parsed),
     );

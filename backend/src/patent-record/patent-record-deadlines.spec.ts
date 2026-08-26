@@ -485,6 +485,20 @@ describe("목록 컬럼별 필터", () => {
     });
   });
 
+  it("OA DB 선택값은 외부 ID가 아니라 명칭으로 로컬 관계를 찾는다", async () => {
+    expect(await whereOf({
+      countryText: "KR",
+      legalStatusText: "등록",
+      examStatusText: "심사청구",
+    })).toEqual({
+      AND: [
+        { country: { country: { equals: "KR", mode: "insensitive" } } },
+        { legalStatus: { status: { equals: "등록", mode: "insensitive" } } },
+        { examStatus: { status: { equals: "심사청구", mode: "insensitive" } } },
+      ],
+    });
+  });
+
   it("여러 컬럼 조건은 서로 덮어쓰지 않고 모두 AND로 쌓인다", async () => {
     const where = await whereOf({
       q: "FGFR",
@@ -497,13 +511,16 @@ describe("목록 컬럼별 필터", () => {
       applicationDateFrom: "2026-01-01",
       hasDocuments: true,
       countryId: 1,
+      countryText: "KR",
       legalStatusId: 2,
+      legalStatusText: "등록",
       examStatusId: 3,
+      examStatusText: "심사청구",
       targets: ["EGFR", "BTK"],
     });
 
-    // q(OR) + 부분일치 5 + 대리인 + 출원일 + 문서 = 9
-    expect(where.AND).toHaveLength(9);
+    // q(OR) + 부분일치 5 + 대리인 + OA 명칭 3 + 출원일 + 문서 = 12
+    expect(where.AND).toHaveLength(12);
     // 코드 조건은 AND 밖에서 그대로 걸린다(기존 계약 유지).
     expect(where.countryId).toBe(1);
     expect(where.legalStatusId).toBe(2);

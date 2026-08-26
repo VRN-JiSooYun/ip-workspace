@@ -4,7 +4,11 @@ import { useSearchParams } from 'react-router-dom';
 import { buildStageTiles, type StageTileRow } from '../components/patent-management/PatentProgressPipeline';
 import type { PatentListFilterValues } from '../components/patent-management/PatentListFilters';
 import { useAccessContext } from '../contexts/AccessContext';
-import type { PatentSearchItem } from '../services/patentSearchApi';
+import {
+  patentSearchApi,
+  type OaLookups,
+  type PatentSearchItem,
+} from '../services/patentSearchApi';
 import {
   patentRecordApi,
   type CreatePatentRecordInput,
@@ -26,7 +30,8 @@ const getErrorMessage = (error: unknown) =>
  * 트리로 바뀌면서 패널이 서로 다른 위치에 독립적으로 마운트되므로, 상태를 한 곳에 모아
  * 컨텍스트로 내려 준다. 로직은 옮기기만 했고 동작은 그대로다.
  *
- * 목록·진행 현황·Target 모두 로컬 DB(`/api/patent-records`)만 본다.
+ * 목록·진행 현황·Target 결과는 로컬 DB(`/api/patent-records`)를 본다. 다만 상세 검색의
+ * 국가·법적상태·심사상태 선택지는 office-actions와 같은 OA DB lookup을 정본으로 쓴다.
  *
  * 일정·To-do·문서 뷰어는 여기 없다. 우측 상시 레일이 갖는다
  * (components/layout/rail/) — 그쪽은 조회도 스스로 한다.
@@ -76,6 +81,8 @@ export const usePatentWorkspaceState = () => {
 
   // ---- 모달·문서 뷰어 ----
   const [lookups, setLookups] = useState<PatentRecordLookups | null>(null);
+  const [oaLookups, setOaLookups] = useState<OaLookups | null>(null);
+  const [oaLookupsLoading, setOaLookupsLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingRecord, setEditingRecord] = useState<PatentRecord | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -138,7 +145,7 @@ export const usePatentWorkspaceState = () => {
   useEffect(() => { void loadStages(); }, [loadStages]);
   useEffect(() => { void loadPatents(); }, [loadPatents]);
 
-  /** 코드 목록(국가·상태)은 상세 검색 필터와 modal이 같이 쓴다. 한 번만 받는다. */
+  /** 로컬 코드 목록은 Target·대리인 필터와 등록·수정 modal이 함께 쓴다. */
   const ensureLookups = useCallback(async () => {
     if (lookups) return;
     try {
@@ -148,8 +155,30 @@ export const usePatentWorkspaceState = () => {
     }
   }, [lookups, message]);
 
-  // 상세 검색 필터의 select가 진입 직후부터 채워져 있어야 한다.
+  // Target·대리인 필터도 진입 직후부터 채워져 있어야 한다.
   useEffect(() => { void ensureLookups(); }, [ensureLookups]);
+
+  // 국가·법적상태·심사상태 상세 검색은 office-actions와 같은 OA DB 목록을 쓴다.
+  // 로컬 CRUD modal의 코드 목록과 ID 체계가 다르므로 별도 state로 유지한다.
+  useEffect(() => {
+    let active = true;
+    setOaLookupsLoading(true);
+    void patentSearchApi.lookups()
+      .then((next) => {
+        if (active) setOaLookups(next);
+      })
+      .catch((error) => {
+        if (!active) return;
+        setOaLookups(null);
+        void message.error(`OA 선택 목록을 불러오지 못했습니다: ${getErrorMessage(error)}`);
+      })
+      .finally(() => {
+        if (active) setOaLookupsLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [message]);
 
   // ---- 필터 조작 ----------------------------------------------------------
 
@@ -227,7 +256,11 @@ export const usePatentWorkspaceState = () => {
     applyListFilters(
       'stageCode' in row.filter
         ? { ...listFilters, stageCode: active ? undefined : row.filter.stageCode }
-        : { ...listFilters, legalStatusId: active ? undefined : row.filter.legalStatusId },
+        : {
+            ...listFilters,
+            legalStatusId: active ? undefined : row.filter.legalStatusId,
+            legalStatusText: undefined,
+          },
     );
   }, [applyListFilters, isStageRowActive, listFilters]);
 
@@ -355,6 +388,8 @@ export const usePatentWorkspaceState = () => {
 
     // 필터·진행 현황
     lookups,
+    oaLookups,
+    oaLookupsLoading,
     listFilters,
     applyListFilters,
     stageSummary,

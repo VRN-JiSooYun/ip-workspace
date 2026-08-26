@@ -61,6 +61,8 @@ export type AdminWithDocuments = {
 export type PatentForDocuments = {
   id: number;
   applicationNumber: string;
+  /** 특허 단위 문서(명세서·공보). OA에 매달리지 않는다. */
+  documentPath: string | null;
   koreanTitle: string | null;
   englishTitle: string | null;
   applicant: string | null;
@@ -120,7 +122,46 @@ export type PatentDocumentItem = {
  * admin 아래의 office_action 하나를 뷰어가 받는 항목 하나로 옮긴다.
  * 의견서·보정서는 항목 안의 `submissions`로 들어가므로 목록이 그만큼 늘지 않는다.
  */
+/**
+ * 특허 단위 문서 한 항목.
+ *
+ * 통지서가 없는 문서라 admin·office_action이 비어 있다. 뷰어는 항목 하나에 `documentPath`가
+ * 있으면 그것을 열므로, 처분명 자리에 무엇인지만 적어 주면 그대로 그려진다.
+ */
+const toPatentDocumentItem = (patent: PatentForDocuments): PatentDocumentItem => ({
+  officeActionId: null,
+  adminId: null,
+  content: null,
+  contentLength: 0,
+  documentPath: patent.documentPath,
+  actionDate: null,
+  action: "특허 문서",
+  actionNumber: null,
+  patentId: patent.id,
+  applicationNumber: patent.applicationNumber,
+  koreanTitle: patent.koreanTitle,
+  englishTitle: patent.englishTitle,
+  applicant: patent.applicant,
+  legalStatusId: patent.legalStatusId,
+  legalStatus: patent.legalStatus?.status ?? null,
+  examStatusId: patent.examStatusId,
+  exam: patent.exam,
+  examiners: [],
+  submissions: [],
+  rejections: [],
+  patent: null,
+});
+
 export const toPatentDocumentItems = (
+  patent: PatentForDocuments,
+  admins: AdminWithDocuments[],
+): PatentDocumentItem[] => [
+  // 특허 문서를 맨 앞에 둔다. 처분 이력보다 앞선 문서이고 날짜가 없어 정렬에 끼지 못한다.
+  ...(patent.documentPath ? [toPatentDocumentItem(patent)] : []),
+  ...toOfficeActionItems(patent, admins),
+];
+
+const toOfficeActionItems = (
   patent: PatentForDocuments,
   admins: AdminWithDocuments[],
 ): PatentDocumentItem[] =>
@@ -181,6 +222,8 @@ export const toPatentDocumentItems = (
  */
 export const countDocumentsByPatent = (
   admins: Array<{ patentId: number; _count: { officeActions: number } }>,
+  /** 특허 단위 문서를 가진 특허. 통지서가 없어도 뷰어에 한 항목으로 나오므로 함께 센다. */
+  patentsWithDocument: Iterable<number> = [],
 ): Map<number, number> => {
   const counts = new Map<number, number>();
   for (const admin of admins) {
@@ -188,6 +231,9 @@ export const countDocumentsByPatent = (
       admin.patentId,
       (counts.get(admin.patentId) ?? 0) + admin._count.officeActions,
     );
+  }
+  for (const patentId of patentsWithDocument) {
+    counts.set(patentId, (counts.get(patentId) ?? 0) + 1);
   }
   return counts;
 };

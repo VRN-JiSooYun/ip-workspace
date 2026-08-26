@@ -21,6 +21,26 @@ const EVENT_LABEL: Record<PatentAuditEntry['eventType'], string> = {
   PATENT_FIELD_CHANGED: '',
   PATENT_IMPORTED: 'CSV 임포트로 갱신되었습니다',
   PATENT_DELETED: '특허를 삭제했습니다',
+  PATENT_DOCUMENTS_LINKED: 'OA DB에서 문서를 연결했습니다',
+};
+
+/** 문서 연결이 무엇을 가져왔는지. 서버가 metadata에 담아 준다. */
+const linkedDocumentSummary = (metadata: unknown): string | null => {
+  if (!metadata || typeof metadata !== 'object') return null;
+  const data = metadata as {
+    linkedOfficeActions?: unknown;
+    linkedResponses?: unknown;
+    linkedPatentDocument?: unknown;
+  };
+  const parts: string[] = [];
+  if (typeof data.linkedOfficeActions === 'number' && data.linkedOfficeActions > 0) {
+    parts.push(`통지서 ${data.linkedOfficeActions}건`);
+  }
+  if (typeof data.linkedResponses === 'number' && data.linkedResponses > 0) {
+    parts.push(`제출 서류 ${data.linkedResponses}건`);
+  }
+  if (data.linkedPatentDocument === true) parts.push('특허 문서');
+  return parts.length > 0 ? parts.join(' · ') : null;
 };
 
 /** `2026-08-26T04:12:00.000Z` → `2026.08.26 13:12`. 이력은 시각까지 필요하다. */
@@ -265,9 +285,15 @@ const PatentAuditFeed: React.FC<Props> = ({ patentId, revision = 0 }) => {
               const fields = entry.eventType === 'PATENT_IMPORTED'
                 ? importedFields(entry.metadata)
                 : [];
+              const linked = entry.eventType === 'PATENT_DOCUMENTS_LINKED'
+                ? linkedDocumentSummary(entry.metadata)
+                : null;
               return (
                 <li key={entry.id} className="pm-audit-line">
                   <span className="pm-audit-event">{EVENT_LABEL[entry.eventType]}</span>
+                  {linked && (
+                    <span className="pm-audit-value pm-audit-value-after">{linked}</span>
+                  )}
                   {/* 임포트는 값 단위로 남기지 않는다(500건 × 20필드면 로그가 만 단위가
                       된다). 어떤 필드가 대상이었는지만 밝힌다. */}
                   {fields.length > 0 && (

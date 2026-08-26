@@ -30,7 +30,9 @@ export type PatentAuditEventType =
   | "PATENT_CREATED"
   | "PATENT_FIELD_CHANGED"
   | "PATENT_IMPORTED"
-  | "PATENT_DELETED";
+  | "PATENT_DELETED"
+  /** OA DB에서 문서를 찾아 이어 붙였다. 어떤 문서가 어디서 왔는지는 반드시 묻게 된다. */
+  | "PATENT_DOCUMENTS_LINKED";
 
 type PatentIdentity = {
   applicationNumber: string;

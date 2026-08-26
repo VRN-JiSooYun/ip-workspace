@@ -621,7 +621,7 @@ const ScheduleCalendar: React.FC<Props> = ({
               <span className="db-cal-toggle-label">특허 일정</span>
             </Checkbox>
           </Tooltip>
-          <Button size="small" shape="round" onClick={goToday}>오늘</Button>
+          {/* <Button size="small" shape="round" onClick={goToday}>오늘</Button> */}
           <Tooltip title="선택한 날짜에 일정을 추가합니다">
             <Button
               size="small"

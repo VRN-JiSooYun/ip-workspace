@@ -7,6 +7,7 @@ import type {
   PatentRecordLookups,
   PatentStageSummary,
 } from '../../services/patentRecordApi';
+import type { OaLookups } from '../../services/patentSearchApi';
 import { UNMAPPED_STAGE_GROUP } from '../../services/patentRecordApi';
 import '../../styles/filter-system.css';
 import './PatentListFilters.css';
@@ -21,10 +22,16 @@ const { RangePicker } = DatePicker;
  * buildListWhere 세 곳을 함께 고쳐야 한다.
  */
 export type PatentListFilterValues = {
-  // ---- 코드 조건 ----
+  // ---- 코드·OA 명칭 조건 ----
   countryId?: number;
+  /** OA DB country.country 원문. 상세 검색 UI가 쓰는 조건이다. */
+  countryText?: string;
   legalStatusId?: number;
+  /** OA DB legal_status.status 원문. */
+  legalStatusText?: string;
   examStatusId?: number;
+  /** OA DB exam_status.status 원문. */
+  examStatusText?: string;
   attorneyNumber?: number;
 
   // ---- 부분 일치 조건 ----
@@ -103,8 +110,11 @@ const DOCUMENT_OPTIONS = [
 ];
 
 type Props = {
-  /** null이면 아직 코드 목록을 못 받은 상태다. select는 비활성으로 둔다. */
+  /** 로컬 코드 목록. Target·대리인과 로컬 ID 딥링크 라벨에 쓴다. */
   lookups: PatentRecordLookups | null;
+  /** OA DB 코드 목록. 국가·법적상태·심사상태 상세 검색의 정본이다. */
+  oaLookups: OaLookups | null;
+  oaLookupsLoading?: boolean;
   values: PatentListFilterValues;
   onChange: (next: PatentListFilterValues) => void;
 
@@ -150,6 +160,8 @@ const Field: React.FC<{ label: string; children: React.ReactNode; wide?: boolean
  */
 const PatentListFilters: React.FC<Props> = ({
   lookups,
+  oaLookups,
+  oaLookupsLoading = false,
   values,
   onChange,
   selectedTargets,
@@ -214,9 +226,9 @@ const PatentListFilters: React.FC<Props> = ({
   );
 
   const columnCount = [
-    values.countryId,
-    values.legalStatusId,
-    values.examStatusId,
+    values.countryText ?? values.countryId,
+    values.legalStatusText ?? values.legalStatusId,
+    values.examStatusText ?? values.examStatusId,
     values.attorneyNumber,
     values.internalRef,
     values.applicationNumber,
@@ -256,6 +268,15 @@ const PatentListFilters: React.FC<Props> = ({
       }]
       : []),
   ];
+
+  // 대시보드 딥링크·진행 현황은 기존 로컬 ID 계약을 유지한다. 그런 조건으로 들어온
+  // 경우에도 select에는 사람이 읽는 명칭을 보여 준다.
+  const selectedCountry = values.countryText
+    ?? lookups?.countries.find((item) => item.id === values.countryId)?.country;
+  const selectedLegalStatus = values.legalStatusText
+    ?? lookups?.legalStatuses.find((item) => item.id === values.legalStatusId)?.status;
+  const selectedExamStatus = values.examStatusText
+    ?? lookups?.examStatuses.find((item) => item.id === values.examStatusId)?.status;
 
   return (
     <section className="filter-subpanel pm-detail-filters">
@@ -338,7 +359,7 @@ const PatentListFilters: React.FC<Props> = ({
         <Field label="내부관리번호">
           <Input
             allowClear
-            placeholder="부분 일치"
+            placeholder=""
             aria-label="내부관리번호로 거르기"
             value={draft.internalRef}
             onChange={editText('internalRef')}
@@ -350,11 +371,12 @@ const PatentListFilters: React.FC<Props> = ({
             allowClear
             placeholder="전체"
             aria-label="국가로 거르기"
-            value={values.countryId}
-            onChange={(countryId?: number) => set({ countryId })}
-            disabled={!lookups}
-            options={(lookups?.countries ?? []).map((item) => ({
-              value: item.id,
+            value={selectedCountry}
+            onChange={(countryText?: string) => set({ countryText, countryId: undefined })}
+            loading={oaLookupsLoading}
+            disabled={!oaLookups}
+            options={(oaLookups?.countries ?? []).map((item) => ({
+              value: item.country,
               label: item.country,
             }))}
           />
@@ -363,7 +385,7 @@ const PatentListFilters: React.FC<Props> = ({
         <Field label="출원번호">
           <Input
             allowClear
-            placeholder="부분 일치"
+            placeholder=""
             aria-label="출원번호로 거르기"
             value={draft.applicationNumber}
             onChange={editText('applicationNumber')}
@@ -399,7 +421,7 @@ const PatentListFilters: React.FC<Props> = ({
         <Field label="출원인">
           <Input
             allowClear
-            placeholder="부분 일치"
+            placeholder=""
             aria-label="출원인으로 거르기"
             value={draft.applicant}
             onChange={editText('applicant')}
@@ -430,11 +452,15 @@ const PatentListFilters: React.FC<Props> = ({
             optionFilterProp="label"
             placeholder="전체"
             aria-label="법적상태로 거르기"
-            value={values.legalStatusId}
-            onChange={(legalStatusId?: number) => set({ legalStatusId })}
-            disabled={!lookups}
-            options={(lookups?.legalStatuses ?? []).map((item) => ({
-              value: item.id,
+            value={selectedLegalStatus}
+            onChange={(legalStatusText?: string) => set({
+              legalStatusText,
+              legalStatusId: undefined,
+            })}
+            loading={oaLookupsLoading}
+            disabled={!oaLookups}
+            options={(oaLookups?.legalStatuses ?? []).map((item) => ({
+              value: item.status,
               label: item.status,
             }))}
           />
@@ -447,11 +473,15 @@ const PatentListFilters: React.FC<Props> = ({
             optionFilterProp="label"
             placeholder="전체"
             aria-label="심사상태로 거르기"
-            value={values.examStatusId}
-            onChange={(examStatusId?: number) => set({ examStatusId })}
-            disabled={!lookups}
-            options={(lookups?.examStatuses ?? []).map((item) => ({
-              value: item.id,
+            value={selectedExamStatus}
+            onChange={(examStatusText?: string) => set({
+              examStatusText,
+              examStatusId: undefined,
+            })}
+            loading={oaLookupsLoading}
+            disabled={!oaLookups}
+            options={(oaLookups?.examStatuses ?? []).map((item) => ({
+              value: item.status,
               label: item.status,
             }))}
           />
@@ -460,7 +490,7 @@ const PatentListFilters: React.FC<Props> = ({
         <Field label="등록번호">
           <Input
             allowClear
-            placeholder="부분 일치"
+            placeholder=""
             aria-label="등록번호로 거르기"
             value={draft.registrationNumber}
             onChange={editText('registrationNumber')}

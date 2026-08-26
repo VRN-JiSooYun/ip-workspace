@@ -420,7 +420,7 @@ export const buildMockDashboardState = (
 
     kpiTiles: [
       { key: 'total', label: '관리 특허', value: summary?.total ?? 0, tone: 'neutral', to: '/patent-management' },
-      { key: 'overdue', label: '지연 마감', value: summary?.deadlines.overdue ?? 0, tone: 'danger', focusBucket: 'overdue' },
+      { key: 'overdue', label: '일정 지연', value: summary?.deadlines.overdue ?? 0, tone: 'danger', focusBucket: 'overdue' },
       { key: 'today', label: '오늘 마감', value: summary?.deadlines.today ?? 0, tone: 'warn', focusBucket: 'today' },
       { key: 'within7', label: '7일 내 마감', value: summary?.deadlines.within7 ?? 0, tone: 'warn', focusBucket: 'within7' },
       { key: 'awaitingRegistration', label: '등록 대기', value: summary?.awaitingRegistration ?? 0, tone: 'neutral', to: '/patent-management?stageCode=ALLOWANCE' },

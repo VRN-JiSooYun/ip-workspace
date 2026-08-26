@@ -1,0 +1,15 @@
+-- 화면 작업용으로 넣어 둔 가짜 문서를 지운다.
+--
+-- `scripts/seed-patent-documents.ts`가 넣던 표본이다. 그 스크립트의 주석이 적어 둔 대로
+-- "진짜 데이터가 들어오면 이 seed만 지우면 된다" — 이제 OA DB에서 문서를 이어 붙이는
+-- 경로가 있으므로(20260826140000, PatentDocumentLinkService) 표본이 남아 있을 이유가 없다.
+--
+-- 가짜 문서를 남겨 두면 '문서 3건 열기'가 뜨는데 눌러 보면 PDF가 열리지 않는다. 화면이
+-- 거짓말을 하는 것이고, 진짜로 이어 붙인 문서와 섞여 어느 쪽이 실재하는지 알 수 없게 된다.
+--
+-- 지우는 기준은 seed가 붙여 둔 표시(action_number의 'SEED' 접두)다. **사람이 넣은 행이나
+-- OA DB에서 이어 붙인 행은 이 표시가 없어 건드리지 않는다.** office_action·response는
+-- admin에 onDelete Cascade로 매달려 있어 함께 사라진다.
+--
+-- seed를 돌린 적이 없는 환경에서는 아무 행도 지우지 않는다(no-op).
+DELETE FROM "admin" WHERE "action_number" LIKE 'SEED%';

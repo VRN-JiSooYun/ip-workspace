@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Button, Checkbox, Collapse, DatePicker, Input, Modal, Select, Tag, Tooltip, Typography } from 'antd';
 import type { InputRef } from 'antd';
 import dayjs from 'dayjs';
-import { AlertCircle, Check, FileText, ListChecks, Loader2, X } from 'lucide-react';
+import { AlertCircle, Check, FileText, Link2, ListChecks, Loader2, X } from 'lucide-react';
 import {
   usePatentFieldSave,
   type FieldSaveState,
@@ -10,6 +10,7 @@ import {
 } from '../../hooks/usePatentFieldSave';
 import {
   patentRecordApi,
+  type PatentDocumentLinkResult,
   type PatentRecord,
   type PatentRecordLookups,
 } from '../../services/patentRecordApi';
@@ -94,6 +95,37 @@ const ReadOnly: React.FC<{ value: string | null | undefined }> = ({ value }) => 
 const toDayjs = (value: string | null | undefined) => (value ? dayjs(value) : null);
 
 /**
+ * 문서 연결 결과 → 한 줄.
+ *
+ * '없다'를 뭉뚱그리지 않는다. 세 가지가 각각 다음에 할 일이 다르다 — 출원번호 형식이
+ * 안 맞으면 사람이 할 수 있는 것이 없고, 상류에 특허가 없으면 나중에 다시 눌러 볼 만하고,
+ * 문서만 없으면 특허는 맞게 찾은 것이다.
+ */
+const describeLinkResult = (result: PatentDocumentLinkResult): string => {
+  if (!result.matched) {
+    if (result.reason === 'NOT_KR_APPLICATION_NUMBER') {
+      return `OA DB는 국내 출원(13자리)만 담고 있습니다. 이 출원번호는 숫자 ${result.normalizedApplicationNumber.length}자리라 찾을 수 없습니다.`;
+    }
+    if (result.reason === 'NOT_FOUND_UPSTREAM') {
+      return `OA DB에 ${result.normalizedApplicationNumber} 출원이 없습니다.`;
+    }
+    return '특허는 찾았지만 연결할 문서가 없습니다.';
+  }
+
+  const { officeActions, responses } = result.created;
+  const added = [
+    officeActions > 0 ? `통지서 ${officeActions}건` : null,
+    responses > 0 ? `제출 서류 ${responses}건` : null,
+    result.patentDocumentLinked ? '특허 문서' : null,
+  ].filter((part): part is string => part !== null);
+
+  if (added.length === 0) {
+    return `이미 연결된 문서입니다(${result.documentCount}건).`;
+  }
+  return `${added.join(' · ')}을 연결했습니다.`;
+};
+
+/**
  * 관리 특허 상세 — JIRA 이슈 상세와 같은 2단 배치.
  *
  * **필드별 저장이다.** 하단 [저장] 버튼이 없다. 필드 하나를 고치면 그 키만 담은 PATCH가
@@ -134,6 +166,10 @@ const PatentRecordDetailModal: React.FC<Props> = ({
    */
   const [titleActive, setTitleActive] = useState(false);
   const titleRef = React.useRef<InputRef>(null);
+  /** 문서 연결이 도는 중인가. 상류 조회가 있어 몇 초 걸릴 수 있다. */
+  const [linkingDocuments, setLinkingDocuments] = useState(false);
+  /** 마지막 연결 결과를 사람 말로. 눌렀는데 아무 말이 없으면 눌린 줄 모른다. */
+  const [linkMessage, setLinkMessage] = useState('');
 
   const save = usePatentFieldSave({
     patent: record,
@@ -148,6 +184,31 @@ const PatentRecordDetailModal: React.FC<Props> = ({
   const badgeFor = (key: PatentFieldKey) => (
     <SaveBadge state={save.stateOf(key)} onRetryHint={() => save.revert(key)} />
   );
+
+  /**
+   * OA DB에서 문서를 찾아 이어 붙인다.
+   *
+   * 결과를 한 줄로 옮겨 준다 — '없다'에도 종류가 있어서다. 찾을 수 없는 출원번호(KR이
+   * 아님)와, 찾아봤지만 없는 것과, 특허는 있는데 PDF가 없는 것은 다음에 할 일이 다르다.
+   */
+  const linkDocuments = async () => {
+    if (linkingDocuments) return;
+    setLinkingDocuments(true);
+    setLinkMessage('');
+    try {
+      const result = await patentRecordApi.linkDocuments(record.id);
+      setLinkMessage(describeLinkResult(result));
+      // 문서 건수가 바뀌었으면 이 행을 쓰는 곳(목록 배지·'문서 N건 열기')도 함께 고친다.
+      if (result.documentCount !== (record.documentCount ?? 0)) {
+        onSaved({ ...record, documentCount: result.documentCount });
+      }
+      setAuditRevision((current) => current + 1);
+    } catch (error) {
+      setLinkMessage(error instanceof Error ? error.message : '문서를 연결하지 못했습니다.');
+    } finally {
+      setLinkingDocuments(false);
+    }
+  };
 
   /** 적용 — 지금 값을 확정한다. blur도 같은 일을 하므로 두 번 불려도 안전하다. */
   const applyTitle = () => {
@@ -256,70 +317,77 @@ const PatentRecordDetailModal: React.FC<Props> = ({
       <div className="pm-detail-body">
         {/* ---- 왼쪽: 사람이 읽는 것 ---- */}
         <div className="pm-detail-main">
-          <section className="pm-detail-section">
-            <div className={`pm-detail-heading-row${titleActive ? ' is-active' : ''}`}>
-              {textInput('koreanTitle', record.koreanTitle, {
-                ref: titleRef,
-                onFocus: () => setTitleActive(true),
-                onBlur: () => setTitleActive(false),
-                onKeyDown: (event) => {
-                  if (event.key === 'Escape') {
-                    // 모달까지 올라가면 상세 창이 통째로 닫힌다.
-                    event.stopPropagation();
-                    cancelTitle();
-                    return;
-                  }
-                  if (event.key === 'Enter') applyTitle();
-                },
-              })}
-              {badgeFor('koreanTitle')}
-            </div>
-            {titleActive && (
-              /*
-                버튼을 누르는 동안 입력이 포커스를 잃으면 blur가 **먼저** 확정해 버려서
-                [취소]가 되돌릴 것이 남지 않는다. mousedown을 막아 포커스를 붙들어 두고,
-                할 일을 한 뒤에 우리가 직접 나간다.
-              */
-              <div className="pm-detail-inline-actions">
-                <Tooltip title="적용 (Enter)">
-                  <button
-                    type="button"
-                    className="pm-inline-action"
-                    aria-label="적용"
-                    onMouseDown={(event) => event.preventDefault()}
-                    onClick={applyTitle}
-                  >
-                    <Check size={15} />
-                  </button>
-                </Tooltip>
-                <Tooltip title="취소 (Esc)">
-                  <button
-                    type="button"
-                    className="pm-inline-action"
-                    aria-label="취소"
-                    onMouseDown={(event) => event.preventDefault()}
-                    onClick={cancelTitle}
-                  >
-                    <X size={15} />
-                  </button>
-                </Tooltip>
+          {/*
+            지금 보고 고치는 것(제목·설명)을 한 칸으로 묶는다. 아래 '활동'과 7:3으로
+            나누려면 나눌 대상이 둘이어야 한다 — 섹션 셋이 나란히 있으면 비율을 줄 수 없다.
+          */}
+          <div className="pm-detail-primary">
+            <section className="pm-detail-section">
+              <div className={`pm-detail-heading-row${titleActive ? ' is-active' : ''}`}>
+                {textInput('koreanTitle', record.koreanTitle, {
+                  ref: titleRef,
+                  onFocus: () => setTitleActive(true),
+                  onBlur: () => setTitleActive(false),
+                  onKeyDown: (event) => {
+                    if (event.key === 'Escape') {
+                      // 모달까지 올라가면 상세 창이 통째로 닫힌다.
+                      event.stopPropagation();
+                      cancelTitle();
+                      return;
+                    }
+                    if (event.key === 'Enter') applyTitle();
+                  },
+                })}
+                {badgeFor('koreanTitle')}
               </div>
-            )}
-          </section>
+              {titleActive && (
+                /*
+                  버튼을 누르는 동안 입력이 포커스를 잃으면 blur가 **먼저** 확정해 버려서
+                  [취소]가 되돌릴 것이 남지 않는다. mousedown을 막아 포커스를 붙들어 두고,
+                  할 일을 한 뒤에 우리가 직접 나간다.
+                */
+                <div className="pm-detail-inline-actions">
+                  <Tooltip title="적용 (Enter)">
+                    <button
+                      type="button"
+                      className="pm-inline-action"
+                      aria-label="적용"
+                      onMouseDown={(event) => event.preventDefault()}
+                      onClick={applyTitle}
+                    >
+                      <Check size={15} />
+                    </button>
+                  </Tooltip>
+                  <Tooltip title="취소 (Esc)">
+                    <button
+                      type="button"
+                      className="pm-inline-action"
+                      aria-label="취소"
+                      onMouseDown={(event) => event.preventDefault()}
+                      onClick={cancelTitle}
+                    >
+                      <X size={15} />
+                    </button>
+                  </Tooltip>
+                </div>
+              )}
+            </section>
 
-          <section className="pm-detail-section">
-            <h4 className="pm-detail-section-title">설명</h4>
-            <RichTextField
-              value={record.note}
-              readOnly={!canManage}
-              onSave={(next) => save.saveField('note', next)}
-              uploadImage={async (file) => patentRecordApi.uploadNoteImage(record.id, file)}
-              deleteImage={(imageUrl) => patentRecordApi.removeNoteImage(record.id, imageUrl)}
-              resolveImageUrl={patentRecordApi.noteImageDisplayUrl}
-            />
-          </section>
+            <section className="pm-detail-section">
+              <h4 className="pm-detail-section-title">설명</h4>
+              <RichTextField
+                value={record.note}
+                readOnly={!canManage}
+                onSave={(next) => save.saveField('note', next)}
+                uploadImage={async (file) => patentRecordApi.uploadNoteImage(record.id, file)}
+                deleteImage={(imageUrl) => patentRecordApi.removeNoteImage(record.id, imageUrl)}
+                resolveImageUrl={patentRecordApi.noteImageDisplayUrl}
+              />
+            </section>
+          </div>
 
-          <section className="pm-detail-section">
+          {/* 아래 3할. 지나간 기록이라 읽고 고치는 것과 자리를 갈라 둔다. */}
+          <section className="pm-detail-section pm-detail-activity">
             <h4 className="pm-detail-section-title">활동</h4>
             <PatentAuditFeed patentId={record.id} revision={auditRevision} />
           </section>
@@ -399,22 +467,38 @@ const PatentRecordDetailModal: React.FC<Props> = ({
                 children: (
                   <>
                     <Row label="문서">
-                      {documentCount > 0 ? (
-                        <Button
-                          size="small"
-                          icon={<FileText size={13} />}
-                          onClick={() => onOpenDocuments(record)}
-                        >
-                          {`${documentCount}건 열기`}
-                        </Button>
-                      ) : (
-                        /* 왜 비어 있는지는 툴팁에 둔다. 문서는 이 화면에서 만드는 값이
-                           아니라 OA·응답 이력에 붙은 파일을 모아 보여 줄 뿐이다. */
-                        <Tooltip title="OA·응답 이력에 문서가 붙으면 나타납니다(화면에서 직접 추가할 수 없습니다).">
-                          <span><ReadOnly value={null} /></span>
-                        </Tooltip>
-                      )}
+                      <div className="pm-detail-documents">
+                        {documentCount > 0 ? (
+                          <Button
+                            size="small"
+                            icon={<FileText size={13} />}
+                            onClick={() => onOpenDocuments(record)}
+                          >
+                            {`${documentCount}건 열기`}
+                          </Button>
+                        ) : (
+                          <ReadOnly value={null} />
+                        )}
+                        {canManage && (
+                          <Tooltip title="출원번호로 OA DB를 찾아 통지서·제출 서류를 이어 붙입니다.">
+                            <Button
+                              size="small"
+                              type="text"
+                              loading={linkingDocuments}
+                              icon={<Link2 size={13} />}
+                              onClick={() => void linkDocuments()}
+                            >
+                              {documentCount > 0 ? '다시 연결' : '문서 연결'}
+                            </Button>
+                          </Tooltip>
+                        )}
+                      </div>
                     </Row>
+                    {linkMessage && (
+                      <Row label="">
+                        <Text type="secondary" style={{ fontSize: 11 }}>{linkMessage}</Text>
+                      </Row>
+                    )}
                     {onOpenTodos && (
                       <Row label="하위 작업">
                         <Button

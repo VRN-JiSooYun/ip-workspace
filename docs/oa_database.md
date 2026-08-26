@@ -10,6 +10,12 @@ IP Workspace는 두 PostgreSQL 연결을 사용한다.
 두 DB의 코드 ID는 같은 값이라고 보장할 수 없으므로 서로 바꿔 쓰지 않는다. 외부 OA 코드는
 `GET /api/oa-lookups`로 제공하고, 로컬 특허 레코드 CRUD는 기존 Prisma 코드 테이블을 유지한다.
 
+`patent-management`의 상세 검색 중 국가·법적상태·심사상태 선택지도 이 lookup을 사용한다.
+선택값은 OA 정수 ID가 아니라 명칭(`country`/`status`)으로 목록 API에 전달하고, 서버가 로컬
+관계 테이블의 같은 명칭을 대소문자 구분 없이 찾는다. 따라서 서로 다른 DB의 ID가 우연히
+같다는 가정 없이 OA 스키마의 선택 목록을 반영한다. 등록·수정 modal은 로컬 FK를 저장해야
+하므로 계속 `GET /api/patent-records/lookups`를 사용한다.
+
 ## 기본 연결값
 
 | 환경변수 | 기본값 | 설명 |

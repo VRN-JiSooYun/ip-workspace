@@ -57,6 +57,16 @@ const OfficeActionAnalysis: React.FC = () => {
   const [filters, setFilters] = useState<OfficeActionFilterState>(
     EMPTY_OFFICE_ACTION_FILTERS,
   );
+  /**
+   * 마지막으로 검색에 실어 보낸 고급 검색 조건. 지금 화면의 조건과 달라졌는지만 본다
+   * (= 아직 '조건 적용'을 누르지 않았다). 화면 state 그대로가 아니라 API 조건으로
+   * 바꿔 비교해야 결과가 달라지지 않는 변경(조건 없이 날짜 유형만 바꾸는 등)을
+   * '미적용'으로 오해하지 않는다.
+   */
+  const [appliedFilterKey, setAppliedFilterKey] = useState(
+    () => JSON.stringify(toPatentSearchFilters(EMPTY_OFFICE_ACTION_FILTERS)),
+  );
+  const filtersDirty = JSON.stringify(toPatentSearchFilters(filters)) !== appliedFilterKey;
 
   const [items, setItems] = useState<PatentSearchItem[]>([]);
   const [total, setTotal] = useState(0);
@@ -126,6 +136,9 @@ const OfficeActionAnalysis: React.FC = () => {
     async (nextPage: number, nextPageSize: number) => {
       setLoading(true);
       setError('');
+      // 이 검색에 실린 조건이 곧 '적용된 조건'이다. 검색 바의 '검색'으로 들어와도
+      // 같은 filters가 함께 나가므로 여기 한 곳에서 기록한다.
+      setAppliedFilterKey(JSON.stringify(toPatentSearchFilters(filters)));
       try {
         const trimmed = keyword.trim();
         setSortBy(trimmed ? 'relevance' : 'actionDateDesc');
@@ -164,6 +177,27 @@ const OfficeActionAnalysis: React.FC = () => {
   );
 
   /**
+   * '조건 적용'·필터 안 Enter로 들어온 검색 요청.
+   *
+   * 요청 자리에서 곧바로 runSearch를 부르지 않는다. Enter는 태그 확정 같은 조건 갱신과 같은
+   * 이벤트에서 일어나서, 그 자리에서 검색하면 방금 넣은 값이 빠진 채(직전 render의 filters로)
+   * 나간다. 번호만 올려 두고, 조건이 반영된 다음 render에서 검색한다.
+   *
+   * effect가 보는 것은 번호 하나뿐이다. runSearch·pageSize를 의존성에 두면 조건을 고칠 때마다
+   * 검색이 나가는 실시간 검색이 되므로, 최신 호출은 ref로만 건네 받는다.
+   */
+  const [applyToken, setApplyToken] = useState(0);
+  const requestApply = useCallback(() => setApplyToken((token) => token + 1), []);
+  const applyRef = useRef(() => {});
+  useEffect(() => {
+    applyRef.current = () => void runSearch(1, pageSize);
+  });
+  useEffect(() => {
+    if (applyToken === 0) return;
+    applyRef.current();
+  }, [applyToken]);
+
+  /**
    * 진입 시 한 번: 조건 없이 기본 검색을 돌리고 레일의 문서 뷰어를 펼친다.
    *
    * ref로 한 번만 막는 이유: runSearch는 keyword·filters를 닫아 물고 있어 그것들이 바뀔
@@ -196,6 +230,9 @@ const OfficeActionAnalysis: React.FC = () => {
           lookups={lookups}
           lookupsLoading={lookupsLoading}
           onChange={setFilters}
+          onApply={requestApply}
+          applying={loading}
+          dirty={filtersDirty}
         />
 
         <OfficeActionResultList

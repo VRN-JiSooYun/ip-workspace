@@ -550,6 +550,9 @@ model Patent {
   /// 지분약정(지분율 변경) 기존 출원인.
   shareAgreement          String?      @map("share_agreement")
   expectedExpiryDate      DateTime?    @map("expected_expiry_date")
+  /// 특허 단위 문서(명세서·공보 등)의 원본 URL. OA DB의 patent.document_path를 옮겨 담는다.
+  /// OA에 매달린 문서(office_action·response)와 달리 admin을 거치지 않는다.
+  documentPath            String?      @map("document_path")
   /// 상세 모달의 '설명'. 화면의 WYSIWYG가 만든 HTML 조각이 들어 있다(옛 행과 CSV로 들어온
   /// 값은 태그 없는 평문일 수 있어, 그리는 쪽이 둘 다 받아 준다). 옛 status_note도 여기로
   /// 합쳐졌다 — 자유 서술은 이 컬럼 하나다.

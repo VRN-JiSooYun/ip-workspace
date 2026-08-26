@@ -77,6 +77,27 @@ export type PatentRecord = {
   updatedAt?: string;
 };
 
+/** 문서 연결 한 번의 결과. 화면이 이대로 사람 말로 옮긴다. */
+export type PatentDocumentLinkResult = {
+  /** OA DB에서 이 특허를 찾았는가. */
+  matched: boolean;
+  /**
+   * 못 찾았으면 그 이유.
+   * - `NOT_KR_APPLICATION_NUMBER`: 조회를 보내지도 않았다. OA DB는 KR 13자리뿐이다.
+   * - `NOT_FOUND_UPSTREAM`: 찾아봤지만 그 출원번호가 상류에 없다.
+   * - `NO_DOCUMENTS`: 특허는 있는데 PDF가 붙은 문서가 없다.
+   */
+  reason?: 'NOT_KR_APPLICATION_NUMBER' | 'NOT_FOUND_UPSTREAM' | 'NO_DOCUMENTS';
+  /** 숫자만 남긴 출원번호. 왜 안 맞았는지 사람이 짚어 볼 수 있게 함께 온다. */
+  normalizedApplicationNumber: string;
+  created: { admins: number; officeActions: number; responses: number };
+  /** 이미 있어서 건너뛴 통지서 수. */
+  skipped: number;
+  patentDocumentLinked: boolean;
+  /** 연결 후의 문서 건수. 목록 배지와 같은 기준이다. */
+  documentCount: number;
+};
+
 export type PatentRecordListResult = {
   items: PatentRecord[];
   total: number;
@@ -110,8 +131,11 @@ export type PatentRecordListQuery = {
   q?: string;
   targets?: string[];
   countryId?: number;
+  countryText?: string;
   legalStatusId?: number;
+  legalStatusText?: string;
   examStatusId?: number;
+  examStatusText?: string;
   /** 진행 단계 대분류. UNMAPPED_STAGE_GROUP은 단계에 연결되지 않은 건이다. */
   stageGroup?: string;
   /** 세부 진행 단계(patent_stage.code). 대분류보다 좁다. */
@@ -310,8 +334,11 @@ export type PatentStageQuery = {
   q?: string;
   targets?: string[];
   countryId?: number;
+  countryText?: string;
   legalStatusId?: number;
+  legalStatusText?: string;
   examStatusId?: number;
+  examStatusText?: string;
   stageGroup?: string;
   stageCode?: string;
   quality?: PatentQualityFilter;
@@ -455,7 +482,9 @@ export type PatentAuditEntry = {
     | 'PATENT_CREATED'
     | 'PATENT_FIELD_CHANGED'
     | 'PATENT_IMPORTED'
-    | 'PATENT_DELETED';
+    | 'PATENT_DELETED'
+    /** OA DB에서 문서를 찾아 이어 붙였다. */
+    | 'PATENT_DOCUMENTS_LINKED';
   /** 바뀐 컬럼. PATENT_FIELD_CHANGED에만 있다. */
   field: string | null;
   /** 화면에 쓸 필드 이름. 서버가 옮겨 준다(코드 표를 프런트가 알 필요 없다). */
@@ -724,6 +753,19 @@ export const patentRecordApi = {
     await request<{ fileName: string }>(
       `/patent-records/${id}/note-images/${encodeURIComponent(fileName)}`,
       { method: 'DELETE' },
+    );
+  },
+
+  /**
+   * OA DB에서 이 특허의 문서를 찾아 이어 붙인다.
+   *
+   * 출원번호(숫자만)로 상류 특허를 찾고 PDF가 붙은 통지서·제출 서류를 우리 쪽에 담는다.
+   * 여러 번 눌러도 같은 문서는 다시 만들지 않는다(created가 0으로 온다).
+   */
+  linkDocuments(id: number): Promise<PatentDocumentLinkResult> {
+    return request<PatentDocumentLinkResult>(
+      `/patent-records/${id}/documents/link`,
+      { method: 'POST' },
     );
   },
 

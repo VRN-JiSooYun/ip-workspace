@@ -10,7 +10,7 @@ import {
   Typography,
 } from 'antd';
 import dayjs from 'dayjs';
-import { ChevronDown, Info, Plus, Settings2 } from 'lucide-react';
+import { Check, ChevronDown, Info, Plus, Settings2 } from 'lucide-react';
 import {
   PATENT_SEARCH_DATE_FIELDS,
   PATENT_SEARCH_DATE_FIELD_LABELS,
@@ -163,6 +163,18 @@ type Props = {
    * 앞쪽을 덮어쓰지 않도록 항상 updater 형태로 쓴다.
    */
   onChange: React.Dispatch<React.SetStateAction<OfficeActionFilterState>>;
+  /**
+   * '조건 적용'. 조건을 바꾸는 것만으로는 검색이 나가지 않는다 — 이 버튼이나 필터 안에서의
+   * Enter(또는 검색 바의 '검색')가 지금 조건으로 다시 검색하게 한다.
+   *
+   * 호출 시점의 조건이 아니라 **다음 render의 조건**으로 검색되어야 한다. Enter는 태그 확정
+   * 같은 조건 갱신과 같은 이벤트에서 일어나서, 그 자리에서 검색하면 방금 넣은 값이 빠진다.
+   */
+  onApply: () => void;
+  /** 검색 중. 적용 버튼에 그대로 물린다. */
+  applying?: boolean;
+  /** 마지막 검색 이후 조건이 바뀌었는지. 아직 반영되지 않았음을 알려 주는 데 쓴다. */
+  dirty?: boolean;
 };
 
 /** 라벨을 위에 두는 필드 한 칸. */
@@ -196,6 +208,9 @@ const OfficeActionAdvancedFilters: React.FC<Props> = ({
   lookups,
   lookupsLoading = false,
   onChange,
+  onApply,
+  applying = false,
+  dirty = false,
 }) => {
   const [statuteDraft, setStatuteDraft] = useState<StatuteCondition>({ lawTypeText: '' });
   const [ipcDraft, setIpcDraft] = useState<IpcCondition>({});
@@ -228,8 +243,29 @@ const OfficeActionAdvancedFilters: React.FC<Props> = ({
 
   const activeCount = countActiveFilters(value);
 
+  /**
+   * 필터 안에서의 Enter = 조건 적용.
+   *
+   * 셀렉트·날짜 같은 antd 컴포넌트는 자기 Enter 처리(후보 확정, 날짜 확정)를 먼저 끝내고
+   * 여기까지 올려 보낸다. 그래서 여기서는 '이번 Enter로 바뀐 조건까지 넣어 검색해 달라'고
+   * 요청만 하면 된다(실제 검색은 조건이 반영된 다음 render에서 나간다).
+   */
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (event.key !== 'Enter') return;
+    // 한글 조합을 끝내는 Enter는 입력의 일부다. 이걸로 검색하면 글자를 칠 때마다 검색된다.
+    if (event.nativeEvent.isComposing) return;
+    const target = event.target as HTMLElement;
+    // 버튼 위에서의 Enter는 그 버튼을 누른 것이다(추가·초기화·적용·패널 접기).
+    if (target.closest('button, [role="button"]')) return;
+    // 법조문·IPC 칸의 Enter는 '추가'까지 대신 해 준다. 눈에 보이는 값이 조건에서 빠진 채
+    // 검색되는 것이 제일 헷갈린다. 조건이 안 되는 draft라면 각 함수가 알아서 아무것도 안 한다.
+    if (target.closest('.oa-subpanel-grid-statute')) addStatute();
+    if (target.closest('.oa-subpanel-grid-ipc')) addIpc();
+    onApply();
+  };
+
   return (
-    <div className="oa-card oa-filters">
+    <div className="oa-card oa-filters" onKeyDown={handleKeyDown}>
       <Collapse
         ghost
         defaultActiveKey={['advanced']}
@@ -271,7 +307,6 @@ const OfficeActionAdvancedFilters: React.FC<Props> = ({
                   </Field>
                   <Field
                     label="심사관"
-                    hint="API 연동 예정"
                   >
                     <Select
                       mode="tags"
@@ -579,15 +614,27 @@ const OfficeActionAdvancedFilters: React.FC<Props> = ({
 
                 <div className="oa-filters-footer">
                   <Text type="secondary" style={{ fontSize: 12 }}>
-                    법조문·IPC는 여러 건을 추가할 수 있습니다.
+                    {dirty
+                      ? '변경한 조건은 아직 검색에 반영되지 않았습니다. Enter로도 적용됩니다.'
+                      : '법조문·IPC는 여러 건을 추가할 수 있습니다.'}
                   </Text>
-                  <Button
-                    size="small"
-                    disabled={activeCount === 0}
-                    onClick={() => onChange(EMPTY_OFFICE_ACTION_FILTERS)}
-                  >
-                    조건 초기화
-                  </Button>
+                  <div className="oa-filters-footer-actions">
+                    <Button
+                      disabled={activeCount === 0}
+                      onClick={() => onChange(EMPTY_OFFICE_ACTION_FILTERS)}
+                    >
+                      조건 초기화
+                    </Button>
+                    {/* 본문 검색과 별개다. 여기 조건만 다시 걸어 검색한다. */}
+                    <Button
+                      type="primary"
+                      loading={applying}
+                      onClick={onApply}
+                      icon={<Check size={16} />}
+                    >
+                      조건 적용
+                    </Button>
+                  </div>
                 </div>
               </>
             ),

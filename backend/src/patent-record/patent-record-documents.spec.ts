@@ -8,6 +8,7 @@ import {
 const patent: PatentForDocuments = {
   id: 7,
   applicationNumber: "10-2026-0000010",
+  documentPath: null,
   koreanTitle: "치환된 헤테로아릴 화합물",
   englishTitle: "Substituted heteroaryl compounds",
   applicant: "보로노이",

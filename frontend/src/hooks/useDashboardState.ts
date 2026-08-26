@@ -244,7 +244,7 @@ export const useDashboardState = () => {
       },
       {
         key: 'overdue',
-        label: '지연 마감',
+        label: '일정 지연',
         value: counts?.overdue ?? 0,
         tone: 'danger',
         focusBucket: 'overdue',

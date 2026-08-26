@@ -32,6 +32,7 @@ import { buildTemplateCsv } from "./patent-csv";
 import { PatentRecordImportService } from "./patent-record-import.service";
 import { PatentAuditService } from "./patent-audit.service";
 import { PatentRecordService } from "./patent-record.service";
+import { PatentDocumentLinkService } from "./patent-document-link.service";
 import {
   PATENT_NOTE_IMAGE_MAX_BYTES,
   PatentNoteImageService,
@@ -53,6 +54,7 @@ export class PatentRecordController {
     private readonly audit: PatentAuditService,
     private readonly imports: PatentRecordImportService,
     private readonly noteImages: PatentNoteImageService,
+    private readonly documentLinks: PatentDocumentLinkService,
   ) {}
 
   @Get("lookups")
@@ -153,6 +155,22 @@ export class PatentRecordController {
   @Get(":id/documents")
   listDocuments(@Param("id", ParseIntPipe) id: number) {
     return this.patents.listDocuments(id);
+  }
+
+  /**
+   * OA DB에서 이 특허의 문서를 찾아 이어 붙인다.
+   *
+   * 출원번호(숫자만)로 상류 특허를 찾고, 그 아래 통지서·제출 서류 중 **PDF가 있는 것만**
+   * 우리 테이블로 옮겨 담는다. 여러 번 눌러도 같은 문서는 다시 만들지 않는다.
+   */
+  @RequirePermissions("patentAnalysis.manage")
+  @Post(":id/documents/link")
+  linkDocuments(
+    @Param("id", ParseIntPipe) id: number,
+    @Session() session: UserSession,
+    @Headers("x-request-id") requestId?: string,
+  ) {
+    return this.documentLinks.link(id, session.user.id, requestId ?? randomUUID());
   }
 
   /** 설명 편집기에 붙여 넣은 이미지를 SeaweedFS에 저장한다. */

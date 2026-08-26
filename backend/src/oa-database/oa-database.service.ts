@@ -37,8 +37,18 @@ export class OaDatabaseService implements OnApplicationShutdown {
     });
   }
 
-  async query<T extends QueryResultRow>(sql: string): Promise<T[]> {
-    const result = await this.pool.query<T>(sql);
+  /**
+   * 조회 한 번.
+   *
+   * `params`를 받는 이유: 화면에서 온 값(출원번호 등)으로 거르는 질의가 생겼다. 문자열을
+   * 이어 붙이면 read-only 세션이라도 **읽어서는 안 될 것을 읽는** 질의는 만들어진다.
+   * 값은 반드시 자리표시자($1, $2…)로 넘긴다.
+   */
+  async query<T extends QueryResultRow>(
+    sql: string,
+    params: unknown[] = [],
+  ): Promise<T[]> {
+    const result = await this.pool.query<T>(sql, params);
     return result.rows;
   }
 

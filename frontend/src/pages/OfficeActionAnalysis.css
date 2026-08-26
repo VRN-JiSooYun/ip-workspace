@@ -302,6 +302,14 @@
   padding-top: 4px;
 }
 
+/* 좁아져 줄바꿈이 나도 두 버튼은 붙어 다닌다. */
+.oa-filters-footer-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-inline-start: auto;
+}
+
 /* ---- 결과 목록 ----------------------------------------------------------- */
 
 /* 고급 검색과 같은 이유로 컨테이너 폭을 기준으로 반응한다. */

@@ -66,22 +66,60 @@
   gap: 18px;
   flex: 1 1 auto;
   min-width: 0;
-  overflow-y: auto;
   /*
-    스크롤바 자리를 늘 비워 둔다.
-
-    이 칸은 내용에 따라 스크롤이 생겼다 없어졌다 한다. 그때마다 스크롤바 폭(11px)만큼
-    **안쪽 폭이 통째로 바뀐다** — '설명'을 눌러 편집기를 열면 글 높이가 늘어 스크롤이
-    생기고, 그 순간 방금까지 보던 읽기 화면보다 편집기가 좁아진 채 나타났다. 읽던 자리와
-    고치는 자리의 폭이 다르면 글이 다시 흐르면서 눈이 줄을 놓친다.
-
-    자리를 처음부터 비워 두면 두 상태의 폭이 같다. 대신 스크롤이 없을 때도 오른쪽이
-    그만큼 비는데, 폭이 튀는 것보다 낫다.
+    스크롤은 이 칸이 아니라 안의 두 칸이 각자 한다(.pm-detail-primary / .pm-detail-activity).
+    비율로 나눈 자리는 제 몫을 넘기면 안에서 흘러야지, 바깥이 늘어나면 비율이 깨진다.
   */
-  scrollbar-gutter: stable;
-  padding-right: 6px;
+  overflow: hidden;
+  /*
+    사이드바가 짧아져도 나눌 높이가 있어야 한다. 이 칸의 높이는 형제(사이드바)가 끌어
+    올려 주는데, 그룹을 다 접으면 7:3으로 나눌 것이 남지 않는다. 편집기 최소 높이(120px)와
+    활동 몇 줄이 들어갈 만큼만 바닥을 깐다.
+  */
+  min-height: 340px;
+}
+
+/*
+  본문을 7:3으로 나눈다.
+
+  전에는 활동에 margin-top:auto를 걸어 바닥에 붙였는데, 활동은 제 내용만큼만 차지하고
+  그 위가 통째로 빈 자리가 됐다 — 너무 멀리 내려갔다. 비율로 나누면 아래 3할을 활동이
+  **채우므로** 빈 자리가 생기지 않는다.
+
+  basis를 0으로 두는 이유: auto면 두 칸의 내용 높이가 먼저 자리를 차지하고 남는 것만
+  7:3으로 갈라, 글 길이에 따라 비율이 흔들린다.
+*/
+.pm-detail-primary,
+.pm-detail-activity {
+  /* flex 자식은 min-height:auto라 내용보다 작아지지 않는다. 0으로 풀어야 안에서 흐른다. */
+  min-height: 0;
   scrollbar-width: thin;
   scrollbar-color: var(--patent-scrollbar-thumb) transparent;
+}
+
+.pm-detail-primary {
+  flex: 7 1 0;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  overflow-y: auto;
+  /* 스크롤이 생겼다 없어져도 폭이 바뀌지 않게 자리를 비워 둔다(편집기 폭이 튀던 이유). */
+  scrollbar-gutter: stable;
+  padding-right: 6px;
+}
+
+.pm-detail-activity {
+  flex: 3 1 0;
+  /* 제목은 붙박이로 두고 목록만 흐르게 한다 — 아래 .pm-audit-feed 규칙. */
+  overflow: hidden;
+}
+
+.pm-detail-activity .pm-audit-feed {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+  padding-right: 6px;
 }
 
 .pm-detail-side {
@@ -309,6 +347,14 @@
 .pm-empty-action:focus-visible {
   outline: 2px solid var(--brand-primary);
   outline-offset: 1px;
+}
+
+/* 문서 한 줄: 여는 버튼과 연결 버튼이 나란히 선다. */
+.pm-detail-documents {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
 }
 
 .pm-subtasks {

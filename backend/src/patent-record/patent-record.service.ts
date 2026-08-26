@@ -207,6 +207,19 @@ export class PatentRecordService {
       and.push({ attorneyNumber: query.attorneyNumber });
     }
 
+    // 상세 검색 select의 정본은 OA DB다. 두 DB의 정수 ID는 같다고 보장할 수 없으므로
+    // 외부 option은 명칭으로 받고, 로컬 관계 테이블의 명칭과 대소문자 없이 맞춘다.
+    const exact = (value: string | undefined) => {
+      const trimmed = value?.trim();
+      return trimmed ? { equals: trimmed, mode: "insensitive" as const } : undefined;
+    };
+    const countryText = exact(query.countryText);
+    if (countryText) and.push({ country: { country: countryText } });
+    const legalStatusText = exact(query.legalStatusText);
+    if (legalStatusText) and.push({ legalStatus: { status: legalStatusText } });
+    const examStatusText = exact(query.examStatusText);
+    if (examStatusText) and.push({ examStatus: { status: examStatusText } });
+
     // 출원일 기간. 끝 날짜는 그 날을 포함해야 하므로 다음 날 0시 미만으로 본다
     // (applicationDate가 DateTime이라 lte로 자르면 그 날 00:00만 걸린다).
     if (query.applicationDateFrom || query.applicationDateTo) {
@@ -295,12 +308,23 @@ export class PatentRecordService {
   private async countDocuments(patentIds: number[]): Promise<Map<number, number>> {
     if (patentIds.length === 0) return new Map();
 
-    const admins = await this.prisma.client.patentAdmin.findMany({
-      where: { patentId: { in: patentIds } },
-      select: { patentId: true, _count: { select: { officeActions: true } } },
-    });
+    const [admins, withPatentDocument] = await Promise.all([
+      this.prisma.client.patentAdmin.findMany({
+        where: { patentId: { in: patentIds } },
+        select: { patentId: true, _count: { select: { officeActions: true } } },
+      }),
+      // 특허 문서는 admin을 거치지 않아 위 조회에 잡히지 않는다. 배지가 뷰어 목록보다
+      // 하나 모자라지 않으려면 여기서 따로 센다.
+      this.prisma.client.patent.findMany({
+        where: { id: { in: patentIds }, documentPath: { not: null } },
+        select: { id: true },
+      }),
+    ]);
 
-    return countDocumentsByPatent(admins);
+    return countDocumentsByPatent(
+      admins,
+      withPatentDocument.map((patent) => patent.id),
+    );
   }
 
   /**
@@ -324,6 +348,7 @@ export class PatentRecordService {
         examStatusId: true,
         examStatus: { select: { status: true } },
         exam: true,
+        documentPath: true,
       },
     });
     if (!patent) throw new NotFoundException("PATENT_NOT_FOUND");

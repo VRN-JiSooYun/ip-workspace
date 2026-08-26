@@ -252,6 +252,12 @@ export const buildMockWorkspaceState = (
       examStatuses: EXAM_STATUSES,
       targets: TARGET_NAMES.map((target, index) => ({ id: index + 1, target })),
     },
+    oaLookups: {
+      countries: COUNTRIES,
+      legalStatuses: LEGAL_STATUSES,
+      examStatuses: EXAM_STATUSES,
+    },
+    oaLookupsLoading: false,
     listFilters: {},
     applyListFilters: noop,
     stageSummary: STAGE_SUMMARY,

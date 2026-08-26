@@ -57,12 +57,18 @@ export const readPatentListQueryParams = (
 
   const countryId = toPositiveInt(params.get('countryId'));
   if (countryId !== undefined) filters.countryId = countryId;
+  const countryText = params.get('countryText')?.trim();
+  if (countryText) filters.countryText = countryText;
 
   const legalStatusId = toPositiveInt(params.get('legalStatusId'));
   if (legalStatusId !== undefined) filters.legalStatusId = legalStatusId;
+  const legalStatusText = params.get('legalStatusText')?.trim();
+  if (legalStatusText) filters.legalStatusText = legalStatusText;
 
   const examStatusId = toPositiveInt(params.get('examStatusId'));
   if (examStatusId !== undefined) filters.examStatusId = examStatusId;
+  const examStatusText = params.get('examStatusText')?.trim();
+  if (examStatusText) filters.examStatusText = examStatusText;
 
   const stageCode = params.get('stageCode')?.trim();
   if (stageCode) filters.stageCode = stageCode;
@@ -115,8 +121,11 @@ export const buildPatentListQuery = (seed: {
   stageGroup?: string;
   stageCode?: string;
   countryId?: number;
+  countryText?: string;
   legalStatusId?: number;
+  legalStatusText?: string;
   examStatusId?: number;
+  examStatusText?: string;
   attorneyNumber?: number;
   internalRef?: string;
   applicationNumber?: string;
@@ -134,12 +143,15 @@ export const buildPatentListQuery = (seed: {
   if (seed.stageGroup) params.set('stageGroup', seed.stageGroup);
   if (seed.stageCode) params.set('stageCode', seed.stageCode);
   if (seed.countryId !== undefined) params.set('countryId', String(seed.countryId));
+  if (seed.countryText) params.set('countryText', seed.countryText);
   if (seed.legalStatusId !== undefined) {
     params.set('legalStatusId', String(seed.legalStatusId));
   }
+  if (seed.legalStatusText) params.set('legalStatusText', seed.legalStatusText);
   if (seed.examStatusId !== undefined) {
     params.set('examStatusId', String(seed.examStatusId));
   }
+  if (seed.examStatusText) params.set('examStatusText', seed.examStatusText);
   if (seed.attorneyNumber !== undefined) {
     params.set('attorneyNumber', String(seed.attorneyNumber));
   }

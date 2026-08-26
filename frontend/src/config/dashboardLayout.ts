@@ -17,10 +17,11 @@ import {
 } from '../lib/layoutTree';
 
 /**
- * 2로 올린 이유: 기본 배치에 일정 위젯이 들어왔다. 버전을 올려야 이미 배치를 저장해 둔
- * 사용자도 새 위젯을 한 번은 보게 된다(그 대가로 저장해 둔 배치가 한 번 초기화된다).
+ * 3으로 올린 이유: 기본 배치가 바뀌었다(진행 현황·요약을 전폭 띠로 올리고 데이터 품질을
+ * 기본에서 뺐다). 버전을 올려야 이미 배치를 저장해 둔 사용자도 새 기본값을 한 번은 보게
+ * 된다(그 대가로 저장해 둔 배치가 한 번 초기화된다).
  */
-export const DASHBOARD_LAYOUT_SCHEMA_VERSION = 2;
+export const DASHBOARD_LAYOUT_SCHEMA_VERSION = 3;
 
 export const DASHBOARD_PANEL_TYPES = [
   'kpi',
@@ -63,27 +64,32 @@ export const getDashboardPanelMeta = (tabId: string): DashboardPanelMeta | undef
 /**
  * 기본 배치.
  *
- *   column(0.16)
- *   ├── kpi (전폭)
- *   └── row(0.6)
- *       ├── column(0.6): 일정 / 기한
- *       └── column(0.5): 진행 현황 / 데이터 품질
+ *   column(0.28)
+ *   ├── stageFunnel (전폭)
+ *   └── column(0.2)
+ *       ├── kpi (전폭)
+ *       └── row(0.5): 일정 / 기한
  *
- * 왼쪽 열이 "언제·무엇이 급한가"를 답한다 — 일정(언제)과 기한(무엇이 급한가)은 서로
- * 붙여 두어야 한 눈에 읽힌다. 오른쪽 두 위젯은 조망이라 좁아도 읽힌다.
+ * 위에서 아래로 "전체 → 요약 → 개별"로 좁혀 읽게 했다. 진행 현황과 요약은 가로로 훑는
+ * 띠라서 전폭이 맞고, 일정(언제)과 기한(무엇이 급한가)은 서로 견주며 보는 짝이라 아래에
+ * 나란히 둔다.
  *
- * 0.16은 1240px×800px 기준으로 KPI 한 줄(110px + gap)이 들어가는 비율이고, 왼쪽 열의
- * 0.6은 그 아래 남는 높이에서 월 격자 6주가 눌리지 않는 최소치다.
+ * 데이터 품질은 기본에서 뺐다 — 매일 보는 것이 아니라 점검할 때만 보는 위젯이다. 탭
+ * 목록(DASHBOARD_PANEL_TYPES)에는 남아 있으니 필요하면 사용자가 직접 꺼내 붙일 수 있다.
+ *
+ * 비율은 1240px×800px 기준이다. 0.28은 진행 현황 최소 높이(220px)가 그대로 들어가는
+ * 값이고, 그 아래 0.2는 남은 높이에서 KPI 한 줄(110px)이 들어가는 값이다. 나머지가
+ * 일정·기한 몫으로 가서 월 격자 6주가 눌리지 않는다.
  */
 export const buildDefaultDashboardLayout = (): LayoutNode => makeSplitNode(
   'column',
-  0.16,
-  makePanelNode(['kpi']),
+  0.28,
+  makePanelNode(['stageFunnel']),
   makeSplitNode(
-    'row',
-    0.6,
-    makeSplitNode('column', 0.6, makePanelNode(['schedule']), makePanelNode(['deadlines'])),
-    makeSplitNode('column', 0.5, makePanelNode(['stageFunnel']), makePanelNode(['dataQuality'])),
+    'column',
+    0.2,
+    makePanelNode(['kpi']),
+    makeSplitNode('row', 0.5, makePanelNode(['schedule']), makePanelNode(['deadlines'])),
   ),
 );
 
