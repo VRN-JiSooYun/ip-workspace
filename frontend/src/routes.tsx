@@ -82,7 +82,9 @@ export const APP_ROUTES: AppRoute[] = [
     element: <OfficeActionAnalysis />,
   },
 
-  // Need to Create IP Dashboard
+  // ---- Dashboard ---------------------------------------------------------
+  // 권한을 라우트에 걸지 않는다. '/' 가 여기로 리다이렉트되므로 권한 없는 사용자가
+  // 로그인 직후 튕기게 된다. 대시보드는 위젯 단위로 막는다(Dashboard.tsx 참고).
   { path: '/dashboard', element: <Dashboard /> },
 
   // { path: '/universal-search', element: <UniversalSearch /> },

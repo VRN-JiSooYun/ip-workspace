@@ -46,6 +46,35 @@ export type PatentRecord = {
   examStatus: PatentExamStatus | null;
   /** 이 특허에 딸린 문서 건수. 목록 조회에서만 채워진다(단건 조회에는 없다). */
   documentCount?: number;
+
+  /**
+   * 상세 모달의 '설명'. WYSIWYG 편집기가 만든 HTML 조각이 들어 있다(옛 행과 CSV
+   * 임포트로 들어온 값은 태그 없는 평문일 수 있다 — 그리는 쪽이 둘 다 받아 준다).
+   * 여기서만 유일하게 PATCH로 편집할 수 있는 자유 서술 컬럼이고, 옛 '상태 메모'
+   * (status_note)도 여기로 합쳐졌다.
+   */
+  note?: string | null;
+
+  // ---- 읽기 전용 컬럼 ----------------------------------------------------
+  // DB에도 있고 응답에도 이미 실려 온다(Prisma가 scalar를 전부 돌려준다). 타입에만
+  // 없어서 화면이 못 쓰고 있었다. 갱신 DTO에 없으므로 **편집은 불가**하고,
+  // CSV 임포트로만 채워진다.
+  inventors?: string | null;
+  expectedExpiryDate?: string | null;
+  /** 분할/계속 등 원출원과의 관계. */
+  relationType?: string | null;
+  licenseAgreement?: string | null;
+  rightsChange?: string | null;
+  /** 지분약정(지분율 변경) 기존 출원인. */
+  shareAgreement?: string | null;
+  todoDueDate?: string | null;
+
+  /**
+   * 이 행이 만들어진 시각. 감사 로그 마이그레이션(20260826100000) 이전에 만들어진 행은
+   * 마이그레이션 시점이 들어 있다 — 실제 등록 시점이 아니다.
+   */
+  createdAt?: string;
+  updatedAt?: string;
 };
 
 export type PatentRecordListResult = {
@@ -63,6 +92,20 @@ export type PatentRecordLookups = {
   targets: PatentTargetCode[];
 };
 
+/**
+ * 데이터 품질 조건. 대시보드 품질 카드에서 목록으로 넘어갈 때 쓴다.
+ * 백엔드 `patent-quality.ts`의 표와 key가 일치해야 한다(서버가 값을 검증한다).
+ */
+export const PATENT_QUALITY_FILTERS = [
+  'unmappedStatus',
+  'refParseFailed',
+  'missingApplicationDate',
+  'missingExpectedExpiry',
+  'noTodo',
+] as const;
+
+export type PatentQualityFilter = typeof PATENT_QUALITY_FILTERS[number];
+
 export type PatentRecordListQuery = {
   q?: string;
   targets?: string[];
@@ -73,6 +116,7 @@ export type PatentRecordListQuery = {
   stageGroup?: string;
   /** 세부 진행 단계(patent_stage.code). 대분류보다 좁다. */
   stageCode?: string;
+  quality?: PatentQualityFilter;
   sort?: 'applicationDateDesc' | 'applicationDateAsc' | 'applicationNumberAsc' | 'idDesc';
   page?: number;
   pageSize?: number;
@@ -105,6 +149,26 @@ export type CreatePatentRecordInput = {
 >;
 
 export type UpdatePatentRecordInput = Partial<CreatePatentRecordInput>;
+
+export type PatentNoteImageUpload = {
+  fileName: string;
+  mimeType: string;
+  byteSize: number;
+  /** 현재 환경의 API base URL을 적용한, img가 실제 요청할 URL. */
+  url: string;
+  /** 환경·배포 prefix와 무관하게 note HTML에 저장할 canonical 경로. */
+  storageUrl: string;
+};
+
+const PATENT_NOTE_IMAGE_ERROR_MESSAGES: Record<string, string> = {
+  PATENT_NOTE_IMAGE_FILE_REQUIRED: '업로드할 이미지가 없습니다.',
+  PATENT_NOTE_IMAGE_TYPE_NOT_ALLOWED: 'PNG, JPG, GIF, WEBP 이미지만 사용할 수 있습니다.',
+  PATENT_NOTE_IMAGE_EMPTY: '빈 이미지 파일은 업로드할 수 없습니다.',
+  PATENT_NOTE_IMAGE_TOO_LARGE: '이미지는 파일당 10MB까지 업로드할 수 있습니다.',
+  PATENT_NOTE_IMAGE_INVALID_CONTENT: '이미지 파일의 형식이 올바르지 않습니다.',
+  SEAWEEDFS_IMAGE_UPLOAD_FAILED: '이미지 저장소에 업로드하지 못했습니다.',
+  SEAWEEDFS_IMAGE_UPLOAD_RESULT_INVALID: '이미지 저장 결과를 확인하지 못했습니다.',
+};
 
 const getApiBaseUrl = () => {
   const runtimeValue = typeof window !== 'undefined'
@@ -237,7 +301,12 @@ export type UpdatePatentTodoInput = Partial<
 /** 단계에 연결되지 않은 건을 가리키는 예약 값(백엔드 UNMAPPED_STAGE_GROUP과 같다). */
 export const UNMAPPED_STAGE_GROUP = 'UNMAPPED';
 
+/**
+ * 목록·집계가 공유하는 조회 조건. 백엔드 PatentStageQueryDto와 1:1이다.
+ * 여기에 항목을 더하려면 그 DTO에도 같이 넣어야 한다.
+ */
 export type PatentStageQuery = {
+  /** 관리번호·출원번호·명칭·출원인을 한 번에 훑는 바로가기 검색(OR). */
   q?: string;
   targets?: string[];
   countryId?: number;
@@ -245,6 +314,27 @@ export type PatentStageQuery = {
   examStatusId?: number;
   stageGroup?: string;
   stageCode?: string;
+  quality?: PatentQualityFilter;
+
+  // ---- 컬럼별 조건. 목록 표의 각 열에 대응하고 서로 AND로 걸린다. ----
+  /** 내부관리번호 부분 일치. */
+  internalRef?: string;
+  /** 출원번호 부분 일치. */
+  applicationNumber?: string;
+  /** 명칭 부분 일치. 국문·영문 어느 쪽이든 걸리면 통과한다. */
+  title?: string;
+  /** 출원인 부분 일치. */
+  applicant?: string;
+  /** 등록번호 부분 일치. */
+  registrationNumber?: string;
+  /** 대리인(attorney.attorneyNumber). */
+  attorneyNumber?: number;
+  /** 출원일 시작(YYYY-MM-DD, 포함). */
+  applicationDateFrom?: string;
+  /** 출원일 끝(YYYY-MM-DD, 포함). */
+  applicationDateTo?: string;
+  /** 문서 유무. true면 있는 것, false면 없는 것만. */
+  hasDocuments?: boolean;
 };
 
 export type PatentStageItem = {
@@ -288,6 +378,102 @@ export type PatentScheduleQuery = {
   year: number;
   month: number;
   targets?: string[];
+};
+
+/**
+ * 대시보드 기한 보드 항목.
+ *
+ * 마감으로 세는 것은 미완료 To-do의 마감일과 특허의 예상 만료일 둘뿐이다. 출원일·공개일·
+ * 등록일은 이미 일어난 사실이라 여기 들어오지 않는다(캘린더의 `PatentScheduleEvent`와
+ * 다른 점이다).
+ */
+export type PatentDeadlineType = 'TODO' | 'EXPECTED_EXPIRY';
+
+export type PatentDeadlineItem = {
+  patentId: number;
+  /** TODO가 아니면 null. */
+  todoId: number | null;
+  internalRef: string | null;
+  applicationNumber: string;
+  patentTitle: string | null;
+  /** TODO일 때만 채워진다. 무엇 때문의 마감인지. */
+  todoTitle: string | null;
+  country: string;
+  target: string | null;
+  type: PatentDeadlineType;
+  label: string;
+  /** YYYY-MM-DD. 표시 직전에 formatDisplayDate로 바꾼다. */
+  date: string;
+};
+
+/**
+ * 오늘 기준 마감 버킷별 건수. 서로 겹치지 않는다(한 건이 한 버킷에만 들어간다).
+ *   overdue  … 오늘보다 이전
+ *   today    … 오늘
+ *   within7  … 내일부터 7일 뒤까지
+ *   within30 … 8일 뒤부터 30일 뒤까지
+ */
+export type PatentDeadlineCounts = {
+  overdue: number;
+  today: number;
+  within7: number;
+  within30: number;
+};
+
+export type PatentDeadlineResult = {
+  from: string;
+  to: string;
+  items: PatentDeadlineItem[];
+  /** limit으로 잘렸을 때의 전체 건수. items.length와 다르면 화면이 그 사실을 알려야 한다. */
+  total: number;
+  counts: PatentDeadlineCounts;
+};
+
+export type PatentDeadlineQuery = {
+  /** YYYY-MM-DD. 포함. */
+  from: string;
+  /** YYYY-MM-DD. 포함. */
+  to: string;
+  targets?: string[];
+  limit?: number;
+};
+
+/** 대시보드 KPI + 데이터 품질 집계. 목록·진행 현황과 같은 필터를 받는다. */
+export type PatentSummary = {
+  total: number;
+  deadlines: PatentDeadlineCounts;
+  expiringWithinYear: number;
+  /** 등록 결정을 받고 설정등록료 납부를 남긴 건(stageCode = ALLOWANCE). */
+  awaitingRegistration: number;
+  quality: Record<PatentQualityFilter, number>;
+};
+
+/** 관리 특허 변경 이력 한 줄. 백엔드 PatentAuditEntry와 1:1이다. */
+export type PatentAuditEntry = {
+  id: string;
+  eventType:
+    | 'PATENT_CREATED'
+    | 'PATENT_FIELD_CHANGED'
+    | 'PATENT_IMPORTED'
+    | 'PATENT_DELETED';
+  /** 바뀐 컬럼. PATENT_FIELD_CHANGED에만 있다. */
+  field: string | null;
+  /** 화면에 쓸 필드 이름. 서버가 옮겨 준다(코드 표를 프런트가 알 필요 없다). */
+  fieldLabel: string | null;
+  /** 코드 id가 아니라 사람이 읽는 값이다('출원' → '등록'). */
+  beforeValue: string | null;
+  afterValue: string | null;
+  /** 같은 값을 가진 행들은 한 요청에서 나왔다. 화면이 한 덩이로 그린다. */
+  requestId: string | null;
+  metadata: unknown;
+  createdAt: string;
+  actor: { id: string; name: string | null } | null;
+};
+
+export type PatentAuditLogResult = {
+  items: PatentAuditEntry[];
+  /** null이면 더 없다. */
+  nextCursor: string | null;
 };
 
 export type PatentImportIssue = {
@@ -456,6 +642,19 @@ export const patentRecordApi = {
     );
   },
 
+  /** 기한 보드용 마감 목록. 월 단위인 schedule과 달리 임의 구간을 받는다. */
+  deadlines(query: PatentDeadlineQuery): Promise<PatentDeadlineResult> {
+    return request<PatentDeadlineResult>(
+      `/patent-records/deadlines${toQueryString(query)}`,
+    );
+  },
+
+  summary(query: PatentStageQuery = {}): Promise<PatentSummary> {
+    return request<PatentSummary>(
+      `/patent-records/summary${toQueryString(query)}`,
+    );
+  },
+
   create(input: CreatePatentRecordInput): Promise<PatentRecord> {
     return request<PatentRecord>('/patent-records', {
       method: 'POST',
@@ -463,11 +662,79 @@ export const patentRecordApi = {
     });
   },
 
-  update(id: number, input: UpdatePatentRecordInput): Promise<PatentRecord> {
+  /**
+   * 부분 갱신. 바뀐 필드 하나만 담아 보내면 그것만 갱신되고, 감사 로그도 그 필드만 남는다.
+   *
+   * requestId를 함께 보내면 서버가 그 값으로 로그 행들을 묶는다(한 번에 여러 필드를
+   * 보냈을 때 화면이 한 덩이로 그릴 수 있다).
+   */
+  update(
+    id: number,
+    input: UpdatePatentRecordInput,
+    requestId?: string,
+  ): Promise<PatentRecord> {
     return request<PatentRecord>(`/patent-records/${id}`, {
       method: 'PATCH',
+      headers: requestId ? { 'x-request-id': requestId } : undefined,
       body: JSON.stringify(input),
     });
+  },
+
+  async uploadNoteImage(id: number, file: File): Promise<PatentNoteImageUpload> {
+    const form = new FormData();
+    form.append('file', file);
+    const response = await fetch(url(`/patent-records/${id}/note-images`), {
+      method: 'POST',
+      credentials: 'include',
+      body: form,
+    });
+    notifyIfAuthRequired(response);
+    const body = await response.json().catch(() => null) as (
+      Omit<PatentNoteImageUpload, 'url' | 'storageUrl'> & { url: string; message?: unknown }
+    ) | null;
+    if (!response.ok || !body) {
+      const rawMessage = body?.message;
+      const code = Array.isArray(rawMessage) ? String(rawMessage[0] ?? '') : String(rawMessage ?? '');
+      const message = PATENT_NOTE_IMAGE_ERROR_MESSAGES[code] ?? (Array.isArray(rawMessage)
+        ? rawMessage.join(', ')
+        : typeof rawMessage === 'string'
+          ? rawMessage
+          : `PATENT_NOTE_IMAGE_UPLOAD_${response.status}`);
+      throw new Error(message);
+    }
+    return {
+      ...body,
+      // 업로드 요청에 성공한 것과 같은 API base를 써야 조회도 반드시 같은 Backend로 간다.
+      url: url(body.url),
+      storageUrl: `/api${body.url}`,
+    };
+  },
+
+  noteImageDisplayUrl(storedUrl: string): string {
+    const marker = '/patent-records/';
+    const markerIndex = storedUrl.indexOf(marker);
+    if (markerIndex < 0) return storedUrl;
+    return url(storedUrl.slice(markerIndex));
+  },
+
+  async removeNoteImage(id: number, imageUrl: string): Promise<void> {
+    const pathname = new URL(imageUrl, window.location.origin).pathname;
+    const fileName = decodeURIComponent(pathname.split('/').filter(Boolean).at(-1) ?? '');
+    if (!fileName) return;
+    await request<{ fileName: string }>(
+      `/patent-records/${id}/note-images/${encodeURIComponent(fileName)}`,
+      { method: 'DELETE' },
+    );
+  },
+
+  /** 이 특허의 활동 피드(변경 이력). 최신순. */
+  auditLogs(
+    id: number,
+    query: { limit?: number; cursor?: string } = {},
+  ): Promise<PatentAuditLogResult> {
+    return request<PatentAuditLogResult>(
+      `/patent-records/${id}/audit-logs${toQueryString(query as PatentStageQuery)}`,
+    );
   },
 
   remove(id: number): Promise<{ id: number }> {

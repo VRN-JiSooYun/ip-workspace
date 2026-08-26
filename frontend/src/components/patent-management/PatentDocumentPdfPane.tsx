@@ -84,6 +84,10 @@ const PatentDocumentPdfPane: React.FC<Props> = ({ documentPath }) => {
         searchExecuted={pdfViewer.matchCount.total > 0}
         currentPage={pdfViewer.pdfCurrentPage}
         totalPages={pdfViewer.pdfTotalPages}
+        zoomPercent={pdfViewer.pdfZoomPercent}
+        onZoomIn={pdfViewer.zoomPdfIn}
+        onZoomOut={pdfViewer.zoomPdfOut}
+        onResetZoom={pdfViewer.resetPdfZoom}
         onOpenPdfInBrowser={handleOpenInBrowser}
         onSearchQueryChange={pdfViewer.setSearchQuery}
         onRunSearch={(value) => pdfViewer.searchPdf(value ?? pdfViewer.searchQuery)}
@@ -113,6 +117,7 @@ const PatentDocumentPdfPane: React.FC<Props> = ({ documentPath }) => {
           document={documentPath}
           withCredentials={false}
           rotation={pdfViewer.pdfRotation}
+          pdfScaleValue={pdfViewer.pdfScaleValue}
           viewerContainerRef={pdfViewer.pdfViewerContainerRef}
           currentPage={pdfViewer.pdfCurrentPage}
           onGoToPage={pdfViewer.handleGoToPdf}

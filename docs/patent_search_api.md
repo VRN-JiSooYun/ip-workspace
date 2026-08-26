@@ -11,8 +11,8 @@ IP팀 CSV로 적재되어 있고 `office_action`·`response` 본문은 비어 �
 
 - 외부 endpoint: `POST {PATENT_SEARCH_API_URL}/patents/search` (FastAPI, OpenAPI 제공)
 - 기본값: `http://172.16.1.210:10000`
-- 스키마가 로컬 Prisma 특허 도메인과 동일하다. 응답의 `legal_status`·`exam_status`는
-  로컬 `legal_status.id`·`exam_status.id`와 같은 값이라 명칭은 `patentRecordApi.lookups()`로 해석한다.
+- 외부 DB 구조는 로컬 Prisma 특허 도메인과 유사하지만 코드 ID가 같다고 가정하지 않는다.
+  외부 `country`·`legal_status`·`exam_status`는 `/api/oa-lookups` 응답으로 해석한다.
 
 ## 우리 endpoint
 
@@ -83,6 +83,7 @@ POST /api/patent-search       (권한: patentAnalysis.read)
   "size": 20,
   "items": [{
     "officeActionId": 11933,
+    "relevanceScore": 3.0359515666390378, // 키워드가 없으면 null
     "adminId": 108858,
     "content": "발송번호: ...",   // includeContent=false면 null
     "contentLength": 3135,        // 항상 원문 길이
@@ -116,14 +117,23 @@ POST /api/patent-search       (권한: patentAnalysis.read)
 | `legal_statutes` | `rejections` | `rejection_id`·`claim`이 rejection의 column이라 실제로 rejection 행이다 |
 | `legal_status`, `exam_status` | `legalStatusId`, `examStatusId` | FK int임을 드러낸다 |
 
-`legalStatus`는 `legalStatusId`를 외부 코드 테이블 값으로 옮긴 것이다. 목록 endpoint가 없어
-`GET /legal_statuses/?status=...`로 6개를 하나씩 확인해 service의 `LEGAL_STATUS_BY_ID`에 넣었다.
+`legalStatus`는 기존 호환을 위해 알려진 `legalStatusId` 1~10을 이름으로 옮긴 값이다. UI의
+filter option과 문서 레일 상태 표시는 외부 DB를 직접 읽는 `/api/oa-lookups`를 정본으로 사용한다.
 
-| id | 1 | 2 | 3 | 4 | 5 | 6 |
-| --- | --- | --- | --- | --- | --- | --- |
-| status | 공개 | 취하 | 거절 | 등록 | 포기 | 소멸 (등록료불납) |
+| id | status |
+| --- | --- |
+| 1 | 공개 |
+| 2 | 취하 |
+| 3 | 거절 |
+| 4 | 등록 |
+| 5 | 포기 |
+| 6 | 소멸 (등록료불납) |
+| 7 | 소멸 (취소) |
+| 8 | 소멸 (포기) |
+| 9 | 소멸 (기각) |
+| 10 | 소멸 ( ) |
 
-`examStatus`는 없다. 외부 `exam_status` 코드 테이블이 비어 있어 옮길 값이 없다(아래 참고).
+`examStatusId`의 이름도 `/api/oa-lookups`의 `examStatuses`에서 찾는다.
 
 ## `includePatentDetail` — 검색 응답에 없는 column 채우기
 
@@ -157,15 +167,21 @@ POST /api/patent-search       (권한: patentAnalysis.read)
 
 ## 정렬
 
-외부 API에 정렬 parameter가 없다. 결과는 항상 **의견제출통지서 발행일자(`action_date`)
-내림차순**으로 온다(확인함). 다른 정렬이 필요하면 외부 API에 지원이 먼저 추가되어야 한다.
+외부 API에 별도 정렬 parameter는 없다. 대신 검색 조건에 따라 다음 순서를 자동 적용한다.
 
-## 비어 있는 외부 코드 테이블
+- 키워드 있음: `relevance_score` 내림차순. 중계 API는 이를 `relevanceScore`로 전달한다.
+- 키워드 없음: 의견제출통지서 발행일자(`action_date`) 내림차순.
 
-`attorney`와 `exam_status` 테이블에 행이 없다. `GET /attorney/?attorney_name=...`,
-`GET /exam_statuses/?status=...`가 어떤 값에도 `null`을 준다. 따라서 `attorneyNames`,
-`examStatusText` 조건은 **지금 넣으면 항상 0건**이다. 필터 자체는 정상이라 외부에서 테이블이
-채워지면 그대로 동작한다. `legal_status`와 `examiner`는 채워져 있어 정상 동작한다.
+프런트의 Sort By도 마지막으로 실행한 검색의 키워드 유무에 따라 `관련도순` 또는
+`의견제출통지서 발행일자순`을 자동 표시한다. 전체 결과는 외부 API에서 정렬되므로 현재
+페이지의 항목만 프런트에서 다시 정렬하지 않는다.
+
+## 외부 코드 테이블
+
+`GET /api/oa-lookups`는 검색 API의 단건 코드 조회 endpoint와 별도로 OA PostgreSQL을 직접
+읽어 전체 select 목록을 제공한다. 2026-08-25 확인값은 `country` 3건,
+`exam_status` 14건(빈 값 1건은 제외), `legal_status` 10건이다. 연결 설정과 전체 응답 계약은
+[`oa_database.md`](./oa_database.md)를 따른다.
 
 `legal_status`의 전체 값과 건수(합 13,486 / 전체 13,488):
 

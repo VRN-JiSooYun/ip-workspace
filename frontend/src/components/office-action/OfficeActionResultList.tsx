@@ -9,17 +9,12 @@ const { Text } = Typography;
 
 export const OFFICE_ACTION_PAGE_SIZES = [10, 30, 50, 100];
 
-/**
- * 외부 검색 API에는 정렬 parameter가 없고 결과가 항상 의견제출통지서 발행일자
- * 내림차순으로 온다. 그래서 선택지도 이 하나뿐이다. 다른 정렬이 필요하면 외부 API에
- * 정렬 지원이 먼저 추가되어야 한다.
- */
+export type OfficeActionSort = 'relevance' | 'actionDateDesc';
+
 const SORT_OPTIONS = [
+  { label: '관련도순', value: 'relevance' },
   { label: '의견제출통지서 발행일자순', value: 'actionDateDesc' },
 ];
-
-const SORT_HINT =
-  '추가 예정';
 
 type Props = {
   items: PatentSearchItem[];
@@ -31,6 +26,8 @@ type Props = {
   pristine: boolean;
   error: string;
   selectedId: number | null;
+  /** 외부 API가 적용한 자동 정렬. 키워드가 있으면 relevance, 없으면 actionDateDesc다. */
+  sortBy: OfficeActionSort;
   onSelect: (item: PatentSearchItem) => void;
   onPageChange: (page: number, pageSize: number) => void;
 };
@@ -45,6 +42,7 @@ const OfficeActionResultList: React.FC<Props> = ({
   pristine,
   error,
   selectedId,
+  sortBy,
   onSelect,
   onPageChange,
 }) => (
@@ -59,12 +57,16 @@ const OfficeActionResultList: React.FC<Props> = ({
         </Text>
         {/* 폭은 CSS가 컨테이너에 맞춰 정한다. 인라인 고정 폭은 좁은 폭에서 헤더를 밀어낸다. */}
         <Select
-          value={SORT_OPTIONS[0].value}
+          value={sortBy}
           options={SORT_OPTIONS}
           className="oa-results-sort-select"
-          onChange={() => undefined}
+          disabled
         />
-        <Tooltip title={SORT_HINT}>
+        <Tooltip
+          title={sortBy === 'relevance'
+            ? '키워드 검색 결과는 관련도 점수가 높은 순서로 자동 정렬됩니다.'
+            : '키워드가 없으면 의견제출통지서 발행일자순으로 정렬됩니다.'}
+        >
           <Info size={13} className="oa-field-hint" />
         </Tooltip>
       </span>

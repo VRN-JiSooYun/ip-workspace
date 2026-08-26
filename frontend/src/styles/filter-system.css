@@ -47,6 +47,12 @@
   overflow-wrap: anywhere;
 }
 
+/* 두 칸을 쓰는 필드. 기간 선택(RangePicker)이나 긴 다중 선택처럼 150~180px에서
+   내용이 잘리는 입력에 쓴다. 마지막 열에 걸리면 auto-fit이 다음 줄로 내린다. */
+.filter-field-wide {
+  grid-column: span 2;
+}
+
 .filter-field-hint {
   color: var(--text-secondary);
   opacity: 0.7;

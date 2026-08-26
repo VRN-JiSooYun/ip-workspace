@@ -113,4 +113,17 @@ export class UpdatePatentRecordDto {
   @IsString()
   @MaxLength(200)
   target?: string | null;
+
+  /**
+   * 설명. 화면의 WYSIWYG 편집기가 보내는 HTML 조각이다(태그는 화면이 저장 전에 한 번,
+   * 다시 그릴 때 한 번 더 걸러 낸다).
+   *
+   * `note`는 TEXT 컬럼이라 이 상한은 DB 제약이 아니라 사고 방지용이다. 목록 조회가
+   * 행의 scalar를 전부 돌려주므로 **설명이 길어지면 목록 응답이 함께 무거워진다** —
+   * 그래서 편집기에서 이미지를 아예 받지 않고(글자만), 상한도 서식 포함 2만 자로 둔다.
+   */
+  @IsOptional()
+  @IsString()
+  @MaxLength(20000)
+  note?: string | null;
 }

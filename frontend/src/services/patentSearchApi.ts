@@ -3,6 +3,14 @@ import { AUTH_REQUIRED_EVENT, notifyIfAuthRequired } from './authApi';
 
 type RuntimeWindow = Window & { _env_?: { VITE_API_URL?: string } };
 
+export type OaCountryLookup = { id: number; country: string };
+export type OaStatusLookup = { id: number; status: string };
+export type OaLookups = {
+  countries: OaCountryLookup[];
+  examStatuses: OaStatusLookup[];
+  legalStatuses: OaStatusLookup[];
+};
+
 /**
  * 기간 조건을 걸 수 있는 날짜 column.
  * registrationDate는 외부 DB column이 text라 비교가 불가능해 제외되어 있다.
@@ -159,6 +167,8 @@ export type PatentSearchPatentDetail = {
 /** 결과 1건은 특허가 아니라 OA(의견제출통지서) 1건이다. */
 export type PatentSearchItem = {
   officeActionId: number | null;
+  /** 키워드 검색 관련도. 키워드가 없으면 null이다. */
+  relevanceScore: number | null;
   adminId: number | null;
   /** OA 본문. includeContent=false면 null. */
   content: string | null;
@@ -176,7 +186,7 @@ export type PatentSearchItem = {
   legalStatusId: number | null;
   /** 서버가 외부 코드 테이블 값으로 옮긴 명칭. 모르는 코드면 null. */
   legalStatus: string | null;
-  /** `exam_status.id`. 외부 코드 테이블이 비어 있어 명칭으로 옮길 수 없다. */
+  /** `exam_status.id`. 명칭은 `patentSearchApi.lookups()`에서 찾는다. */
   examStatusId: number | null;
   exam: boolean | null;
   examiners: PatentSearchExaminer[];
@@ -250,6 +260,11 @@ const compact = <T extends object>(source: T): Partial<T> => {
 };
 
 export const patentSearchApi = {
+  /** 외부 OA PostgreSQL의 필터용 코드 목록. */
+  lookups(): Promise<OaLookups> {
+    return request<OaLookups>('/oa-lookups');
+  },
+
   /**
    * OA·의견서·보정서 전문 검색.
    * 조건을 아무것도 넘기지 않으면 전체를 최신순으로 조회한다.

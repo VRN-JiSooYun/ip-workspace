@@ -1,0 +1,46 @@
+/* 대시보드 페이지 골격.
+ *
+ * 위젯 '안쪽'은 components/dashboard/dashboard.css가, 패널 껍데기는
+ * components/workspace/workspace.css가 갖는다. 여기에는 페이지 틀과 헤더줄만 남는다
+ * (PatentManagement.css와 같은 역할 분담).
+ */
+
+/* 페이지가 스크롤을 갖지 않는다. 트리가 화면 높이를 그대로 채우고 스크롤은 각 위젯이
+   자기 안에서 갖는다. .pm-page와 같은 규칙이다. */
+.db-page {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+/* 권한이 없어 위젯을 하나도 못 그리는 경우. 빈 패널을 늘어놓지 않고 안내만 남긴다. */
+.db-page-empty {
+  align-items: center;
+  justify-content: center;
+}
+
+/* ---- header line: breadcrumb + Target 필터 + 새로고침 -------------------- */
+/* MainLayout의 headerContent 영역에 들어간다. breadcrumb은 자기 폭만 쓰고,
+   Target select가 남는 폭을 먹되 너무 넓어지지 않게 상한을 둔다. */
+.db-header-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.db-header-row > :first-child {
+  flex: 0 0 auto;
+}
+
+.db-header-target {
+  flex: 1 1 auto;
+  min-width: 140px;
+  max-width: 360px;
+  /* 남는 폭이 있으면 오른쪽 버튼들을 헤더 끝으로 밀어낸다. */
+  margin-inline-end: auto;
+}

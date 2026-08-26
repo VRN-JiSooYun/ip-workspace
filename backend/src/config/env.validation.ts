@@ -30,6 +30,19 @@ export const validateEnv = (config: EnvConfig): EnvConfig => {
     "PATENT_SEARCH_API_TIMEOUT_MS",
     config.PATENT_SEARCH_API_TIMEOUT_MS,
   );
+  ensureNumber("OA_DATABASE_PORT", config.OA_DATABASE_PORT);
+  ensureNumber(
+    "OA_DATABASE_CONNECTION_TIMEOUT_MS",
+    config.OA_DATABASE_CONNECTION_TIMEOUT_MS,
+  );
+  ensureNumber(
+    "OA_DATABASE_STATEMENT_TIMEOUT_MS",
+    config.OA_DATABASE_STATEMENT_TIMEOUT_MS,
+  );
+  ensureNumber(
+    "OA_DATABASE_LOOKUP_CACHE_TTL_MS",
+    config.OA_DATABASE_LOOKUP_CACHE_TTL_MS,
+  );
   ensureNumber("COMPOUND_API_TIMEOUT_MS", config.COMPOUND_API_TIMEOUT_MS);
   ensureNumber(
     "GROUPWARE_LOGIN_CHECK_TIMEOUT_MS",
@@ -57,6 +70,8 @@ export const validateEnv = (config: EnvConfig): EnvConfig => {
   );
   ensureUrl("PATENT_INSIGHT_API_URL", config.PATENT_INSIGHT_API_URL);
   ensureUrl("PATENT_SEARCH_API_URL", config.PATENT_SEARCH_API_URL);
+  ensureUrl("SEAWEEDFS_FILER_URL", config.SEAWEEDFS_FILER_URL);
+  ensureUrl("SEAWEEDFS_PUBLIC_URL", config.SEAWEEDFS_PUBLIC_URL);
   ensureUrl("CONFORMER_API_URL", config.CONFORMER_API_URL);
   ensureUrl("COMPOUND_API_URL", config.COMPOUND_API_URL);
   ensureUrl("BETTER_AUTH_URL", config.BETTER_AUTH_URL);

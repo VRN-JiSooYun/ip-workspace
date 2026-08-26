@@ -3,6 +3,7 @@ import { BadRequestException, Injectable, Logger } from "@nestjs/common";
 import type { Prisma } from "../generated/prisma/client";
 import { PrismaService } from "../database/prisma.service";
 import { buildInternalRefColumns, normalizeInternalRef } from "./internal-ref";
+import { auditedFieldNames } from "./patent-audit-fields";
 import {
   PATENT_CSV_COLUMNS,
   parseCsv,
@@ -11,6 +12,7 @@ import {
   resolveHeaderField,
   type PatentCsvField,
 } from "./patent-csv";
+import { mergeSheetNotes } from "./rich-text";
 
 export type ImportMode = "DRY_RUN" | "APPLY";
 export type DuplicateMode = "SKIP" | "UPDATE";
@@ -69,7 +71,6 @@ type Candidate = {
     parentApplicationNumber: string | null;
     target: string | null;
     inventors: string | null;
-    statusNote: string | null;
     todoDueDate: Date | null;
     relationType: string | null;
     licenseAgreement: string | null;
@@ -373,14 +374,13 @@ export class PatentRecordImportService {
         examDate,
         target: textOrNull(raw.target),
         inventors: textOrNull(raw.inventors),
-        statusNote: textOrNull(raw.statusNote),
         todoDueDate,
         relationType: textOrNull(raw.relationType),
         licenseAgreement: textOrNull(raw.licenseAgreement),
         rightsChange: textOrNull(raw.rightsChange),
         shareAgreement: textOrNull(raw.shareAgreement),
         expectedExpiryDate,
-        note: textOrNull(raw.note),
+        note: mergeSheetNotes(raw.note, raw.statusNote),
       },
     };
   }
@@ -625,6 +625,7 @@ export class PatentRecordImportService {
 
         if (existingId !== null) {
           await tx.patent.update({ where: { id: existingId }, data });
+          await this.recordImport(tx, existingId, candidate, data);
           await this.syncLegacyTodo(
             tx,
             existingId,
@@ -635,6 +636,7 @@ export class PatentRecordImportService {
             data: { ...data, applicationNumber: candidate.applicationNumber },
             select: { id: true },
           });
+          await this.recordImport(tx, created.id, candidate, data);
           await this.syncLegacyTodo(
             tx,
             created.id,
@@ -642,6 +644,36 @@ export class PatentRecordImportService {
           );
         }
       }
+    });
+  }
+
+  /**
+   * 임포트는 특허당 요약 **1행**만 남긴다.
+   *
+   * 화면 편집은 필드마다 한 행을 남기지만(활동 피드가 그걸로 그려진다) 임포트에 같은 규칙을
+   * 쓰면 500건 × 20필드 = 만 단위 행이 한 번에 생긴다. 무엇이 바뀌었는지는 컬럼 **이름**만
+   * 담아 두고, 값 단위 비교는 하지 않는다(그러려면 행마다 before를 읽어야 해서 임포트가
+   * 느려진다).
+   */
+  private async recordImport(
+    tx: Prisma.TransactionClient,
+    patentId: number,
+    candidate: { applicationNumber: string; internalRef: string | null },
+    data: Record<string, unknown>,
+  ): Promise<void> {
+    await tx.patentAuditLog.create({
+      data: {
+        patentId,
+        // 임포트를 실행한 사람은 컨트롤러가 알지만, 이 서비스까지 내리지 않았다.
+        // 지금은 "임포트로 바뀌었다"만 남긴다(누가 돌렸는지는 auth_audit_log 쪽 일이다).
+        actorUserId: null,
+        eventType: "PATENT_IMPORTED",
+        metadata: {
+          applicationNumber: candidate.applicationNumber,
+          internalRef: candidate.internalRef,
+          changedFields: auditedFieldNames(Object.keys(data)),
+        },
+      },
     });
   }
 

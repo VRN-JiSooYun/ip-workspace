@@ -1,23 +1,36 @@
 import React, { useMemo, useState } from 'react';
-import { Button, Empty, Segmented, Tabs, Tag, Tooltip, Typography } from 'antd';
-import { ExternalLink, FileText, X } from 'lucide-react';
+import { Empty, Tag, Tooltip, Typography } from 'antd';
+import { FileText } from 'lucide-react';
 import PatentDocumentPdfPane from './PatentDocumentPdfPane';
-import { formatDisplayDateOnly } from '../../utils/displayFormat';
+import PatentDocumentTimeline, { type TimelineSelection } from './PatentDocumentTimeline';
+import { buildTimelineEntries, type PdfSource } from './patentDocumentNodes';
+import { formatDisplayDateTime } from '../../utils/displayFormat';
+import { getLegalStatusTagColor } from '../../utils/legalStatusTag';
 import './PatentDocumentViewer.css';
-import type {
-  PatentSearchItem,
-  PatentSearchRejection,
-  PatentSearchSubmission,
-} from '../../services/patentSearchApi';
+import type { PatentSearchItem } from '../../services/patentSearchApi';
 
 const { Text } = Typography;
 
 type Props = {
-  /** 목록에서 선택한 OA. null이면 안내 문구만 보여준다. */
-  item: PatentSearchItem | null;
+  /**
+   * 이 특허의 통지 건 전부. 타임라인이 통지일 순으로 늘어놓는다.
+   *
+   * 예전에는 통지 건 하나(`item`)만 받고 건 선택은 부르는 쪽의 Segmented가 했다. 축이
+   * 둘로 갈려 있으면(건 선택 + 문서 선택) 하나의 타임라인으로 합칠 수 없어 목록을 받는다.
+   */
+  items: PatentSearchItem[];
+  /** 보고 있는 통지 건(officeActionId). null이면 타임라인의 첫 건. */
+  activeItemId: number | null;
+  onActiveItemChange: (officeActionId: number | null) => void;
   legalStatusLabel: string | null;
   examStatusLabel: string | null;
-  onClose: () => void;
+  /**
+   * 보고 있는 문서 노드의 key. 통지 건을 바꿔도 같은 종류의 문서를 유지하려면 부르는 쪽이
+   * 들고 있어야 한다(이 컴포넌트는 문서마다 다시 그려지므로 여기서 기억하면 뷰어가
+   * 사라질 때 함께 사라진다). 넘기지 않으면 스스로 들고 있는다.
+   */
+  activeTabKey?: string | null;
+  onActiveTabKeyChange?: (key: string) => void;
 };
 
 /** `http://.../oa/2023/1020237016326_의견제출통지서_20260526.pdf` → 마지막 경로 조각. */
@@ -33,79 +46,29 @@ const fileNameOf = (documentPath: string | null): string | null => {
   }
 };
 
-/** `제29조 제2항 제1호` 형태로 조립한다. 없는 단위는 건너뛴다. */
-const formatRejection = (rejection: PatentSearchRejection): string => {
-  const parts: string[] = [];
-  if (rejection.article !== null) parts.push(`제${rejection.article}조`);
-  if (rejection.paragraph !== null) parts.push(`제${rejection.paragraph}항`);
-  if (rejection.subParagraph !== null) parts.push(`제${rejection.subParagraph}호`);
-  return parts.length > 0 ? parts.join(' ') : '조문 미지정';
-};
-
 /**
- * 본문은 외부 API가 markdown에 가까운 평문으로 준다(`# 의견제출통지서`, `【제출인】` 등).
- * 렌더러를 붙이지 않고 줄바꿈만 살려 원문 그대로 보여준다.
- */
-const DocumentBody: React.FC<{
-  content: string | null;
-  contentLength: number;
-  documentPath: string | null;
-}> = ({ content, contentLength, documentPath }) => (
-  <div className="pm-viewer-preview">
-    {documentPath && (
-      <div style={{ marginBottom: 12 }}>
-        <Button
-          size="small"
-          icon={<ExternalLink size={13} />}
-          href={documentPath}
-          target="_blank"
-          rel="noreferrer"
-        >
-          PDF 원본 열기
-        </Button>
-      </div>
-    )}
-    {content ? (
-      <pre className="pm-doc-body">{content}</pre>
-    ) : (
-      <Text type="secondary" style={{ fontSize: 12 }}>
-        {contentLength > 0
-          ? '본문을 불러오지 않았습니다.'
-          : '등록된 본문이 없습니다.'}
-      </Text>
-    )}
-  </div>
-);
-
-type PdfSource = { label: string; path: string };
-
-/**
- * `문서 전문` 탭. 특허 분석 화면과 같은 PDF 뷰어로 원본을 그대로 보여준다.
+ * 타임라인에서 고른 문서 하나의 원본. 특허 분석 화면과 같은 PDF 뷰어를 쓴다.
  *
- * OA 하나에 통지서·의견서·보정서 PDF가 각각 딸릴 수 있어, 문서가 둘 이상이면 위에
- * 선택 버튼을 둔다. 하나뿐이면 선택 UI 없이 바로 그린다.
+ * 문서 선택은 타임라인이 하므로 여기서는 선택 UI를 두지 않는다.
  */
 const FullTextPane: React.FC<{ sources: PdfSource[] }> = ({ sources }) => {
-  const [activePath, setActivePath] = useState(sources[0].path);
-  // 선택이 바뀌어 문서 구성이 달라지면 첫 문서로 되돌린다.
-  const resolvedPath = sources.some((source) => source.path === activePath)
-    ? activePath
-    : sources[0].path;
+  // sources가 빌 수 있다. PDF 없이 본문만 있는 통지서, PDF가 딸리지 않은 의견서·보정서가
+  // 그렇다 — 부르는 쪽이 그 경우 []를 그대로 넘긴다. sources[0].path로 바로 읽으면
+  // 그런 문서를 고르는 순간 뷰어가 아니라 앱 전체가 죽는다(위에 error boundary가 없다).
+  const resolvedPath = sources[0]?.path ?? null;
+
+  if (!resolvedPath) {
+    return (
+      <div className="pm-viewer-preview">
+        <Text type="secondary" style={{ fontSize: 12 }}>
+          이 문서에는 첨부된 PDF 원본이 없습니다.
+        </Text>
+      </div>
+    );
+  }
 
   return (
     <div className="pm-doc-fulltext">
-      {sources.length > 1 && (
-        <Segmented
-          size="small"
-          value={resolvedPath}
-          onChange={(value) => setActivePath(value as string)}
-          options={sources.map((source) => ({
-            label: source.label,
-            value: source.path,
-          }))}
-          className="pm-doc-fulltext-switch"
-        />
-      )}
       {/* key를 주어 문서가 바뀌면 뷰어를 새로 마운트한다. */}
       <PatentDocumentPdfPane key={resolvedPath} documentPath={resolvedPath} />
     </div>
@@ -119,210 +82,68 @@ const FullTextPane: React.FC<{ sources: PdfSource[] }> = ({ sources }) => {
  * `includeContent: false`로 받았다면 본문이 비어 있으므로 길이만 표시된다.
  */
 const PatentDocumentViewer: React.FC<Props> = ({
-  item,
+  items,
+  activeItemId,
+  onActiveItemChange,
   legalStatusLabel,
   examStatusLabel,
-  onClose,
+  activeTabKey,
+  onActiveTabKeyChange,
 }) => {
-  const tabItems = useMemo(() => {
-    if (!item) return [];
+  /**
+   * 특허의 모든 문서를 날짜순 한 줄로. 통지 건 경계가 아니라 날짜가 순서를 정한다
+   * (통지서와 그 대응 서류가 몇 달 떨어져 있으면 축에서도 떨어진다).
+   */
+  const entries = useMemo(() => buildTimelineEntries(items), [items]);
 
-    const labelFor = (
-      submission: PatentSearchSubmission,
-      index: number,
-      sameKindCount: number,
-    ) => {
-      const base = submission.kind === 'OPINION' ? '의견서' : '보정서';
-      return sameKindCount > 1 ? `${base} ${index + 1}` : base;
-    };
+  /** 부르는 쪽이 문서 선택을 관리하지 않을 때 쓰는 자체 상태. */
+  const [ownNodeKey, setOwnNodeKey] = useState<string | null>(null);
+  const requestedNodeKey = activeTabKey !== undefined ? activeTabKey : ownNodeKey;
 
-    const opinions = item.submissions.filter((s) => s.kind === 'OPINION');
-    const amendments = item.submissions.filter((s) => s.kind === 'AMENDMENT');
-    // kind를 해석하지 못한 코드도 버리지 않고 별도 tab으로 남긴다.
-    const others = item.submissions.filter((s) => s.kind === null);
+  /**
+   * 실제로 열 문서.
+   *
+   * (통지 건, 노드 key) 짝으로 찾고, 없으면 그 통지 건의 첫 문서 → 축의 첫 문서로 떨어진다.
+   * 건마다 딸린 문서가 달라서다(의견서가 두 건인 통지도 있고 없는 통지도 있다).
+   */
+  const activeEntry = useMemo(() => {
+    const ofItem = entries.filter((entry) => entry.item.officeActionId === activeItemId);
+    return (
+      ofItem.find((entry) => entry.node.key === requestedNodeKey)
+      // 기억해 둔 문서가 이 건에 없으면 통지서로 연다. 축에서 날짜가 가장 앞인 문서가
+      // 아니라 통지서인 이유: 통지가 그 건의 시작이고, 대응 서류만 먼저 열리면 무엇에
+      // 대한 대응인지 모르는 채로 보게 된다.
+      ?? ofItem.find((entry) => entry.node.kind === 'OFFICE_ACTION')
+      ?? ofItem[0]
+      ?? entries[0]
+      ?? null
+    );
+  }, [entries, activeItemId, requestedNodeKey]);
 
-    const tabs = [];
+  const activeItem = activeEntry?.item ?? null;
+  const activeNode = activeEntry?.node ?? null;
 
-    if (item.content || item.documentPath || item.contentLength > 0) {
-      tabs.push({
-        key: 'office-action',
-        label: item.action ?? '의견제출통지서',
-        children: (
-          <DocumentBody
-            content={item.content}
-            contentLength={item.contentLength}
-            documentPath={item.documentPath}
-          />
-        ),
-      });
+  const selection: TimelineSelection = {
+    officeActionId: activeItem?.officeActionId ?? null,
+    nodeKey: activeNode?.key ?? '',
+  };
+
+  const handleSelect = (next: TimelineSelection) => {
+    if (next.officeActionId !== selection.officeActionId) {
+      onActiveItemChange(next.officeActionId);
     }
+    setOwnNodeKey(next.nodeKey);
+    onActiveTabKeyChange?.(next.nodeKey);
+  };
 
-    [...opinions, ...amendments].forEach((submission) => {
-      const sameKind = submission.kind === 'OPINION' ? opinions : amendments;
-      const index = sameKind.indexOf(submission);
-      tabs.push({
-        key: `submission-${submission.id ?? `${submission.kind}-${index}`}`,
-        label: labelFor(submission, index, sameKind.length),
-        children: (
-          <DocumentBody
-            content={submission.content}
-            contentLength={submission.contentLength}
-            documentPath={submission.documentPath}
-          />
-        ),
-      });
-    });
-
-    others.forEach((submission, index) => {
-      tabs.push({
-        key: `submission-other-${submission.id ?? index}`,
-        label: `기타 문서${others.length > 1 ? ` ${index + 1}` : ''}`,
-        children: (
-          <DocumentBody
-            content={submission.content}
-            contentLength={submission.contentLength}
-            documentPath={submission.documentPath}
-          />
-        ),
-      });
-    });
-
-    // PDF가 있는 문서만 `문서 전문`에서 고를 수 있다.
-    const pdfSources = [
-      ...(item.documentPath
-        ? [{ label: item.action ?? '의견제출통지서', path: item.documentPath }]
-        : []),
-      ...[...opinions, ...amendments, ...others].flatMap((submission, index) => {
-        if (!submission.documentPath) return [];
-        const sameKind =
-          submission.kind === 'OPINION'
-            ? opinions
-            : submission.kind === 'AMENDMENT'
-              ? amendments
-              : others;
-        const label =
-          submission.kind === null
-            ? `기타 문서${others.length > 1 ? ` ${index + 1}` : ''}`
-            : labelFor(submission, sameKind.indexOf(submission), sameKind.length);
-        return [{ label, path: submission.documentPath }];
-      }),
-    ];
-
-    if (pdfSources.length > 0) {
-      tabs.push({
-        key: 'full-text',
-        label: '문서 전문',
-        // antd Tabs는 활성화된 뒤에야 pane을 그린다. 탭을 누르기 전에는 PDF를
-        // 내려받지 않는다는 뜻이라 그대로 둔다.
-        children: <FullTextPane sources={pdfSources} />,
-      });
-    }
-
-    tabs.push({
-      key: 'info',
-      label: '정보',
-      children: (
-        <div className="pm-viewer-preview">
-          <div className="pm-doc-field">
-            <span className="pm-doc-field-label">출원번호</span>
-            <span className="pm-doc-field-value">{item.applicationNumber ?? '-'}</span>
-          </div>
-          <div className="pm-doc-field">
-            <span className="pm-doc-field-label">발명의 명칭</span>
-            <span className="pm-doc-field-value">
-              {item.koreanTitle ?? item.englishTitle ?? '-'}
-            </span>
-          </div>
-          {item.englishTitle && item.koreanTitle && (
-            <div className="pm-doc-field">
-              <span className="pm-doc-field-label">영문 명칭</span>
-              <span className="pm-doc-field-value">{item.englishTitle}</span>
-            </div>
-          )}
-          <div className="pm-doc-field">
-            <span className="pm-doc-field-label">출원인</span>
-            <span className="pm-doc-field-value">{item.applicant ?? '-'}</span>
-          </div>
-          <div className="pm-doc-field">
-            <span className="pm-doc-field-label">문서구분</span>
-            <span className="pm-doc-field-value">{item.action ?? '-'}</span>
-          </div>
-          <div className="pm-doc-field">
-            <span className="pm-doc-field-label">통지일</span>
-            <span className="pm-doc-field-value">
-              {formatDisplayDateOnly(item.actionDate)}
-            </span>
-          </div>
-          <div className="pm-doc-field">
-            <span className="pm-doc-field-label">발송번호</span>
-            <span className="pm-doc-field-value">{item.actionNumber ?? '-'}</span>
-          </div>
-          <div className="pm-doc-field">
-            <span className="pm-doc-field-label">법적 상태</span>
-            <span className="pm-doc-field-value">{legalStatusLabel ?? '-'}</span>
-          </div>
-          <div className="pm-doc-field">
-            <span className="pm-doc-field-label">심사 상태</span>
-            <span className="pm-doc-field-value">{examStatusLabel ?? '-'}</span>
-          </div>
-          <div className="pm-doc-field">
-            <span className="pm-doc-field-label">심사청구</span>
-            <span className="pm-doc-field-value">
-              {item.exam === null ? '-' : item.exam ? '청구' : '미청구'}
-            </span>
-          </div>
-
-          <div className="pm-viewer-section-title">심사관</div>
-          {item.examiners.length === 0 ? (
-            <Text type="secondary" style={{ fontSize: 12 }}>정보가 없습니다.</Text>
-          ) : (
-            item.examiners.map((examiner, index) => (
-              <div key={examiner.id ?? index} className="pm-doc-field">
-                <span className="pm-doc-field-label">{examiner.name ?? '-'}</span>
-                <span className="pm-doc-field-value">
-                  {[examiner.office, examiner.bureau, examiner.department]
-                    .filter(Boolean)
-                    .join(' · ') || '-'}
-                </span>
-              </div>
-            ))
-          )}
-
-          <div className="pm-viewer-section-title">거절이유</div>
-          {item.rejections.length === 0 ? (
-            <Text type="secondary" style={{ fontSize: 12 }}>정보가 없습니다.</Text>
-          ) : (
-            item.rejections.map((rejection, index) => (
-              <div key={rejection.rejectionId ?? index} className="pm-doc-field">
-                <span className="pm-doc-field-label">
-                  <Tooltip title={`법종류 코드 ${rejection.lawType ?? '-'}`}>
-                    <span>{formatRejection(rejection)}</span>
-                  </Tooltip>
-                </span>
-                <span className="pm-doc-field-value">{rejection.claim ?? '-'}</span>
-              </div>
-            ))
-          )}
-        </div>
-      ),
-    });
-
-    return tabs;
-  }, [item, legalStatusLabel, examStatusLabel]);
-
-  const headerFileName = item
-    ? (fileNameOf(item.documentPath) ?? item.action ?? '문서')
+  const headerFileName = activeItem
+    ? (fileNameOf(activeItem.koreanTitle) ?? 'UNKNOWN')
     : null;
 
   // 높이·flex 배치는 PatentDocumentViewer.css의 .pm-doc-viewer가 갖는다.
   return (
-    <section className="pm-card pm-doc-viewer">
-      <div className="pm-card-header">
-        <span className="pm-card-title">문서 뷰어</span>
-        <Button icon={<X size={14} />} onClick={onClose} style={{ height: 32 }}/>
-      </div>
-
-      {!item ? (
+    <section className="pm-doc-viewer">
+      {!activeItem ? (
         <Empty
           image={Empty.PRESENTED_IMAGE_SIMPLE}
           description={
@@ -344,23 +165,42 @@ const PatentDocumentViewer: React.FC<Props> = ({
           </div>
 
           <div className="pm-viewer-meta" style={{ marginBottom: 6 }}>
-            <span>출원번호 <span className="pm-viewer-meta-value">{item.applicationNumber ?? '-'}</span></span>
+            <span>출원번호 <span className="pm-viewer-meta-value">{activeItem.applicationNumber ?? '-'}</span></span>
             <span className="pm-viewer-divider">|</span>
-            <span>통지일 <span className="pm-viewer-meta-value">{formatDisplayDateOnly(item.actionDate)}</span></span>
-          </div>
-          <div className="pm-viewer-meta" style={{ marginBottom: 12 }}>
-            <span>문서구분 <span className="pm-viewer-meta-value">{item.action ?? '-'}</span></span>
             {legalStatusLabel && (
               <>
-                <span className="pm-viewer-divider">|</span>
-                <Tag color="blue" style={{ marginInlineEnd: 0 }}>{legalStatusLabel}</Tag>
+                <span>법적 상태 <span className="pm-viewer-meta-value"></span></span>
+                <Tag
+                  color={getLegalStatusTagColor(legalStatusLabel)}
+                  style={{ marginInlineEnd: 0 }}
+                >
+                  {legalStatusLabel}
+                </Tag>
               </>
             )}
             {examStatusLabel && <Tag style={{ marginInlineEnd: 0 }}>{examStatusLabel}</Tag>}
           </div>
 
-          {/* 선택이 바뀌면 첫 tab부터 다시 보여준다. */}
-          <Tabs key={item.officeActionId ?? 'none'} items={tabItems} />
+          {/* 탭 두 줄(통지 건 + 문서)을 대신하는 가로 타임라인. */}
+          <PatentDocumentTimeline
+            entries={entries}
+            selection={selection}
+            onSelect={handleSelect}
+          />
+
+          {/* 고른 문서 하나만 그린다. 타임라인이 무엇을 보고 있는지 이미 밝히므로
+              여기서 제목을 다시 쓰지 않는다. */}
+          <div className="pm-doc-viewer-pane">
+            {activeNode ? (
+              <FullTextPane sources={activeNode.sources} />
+            ) : (
+              <div className="pm-viewer-preview">
+                <Text type="secondary" style={{ fontSize: 12 }}>
+                  이 통지 건에 등록된 문서가 없습니다.
+                </Text>
+              </div>
+            )}
+          </div>
         </>
       )}
     </section>

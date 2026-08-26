@@ -50,6 +50,7 @@ services:
       # (http://localhost:5174/ip-workspace/) prefix 없이 띄우려면 BASE_PATH=/
       - BASE_PATH=${BASE_PATH:-/ip-workspace/}
       - VITE_API_URL=http://localhost:3000/api
+      - BACKEND_API_PROXY_TARGET=http://local-ipworkspace-backend:3000
       - VITE_RDKIT_API_URL=${BASE_PATH:-/ip-workspace/}rdkit-api
       - VITE_COMPOUND_SEARCH_API_URL=${BASE_PATH:-/ip-workspace/}compound-search-api
       - VITE_CHEMDRAW_CLIPBOARD_FIXER_URL=http://localhost:47823
@@ -82,6 +83,11 @@ services:
       - PATENT_ANALYSIS_UPLOAD_API_URL=http://172.16.1.210:8000
       - PATENT_INSIGHT_API_URL=http://172.16.1.210:8000
       - PATENT_ANALYSIS_OWNER_ID=171
+      - SEAWEEDFS_FILER_URL=${SEAWEEDFS_FILER_URL:-http://172.16.1.183:8888}
+      - SEAWEEDFS_PUBLIC_URL=${SEAWEEDFS_PUBLIC_URL:-http://172.16.1.183:8888}
+      - SEAWEEDFS_BASE_PATH=${SEAWEEDFS_BASE_PATH:-}
+      - SEAWEEDFS_ROOT_DIR=${SEAWEEDFS_ROOT_DIR:-buckets}
+      - SEAWEEDFS_ENV_DIR=${SEAWEEDFS_ENV_DIR:-ip_ws_dev}
       - CONFORMER_API_URL=http://172.16.1.203:8000
       - CONFORMER_API_TIMEOUT_MS=120000
       - COMPOUND_API_URL=http://172.16.1.32:10050

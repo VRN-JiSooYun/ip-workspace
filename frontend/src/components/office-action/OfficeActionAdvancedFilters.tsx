@@ -16,6 +16,7 @@ import {
   PATENT_SEARCH_DATE_FIELD_LABELS,
   type PatentSearchDateField,
   type PatentSearchFilters,
+  type OaLookups,
 } from '../../services/patentSearchApi';
 
 const { Text } = Typography;
@@ -25,31 +26,7 @@ const { Text } = Typography;
  * 값은 이 둘뿐이다(1=특허법 13,488건 / 2=특허법 시행령 2,452건). 3 이상은 0건이다.
  * 명칭은 공백까지 정확히 맞아야 한다("특허법시행령"은 0건).
  */
-export const LAW_TYPE_OPTIONS = ['특허법', '특허법 시행령'] as const;
-
-/**
- * 외부 `legal_status` 코드 테이블의 실제 값.
- *
- * 목록을 주는 endpoint가 없어(`GET /legal_statuses/`는 값→id 조회다) 실데이터로 확인해
- * 고정했다. 6개 건수 합(7,329+3,102+2,474+158+177+246=13,486)이 전체 13,488건과 거의
- * 같아 사실상 전체 집합이다.
- */
-export const LEGAL_STATUS_OPTIONS = [
-  '등록',
-  '공개',
-  '거절',
-  '취하',
-  '포기',
-  '소멸 (등록료불납)',
-] as const;
-
-/**
- * 외부 DB의 `attorney`·`exam_status` 코드 테이블이 비어 있어(`GET /attorney/`,
- * `GET /exam_statuses/`가 어떤 값에도 null을 준다) 이 두 조건은 지금 넣으면 항상 0건이다.
- * 컨트롤은 시안대로 두되 이유를 표시한다. 외부에서 테이블이 채워지면 그대로 동작한다.
- */
-const UPSTREAM_EMPTY_HINT =
-  '외부 DB의 코드 테이블이 아직 비어 있어, 이 조건을 넣으면 결과가 0건이 됩니다.';
+export const LAW_TYPE_OPTIONS = ['특허법', '특허법 시행령', '실용신안법'] as const;
 
 /** IPC 섹션은 표준 분류라 데이터와 무관하게 고정 목록이다. */
 const IPC_SECTIONS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'] as const;
@@ -179,6 +156,8 @@ const YES_NO_OPTIONS = [
 
 type Props = {
   value: OfficeActionFilterState;
+  lookups: OaLookups | null;
+  lookupsLoading?: boolean;
   /**
    * `useState`의 setter를 그대로 받는다. 한 tick에 두 필드가 바뀌어도 뒤쪽 갱신이
    * 앞쪽을 덮어쓰지 않도록 항상 updater 형태로 쓴다.
@@ -209,13 +188,15 @@ const Field: React.FC<{
 /**
  * 고급 검색 필터.
  *
- * option 목록의 출처가 조건마다 다르다. 외부 API의 `/attorney`·`/legal_statuses` 등은
- * 값을 주면 id를 돌려주는 조회용이라 목록을 열거할 수 없고, 로컬 코드 테이블
- * (`patentRecordApi.lookups()`)은 IP팀 시트에서 온 별개 어휘라 외부 데이터를 필터링하는 데
- * 쓰면 맞지 않는다. 그래서 확인 가능한 것만 고정 목록으로 두고(법적상태, 법 유형, IPC 섹션)
- * 나머지는 자유 입력으로 둔다.
+ * 법적상태·심사진행상태 option은 외부 OA PostgreSQL의 코드 테이블에서 받는다. 로컬
+ * `patentRecordApi.lookups()`은 IP팀 관리 데이터의 별개 ID 체계라 이 검색에는 사용하지 않는다.
  */
-const OfficeActionAdvancedFilters: React.FC<Props> = ({ value, onChange }) => {
+const OfficeActionAdvancedFilters: React.FC<Props> = ({
+  value,
+  lookups,
+  lookupsLoading = false,
+  onChange,
+}) => {
   const [statuteDraft, setStatuteDraft] = useState<StatuteCondition>({ lawTypeText: '' });
   const [ipcDraft, setIpcDraft] = useState<IpcCondition>({});
 
@@ -318,13 +299,16 @@ const OfficeActionAdvancedFilters: React.FC<Props> = ({ value, onChange }) => {
                     <Select
                       mode="multiple"
                       allowClear
+                      showSearch
                       placeholder="전체"
                       value={value.legalStatusText}
                       onChange={(next: string[]) => patch({ legalStatusText: next })}
                       optionFilterProp="label"
-                      options={LEGAL_STATUS_OPTIONS.map((status) => ({
-                        label: status,
-                        value: status,
+                      loading={lookupsLoading}
+                      disabled={!lookups}
+                      options={(lookups?.legalStatuses ?? []).map((item) => ({
+                        label: item.status,
+                        value: item.status,
                       }))}
                     />
                   </Field>
@@ -337,15 +321,21 @@ const OfficeActionAdvancedFilters: React.FC<Props> = ({ value, onChange }) => {
                       options={YES_NO_OPTIONS}
                     />
                   </Field>
-                  <Field label="심사진행상태" hint="API 연동 예정">
+                  <Field label="심사진행상태">
                     <Select
-                      mode="tags"
+                      mode="multiple"
                       allowClear
-                      placeholder="상태 입력"
+                      showSearch
+                      placeholder="전체"
                       value={value.examStatusText}
                       onChange={(next: string[]) => patch({ examStatusText: next })}
-                      open={false}
-                      suffixIcon={null}
+                      optionFilterProp="label"
+                      loading={lookupsLoading}
+                      disabled={!lookups}
+                      options={(lookups?.examStatuses ?? []).map((item) => ({
+                        label: item.status,
+                        value: item.status,
+                      }))}
                     />
                   </Field>
                 </div>

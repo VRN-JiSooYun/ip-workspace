@@ -24,6 +24,8 @@ export default defineConfig(({ mode }) => {
   const compoundSearchApiTarget =
     env.COMPOUND_SEARCH_API_PROXY_TARGET ||
     'http://local-ipworkspace-compound-search-api:8080';
+  const backendApiTarget =
+    env.BACKEND_API_PROXY_TARGET || 'http://local-ipworkspace-backend:3000';
 
   const basePath = normalizeBasePath(env.BASE_PATH ?? '/ip-workspace/');
   // dev 서버는 앞단 nginx 없이 직접 요청을 받으므로, 앱이 붙이는 prefix를
@@ -67,6 +69,13 @@ export default defineConfig(({ mode }) => {
       [`${prefix}/api/register`]: monitoringProxy,
       [`${prefix}/api/reservations`]: monitoringProxy,
       [`${prefix}/api/cancel`]: monitoringProxy,
+      // 설명 이미지 URL은 DB에 same-origin 상대 경로로 저장한다. Vite 개발 서버에서도
+      // 이 경로가 Backend로 가야 개발 origin(localhost:5174)이 본문에 고정되지 않는다.
+      [`${prefix}/api`]: {
+        target: backendApiTarget,
+        changeOrigin: true,
+        rewrite: stripPrefix,
+      },
     },
   },
   resolve: {

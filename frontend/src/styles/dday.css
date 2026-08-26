@@ -1,0 +1,49 @@
+/* D-day 배지.
+ *
+ * class 이름은 utils/patentCalendar.ts의 ddayClassName()이 정한다. 그 유틸이 특허 관리
+ * 화면 전용이 아니게 되면서(대시보드 기한 보드도 같은 배지를 쓴다) 규칙도 페이지 CSS에서
+ * 여기로 옮겼다. 유틸과 스타일이 같은 수준에 있어야 한쪽만 재사용되는 일이 없다.
+ *
+ * 접두사 pm- 은 ddayClassName()이 돌려주는 문자열이라 유지한다(둘을 함께 바꿔야 한다).
+ */
+
+.pm-dday {
+  flex-shrink: 0;
+  min-width: 46px;
+  text-align: center;
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.pm-dday-urgent {
+  background: rgba(220, 38, 38, 0.12);
+  color: #dc2626;
+}
+
+.pm-dday-soon {
+  background: rgba(217, 119, 6, 0.14);
+  color: #b45309;
+}
+
+.pm-dday-later {
+  background: rgba(5, 150, 105, 0.12);
+  color: #047857;
+}
+
+/* 다크 테마에서는 배경이 어두워 위 색이 묻힌다. 배경 투명도를 올리고 글자를 밝힌다. */
+[data-theme='dark'] .pm-dday-urgent {
+  background: rgba(248, 113, 113, 0.18);
+  color: #fca5a5;
+}
+
+[data-theme='dark'] .pm-dday-soon {
+  background: rgba(251, 191, 36, 0.18);
+  color: #fcd34d;
+}
+
+[data-theme='dark'] .pm-dday-later {
+  background: rgba(52, 211, 153, 0.16);
+  color: #6ee7b7;
+}

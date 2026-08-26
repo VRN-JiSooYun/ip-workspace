@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Right sidebar harness</title>
+  </head>
+  <body>
+    <!--
+      개발 전용 진입점. 레일은 AuthGate 안의 MainLayout에 있어 dev 브라우저에서 열 수
+      없으므로 여기서 따로 띄워 검증한다. index.html과 별개 파일이라 앱 번들에 섞이지 않는다.
+      http://localhost:5173/ip-workspace/rail-harness.html
+    -->
+    <div id="root"></div>
+    <script type="module" src="/src/dev/railHarness.tsx"></script>
+  </body>
+</html>

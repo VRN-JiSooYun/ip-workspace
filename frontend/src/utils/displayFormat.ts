@@ -40,9 +40,49 @@ export const formatDisplayDate = (value: unknown) => {
     .replace(/\b(\d{2})[-/.](\d{2})[-/.](\d{2})\.?(?!\d)/g, '20$1.$2.$3');
 };
 
-export const formatDisplayDateOnly = (value: unknown) => {
-  const formattedValue = formatDisplayDate(value);
-  const datePart = formattedValue.match(/^(\d{4}\.\d{2}\.\d{2})/);
+export type DisplayDateTimeFormat = string;
 
-  return datePart?.[1] || formattedValue;
+/**
+ * 날짜와 시간을 지정한 format에 맞춰 표시한다.
+ * 지원 토큰: YYYY, YY, MM, M, DD, D, HH, H, mm, m, ss, s.
+ * format을 생략하면 기존 날짜 표시 규칙인 YYYY.MM.DD를 쓴다.
+ */
+export const formatDisplayDateTime = (
+  value: unknown,
+  format: DisplayDateTimeFormat = 'YYYY.MM.DD',
+) => {
+  if (value === null || value === undefined || value === '') return '-';
+
+  const text = String(value).trim();
+  if (!text || text === '-') return '-';
+
+  const dateTimePart = text.match(
+    /^(\d{4}|\d{2})[-/.](\d{2})[-/.](\d{2})(?:\.?[T\s]+(\d{2}):(\d{2})(?::(\d{2})(?:\.\d+)?)?(?:Z|[+-]\d{2}:?\d{2})?)?/,
+  );
+  if (!dateTimePart) return formatDisplayDate(value);
+
+  const [, rawYear, month, day, rawHour, rawMinute, rawSecond] = dateTimePart;
+  const year = rawYear.length === 2 ? `20${rawYear}` : rawYear;
+  const hour = rawHour ?? '00';
+  const minute = rawMinute ?? '00';
+  const second = rawSecond ?? '00';
+  const tokenValues: Record<string, string> = {
+    YYYY: year,
+    YY: year.slice(-2),
+    MM: month,
+    M: String(Number(month)),
+    DD: day,
+    D: String(Number(day)),
+    HH: hour,
+    H: String(Number(hour)),
+    mm: minute,
+    m: String(Number(minute)),
+    ss: second,
+    s: String(Number(second)),
+  };
+
+  return format.replace(
+    /YYYY|YY|MM|DD|HH|mm|ss|M|D|H|m|s/g,
+    (token) => tokenValues[token],
+  );
 };

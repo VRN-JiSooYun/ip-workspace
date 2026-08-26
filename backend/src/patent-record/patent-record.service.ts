@@ -6,14 +6,22 @@ import {
 import { PrismaService } from "../database/prisma.service";
 import { buildInternalRefColumns, normalizeInternalRef } from "./internal-ref";
 import type { CreatePatentRecordDto } from "./dto/create-patent-record.dto";
+import type { PatentDeadlineQueryDto } from "./dto/patent-deadline-query.dto";
 import type { PatentRecordListQueryDto } from "./dto/patent-record-list-query.dto";
 import type { PatentScheduleQueryDto } from "./dto/patent-schedule-query.dto";
 import type { PatentStageQueryDto } from "./dto/patent-stage-query.dto";
+import {
+  AWAITING_REGISTRATION_STAGE_CODE,
+  PATENT_QUALITY_FILTERS,
+  PATENT_QUALITY_FILTER_KEYS,
+} from "./patent-quality";
 import {
   countDocumentsByPatent,
   toPatentDocumentItems,
 } from "./patent-record-documents";
 import type { UpdatePatentRecordDto } from "./dto/update-patent-record.dto";
+import { normalizeRichText } from "./rich-text";
+import { PatentAuditService } from "./patent-audit.service";
 
 const LIST_INCLUDE = {
   country: { select: { id: true, country: true } },
@@ -45,6 +53,65 @@ const SCHEDULE_DATE_FIELDS = [
 ] as const;
 
 const toDateKey = (value: Date): string => value.toISOString().slice(0, 10);
+
+/** `YYYY-MM-DD`를 date-only UTC 시각으로. 시간대에 흔들리지 않게 UTC 자정으로 고정한다. */
+const fromDateKey = (value: string): Date => {
+  const [year, month, day] = value.slice(0, 10).split("-").map(Number);
+  return new Date(Date.UTC(year, month - 1, day));
+};
+
+const addDays = (value: Date, days: number): Date => (
+  new Date(value.getTime() + days * 86_400_000)
+);
+
+/**
+ * 서비스 기준 시간대(Asia/Seoul)의 오늘을 date-only UTC 시각으로.
+ * schedule()이 쓰던 계산과 같은 것을 함수로 뽑았다.
+ */
+const seoulToday = (): Date => {
+  const now = new Date(Date.now() + 9 * 60 * 60 * 1000);
+  return new Date(
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()),
+  );
+};
+
+/** 마감 항목이 물고 나가는 특허 정보. 기한 보드가 한 줄에 그리는 것만 고른다. */
+const DEADLINE_PATENT_SELECT = {
+  id: true,
+  internalRef: true,
+  applicationNumber: true,
+  koreanTitle: true,
+  englishTitle: true,
+  target: true,
+  country: { select: { country: true } },
+} as const;
+
+type DeadlinePatent = {
+  id: number;
+  internalRef: string | null;
+  applicationNumber: string;
+  koreanTitle: string | null;
+  englishTitle: string | null;
+  target: string | null;
+  country: { country: string };
+};
+
+const toDeadlineCommon = (patent: DeadlinePatent) => ({
+  patentId: patent.id,
+  internalRef: patent.internalRef,
+  applicationNumber: patent.applicationNumber,
+  patentTitle: patent.koreanTitle ?? patent.englishTitle,
+  country: patent.country.country,
+  target: patent.target,
+});
+
+/** 빈 문자열과 공백만 있는 값을 걸러낸 Target 목록. 없으면 undefined(=필터 없음). */
+const normalizeTargets = (targets: string[] | undefined): string[] | undefined => {
+  const cleaned = targets
+    ?.map((target) => target.trim())
+    .filter((target) => target.length > 0);
+  return cleaned?.length ? cleaned : undefined;
+};
 
 /**
  * 진행 단계에 연결되지 않은 건을 가리키는 예약 값. 집계 응답과 목록 필터가 함께 쓴다.
@@ -79,7 +146,10 @@ const RESPONSE_TYPE_LABELS: Record<number, string> = {
 
 @Injectable()
 export class PatentRecordService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly audit: PatentAuditService,
+  ) {}
 
   /**
    * 목록과 진행 현황 집계가 같은 모집단을 보게 하려고 where를 한 곳에서 만든다.
@@ -106,11 +176,63 @@ export class PatentRecordService {
       });
     }
 
+    // ---- 컬럼별 조건 ------------------------------------------------------
+    // 문자열은 전부 대소문자 무시 부분 일치. 빈 문자열은 조건 없음으로 다룬다
+    // (프런트가 입력을 비웠을 때 `contains: ""`로 전체를 훑지 않게).
+    const like = (value: string | undefined) => {
+      const trimmed = value?.trim();
+      return trimmed ? { contains: trimmed, mode: "insensitive" as const } : undefined;
+    };
+
+    const internalRef = like(query.internalRef);
+    if (internalRef) and.push({ internalRef });
+
+    const applicationNumber = like(query.applicationNumber);
+    if (applicationNumber) and.push({ applicationNumber });
+
+    const applicant = like(query.applicant);
+    if (applicant) and.push({ applicant });
+
+    const registrationNumber = like(query.registrationNumber);
+    if (registrationNumber) and.push({ registrationNumber });
+
+    // 명칭은 국문·영문 두 컬럼에 나뉘어 있다. 어느 쪽이 채워졌는지 사용자가 알 수 없으니
+    // 둘 중 하나만 걸려도 통과시킨다(표에서도 국문 없으면 영문을 보여 준다).
+    const title = like(query.title);
+    if (title) {
+      and.push({ OR: [{ koreanTitle: title }, { englishTitle: title }] });
+    }
+
+    if (query.attorneyNumber !== undefined) {
+      and.push({ attorneyNumber: query.attorneyNumber });
+    }
+
+    // 출원일 기간. 끝 날짜는 그 날을 포함해야 하므로 다음 날 0시 미만으로 본다
+    // (applicationDate가 DateTime이라 lte로 자르면 그 날 00:00만 걸린다).
+    if (query.applicationDateFrom || query.applicationDateTo) {
+      const range: Record<string, Date> = {};
+      if (query.applicationDateFrom) {
+        range.gte = new Date(`${query.applicationDateFrom}T00:00:00.000Z`);
+      }
+      if (query.applicationDateTo) {
+        const end = new Date(`${query.applicationDateTo}T00:00:00.000Z`);
+        end.setUTCDate(end.getUTCDate() + 1);
+        range.lt = end;
+      }
+      and.push({ applicationDate: range });
+    }
+
+    // 문서 유무. 문서는 patent → admin → office_action에 매달려 있어 관계 두 단계를
+    // 타고 들어간다(patent-record-documents.ts의 세는 경로와 같다).
+    if (query.hasDocuments !== undefined) {
+      const hasOfficeAction = { admins: { some: { officeActions: { some: {} } } } };
+      and.push(query.hasDocuments ? hasOfficeAction : { NOT: hasOfficeAction });
+    }
+
     if (query.stageGroup === UNMAPPED_STAGE_GROUP) {
-      // status가 없거나, 있어도 단계에 연결되지 않은 건.
-      and.push({
-        OR: [{ legalStatusId: null }, { legalStatus: { stageCode: null } }],
-      });
+      // status가 없거나, 있어도 단계에 연결되지 않은 건. 대시보드 품질 카드가 세는
+      // 조건과 같아야 하므로 표현식을 복제하지 않고 정본을 그대로 쓴다.
+      and.push({ ...PATENT_QUALITY_FILTERS.unmappedStatus });
     } else if (query.stageGroup) {
       and.push({ legalStatus: { stage: { groupCode: query.stageGroup } } });
     }
@@ -118,6 +240,12 @@ export class PatentRecordService {
     // 세부 단계. 대분류와 같은 관계를 한 칸 더 좁혀 들어간다.
     if (query.stageCode) {
       and.push({ legalStatus: { stageCode: query.stageCode } });
+    }
+
+    // 데이터 품질 조건. 표는 patent-quality.ts가 정본이라 대시보드 품질 카드의
+    // 건수와 이 필터를 걸었을 때의 목록 총건수가 같은 정의를 공유한다.
+    if (query.quality) {
+      and.push({ ...PATENT_QUALITY_FILTERS[query.quality] });
     }
 
     return {
@@ -347,6 +475,196 @@ export class PatentRecordService {
         statuses: unmappedStatuses.sort((a, b) => b.count - a.count),
       },
     };
+  }
+
+  /**
+   * 대시보드 기한 보드용 마감 목록.
+   *
+   * 마감으로 세는 것은 두 가지뿐이다: 미완료 To-do의 마감일과 특허의 예상 만료일.
+   * 출원일·공개일·등록일은 이미 일어난 사실이지 마감이 아니라서 넣지 않는다
+   * (등록일은 String column이라 범위 조회도 못 한다 — parseRegistrationDate 참고).
+   *
+   * 월 단위인 schedule()과 따로 두는 이유: 캘린더는 "언제"를 묻고 이 화면은 "무엇이
+   * 급한가"를 묻는다. 달 경계에서 잘리면 후자가 성립하지 않는다.
+   */
+  async deadlines(query: PatentDeadlineQueryDto) {
+    const targets = normalizeTargets(query.targets);
+    const patentWhere = targets?.length ? { target: { in: targets } } : {};
+
+    const rangeStart = fromDateKey(query.from);
+    // to는 포함이므로 다음 날 자정을 상한(exclusive)으로 쓴다.
+    const rangeEnd = addDays(fromDateKey(query.to), 1);
+    const range = { gte: rangeStart, lt: rangeEnd };
+
+    const [todos, expiring, todoTotal, expiryTotal, counts] = await Promise.all([
+      this.prisma.client.patentTodo.findMany({
+        where: { patent: patentWhere, completed: false, dueDate: range },
+        orderBy: [{ dueDate: "asc" }, { id: "asc" }],
+        take: query.limit,
+        select: {
+          id: true,
+          title: true,
+          dueDate: true,
+          patent: { select: DEADLINE_PATENT_SELECT },
+        },
+      }),
+      this.prisma.client.patent.findMany({
+        where: { ...patentWhere, expectedExpiryDate: range },
+        orderBy: [{ expectedExpiryDate: "asc" }, { id: "asc" }],
+        take: query.limit,
+        select: { ...DEADLINE_PATENT_SELECT, expectedExpiryDate: true },
+      }),
+      this.prisma.client.patentTodo.count({
+        where: { patent: patentWhere, completed: false, dueDate: range },
+      }),
+      this.prisma.client.patent.count({
+        where: { ...patentWhere, expectedExpiryDate: range },
+      }),
+      this.countDeadlineBuckets(patentWhere),
+    ]);
+
+    const items = [
+      ...todos.flatMap((todo) =>
+        todo.dueDate
+          ? [
+              {
+                ...toDeadlineCommon(todo.patent),
+                todoId: todo.id,
+                todoTitle: todo.title,
+                type: "TODO" as const,
+                label: "To-do 마감일",
+                date: toDateKey(todo.dueDate),
+              },
+            ]
+          : [],
+      ),
+      ...expiring.flatMap((patent) =>
+        patent.expectedExpiryDate
+          ? [
+              {
+                ...toDeadlineCommon(patent),
+                todoId: null,
+                todoTitle: null,
+                type: "EXPECTED_EXPIRY" as const,
+                label: "예상 만료일",
+                date: toDateKey(patent.expectedExpiryDate),
+              },
+            ]
+          : [],
+      ),
+    ]
+      .sort(
+        (a, b) =>
+          a.date.localeCompare(b.date) ||
+          a.applicationNumber.localeCompare(b.applicationNumber) ||
+          a.label.localeCompare(b.label),
+      )
+      // 원본별로 limit만큼 가져왔으므로 합친 뒤 다시 자른다. 전체에서 앞 limit개는
+      // 각 원본의 앞 limit개 안에 반드시 들어 있다(둘 다 date 오름차순이므로).
+      .slice(0, query.limit);
+
+    return {
+      from: toDateKey(rangeStart),
+      to: query.to.slice(0, 10),
+      items,
+      // 잘렸는지를 화면이 알 수 있게 전체 건수를 함께 준다. 조용히 자르지 않는다.
+      total: todoTotal + expiryTotal,
+      counts,
+    };
+  }
+
+  /**
+   * 대시보드 KPI + 데이터 품질 집계.
+   *
+   * 위젯마다 따로 부르면 첫 렌더에 요청이 여러 번 나가고 화면 안에서 숫자가 서로
+   * 다른 시점을 보게 된다. 한 번에 묶어 같은 스냅샷을 준다.
+   *
+   * 필터는 목록·진행 현황과 같은 DTO를 받아 모집단을 맞춘다. 단 `quality`는 무시한다
+   * (품질 조건으로 걸러 놓고 그 품질 건수를 세면 순환이다).
+   */
+  async summary(query: PatentStageQueryDto) {
+    const where = this.buildListWhere({ ...query, quality: undefined });
+    const today = seoulToday();
+
+    const [total, counts, expiringWithinYear, awaitingRegistration, quality] =
+      await Promise.all([
+        this.prisma.client.patent.count({ where }),
+        this.countDeadlineBuckets(where),
+        this.prisma.client.patent.count({
+          where: {
+            ...where,
+            expectedExpiryDate: { gte: today, lt: addDays(today, 366) },
+          },
+        }),
+        this.prisma.client.patent.count({
+          where: {
+            ...where,
+            legalStatus: { stageCode: AWAITING_REGISTRATION_STAGE_CODE },
+          },
+        }),
+        this.countQuality(where),
+      ]);
+
+    return {
+      total,
+      deadlines: counts,
+      expiringWithinYear,
+      awaitingRegistration,
+      quality,
+    };
+  }
+
+  /**
+   * 오늘 기준 마감 버킷별 건수. 기한 보드와 KPI가 같은 함수를 쓰므로 두 숫자가
+   * 어긋나지 않는다.
+   *
+   * 버킷은 서로 겹치지 않는다(기한 보드가 한 건을 한 줄에만 그려야 한다):
+   *   overdue  … date <  오늘
+   *   today    … date == 오늘
+   *   within7  … 오늘 <  date <= 오늘+7
+   *   within30 … 오늘+7 < date <= 오늘+30
+   */
+  private async countDeadlineBuckets(patentWhere: Record<string, unknown>) {
+    const today = seoulToday();
+    const countRange = async (range: { gte?: Date; lt?: Date }) => {
+      const [todoCount, expiryCount] = await Promise.all([
+        this.prisma.client.patentTodo.count({
+          where: { patent: patentWhere, completed: false, dueDate: range },
+        }),
+        this.prisma.client.patent.count({
+          where: { ...patentWhere, expectedExpiryDate: range },
+        }),
+      ]);
+      return todoCount + expiryCount;
+    };
+
+    const [overdue, todayCount, within7, within30] = await Promise.all([
+      countRange({ lt: today }),
+      countRange({ gte: today, lt: addDays(today, 1) }),
+      countRange({ gte: addDays(today, 1), lt: addDays(today, 8) }),
+      countRange({ gte: addDays(today, 8), lt: addDays(today, 31) }),
+    ]);
+
+    return { overdue, today: todayCount, within7, within30 };
+  }
+
+  /** 품질 조건별 건수. 조건 표는 patent-quality.ts가 정본이다. */
+  private async countQuality(where: Record<string, unknown>) {
+    const entries = await Promise.all(
+      PATENT_QUALITY_FILTER_KEYS.map(async (key) => {
+        const count = await this.prisma.client.patent.count({
+          where: { ...where, AND: [
+            ...(Array.isArray(where.AND) ? where.AND : []),
+            { ...PATENT_QUALITY_FILTERS[key] },
+          ] },
+        });
+        return [key, count] as const;
+      }),
+    );
+    return Object.fromEntries(entries) as Record<
+      (typeof PATENT_QUALITY_FILTER_KEYS)[number],
+      number
+    >;
   }
 
   async schedule(query: PatentScheduleQueryDto) {
@@ -583,42 +901,66 @@ export class PatentRecordService {
     return { countries, attorneys, legalStatuses, examStatuses, targets };
   }
 
-  async create(dto: CreatePatentRecordDto) {
+  async create(
+    dto: CreatePatentRecordDto,
+    actorUserId: string | null = null,
+    requestId: string | null = null,
+  ) {
     await this.assertReferencesExist(dto);
     await this.assertApplicationNumberFree(dto.applicationNumber);
     await this.assertInternalRefFree(dto.internalRef);
 
-    return this.prisma.client.patent.create({
-      data: {
-        countryId: dto.countryId,
-        applicationNumber: dto.applicationNumber,
-        ...buildInternalRefColumns(dto.internalRef),
-        koreanTitle: dto.koreanTitle ?? null,
-        englishTitle: dto.englishTitle ?? null,
-        applicationDate: toDate(dto.applicationDate) ?? null,
-        applicant: dto.applicant ?? null,
-        attorneyNumber: dto.attorneyNumber ?? null,
-        registrationNumber: dto.registrationNumber ?? null,
-        registrationDate: dto.registrationDate ?? null,
-        publicationNumber: dto.publicationNumber ?? null,
-        publicationDate: toDate(dto.publicationDate) ?? null,
-        intApplicationNumber: dto.intApplicationNumber ?? null,
-        intApplicationDate: toDate(dto.intApplicationDate) ?? null,
-        intPublicationNumber: dto.intPublicationNumber ?? null,
-        intPublicationDate: toDate(dto.intPublicationDate) ?? null,
-        parentApplicationNumber: dto.parentApplicationNumber ?? null,
-        legalStatusId: dto.legalStatusId ?? null,
-        examStatusId: dto.examStatusId ?? null,
-        exam: dto.exam ?? null,
-        examDate: toDate(dto.examDate) ?? null,
-        target: toTrimmedText(dto.target) ?? null,
-      },
-      include: LIST_INCLUDE,
+    // 생성과 로그를 한 트랜잭션에 둔다. 따로 하면 로그만 남고 생성이 실패한(또는 반대)
+    // 상태가 만들어진다.
+    return this.prisma.client.$transaction(async (tx) => {
+      const created = await tx.patent.create({
+        data: {
+          countryId: dto.countryId,
+          applicationNumber: dto.applicationNumber,
+          ...buildInternalRefColumns(dto.internalRef),
+          koreanTitle: dto.koreanTitle ?? null,
+          englishTitle: dto.englishTitle ?? null,
+          applicationDate: toDate(dto.applicationDate) ?? null,
+          applicant: dto.applicant ?? null,
+          attorneyNumber: dto.attorneyNumber ?? null,
+          registrationNumber: dto.registrationNumber ?? null,
+          registrationDate: dto.registrationDate ?? null,
+          publicationNumber: dto.publicationNumber ?? null,
+          publicationDate: toDate(dto.publicationDate) ?? null,
+          intApplicationNumber: dto.intApplicationNumber ?? null,
+          intApplicationDate: toDate(dto.intApplicationDate) ?? null,
+          intPublicationNumber: dto.intPublicationNumber ?? null,
+          intPublicationDate: toDate(dto.intPublicationDate) ?? null,
+          parentApplicationNumber: dto.parentApplicationNumber ?? null,
+          legalStatusId: dto.legalStatusId ?? null,
+          examStatusId: dto.examStatusId ?? null,
+          exam: dto.exam ?? null,
+          examDate: toDate(dto.examDate) ?? null,
+          target: toTrimmedText(dto.target) ?? null,
+        },
+        include: LIST_INCLUDE,
+      });
+
+      await this.audit.recordEvent(tx, {
+        patentId: created.id,
+        actorUserId,
+        requestId,
+        eventType: "PATENT_CREATED",
+        patent: created,
+      });
+
+      return created;
     });
   }
 
-  async update(id: number, dto: UpdatePatentRecordDto) {
-    await this.get(id);
+  async update(
+    id: number,
+    dto: UpdatePatentRecordDto,
+    actorUserId: string | null = null,
+    requestId: string | null = null,
+  ) {
+    // 존재 확인과 '변경 전' 값을 한 번에 얻는다.
+    const before = await this.get(id);
     await this.assertReferencesExist(dto);
     if (dto.applicationNumber !== undefined) {
       await this.assertApplicationNumberFree(dto.applicationNumber, id);
@@ -657,20 +999,53 @@ export class PatentRecordService {
       ...(dto.target !== undefined
         ? { target: toTrimmedText(dto.target) }
         : {}),
+      // 설명은 서식 있는 HTML이라 trim으로는 빈 값을 가려내지 못한다(`<p><br></p>`).
+      ...(dto.note !== undefined ? { note: normalizeRichText(dto.note) } : {}),
     };
 
-    return this.prisma.client.patent.update({
-      where: { id },
-      data,
-      include: LIST_INCLUDE,
+    // 갱신과 로그를 한 트랜잭션에 둔다. before는 위에서 이미 읽은 행이고(get이
+    // LIST_INCLUDE로 가져오므로 코드 라벨까지 들어 있다), after는 갱신 결과다.
+    // 추가 조회 없이 두 행을 비교한다.
+    return this.prisma.client.$transaction(async (tx) => {
+      const updated = await tx.patent.update({
+        where: { id },
+        data,
+        include: LIST_INCLUDE,
+      });
+
+      await this.audit.recordFieldChanges(tx, {
+        patentId: id,
+        actorUserId,
+        requestId,
+        before,
+        after: updated,
+      });
+
+      return updated;
     });
   }
 
-  async remove(id: number) {
-    await this.get(id);
-    // patent_ipc·admin은 onDelete Cascade라 함께 삭제된다.
-    await this.prisma.client.patent.delete({ where: { id } });
-    return { id };
+  async remove(
+    id: number,
+    actorUserId: string | null = null,
+    requestId: string | null = null,
+  ) {
+    const patent = await this.get(id);
+
+    return this.prisma.client.$transaction(async (tx) => {
+      // 삭제 **전에** 남긴다. patent_id는 삭제 시 SetNull되지만 metadata의 출원번호로
+      // 어느 건이었는지 읽힌다.
+      await this.audit.recordEvent(tx, {
+        patentId: id,
+        actorUserId,
+        requestId,
+        eventType: "PATENT_DELETED",
+        patent,
+      });
+      // patent_ipc·admin은 onDelete Cascade라 함께 삭제된다.
+      await tx.patent.delete({ where: { id } });
+      return { id };
+    });
   }
 
   private async assertApplicationNumberFree(

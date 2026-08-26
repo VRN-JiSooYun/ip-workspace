@@ -42,6 +42,7 @@ const installPdfWorkerTerminationWarningFilter = () => {
 type PatentPdfViewerProps = {
   document: string;
   rotation: number;
+  pdfScaleValue: 'page-width' | number;
   viewerContainerRef: React.RefObject<HTMLDivElement>;
   currentPage: number;
   onGoToPage?: (page: number) => void;
@@ -214,6 +215,7 @@ const ThumbnailSidebar: React.FC<{
 const PatentPdfViewerComponent: React.FC<PatentPdfViewerProps> = ({
   document,
   rotation,
+  pdfScaleValue,
   viewerContainerRef,
   onGoToPage,
   pdfTotalPages,
@@ -317,6 +319,7 @@ const PatentPdfViewerComponent: React.FC<PatentPdfViewerProps> = ({
                 >
                   <PatentPdfRenderer
                     pdfDocument={pdfDocument}
+                    pdfScaleValue={pdfScaleValue}
                     pdfTotalPages={pdfTotalPages}
                     activeBBox={activeBBox}
                     dynamicHighlights={dynamicHighlights}

@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Patent management harness</title>
+  </head>
+  <body>
+    <!--
+      개발 전용 진입점. 실제 화면은 AuthGate 안에 있어 dev 브라우저에서 열 수 없으므로
+      상태만 가짜로 채워 같은 본문을 띄운다. index.html과 별개 파일이라 앱 번들에 섞이지 않는다.
+      http://localhost:5173/ip-workspace/patent-management-harness.html
+    -->
+    <div id="root"></div>
+    <script type="module" src="/src/dev/patentManagementHarness.tsx"></script>
+  </body>
+</html>

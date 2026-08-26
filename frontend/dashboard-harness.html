@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Dashboard harness</title>
+  </head>
+  <body>
+    <!--
+      개발 전용 진입점. 대시보드는 AuthGate 안에 있어 dev 브라우저에서 열 수 없으므로
+      위젯만 여기서 따로 띄워 검증한다. index.html과 별개 파일이라 앱 번들에 섞이지 않는다.
+      http://localhost:5173/dashboard-harness.html
+    -->
+    <div id="root"></div>
+    <script type="module" src="/src/dev/dashboardHarness.tsx"></script>
+  </body>
+</html>

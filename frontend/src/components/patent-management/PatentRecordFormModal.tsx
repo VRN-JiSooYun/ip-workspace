@@ -13,7 +13,6 @@ import {
 import dayjs from 'dayjs';
 import type {
   CreatePatentRecordInput,
-  PatentRecord,
   PatentRecordLookups,
 } from '../../services/patentRecordApi';
 
@@ -46,8 +45,6 @@ type FormValues = {
 
 type Props = {
   open: boolean;
-  /** null이면 추가, 값이 있으면 변경. */
-  record: PatentRecord | null;
   lookups: PatentRecordLookups | null;
   submitting: boolean;
   onCancel: () => void;
@@ -68,46 +65,17 @@ const trimmedOrNull = (value: string | undefined) => {
 
 const PatentRecordFormModal: React.FC<Props> = ({
   open,
-  record,
   lookups,
   submitting,
   onCancel,
   onSubmit,
 }) => {
   const [form] = Form.useForm<FormValues>();
-  const isEdit = record !== null;
 
+  // 열릴 때마다 빈 폼으로 시작한다. 수정은 이 모달이 아니다(상세 모달의 필드별 PATCH).
   useEffect(() => {
-    if (!open) return;
-    if (record) {
-      form.setFieldsValue({
-        countryId: record.countryId,
-        applicationNumber: record.applicationNumber,
-        internalRef: record.internalRef ?? undefined,
-        target: record.target ?? undefined,
-        koreanTitle: record.koreanTitle ?? undefined,
-        englishTitle: record.englishTitle ?? undefined,
-        applicationDate: toDayjs(record.applicationDate),
-        applicant: record.applicant ?? undefined,
-        attorneyNumber: record.attorneyNumber ?? undefined,
-        registrationNumber: record.registrationNumber ?? undefined,
-        registrationDate: record.registrationDate ?? undefined,
-        publicationNumber: record.publicationNumber ?? undefined,
-        publicationDate: toDayjs(record.publicationDate),
-        intApplicationNumber: record.intApplicationNumber ?? undefined,
-        intApplicationDate: toDayjs(record.intApplicationDate),
-        intPublicationNumber: record.intPublicationNumber ?? undefined,
-        intPublicationDate: toDayjs(record.intPublicationDate),
-        parentApplicationNumber: record.parentApplicationNumber ?? undefined,
-        legalStatusId: record.legalStatusId ?? undefined,
-        examStatusId: record.examStatusId ?? undefined,
-        exam: record.exam ?? undefined,
-        examDate: toDayjs(record.examDate),
-      });
-    } else {
-      form.resetFields();
-    }
-  }, [open, record, form]);
+    if (open) form.resetFields();
+  }, [open, form]);
 
   const handleOk = async () => {
     const values = await form.validateFields();
@@ -140,8 +108,8 @@ const PatentRecordFormModal: React.FC<Props> = ({
   return (
     <Modal
       open={open}
-      title={isEdit ? '관리 특허 수정' : '관리 특허 추가'}
-      okText={isEdit ? '저장' : '추가'}
+      title="관리 특허 추가"
+      okText="추가"
       cancelText="취소"
       onCancel={onCancel}
       onOk={() => void handleOk()}

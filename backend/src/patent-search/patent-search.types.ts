@@ -95,6 +95,8 @@ export type UpstreamLegalStatute = {
 /** 결과 1건은 특허가 아니라 OA(의견제출통지서) 1건이다. */
 export type UpstreamSearchRow = {
   office_action_id: number | null;
+  /** 키워드 검색일 때 외부 API가 계산한 관련도. 키워드가 없으면 생략되거나 null이다. */
+  relevance_score?: number | null;
   admin_id: number | null;
   office_action_content: string | null;
   office_action_document_path: string | null;

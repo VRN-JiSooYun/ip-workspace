@@ -72,46 +72,11 @@ export const MAIN_NAV: NavNode[] = [
     children: [
       {
         key: 'office-actions',
-        label: '의견제출통지서',
+        label: '특허 거절 대응 전략',
         path: '/analysis/office-actions',
       },
     ],
   },
-  // {
-  //   key: 'documents',
-  //   label: 'Documents',
-  //   icon: <FileText size={22} />,
-  //   children: [
-  //     {
-  //       key: 'patents',
-  //       label: 'Patents',
-  //       children: [
-  //         { key: 'patent-write', label: 'My 특허 쓰기', path: '/patents/write' },
-  //         {
-  //           key: 'patent-analysis',
-  //           label: 'My 특허 분석',
-  //           path: '/patents/analysis',
-  //           pathPrefixes: ['/patents/analysis/'],
-  //         },
-  //         { key: 'patent-insight', label: 'Insight', path: '/patents/insight' },
-  //         { key: 'patent-manage', label: 'My 특허 관리', path: '/patents/manage' },
-  //       ],
-  //     },
-  //     {
-  //       key: 'papers',
-  //       label: 'Papers',
-  //       children: [
-  //         { key: 'paper-manage', label: 'My 논문 관리', path: '/papers/manage' },
-  //       ],
-  //     },
-  //   ],
-  // },
-  // {
-  //   key: 'universal-search',
-  //   label: '통합검색',
-  //   icon: <Search size={22} />,
-  //   path: '/universal-search',
-  // },
 ];
 
 export const BOTTOM_NAV: NavNode[] = [

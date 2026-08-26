@@ -33,6 +33,36 @@ export default () => ({
     // OA 본문이 건당 10KB를 넘어 size가 커지면 응답도 커진다. 기본 30s로는 빠듯하다.
     timeoutMs: parseNumber(process.env.PATENT_SEARCH_API_TIMEOUT_MS, 60000),
   },
+  oaDatabase: {
+    host: process.env.OA_DATABASE_HOST ?? "172.16.1.210",
+    port: parseNumber(process.env.OA_DATABASE_PORT, 15432),
+    user: process.env.OA_DATABASE_USER ?? "postgres",
+    password: process.env.OA_DATABASE_PASSWORD ?? "1234",
+    database: process.env.OA_DATABASE_NAME ?? "OA",
+    connectionTimeoutMs: parseNumber(
+      process.env.OA_DATABASE_CONNECTION_TIMEOUT_MS,
+      5000,
+    ),
+    statementTimeoutMs: parseNumber(
+      process.env.OA_DATABASE_STATEMENT_TIMEOUT_MS,
+      5000,
+    ),
+    lookupCacheTtlMs: parseNumber(
+      process.env.OA_DATABASE_LOOKUP_CACHE_TTL_MS,
+      5 * 60 * 1000,
+    ),
+  },
+  seaweedFs: {
+    filerUrl:
+      process.env.SEAWEEDFS_FILER_URL || "http://172.16.1.183:8888",
+    publicUrl:
+      process.env.SEAWEEDFS_PUBLIC_URL ||
+      process.env.SEAWEEDFS_FILER_URL ||
+      "http://172.16.1.183:8888",
+    basePath: process.env.SEAWEEDFS_BASE_PATH ?? "",
+    rootDir: process.env.SEAWEEDFS_ROOT_DIR ?? "buckets",
+    envDir: process.env.SEAWEEDFS_ENV_DIR ?? "ip_ws_dev",
+  },
   conformer: {
     apiUrl: process.env.CONFORMER_API_URL ?? "http://172.16.1.203:8000",
     timeoutMs: parseNumber(process.env.CONFORMER_API_TIMEOUT_MS, 120000),

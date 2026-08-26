@@ -1,7 +1,8 @@
 import React from 'react';
 import { Tag, Tooltip, Typography } from 'antd';
 import { MessageSquare, PencilLine, Stamp, User } from 'lucide-react';
-import { formatDisplayDateOnly } from '../../utils/displayFormat';
+import { formatDisplayDateTime } from '../../utils/displayFormat';
+import { getLegalStatusTagColor } from '../../utils/legalStatusTag';
 import type {
   PatentSearchExaminer,
   PatentSearchItem,
@@ -17,6 +18,7 @@ const { Text } = Typography;
 const LAW_TYPE_NAMES: Record<number, string> = {
   1: '특허법',
   2: '특허법 시행령',
+  3: '실용신안법',
 };
 
 /** 시안 표기를 따라 `특허법 제42조제3항제1호`처럼 조·항·호를 붙여 쓴다. */
@@ -72,11 +74,15 @@ const OfficeActionResultCard: React.FC<Props> = ({ item, selected, onSelect }) =
         <span className="oa-result-action-number">{emptyDash(item.actionNumber)}</span>
         {item.actionDate && (
           <span className="oa-result-date-badge">
-            {formatDisplayDateOnly(item.actionDate)}
+            {formatDisplayDateTime(item.actionDate)}
           </span>
         )}
         {item.legalStatus && (
-          <Tag className="oa-result-status" bordered={false}>
+          <Tag
+            className="oa-result-status"
+            color={getLegalStatusTagColor(item.legalStatus)}
+            bordered={false}
+          >
             {item.legalStatus}
           </Tag>
         )}
@@ -138,7 +144,7 @@ const OfficeActionResultCard: React.FC<Props> = ({ item, selected, onSelect }) =
         <span>
           <Text type="secondary" className="oa-result-footer-label">출원일자</Text>
           <span className="oa-result-footer-value">
-            {item.patent ? formatDisplayDateOnly(item.patent.applicationDate) : '-'}
+            {item.patent ? formatDisplayDateTime(item.patent.applicationDate) : '-'}
           </span>
         </span>
         <span>
@@ -150,7 +156,7 @@ const OfficeActionResultCard: React.FC<Props> = ({ item, selected, onSelect }) =
         <span>
           <Text type="secondary" className="oa-result-footer-label">공개일자</Text>
           <span className="oa-result-footer-value">
-            {item.patent ? formatDisplayDateOnly(item.patent.publicationDate) : '-'}
+            {item.patent ? formatDisplayDateTime(item.patent.publicationDate) : '-'}
           </span>
         </span>
         <span>
@@ -162,7 +168,7 @@ const OfficeActionResultCard: React.FC<Props> = ({ item, selected, onSelect }) =
         <span>
           <Text type="secondary" className="oa-result-footer-label">등록일자</Text>
           <span className="oa-result-footer-value">
-            {item.patent ? formatDisplayDateOnly(item.patent.registrationDate) : '-'}
+            {item.patent ? formatDisplayDateTime(item.patent.registrationDate) : '-'}
           </span>
         </span>
       </div>

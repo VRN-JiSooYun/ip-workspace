@@ -2034,6 +2034,10 @@ const PatentAnalysisDetail: React.FC = () => {
               searchExecuted={pdfViewer.matchCount.total > 0}
               currentPage={pdfViewer.pdfCurrentPage}
               totalPages={pdfViewer.pdfTotalPages}
+              zoomPercent={pdfViewer.pdfZoomPercent}
+              onZoomIn={pdfViewer.zoomPdfIn}
+              onZoomOut={pdfViewer.zoomPdfOut}
+              onResetZoom={pdfViewer.resetPdfZoom}
               onToggleFit={fitPageToScreen}
               onOpenPdfInBrowser={browserPdfDocument ? handleOpenPdfInBrowser : undefined}
               onSearchQueryChange={pdfViewer.setSearchQuery}
@@ -2060,6 +2064,7 @@ const PatentAnalysisDetail: React.FC = () => {
               <PatentPdfViewer
                 document={browserPdfDocument}
                 rotation={pdfViewer.pdfRotation}
+                pdfScaleValue={pdfViewer.pdfScaleValue}
                 viewerContainerRef={pdfViewer.pdfViewerContainerRef}
                 currentPage={pdfViewer.pdfCurrentPage}
                 onGoToPage={pdfViewer.handleGoToPdf}

@@ -1,94 +1,56 @@
-/* 특허 관리 — three-column portfolio view.
-   Colours come from the shared custom properties in index.css so the page
-   follows the brand colour and dark mode without hardcoding hex values. */
+/* 특허 관리 — 위(상세 검색) 아래(관리 특허 목록) 두 칸 고정 배치.
+   색은 index.css의 공유 custom property를 쓰므로 브랜드색과 다크 모드가 따라온다.
 
-/* MainLayout's Content is a fixed-height, overflow:hidden shell, so each page
-   owns its own scrolling (same contract as PatentInsight).
-   Without this the stacked single-column layout is simply clipped. */
-/* 페이지가 스크롤을 소유한다. 상단 3열(진행 현황·일정·To-do) 아래로
-   Target 사이드와 특허 목록이 오는 2단 구조다. */
-/* 상단 3열의 열 폭 정의. 비율은 여기서만 조절한다. */
-/* 페이지는 [본문 | 문서 뷰어] 가로 2단이다. 뷰어가 닫혀 있으면 본문 하나뿐이라
-   예전과 같아 보인다. 세로 배치는 .pm-main이 갖는다.
-   align-items를 start로 두는 이유: stretch면 패널이 본문 높이(화면보다 길 수 있다)만큼
-   늘어나 sticky가 의미를 잃는다. 패널 높이는 아래에서 100%로 따로 준다. */
+   예전에는 이진 트리 레이아웃(lib/layoutTree)이 배치를 소유해서 카드 껍데기·제목을
+   PanelFrame이 그렸다. 그 엔진을 이 화면에서 걷어냈으므로 껍데기는 .pm-section이 갖는다
+   (엔진 자체는 대시보드가 계속 쓴다). */
+
+/* MainLayout의 Content는 높이 고정 + overflow:hidden 껍데기다. 페이지는 그 높이를
+   그대로 채우고, 스크롤은 목록 표가 자기 안에서 갖는다. 페이지가 스크롤하면 조건이
+   결과와 함께 위로 밀려 올라가, 결과를 내렸다가 조건을 고치려면 매번 되돌아와야 한다. */
 .pm-page {
-  --pm-toprow-cols: minmax(0, 5fr) minmax(260px, 1fr) minmax(260px, 1fr);
   display: flex;
-  align-items: start;
-  gap: 0;
+  flex-direction: column;
+  gap: 8px;
   width: 100%;
   height: 100%;
   min-height: 0;
-  overflow-y: auto;
-  overflow-x: hidden;
+  padding: 0 12px 12px;
+  overflow: hidden;
   box-sizing: border-box;
 }
 
-/**
- * 상단 3열 + 아래 2단. 예전 .pm-page가 하던 세로 배치를 그대로 물려받는다.
- *
- * 본문 폭은 viewport가 아니라 **문서 뷰어를 얼마나 넓혔는지**로 정해진다. 그래서 아래의
- * 접힘 기준을 @media가 아니라 자기 컨테이너 폭(@container)으로 잡는다. 1700px 화면에서도
- * 뷰어를 열면 본문은 900px 남짓이 되므로, viewport 기준으로는 좁아진 것을 알 수 없다.
- * (의견제출통지서 화면의 .oa-filters가 같은 이유로 컨테이너 쿼리를 쓴다.)
- */
-.pm-main {
+/* ---- 두 칸의 껍데기 ------------------------------------------------------ */
+
+.pm-section {
   display: flex;
-  flex: 1 1 auto;
   flex-direction: column;
-  gap: 8px;
   min-width: 0;
-  container-type: inline-size;
-  container-name: pm-main;
-}
-
-/* 뷰어가 열리면 화면(=MainLayout Content) 높이를 전부 쓴다.
-   .pm-page가 스크롤 주인이라 여기의 100%는 '보이는 높이'로 풀린다.
-   sticky top:0과 함께 두어야 본문을 내려도 뷰어가 따라온다. */
-.pm-page > .resizable-side-panel-pane {
-  position: sticky;
-  top: 0;
-  height: 100%;
-  align-self: stretch;
-}
-
-/* 핸들도 화면 높이만큼 잡아야 어디를 잡아도 끌 수 있다. */
-.pm-page > .resizable-side-panel-handle {
-  position: sticky;
-  top: 0;
-  height: 100%;
-  align-self: stretch;
-}
-
-/* Target 사이드와 관리 특허 목록을 flex gap으로 나란히 둔다.
-   문서 뷰어 패널은 여기가 아니라 .pm-page의 자식이다(화면 높이를 다 쓰기 위해서다). */
-/* 상단 3열 아래 영역은 남는 높이를 모두 차지하고(flex), 짧은 화면에서는
-   --pm-layout-min-height가 바닥을 잡아 페이지가 스크롤된다. 높이는 이 값만 조절한다. */
-.pm-layout {
-  --pm-layout-min-height: 420px;
-  display: flex;
-  gap: 8px;
-  align-items: stretch;
-  flex: 1 0 auto;
-  min-height: var(--pm-layout-min-height);
-  width: 100%;
-  min-width: 0;
+  min-height: 0;
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
   box-sizing: border-box;
+  overflow: hidden;
 }
 
+/* 조건은 제 높이를 그대로 쓴다. 줄이지도 스크롤하지도 않는다 — 어떤 조건이 걸려 있는지
+   가려지면 안 된다. 대신 조건이 길어지면 그만큼 목록이 줄어든다. */
+.pm-section-filters {
+  flex: 0 0 auto;
+}
 
-/* ---- top row: 진행 현황 · 일정 · To-do ---------------------------------- */
-/* 세 카드의 높이를 진행 현황 카드 기준으로 통일한다. 넘치는 내용(캘린더 일정,
-   To-do 목록)은 카드 안에서 스크롤한다. */
-.pm-toprow {
-  /* 필터 카드(탭 + 상세 검색 + 진행 현황 두 sub-card)가 필요로 하는 높이가 기준이다.
-     세 카드가 같은 높이를 쓰므로, 이 값이 작으면 필터 카드 아래가 잘린다. */
-  --pm-toprow-height: 340px;
-  display: grid;
-  grid-template-columns: var(--pm-toprow-cols);
-  gap: 8px;
-  width: 100%;
+/* 목록은 남는 높이를 전부 받는다. min-height:0이 없으면 flex 자식의 기본
+   min-height:auto 때문에 표 길이만큼 부풀어 스크롤이 페이지로 새어 나간다. */
+.pm-section-list {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+/* 필터 칸은 스크롤을 갖지 않으므로 .pm-panel-scroll의 overflow를 눌러 준다.
+   (.pm-panel-scroll은 목록 칸과 공유하는 공통 골격이다.) */
+.pm-section-filters .pm-panel-scroll {
+  overflow: visible;
 }
 
 /* ---- header line: breadcrumb + 목록 검색 --------------------------------- */
@@ -168,327 +130,104 @@
   color: var(--text-primary);
 }
 
-.pm-toprow-card {
-  display: flex;
-  flex-direction: column;
-  height: var(--pm-toprow-height);
-  min-height: 0;
-  overflow: hidden;
-}
+/* ---- 패널 안쪽 ---------------------------------------------------------- */
 
-
-/* 캘린더는 상단 행 높이에 맞게 셀을 줄인다. */
-.pm-schedule-card .pm-calendar-grid {
-  flex: 0 0 auto;
-}
-
-.pm-schedule-card .pm-calendar-weekday {
-  height: 22px;
-}
-
-.pm-schedule-card .pm-calendar-day {
-  height: 25px;
-}
-
-.pm-schedule-card .pm-calendar-day-mark {
-  width: 23px;
-  height: 23px;
-}
-
-.pm-todo-list {
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow-y: auto;
-}
-
-.pm-column-aside {
-  flex: 0 0 340px;
-  width: 340px;
-}
-
-.pm-column-main {
-  flex: 1 1 auto;
-  min-width: 0;
-}
-
-@media (max-width: 1600px) {
-  .pm-column-aside {
-    flex-basis: 300px;
-    width: 300px;
-  }
-}
-
-@media (max-width: 1440px) {
-  .pm-toprow {
-    grid-template-columns: minmax(0, 1fr) minmax(240px, 1fr);
-  }
-}
-
-/* 좁은 화면에서는 세로로 쌓고 너비 조절 UI를 숨긴다. */
-@media (max-width: 1280px) {
-  .pm-toprow {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .pm-toprow-card {
-    height: auto;
-    max-height: var(--pm-toprow-height);
-  }
-
-  .pm-layout {
-    flex-direction: column;
-    gap: 8px;
-    min-height: 0;
-  }
-
-  /* 1열로 쌓이면 카드가 내용만큼만 차지하고, Target 목록은 다시 상한을 둔다. */
-  .pm-column > .pm-card {
-    flex: 0 0 auto;
-  }
-
-  .pm-target-list {
-    max-height: 280px;
-  }
-
-  .pm-column-aside {
-    flex: 0 0 auto;
-    width: 100%;
-    margin-inline-end: 0;
-  }
-
-  /* 세로로 쌓이면 주축이 세로다. 본문 아래로 뷰어가 내려간다. */
-  .pm-page {
-    flex-direction: column;
-    gap: 8px;
-    align-items: stretch;
-  }
-
-  .pm-page > .resizable-side-panel-handle {
-    display: none;
-  }
-
-  .pm-page > .resizable-side-panel-pane {
-    position: static;
-    /* 세로로 쌓여도 높이는 확정값으로 둔다. auto면 뷰어가 본문 길이만큼 늘어나
-       목록 아래가 끝없이 길어진다(뷰어 안에서 본문만 스크롤한다). */
-    height: min(80vh, 760px);
-    width: 100% !important;
-    min-width: 0 !important;
-    max-width: none !important;
-  }
-}
-
-.pm-column {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  min-width: 0;
-}
-
-/* 카드가 열 높이를 채운다. 내용이 더 길면 줄어들지 않고(=잘리지 않고) 페이지가 스크롤된다. */
-.pm-column > .pm-card {
-  display: flex;
-  flex-direction: column;
-  flex: 1 0 auto;
-}
-
-/* 페이지네이션은 카드 맨 아래에 붙는다(표가 짧아도 바닥 정렬). */
-.pm-list-footer {
-  margin-top: auto;
-  padding-top: 12px;
-}
-
-/* 가로 스크롤바의 주인은 .ant-table-content다(scroll.x 때문에 rc-table이 overflow-x를
-   여기에 준다). 기본 높이가 헤더+행뿐이라 카드가 늘어나면 스크롤바가 표 바로 아래,
-   즉 카드 중간에 떠 보인다. wrapper부터 content까지 높이를 물려줘서 스크롤바가
-   카드 하단(페이지네이션 위)에 붙게 한다. */
-.pm-column-main > .pm-card > .ant-table-wrapper,
-.pm-column-main .ant-spin-nested-loading,
-.pm-column-main .ant-spin-container,
-.pm-column-main .ant-table,
-.pm-column-main .ant-table-container {
+/* 두 칸 본문의 공통 골격. 테두리·배경은 .pm-section이 주므로 여기서는 여백과 스크롤만
+   정한다. min-height:0이 없으면 flex 자식이 내용만큼 부풀어 스크롤이 안 생긴다. */
+.pm-panel-scroll {
   display: flex;
   flex-direction: column;
   flex: 1 1 auto;
   min-height: 0;
-}
-
-.pm-column-main .ant-table-content {
-  flex: 1 1 auto;
-  min-height: 0;
-}
-
-.pm-card {
-  background: var(--card-bg);
-  border: 1px solid var(--c-card-border);
-  border-radius: 12px;
-  padding: 16px;
+  padding: 12px;
+  overflow: auto;
   box-sizing: border-box;
 }
 
-.pm-card-title {
-  font-size: 15px;
-  font-weight: 700;
-  color: var(--text-primary);
+/* 기본 15px 스크롤바는 폭을 그만큼 먹고 시각적으로도 시끄러우니 얇게 그린다.
+   색은 index.css의 --patent-scrollbar-* 를 쓴다(.pm-pipeline과 같은 처리). */
+.pm-panel-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: var(--patent-scrollbar-thumb) transparent;
 }
 
-.pm-card-header {
+.pm-panel-scroll::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.pm-panel-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.pm-panel-scroll::-webkit-scrollbar-thumb {
+  background: var(--patent-scrollbar-thumb);
+  border-radius: 999px;
+}
+
+.pm-panel-scroll::-webkit-scrollbar-thumb:hover {
+  background: var(--patent-scrollbar-thumb-hover);
+}
+
+/* ---- 관리 특허 목록 패널 ------------------------------------------------- */
+
+/* 헤더 · 표 · 페이지네이션 3단. 표만 늘어나고, 스크롤은 표가 갖는다.
+   칸 자체는 overflow:hidden이라 페이지가 통째로 밀려나지 않는다. */
+.pm-list-panel {
+  overflow: hidden;
+}
+
+.pm-list-table {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  margin-bottom: 12px;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
-.pm-target-status {
+/* 가로 스크롤바의 주인은 .ant-table-content다(scroll.x 때문에 rc-table이 overflow-x를
+   여기에 준다). 기본 높이가 헤더+행뿐이라 패널이 늘어나면 스크롤바가 표 바로 아래,
+   즉 패널 중간에 떠 보인다. wrapper부터 content까지 높이를 물려줘서 스크롤바가
+   패널 하단(페이지네이션 위)에 붙게 한다. */
+.pm-list-table > .ant-table-wrapper,
+.pm-list-table .ant-spin-nested-loading,
+.pm-list-table .ant-spin-container,
+.pm-list-table .ant-table,
+.pm-list-table .ant-table-container {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.pm-list-table .ant-table-content {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+}
+
+/* '명칭' 열은 한 줄로 자른다(전체 제목은 Tooltip으로 본다). 이 클래스는 예전부터
+   markup에만 있고 정의가 없어 실제로는 아무 일도 하지 않았다. */
+.pm-list-panel .pm-ellipsis {
   display: block;
-  padding: 10px 4px;
-  font-size: 12px;
-}
-
-/* flex-basis 0이라 목록 내용이 카드(=아래 영역) 높이를 밀어 올리지 않는다.
-   남는 높이는 채우고, 넘치면 목록 안에서만 스크롤한다. */
-.pm-target-list {
-  flex: 1 1 0;
-  min-height: 120px;
-  overflow-y: auto;
-}
-
-.pm-target-name {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-/* ---- deadline calendar -------------------------------------------------- */
-
-/* `<< < 2026년 8월 > >>` 형태의 이동 컨트롤. 달력 상단 가운데에 둔다. */
-.pm-calendar-nav {
+/* 페이지네이션은 패널 맨 아래에 붙는다(표가 짧아도 바닥 정렬). */
+.pm-list-footer {
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 2px;
-  margin-bottom: 6px;
-}
-
-.pm-calendar-nav-label {
-  min-width: 88px;
-  text-align: center;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text-primary);
-}
-
-/* 요일 열 간격을 이전(전체 폭) 대비 80%로 좁히고 가운데 정렬한다. */
-.pm-calendar-grid {
-  display: grid;
-  grid-template-columns: repeat(7, 1fr);
-  gap: 2px;
-  width: 80%;
-  margin-inline: auto;
-}
-
-.pm-calendar-weekday {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 28px;
+  justify-content: space-between;
+  flex: 0 0 auto;
+  margin-top: auto;
+  padding-top: 8px;
   font-size: 12px;
-  font-weight: 600;
-  color: var(--text-secondary);
 }
 
-.pm-calendar-weekday-sun {
-  color: var(--pm-calendar-sunday);
-}
-
-.pm-calendar-weekday-sat {
-  color: var(--pm-calendar-saturday);
-}
-
-.pm-calendar-day {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 30px;
-  font-size: 12px;
-  color: var(--text-primary);
-  border: 0;
-  padding: 0;
-  background: transparent;
-  cursor: pointer;
-  font-family: inherit;
-}
-
-/* 강조 표시는 셀이 아니라 이 정사각형 마커에 준다. 셀 폭이 넓어도 타원이 되지 않는다. */
-.pm-calendar-day-mark {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 26px;
-  height: 26px;
-  border: 1px solid transparent;
-  border-radius: 50%;
-  box-sizing: border-box;
-}
-
-/* 일요일·공휴일은 빨강, 토요일은 하늘색. */
-.pm-calendar-day-holiday {
-  color: var(--pm-calendar-sunday);
-}
-
-.pm-calendar-day-saturday {
-  color: var(--pm-calendar-saturday);
-}
-
-.pm-calendar-day-muted {
-  color: var(--text-secondary);
-  opacity: 0.45;
-  cursor: default;
-}
-
-/* A deadline falls on this day. */
-.pm-calendar-day-due .pm-calendar-day-mark {
-  background: rgba(var(--brand-primary-rgb), 0.16);
-  font-weight: 700;
-}
-
-.pm-calendar-day-due {
-  color: var(--brand-primary);
-  font-weight: 700;
-}
-
-/* 오늘은 테두리 원, 선택된 날은 채워진 원 — 둘이 겹쳐도 구분된다. */
-.pm-calendar-day-today .pm-calendar-day-mark {
-  border-color: currentColor;
-  font-weight: 700;
-}
-
-.pm-calendar-day-selected {
-  color: #fff;
-  font-weight: 700;
-}
-
-.pm-calendar-day-selected .pm-calendar-day-mark {
-  background: var(--brand-primary);
-  border-color: var(--brand-primary);
-}
-
-.pm-calendar-day-selected.pm-calendar-day-today .pm-calendar-day-mark {
-  box-shadow: 0 0 0 1px var(--card-bg, #fff), 0 0 0 2px var(--brand-primary);
-}
-
-/* ---- upcoming deadlines ------------------------------------------------- */
-
-.pm-deadline-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 7px 0;
-  font-size: 12px;
-  color: var(--text-primary);
-}
+/* 달력 규칙(.pm-calendar*)은 styles/calendar.css로 옮겼다. 우측 레일의 일정 패널이
+   같은 컴포넌트를 쓰는데 이 페이지 CSS를 끌어올 수는 없기 때문이다. */
 
 .pm-schedule-status {
   display: block;
@@ -507,120 +246,21 @@
     grid-template-columns: minmax(0, 1fr);
     gap: 0;
   }
-}
+}/* ---- 문서 검색 목록 ------------------------------------------------------ */
 
-.pm-dday {
-  flex-shrink: 0;
-  min-width: 46px;
-  text-align: center;
-  padding: 3px 8px;
-  border-radius: 6px;
-  font-size: 11px;
-  font-weight: 700;
-}
-
-.pm-dday-urgent {
-  background: rgba(220, 38, 38, 0.12);
-  color: #dc2626;
-}
-
-.pm-dday-soon {
-  background: rgba(217, 119, 6, 0.14);
-  color: #b45309;
-}
-
-.pm-dday-later {
-  background: rgba(5, 150, 105, 0.12);
-  color: #047857;
-}
-
-.pm-deadline-label {
-  flex: 1 1 auto;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.pm-deadline-date {
-  flex-shrink: 0;
-  color: var(--text-secondary);
-}
-
-/* ---- compound list ------------------------------------------------------ */
-
-/* 체크박스를 걷어내 이름·건수 두 칸만 남았다. 선택은 행 자체를 눌러서 한다. */
-.pm-compound-head,
-.pm-compound-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 48px;
-  align-items: center;
-  gap: 8px;
-  padding: 7px 8px;
-  border-radius: 8px;
-  font-size: 13px;
-}
-
-/* 목록 안에 있으므로 행과 열 폭이 정확히 맞는다. 스크롤해도 열 제목은 붙어 있는다. */
-.pm-compound-head {
-  position: sticky;
-  top: 0;
-  z-index: 1;
-  background: var(--card-bg);
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text-secondary);
-  border-bottom: 1px solid var(--border-color);
-  border-radius: 0;
-}
-
-/* 행이 <button>이라 기본 버튼 스타일을 지운다.
-   Shift+클릭이 텍스트를 드래그 선택해 버리므로 user-select도 막는다. */
-.pm-compound-row {
-  width: 100%;
-  border: 0;
-  background: transparent;
-  color: var(--text-primary);
-  font-family: inherit;
-  text-align: left;
-  cursor: pointer;
-  user-select: none;
-}
-
-.pm-compound-row:focus-visible {
-  outline: 2px solid var(--brand-primary);
-  outline-offset: -2px;
-}
-
-.pm-compound-row:hover {
-  background: var(--table-row-hover-bg);
-}
-
-/* 체크박스가 없으니 선택 상태는 배경·글자만으로 읽혀야 한다. hover보다 확실히 진하게. */
-.pm-compound-row-selected,
-.pm-compound-row-selected:hover {
-  background: rgba(var(--brand-primary-rgb), 0.18);
-  color: var(--brand-primary);
-  font-weight: 600;
-}
-
-.pm-compound-row-selected .pm-compound-count {
-  color: var(--brand-primary);
-}
-
-.pm-compound-count {
-  text-align: right;
-  color: var(--text-secondary);
-  font-variant-numeric: tabular-nums;
-}
-
-/* ---- 문서 검색 목록 ------------------------------------------------------ */
-
-/* 가운데 열이 좁아 제목과 검색 컨트롤이 한 줄에 안 들어간다.
-   그대로 두면 제목이 한 글자씩 세로로 접히므로 줄바꿈을 허용하고 제목은 고정한다. */
+/* 패널이 좁아지면 검색 요약과 버튼이 한 줄에 안 들어간다. 그대로 두면 글자가 한 자씩
+   세로로 접히므로 줄바꿈을 허용하고 왼쪽 요약은 고정한다.
+   min-height는 버튼이 없는 사용자(canManage=false)에서도 머리 높이가 튀지 않게 잡는다. */
 .pm-list-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex: 0 0 auto;
   flex-wrap: wrap;
+  gap: 8px;
   row-gap: 8px;
+  min-height: 30px;
+  margin-bottom: 8px;
 }
 
 .pm-list-header-title {
@@ -639,7 +279,6 @@
   min-width: 0;
 }
 
-
 /* 목록의 '문서' 열 버튼. 아이콘 + 건수를 한 덩어리로 붙인다. */
 .pm-doc-open {
   display: inline-flex;
@@ -655,80 +294,5 @@
   background: rgba(var(--brand-primary-rgb), 0.1);
 }
 
-/* ---- 우측 문서 뷰어 패널 -------------------------------------------------- */
-
-/* 패널 높이를 뷰어가 전부 쓴다. 통지서 선택 Segmented가 있으면 그만큼만 위에서 떼고
-   나머지는 뷰어 카드가 채운다. */
-.pm-doc-panel {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  flex: 1 1 auto;
-  min-height: 0;
-  height: 100%;
-}
-
-/* 통지서가 많으면 이름이 길어 넘친다. 줄바꿈 대신 가로 스크롤로 둔다. */
-.pm-doc-panel-switch {
-  flex: 0 0 auto;
-  align-self: flex-start;
-  max-width: 100%;
-  overflow-x: auto;
-}
-
-.pm-doc-panel .pm-doc-viewer {
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow-y: auto;
-}
-
-
-/* ---- 본문 폭 기준 접힘 (문서 뷰어를 열면 viewport와 무관하게 좁아진다) ----
-   기본 규칙보다 뒤에 와야 grid-template-columns를 덮을 수 있어 파일 끝에 둔다. */
-
-/* 3열을 유지하기엔 좁다. 필터가 첫 줄을 다 쓰고 일정·To-do가 아래로 간다.
-   980px은 5fr 열이 400px 아래로 내려가기 시작하는 지점이다(260+260+gap을 뺀 값). */
-@container pm-main (max-width: 980px) {
-  .pm-toprow {
-    grid-template-columns: minmax(0, 1fr) minmax(240px, 1fr);
-  }
-
-  .pm-toprow-card.pm-filter-card {
-    grid-column: 1 / -1;
-    height: auto;
-  }
-}
-
-/* 두 열도 버거우면 전부 1열로 쌓고, Target 사이드도 목록 위로 올린다. */
-@container pm-main (max-width: 700px) {
-  .pm-toprow {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .pm-toprow-card {
-    height: auto;
-    max-height: var(--pm-toprow-height);
-  }
-
-  .pm-toprow-card.pm-filter-card {
-    max-height: none;
-  }
-
-  .pm-layout {
-    flex-direction: column;
-    min-height: 0;
-  }
-
-  .pm-column > .pm-card {
-    flex: 0 0 auto;
-  }
-
-  .pm-column-aside {
-    flex: 0 0 auto;
-    width: 100%;
-  }
-
-  .pm-target-list {
-    max-height: 280px;
-  }
-}
+/* 문서 뷰어는 우측 상시 레일로 옮겼다(components/layout/rightSidebar.css).
+   이 화면의 트리에는 더 이상 뷰어 패널이 없다. */

@@ -1,6 +1,7 @@
 import { Button } from 'antd';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import React from 'react';
+import { hasRichContent, richTextToPlain, sanitizeRichHtml } from '../../utils/richText';
 
 type ContactContentViewerProps = {
   html?: string;
@@ -10,72 +11,14 @@ type ContactContentViewerProps = {
   emptyText?: string;
 };
 
-const ALLOWED_TAGS = new Set([
-  'P', 'BR', 'STRONG', 'B', 'EM', 'I', 'U', 'UL', 'OL', 'LI', 'A', 'IMG', 'SPAN',
-]);
-const REMOVED_TAGS = new Set(['SCRIPT', 'STYLE', 'IFRAME', 'OBJECT', 'EMBED', 'SVG', 'MATH']);
-
-const isSafeImageSource = (value: string) => (
-  value.startsWith('/') || /^data:image\/(?:png|jpeg|gif|webp);base64,/i.test(value)
-);
-
-const isSafeLink = (value: string) => (
-  value.startsWith('/') || /^https?:\/\//i.test(value) || /^mailto:/i.test(value)
-);
-
-export const sanitizeContactHtml = (html?: string): string => {
-  if (!html || typeof DOMParser === 'undefined') return '';
-  const documentNode = new DOMParser().parseFromString(html, 'text/html');
-
-  Array.from(documentNode.body.querySelectorAll('*')).forEach((element) => {
-    if (REMOVED_TAGS.has(element.tagName)) {
-      element.remove();
-      return;
-    }
-    if (!ALLOWED_TAGS.has(element.tagName)) {
-      element.replaceWith(...Array.from(element.childNodes));
-      return;
-    }
-
-    const allowedAttributes = element.tagName === 'IMG'
-      ? new Set(['src', 'alt', 'title'])
-      : element.tagName === 'A'
-        ? new Set(['href', 'title'])
-        : new Set<string>();
-    Array.from(element.attributes).forEach((attribute) => {
-      if (!allowedAttributes.has(attribute.name.toLowerCase())) {
-        element.removeAttribute(attribute.name);
-      }
-    });
-
-    if (element instanceof HTMLImageElement) {
-      if (!isSafeImageSource(element.src.replace(window.location.origin, ''))) {
-        element.remove();
-        return;
-      }
-      element.loading = 'lazy';
-    }
-    if (element instanceof HTMLAnchorElement) {
-      const href = element.getAttribute('href') ?? '';
-      if (!isSafeLink(href)) element.removeAttribute('href');
-      if (element.hasAttribute('href')) {
-        element.target = '_blank';
-        element.rel = 'noopener noreferrer';
-      }
-    }
-  });
-
-  return documentNode.body.innerHTML;
-};
-
-export const getContactPlainText = (html?: string): string => {
-  if (!html || typeof DOMParser === 'undefined') return '';
-  return new DOMParser().parseFromString(html, 'text/html').body.textContent?.trim() ?? '';
-};
-
-export const hasContactContent = (html?: string): boolean => (
-  Boolean(getContactPlainText(html)) || /<img\b/i.test(html ?? '')
-);
+/**
+ * 거름망은 utils/richText로 옮겼다 — 관리 특허 상세의 '설명'도 같은 편집기를 쓰는데
+ * 규칙을 두 벌 두면 한쪽만 고쳐진다. 이름은 그대로 두어 이 화면의 호출부를 건드리지
+ * 않는다.
+ */
+export const sanitizeContactHtml = sanitizeRichHtml;
+export const getContactPlainText = richTextToPlain;
+export const hasContactContent = hasRichContent;
 
 const ContactContentViewer: React.FC<ContactContentViewerProps> = ({
   html,

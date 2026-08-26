@@ -16,6 +16,184 @@
   min-height: 0;
 }
 
+/* 독립 카드 껍데기(.pm-doc-viewer-card / -header / -title)는 지웠다. 뷰어를 감싸는 프레임
+   없이 놓이는 자리가 의견제출통지서 화면뿐이었고, 그 화면이 우측 레일을 쓰게 되면서
+   호출자가 하나(레일 패널)만 남았다. 레일 패널이 테두리·제목을 이미 제공한다. */
+
+/* 긴 PDF 파일명이 패널 폭을 밀어내지 않게 자른다(전체 이름은 Tooltip으로 본다). */
+.pm-doc-viewer .pm-ellipsis {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---- 가로 타임라인 ------------------------------------------------------
+   축의 한 점 = 문서 한 건. 날짜(윗줄) + 칩(아랫줄) 두 줄이고, 탭 두 줄을 대신하는 것이라
+   전체 높이를 그 이상 먹지 않게 유지한다(패널이 좁을 때 본문을 밀어내지 않아야 한다). */
+
+.pm-timeline {
+  flex: 0 0 auto;
+  min-width: 0;
+  margin-bottom: 10px;
+}
+
+/* 문서가 많으면 축이 가로로 넘친다. 이 안에서만 스크롤한다. */
+.pm-timeline-track {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  margin: 0;
+  padding: 0 0 4px;
+  list-style: none;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: var(--patent-scrollbar-thumb) transparent;
+}
+
+.pm-timeline-track::-webkit-scrollbar {
+  height: 6px;
+}
+
+.pm-timeline-track::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.pm-timeline-track::-webkit-scrollbar-thumb {
+  background: var(--patent-scrollbar-thumb);
+  border-radius: 999px;
+}
+
+/* 문서 하나 = 시간축의 한 점. */
+.pm-timeline-stop {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 0 0 auto;
+}
+
+/* 점 사이를 잇는 선. 마지막 점 뒤에는 그리지 않는다. */
+.pm-timeline-stop:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  /* 날짜 줄(16px) + gap(4px) + 칩(26px)의 절반 = 33px. 칩 세로 중앙과 맞춘다. */
+  top: 33px;
+  right: -16px;
+  width: 16px;
+  height: 1px;
+  background: var(--border-color);
+}
+
+/* 날짜 줄. 값이 없어도 자리는 차지해 점들이 같은 높이에 놓인다. */
+.pm-timeline-date {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  height: 16px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.pm-timeline-date-active {
+  color: var(--brand-primary);
+}
+
+/* 앞 문서와 같은 날짜라 생략한 줄. 자리만 남긴다. */
+.pm-timeline-date-repeat {
+  visibility: hidden;
+}
+
+/* 파일명에서 읽어 온 날짜임을 밝히는 표시. DB에 날짜 컬럼이 없는 의견서·보정서가 그렇다. */
+.pm-timeline-date-derived {
+  opacity: 0.55;
+}
+
+/* 문서 칩. */
+.pm-timeline-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 10px;
+  border: 1px solid var(--border-color);
+  border-radius: 999px;
+  background: var(--card-bg);
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.pm-timeline-chip:hover {
+  border-color: rgba(var(--brand-primary-rgb), 0.5);
+  color: var(--text-primary);
+}
+
+.pm-timeline-chip-active {
+  border-color: var(--brand-primary);
+  background: rgba(var(--brand-primary-rgb), 0.1);
+  color: var(--brand-primary);
+  font-weight: 700;
+}
+
+.pm-timeline-chip:focus-visible {
+  outline: 2px solid var(--brand-primary);
+  outline-offset: 1px;
+}
+
+.pm-timeline-dot {
+  flex: 0 0 auto;
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  box-sizing: border-box;
+}
+
+/* 통지서(심사관 → 출원인)는 채운 점, 대응 서류(출원인 → 심사관)는 테두리 점.
+   방향이 다른 문서를 색만으로 가르면 다크 모드에서 구분이 약해진다. */
+.pm-timeline-dot-action {
+  background: var(--brand-primary);
+}
+
+.pm-timeline-dot-response {
+  background: var(--card-bg);
+  border: 1.5px solid var(--brand-primary);
+}
+
+.pm-timeline-dot-other {
+  background: var(--border-color);
+}
+
+.pm-timeline-dot-selected {
+  background: var(--brand-primary);
+  border: 1.5px solid var(--brand-primary);
+}
+
+/* 종류 꼬리표(통지/대응/기타). 이름만으로는 방향이 안 읽히는 '기타 문서'를 위해 둔다. */
+.pm-timeline-chip-kind {
+  padding: 0 4px;
+  border-radius: 4px;
+  background: var(--bg-color);
+  font-size: 10px;
+  font-weight: 600;
+  opacity: 0.75;
+}
+
+/* 고른 문서 하나가 남는 높이를 채운다. */
+.pm-doc-viewer-pane {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
 /* ---- 탭이 카드의 남는 높이를 채운다 ---------------------------------------
    antd Tabs는 기본이 내용 높이라, 카드가 화면 높이를 받아도 본문은 자기 길이에서 멈춘다.
    그러면 뷰어 아래가 통째로 비므로 nav 아래를 남는 높이로 늘려 준다. */
@@ -132,6 +310,35 @@
   flex: 1 1 auto;
   min-height: 160px;
   overflow-y: auto;
+}
+
+/* 뷰어 안쪽 스크롤도 패널의 .pm-panel-scroll과 같이 얇게 그린다. 기본 15px 스크롤바는
+   좁은 패널에서 본문 폭을 그만큼 먹고, 패널마다 굵은 막대가 나란히 서면 시끄럽다. */
+.pm-doc-viewer .pm-viewer-preview,
+.pm-doc-viewer .ant-tabs-tabpane-active,
+.pm-doc-viewer .pm-doc-fulltext {
+  scrollbar-width: thin;
+  scrollbar-color: var(--patent-scrollbar-thumb) transparent;
+}
+
+.pm-doc-viewer .pm-viewer-preview::-webkit-scrollbar,
+.pm-doc-viewer .ant-tabs-tabpane-active::-webkit-scrollbar,
+.pm-doc-viewer .pm-doc-fulltext::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.pm-doc-viewer .pm-viewer-preview::-webkit-scrollbar-track,
+.pm-doc-viewer .ant-tabs-tabpane-active::-webkit-scrollbar-track,
+.pm-doc-viewer .pm-doc-fulltext::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.pm-doc-viewer .pm-viewer-preview::-webkit-scrollbar-thumb,
+.pm-doc-viewer .ant-tabs-tabpane-active::-webkit-scrollbar-thumb,
+.pm-doc-viewer .pm-doc-fulltext::-webkit-scrollbar-thumb {
+  background: var(--patent-scrollbar-thumb);
+  border-radius: 999px;
 }
 
 /* 라벨 폭 하한이 접히도록 min()을 쓴다(UI_STANDARD_GUIDE의 grid 하한 규칙). */

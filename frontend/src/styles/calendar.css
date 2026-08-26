@@ -1,0 +1,148 @@
+/* 특허 일정 달력.
+ *
+ * class 이름은 components/patent-management/PatentCalendar.tsx가 정한다. 그 컴포넌트가
+ * 특허 관리 화면 전용이 아니게 되면서(우측 레일의 일정 패널도 같은 달력을 쓴다) 규칙도
+ * 페이지 CSS에서 여기로 옮겼다 — styles/dday.css와 같은 이유다.
+ *
+ * 접두사 pm- 은 기존 class 이름을 그대로 유지한 것이다(둘을 함께 바꿔야 한다).
+ * 셀 크기는 놓이는 자리마다 다르므로 여기서 정하지 않는다. 감싸는 쪽이
+ * .pm-calendar-compact 같은 수정자로 덮어쓴다.
+ */
+
+/* `<< < 2026년 8월 > >>` 형태의 이동 컨트롤. 달력 상단 가운데에 둔다. */
+.pm-calendar-nav {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  margin-bottom: 6px;
+}
+
+.pm-calendar-nav-label {
+  min-width: 88px;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+/* 요일 열 간격을 이전(전체 폭) 대비 80%로 좁히고 가운데 정렬한다. */
+.pm-calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+  width: 80%;
+  margin-inline: auto;
+}
+
+.pm-calendar-weekday {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 28px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.pm-calendar-weekday-sun {
+  color: var(--pm-calendar-sunday);
+}
+
+.pm-calendar-weekday-sat {
+  color: var(--pm-calendar-saturday);
+}
+
+.pm-calendar-day {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 30px;
+  font-size: 12px;
+  color: var(--text-primary);
+  border: 0;
+  padding: 0;
+  background: transparent;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+/* 강조 표시는 셀이 아니라 이 정사각형 마커에 준다. 셀 폭이 넓어도 타원이 되지 않는다. */
+.pm-calendar-day-mark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border: 1px solid transparent;
+  border-radius: 50%;
+  box-sizing: border-box;
+}
+
+/* 일요일·공휴일은 빨강, 토요일은 하늘색. */
+.pm-calendar-day-holiday {
+  color: var(--pm-calendar-sunday);
+}
+
+.pm-calendar-day-saturday {
+  color: var(--pm-calendar-saturday);
+}
+
+.pm-calendar-day-muted {
+  color: var(--text-secondary);
+  opacity: 0.45;
+  cursor: default;
+}
+
+/* A deadline falls on this day. */
+.pm-calendar-day-due .pm-calendar-day-mark {
+  background: rgba(var(--brand-primary-rgb), 0.16);
+  font-weight: 700;
+}
+
+.pm-calendar-day-due {
+  color: var(--brand-primary);
+  font-weight: 700;
+}
+
+/* 오늘은 테두리 원, 선택된 날은 채워진 원 — 둘이 겹쳐도 구분된다. */
+.pm-calendar-day-today .pm-calendar-day-mark {
+  border-color: currentColor;
+  font-weight: 700;
+}
+
+.pm-calendar-day-selected {
+  color: #fff;
+  font-weight: 700;
+}
+
+.pm-calendar-day-selected .pm-calendar-day-mark {
+  background: var(--brand-primary);
+  border-color: var(--brand-primary);
+}
+
+.pm-calendar-day-selected.pm-calendar-day-today .pm-calendar-day-mark {
+  box-shadow: 0 0 0 1px var(--card-bg, #fff), 0 0 0 2px var(--brand-primary);
+}
+
+
+/* ---- 좁은 자리용 축소 변형 ---------------------------------------------- */
+/* 우측 레일처럼 세로가 아쉬운 자리. 셀을 줄여 한 달이 스크롤 없이 들어가게 한다.
+   예전 .pm-schedule-panel 한정 규칙과 같은 값이다. */
+.pm-calendar-compact .pm-calendar-grid {
+  flex: 0 0 auto;
+  width: 100%;
+}
+
+.pm-calendar-compact .pm-calendar-weekday {
+  height: 22px;
+}
+
+.pm-calendar-compact .pm-calendar-day {
+  height: 25px;
+}
+
+.pm-calendar-compact .pm-calendar-day-mark {
+  width: 23px;
+  height: 23px;
+}

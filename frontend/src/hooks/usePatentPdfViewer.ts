@@ -8,6 +8,7 @@ const SEARCH_HIGHLIGHT_PADDING_X = 2;
 const SEARCH_HIGHLIGHT_PADDING_Y = 1.5;
 const ENABLE_HIGHLIGHT_DEBUG_LOG = false;
 const ENABLE_SEARCH_HIGHLIGHT_TRACE_LOG = true;
+const PDF_ZOOM_LEVELS = [25, 50, 75, 100, 125, 150, 200, 250, 300, 400] as const;
 
 type PdfHighlightTarget = {
   pageNumber: number;
@@ -148,8 +149,11 @@ export const usePatentPdfViewer = ({
   const [pdfCurrentPage, setPdfCurrentPage] = React.useState<number>(1);
   const [pdfTotalPages, setPdfTotalPages] = React.useState<number>(0);
   const [pdfRotation, setPdfRotation] = React.useState<number>(0);
+  const [pdfZoomPercent, setPdfZoomPercent] = React.useState<number>(100);
+  const [pdfScaleValue, setPdfScaleValue] = React.useState<'page-width' | number>('page-width');
   const [isPdfDocumentReady, setIsPdfDocumentReady] = React.useState(false);
   const [isHighlighterReady, setIsHighlighterReady] = React.useState(false);
+  const [highlighterUtilsRevision, setHighlighterUtilsRevision] = React.useState(0);
 
   // -- Library Standard Search State --
   const [searchQuery, setSearchQuery] = React.useState('');
@@ -333,6 +337,25 @@ export const usePatentPdfViewer = ({
       eventBus.off('updatefindcontrolstate', onUpdateFindControlState);
     };
   }, [highlighterUtilsRef.current]);
+
+  // page-width로 시작한 실제 배율과 사용자가 변경한 배율을 toolbar에 동기화한다.
+  React.useEffect(() => {
+    const utils = highlighterUtilsRef.current;
+    const viewer = (utils as any)?.getViewer?.();
+    const eventBus = (utils as any)?.getEventBus?.();
+    if (!viewer || !eventBus) return;
+
+    const syncZoomPercent = (event?: { scale?: number }) => {
+      const scale = Number(event?.scale ?? viewer.currentScale);
+      if (Number.isFinite(scale) && scale > 0) {
+        setPdfZoomPercent(Math.round(scale * 100));
+      }
+    };
+
+    syncZoomPercent();
+    eventBus.on('scalechanging', syncZoomPercent);
+    return () => eventBus.off('scalechanging', syncZoomPercent);
+  }, [highlighterUtilsRevision]);
 
   // 페이지 폭/스케일/페이지 렌더 시 하이라이트를 다시 레이아웃하도록 리비전을 bump한다.
   // trailing 디바운스: 스크롤 중 연속 이벤트에는 재계산을 미루고, 멈춘 뒤 한 번만 재정렬해 버벅임을 막는다.
@@ -673,7 +696,7 @@ export const usePatentPdfViewer = ({
     const user = userHighlights;
 
     return [...base, ...dataHighlights, ...system, ...user];
-  }, [currentHighlights, dataHighlights, highlightLayoutRevision, userHighlights, systemHighlights]);
+  }, [currentHighlights, dataHighlights, highlightLayoutRevision, pdfScaleValue, userHighlights, systemHighlights]);
 
   const setPdfDocument = React.useCallback((pdfDocument: any) => {
     const documentChanged = pdfDocumentRef.current !== pdfDocument;
@@ -685,15 +708,57 @@ export const usePatentPdfViewer = ({
     setIsPdfDocumentReady(Boolean(pdfDocument));
   }, []);
 
+  const applyPdfZoom = React.useCallback((percent: number) => {
+    const viewer = (highlighterUtilsRef.current as any)?.getViewer?.();
+    if (!viewer) return;
+
+    const minZoom = PDF_ZOOM_LEVELS[0];
+    const maxZoom = PDF_ZOOM_LEVELS[PDF_ZOOM_LEVELS.length - 1];
+    const nextPercent = clamp(percent, minZoom, maxZoom);
+    setPdfScaleValue(nextPercent / 100);
+    viewer.currentScaleValue = String(nextPercent / 100);
+  }, []);
+
+  const zoomPdfIn = React.useCallback(() => {
+    const viewer = (highlighterUtilsRef.current as any)?.getViewer?.();
+    const currentPercent = Number(viewer?.currentScale) * 100;
+    if (!Number.isFinite(currentPercent)) return;
+
+    const nextZoom = PDF_ZOOM_LEVELS.find((level) => level > currentPercent + 0.5)
+      ?? PDF_ZOOM_LEVELS[PDF_ZOOM_LEVELS.length - 1];
+    applyPdfZoom(nextZoom);
+  }, [applyPdfZoom]);
+
+  const zoomPdfOut = React.useCallback(() => {
+    const viewer = (highlighterUtilsRef.current as any)?.getViewer?.();
+    const currentPercent = Number(viewer?.currentScale) * 100;
+    if (!Number.isFinite(currentPercent)) return;
+
+    const nextZoom = [...PDF_ZOOM_LEVELS]
+      .reverse()
+      .find((level) => level < currentPercent - 0.5) ?? PDF_ZOOM_LEVELS[0];
+    applyPdfZoom(nextZoom);
+  }, [applyPdfZoom]);
+
+  const resetPdfZoom = React.useCallback(() => {
+    const viewer = (highlighterUtilsRef.current as any)?.getViewer?.();
+    setPdfScaleValue('page-width');
+    if (viewer) viewer.currentScaleValue = 'page-width';
+  }, []);
+
   const setHighlighterUtils = React.useCallback((utils: any) => {
+    const utilsChanged = highlighterUtilsRef.current !== utils;
     highlighterUtilsRef.current = utils;
     setIsHighlighterReady(Boolean(utils));
+    if (utilsChanged) setHighlighterUtilsRevision((revision) => revision + 1);
   }, []);
 
   // Public API
   return {
     pdfViewerContainerRef,
     pdfRotation,
+    pdfZoomPercent,
+    pdfScaleValue,
     pdfTotalPages,
     isPdfDocumentReady,
     isHighlighterReady,
@@ -714,6 +779,9 @@ export const usePatentPdfViewer = ({
     setPdfDocument,
     setHighlighterUtils,
     setPdfTotalPages,
+    zoomPdfIn,
+    zoomPdfOut,
+    resetPdfZoom,
     // Highlight Handlers
     userHighlights,
     systemHighlights,

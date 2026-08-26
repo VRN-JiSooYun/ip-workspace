@@ -41,9 +41,9 @@ const RESPONSE_TYPE_BY_CODE: Record<number, PatentSearchResponseKind> = {
 };
 
 /**
- * 외부 `legal_status` 코드 테이블(id → status). 목록 endpoint가 없어
- * `GET /legal_statuses/?status=...`로 6개를 하나씩 확인해 옮겼다.
- * 여기 없는 id가 오면 `legalStatus`는 null이 되고 `legalStatusId`는 그대로 남는다.
+ * 외부 `legal_status`의 기존 응답 호환용 fallback(id → status).
+ * 필터 목록과 화면 표시는 OA DB를 직접 읽는 `/api/oa-lookups`를 정본으로 사용한다.
+ * 여기 없는 id가 오면 `legalStatus`는 null이고 `legalStatusId`는 그대로 남는다.
  */
 const LEGAL_STATUS_BY_ID: Record<number, string> = {
   1: "공개",
@@ -52,6 +52,10 @@ const LEGAL_STATUS_BY_ID: Record<number, string> = {
   4: "등록",
   5: "포기",
   6: "소멸 (등록료불납)",
+  7: "소멸 (취소)",
+  8: "소멸 (포기)",
+  9: "소멸 (기각)",
+  10: "소멸 ( )",
 };
 
 export type PatentSearchResponseKind = "OPINION" | "AMENDMENT";
@@ -102,6 +106,7 @@ export type PatentSearchPatentDetail = {
 
 export type PatentSearchItem = {
   officeActionId: number | null;
+  relevanceScore: number | null;
   adminId: number | null;
   content: string | null;
   contentLength: number;
@@ -320,6 +325,7 @@ export class PatentSearchService {
   ): PatentSearchItem {
     return {
       officeActionId: row.office_action_id ?? null,
+      relevanceScore: row.relevance_score ?? null,
       // admin_id와 admin_id_ref는 같은 값이라 하나만 내보낸다.
       adminId: row.admin_id ?? row.admin_id_ref ?? null,
       content: includeContent ? (row.office_action_content ?? null) : null,

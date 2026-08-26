@@ -33,6 +33,7 @@ const row = (
   overrides: Partial<UpstreamSearchRow> = {},
 ): UpstreamSearchRow => ({
   office_action_id: 11850,
+  relevance_score: null,
   admin_id: 108229,
   office_action_content: "발송번호: 9-5-2023-097003752",
   office_action_document_path: "http://example.test/oa.pdf",
@@ -333,6 +334,14 @@ describe("PatentSearchService", () => {
         submissions: [],
         rejections: [],
       });
+    });
+
+    it("preserves the upstream keyword relevance score", async () => {
+      const { client } = clientWith([row({ relevance_score: 3.0359515666390378 })]);
+
+      const result = await new PatentSearchService(client).search(dto());
+
+      expect(result.items[0].relevanceScore).toBe(3.0359515666390378);
     });
   });
 

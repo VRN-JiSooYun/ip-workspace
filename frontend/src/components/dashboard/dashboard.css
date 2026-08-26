@@ -1,0 +1,735 @@
+/* 대시보드 위젯 안쪽 스타일.
+ *
+ * 패널 껍데기(테두리·탭 스트립·분할선)는 components/workspace/workspace.css가 갖는다.
+ * 이 파일에는 위젯 '안쪽'만 남는다 — PatentManagement.css와 같은 역할 분담이다.
+ *
+ * 색은 hex를 직접 쓰지 않고 index.css의 CSS 변수를 쓴다(AGENTS.md 표시 규칙).
+ */
+
+/* 위젯 본문의 공통 골격. .pm-panel-scroll과 같은 12px 여백·얇은 스크롤바를 쓴다. */
+.db-panel-scroll {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 12px;
+  overflow: auto;
+  box-sizing: border-box;
+  scrollbar-width: thin;
+  scrollbar-color: var(--patent-scrollbar-thumb) transparent;
+}
+
+.db-panel-scroll::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.db-panel-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.db-panel-scroll::-webkit-scrollbar-thumb {
+  background: var(--patent-scrollbar-thumb);
+  border-radius: 999px;
+}
+
+.db-panel-scroll::-webkit-scrollbar-thumb:hover {
+  background: var(--patent-scrollbar-thumb-hover);
+}
+
+.db-status {
+  display: block;
+  padding: 8px 0;
+  font-size: 12px;
+}
+
+/* ---- KPI 스트립 ---------------------------------------------------------- */
+
+/* auto-fit이라 패널을 좁히면 타일이 스스로 줄바꿈한다. 개수를 화면 폭으로 계산하지
+   않아도 되고, 트리 어느 자리에 놓여도 깨지지 않는다. */
+.db-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+}
+
+.db-kpi-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 14px;
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  background: var(--card-bg);
+  text-align: left;
+  cursor: default;
+  transition: border-color 0.15s ease, transform 0.15s ease;
+}
+
+/* 눌러서 이동할 수 있는 타일만 커서와 hover를 준다. 죽은 숫자와 진입점을 구분한다. */
+.db-kpi-tile-link {
+  cursor: pointer;
+}
+
+.db-kpi-tile-link:hover {
+  border-color: var(--brand-primary);
+  transform: translateY(-1px);
+}
+
+.db-kpi-label {
+  font-size: 12px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.db-kpi-value {
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.1;
+  color: var(--text-primary);
+}
+
+.db-kpi-value-warn {
+  color: #b45309;
+}
+
+.db-kpi-value-danger {
+  color: #dc2626;
+}
+
+[data-theme='dark'] .db-kpi-value-warn {
+  color: #fcd34d;
+}
+
+[data-theme='dark'] .db-kpi-value-danger {
+  color: #fca5a5;
+}
+
+/* ---- 기한 보드 ----------------------------------------------------------- */
+
+.db-deadline-bucket + .db-deadline-bucket {
+  margin-top: 14px;
+}
+
+.db-deadline-bucket-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0 6px;
+  border-bottom: 1px solid var(--border-color);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.db-deadline-bucket-count {
+  font-weight: 400;
+  color: var(--text-secondary);
+}
+
+/* KPI 타일에서 넘어와 지목된 버킷. 어디로 이동했는지가 남아 있어야 하므로
+   다른 타일을 누를 때까지 강조를 유지한다. */
+.db-deadline-bucket-focus .db-deadline-bucket-head {
+  border-bottom-color: var(--brand-primary);
+  color: var(--brand-primary);
+}
+
+.db-deadline-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 0;
+  font-size: 12px;
+  color: var(--text-primary);
+  border: none;
+  background: none;
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+}
+
+.db-deadline-row:hover .db-deadline-label {
+  color: var(--brand-primary);
+}
+
+.db-deadline-label {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.db-deadline-meta {
+  flex-shrink: 0;
+  color: var(--text-secondary);
+}
+
+/* 국가 배지. 해외 건은 영업일 보정을 하지 않으므로 국가가 한눈에 보여야 한다. */
+.db-deadline-country {
+  flex-shrink: 0;
+  padding: 1px 6px;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  font-size: 10px;
+  color: var(--text-secondary);
+}
+
+.db-deadline-more {
+  padding: 10px 0 2px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+/* ---- 데이터 품질 --------------------------------------------------------- */
+
+.db-quality-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  font-size: 12px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.db-quality-row:last-child {
+  border-bottom: none;
+}
+
+.db-quality-label {
+  flex: 1 1 auto;
+  min-width: 0;
+  color: var(--text-primary);
+}
+
+.db-quality-count {
+  flex-shrink: 0;
+  min-width: 44px;
+  text-align: right;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.db-quality-count-zero {
+  color: var(--text-secondary);
+  font-weight: 400;
+}
+
+/* ---- 일정 달력 ------------------------------------------------------------
+ *
+ * class 이름은 widgets/ScheduleCalendar.tsx가 정한다. 격자 높이(LANE_HEIGHT,
+ * DAY_HEAD_HEIGHT, HOUR_HEIGHT)는 그 파일의 상수와 **같은 값**이어야 한다 — 막대 좌표를
+ * JS가 px로 계산하기 때문이다. 한쪽만 바꾸면 막대가 칸을 넘는다.
+ *
+ * 특허 관리의 달력(styles/calendar.css의 .pm-calendar-*)과 다른 이름을 쓰는 이유:
+ * 저쪽은 날짜에 점을 찍는 조회용 격자이고, 이쪽은 막대와 시간 격자를 그리는 편집용이다.
+ */
+
+/* 달력은 자기 안에서만 스크롤한다(월 격자는 아예 스크롤하지 않고 높이를 채운다).
+   그래서 .db-panel-scroll 대신 스크롤 없는 껍데기를 쓴다. */
+.db-panel-fill {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 10px;
+  box-sizing: border-box;
+}
+
+.db-cal {
+  /* 시간 격자 한 시간의 높이. ScheduleCalendar의 HOUR_HEIGHT와 같아야 한다. */
+  --db-cal-hour: 44px;
+  /* 시각 눈금 열의 폭. */
+  --db-cal-gutter: 46px;
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.db-cal-toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding-bottom: 8px;
+}
+
+/* 특허 일정 겹쳐 보기 토글. 좁은 패널에서 자리를 많이 차지하지 않게 작게 둔다. */
+.db-cal-toggle-label {
+  font-size: 11px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+/* 특허 일정 조회 상태 한 줄. 달력을 지우지 않고 위에 얹기만 한다. */
+.db-cal-note {
+  display: block;
+  padding-bottom: 6px;
+  font-size: 11px;
+}
+
+/* 이동 컨트롤은 가운데. 좌우 컨트롤이 늘어나도 자리가 흔들리지 않는다. */
+.db-cal-nav {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+}
+
+.db-cal-nav-label {
+  min-width: 84px;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+
+.db-cal-toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.db-cal-sun { color: var(--pm-calendar-sunday); }
+.db-cal-sat { color: var(--pm-calendar-saturday); }
+
+/* ---- 월간 ---------------------------------------------------------------- */
+
+.db-cal-month,
+.db-cal-time {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  background: var(--card-bg);
+  overflow: hidden;
+}
+
+.db-cal-weekhead {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  border-bottom: 1px solid var(--border-color);
+}
+
+.db-cal-weekhead-cell {
+  padding: 6px 0;
+  text-align: center;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+/* 패널이 6주를 담기에 낮으면 칸을 더 눌러 붙이는 대신 세로로 스크롤한다.
+   날짜 숫자와 막대 한 줄은 어떤 높이에서도 읽을 수 있어야 하기 때문이다. */
+.db-cal-weeks {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--patent-scrollbar-thumb) transparent;
+}
+
+.db-cal-weeks::-webkit-scrollbar { width: 6px; }
+.db-cal-weeks::-webkit-scrollbar-track { background: transparent; }
+.db-cal-weeks::-webkit-scrollbar-thumb {
+  background: var(--patent-scrollbar-thumb);
+  border-radius: 999px;
+}
+
+/* 주 하나. 날짜 칸(아래)과 일정 막대(위) 두 겹을 겹쳐 놓는 자리다.
+   최소 높이는 '날짜 숫자(24px) + 막대 한 줄(19px)'이 들어가는 값이다. 이보다 낮아지면
+   한 주에 일정이 하나도 안 보이므로, 대신 .db-cal-weeks가 스크롤한다. */
+.db-cal-week {
+  position: relative;
+  flex: 1 1 0;
+  min-height: 46px;
+}
+
+.db-cal-week-cells {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+}
+
+.db-cal-day {
+  position: relative;
+  padding: 0 4px;
+  border-right: 1px solid var(--border-color);
+  border-bottom: 1px solid var(--border-color);
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.db-cal-day:nth-child(7n) { border-right: none; }
+.db-cal-week:last-child .db-cal-day { border-bottom: none; }
+.db-cal-day:hover { background: var(--table-row-hover-bg); }
+
+.db-cal-day-muted .db-cal-day-num { opacity: 0.35; }
+
+/* 고른 날짜. 등록 모달이 어느 날짜로 열렸는지를 닫은 뒤에도 알 수 있게 남긴다. */
+.db-cal-day-selected {
+  outline-offset: -2px;
+  border-radius: 6px;
+}
+
+/* 높이는 ScheduleCalendar의 DAY_HEAD_HEIGHT와 같아야 한다(막대가 이 아래부터 쌓인다). */
+.db-cal-day-head {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  height: 24px;
+}
+
+.db-cal-day-holiday {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 10px;
+  color: var(--pm-calendar-sunday);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.db-cal-day-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.db-cal-day-sun .db-cal-day-num { color: var(--pm-calendar-sunday); }
+.db-cal-day-sat .db-cal-day-num { color: var(--pm-calendar-saturday); }
+
+.db-cal-day-today {
+  border-radius: 999px;
+  background: var(--brand-primary);
+  color: var(--card-bg);
+}
+
+.db-cal-day-sun .db-cal-day-today,
+.db-cal-day-sat .db-cal-day-today { color: var(--card-bg); }
+
+/* 칸에 다 못 그린 일정 수. 누르면 그날의 일간 보기로 넘어간다. */
+.db-cal-more {
+  position: absolute;
+  right: 4px;
+  bottom: 2px;
+  height: 16px;
+  padding: 0 6px;
+  border: none;
+  border-radius: 999px;
+  background: var(--border-color);
+  color: var(--text-secondary);
+  font-size: 10px;
+  line-height: 16px;
+  cursor: pointer;
+}
+
+.db-cal-more:hover { color: var(--text-primary); }
+
+/* 막대 층. 층 자체는 클릭을 받지 않고 막대만 받는다(빈 곳을 누르면 아래 날짜 칸이 받는다). */
+.db-cal-week-bars {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+/* ---- 일정 막대 ----------------------------------------------------------- */
+
+.db-cal-bar {
+  position: absolute;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 17px;
+  padding: 0 6px 0 8px;
+  /* 좌우 2px는 투명 테두리로 만든다. 폭을 %로 계산하므로 margin을 쓰면 칸 경계가 어긋난다. */
+  border: none;
+  border-left: 2px solid transparent;
+  border-right: 2px solid transparent;
+  background-color: var(--db-cal-tone-soft);
+  background-clip: padding-box;
+  box-shadow: inset 3px 0 0 var(--db-cal-tone-bar);
+  border-radius: 4px;
+  color: var(--text-primary);
+  font-size: 11px;
+  line-height: 1;
+  text-align: left;
+  cursor: pointer;
+  overflow: hidden;
+  pointer-events: auto;
+}
+
+.db-cal-bar:hover { filter: brightness(0.96); }
+
+.db-cal-bar-time {
+  flex: 0 0 auto;
+  font-weight: 700;
+}
+
+.db-cal-bar-title {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 특허 일정은 테두리만 칠한다.
+   내 일정(색이 채워진 막대)과 한눈에 갈려야 한다 — 이쪽은 눌러도 고치거나 지울 수 없고
+   서버가 가진 사실을 비출 뿐이다. 색은 종류를 거들 뿐이므로 왼쪽 띠에만 남긴다. */
+.db-cal-bar-patent {
+  background-color: transparent;
+  box-shadow:
+    inset 3px 0 0 var(--db-cal-tone-bar),
+    inset 0 0 0 1px var(--border-color);
+}
+
+.db-cal-bar-patent:hover {
+  background-color: var(--table-row-hover-bg);
+  filter: none;
+}
+
+/* 앞·뒤 주로 이어지는 막대는 잘린 쪽을 각지게 둔다("여기서 끝난 게 아니다"). */
+.db-cal-bar-open-start {
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+  border-left-width: 0;
+  box-shadow: none;
+}
+
+.db-cal-bar-open-end {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+  border-right-width: 0;
+}
+
+/* ---- 일간·주간(시간 격자) ------------------------------------------------- */
+
+.db-cal-time-head,
+.db-cal-allday,
+.db-cal-time-grid {
+  display: grid;
+}
+
+.db-cal-time-head {
+  align-items: center;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.db-cal-time-gutter {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  color: var(--text-secondary);
+}
+
+.db-cal-time-day {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 6px 0;
+  border: none;
+  background: none;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.db-cal-time-day-name { font-size: 10px; color: var(--text-secondary); }
+.db-cal-time-day-num { font-size: 13px; font-weight: 600; }
+
+.db-cal-time-day-today .db-cal-time-day-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  background: var(--brand-primary);
+  color: var(--card-bg);
+}
+
+.db-cal-allday {
+  align-items: start;
+  padding: 3px 0;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.db-cal-allday-lanes {
+  position: relative;
+  min-height: 19px;
+}
+
+.db-cal-time-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--patent-scrollbar-thumb) transparent;
+}
+
+.db-cal-time-body::-webkit-scrollbar { width: 6px; }
+.db-cal-time-body::-webkit-scrollbar-track { background: transparent; }
+.db-cal-time-body::-webkit-scrollbar-thumb {
+  background: var(--patent-scrollbar-thumb);
+  border-radius: 999px;
+}
+
+.db-cal-time-hours {
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid var(--border-color);
+}
+
+.db-cal-time-hour {
+  height: var(--db-cal-hour);
+  padding-right: 6px;
+  font-size: 10px;
+  color: var(--text-secondary);
+  text-align: right;
+}
+
+/* 시간 눈금은 요소 대신 배경으로 그린다(24줄 × 요일 수만큼 DOM을 만들지 않는다). */
+.db-cal-time-col {
+  position: relative;
+  border-right: 1px solid var(--border-color);
+  background-image: repeating-linear-gradient(
+    to bottom,
+    var(--border-color) 0,
+    var(--border-color) 1px,
+    transparent 1px,
+    transparent var(--db-cal-hour)
+  );
+  cursor: pointer;
+}
+
+.db-cal-time-col:last-child { border-right: none; }
+.db-cal-time-col-today { background-color: var(--table-row-hover-bg); }
+
+/* 시간 블록은 높이가 길어질 수 있으므로 시각과 제목을 세로로 쌓는다. */
+.db-cal-time-col .db-cal-bar {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  height: auto;
+  padding: 2px 4px 2px 8px;
+}
+
+/* ---- 일정 팝업 ----------------------------------------------------------- */
+
+.db-cal-pop {
+  min-width: 210px;
+  max-width: 280px;
+}
+
+/* 읽기 전용이라는 사실을 팝업 첫 줄에서 알린다(버튼이 없는 이유를 설명한다). */
+.db-cal-pop-tag {
+  display: inline-flex;
+  margin-bottom: 8px;
+  padding: 1px 8px;
+  border: 1px solid var(--border-color);
+  border-radius: 999px;
+  font-size: 10px;
+  color: var(--text-secondary);
+}
+
+.db-cal-pop-rows {
+  display: grid;
+  /* 라벨 열은 가장 긴 라벨(출원번호)에 맞춘다. 고정 폭이면 그 라벨만 두 줄로 접힌다. */
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 6px 10px;
+  margin: 0;
+}
+
+.db-cal-pop-rows dt {
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.db-cal-pop-rows dd {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-primary);
+  word-break: break-word;
+}
+
+.db-cal-pop-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+}
+
+.db-cal-dot {
+  flex: 0 0 auto;
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  background: var(--db-cal-tone-bar);
+}
+
+.db-cal-pop-memo {
+  margin: 10px 0 0;
+  font-size: 11px;
+  color: var(--text-secondary);
+  white-space: pre-wrap;
+}
+
+.db-cal-pop-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-top: 12px;
+}
+
+/* ---- 색 고르기 ------------------------------------------------------------ */
+
+.db-cal-color-choice {
+  display: flex;
+  gap: 8px;
+}
+
+.db-cal-color-swatch {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 2px solid transparent;
+  border-radius: 6px;
+  background: var(--db-cal-tone-bar);
+  cursor: pointer;
+}
+
+/* 고른 색은 테두리와 안쪽 여백으로 표시한다. 색 자체를 바꾸면 무슨 색인지 알 수 없다. */
+.db-cal-color-swatch-on {
+  border-color: var(--text-primary);
+  box-shadow: inset 0 0 0 2px var(--card-bg);
+}
+
+/* ---- 색 표식 --------------------------------------------------------------
+ * 막대·점·색 고르기가 같은 두 변수를 본다. 색을 늘릴 때 여기 한 줄만 더하면 된다.
+ */
+
+.db-cal-tone-purple { --db-cal-tone-soft: var(--db-cal-purple-soft); --db-cal-tone-bar: var(--db-cal-purple-bar); }
+.db-cal-tone-orange { --db-cal-tone-soft: var(--db-cal-orange-soft); --db-cal-tone-bar: var(--db-cal-orange-bar); }
+.db-cal-tone-yellow { --db-cal-tone-soft: var(--db-cal-yellow-soft); --db-cal-tone-bar: var(--db-cal-yellow-bar); }
+.db-cal-tone-teal { --db-cal-tone-soft: var(--db-cal-teal-soft); --db-cal-tone-bar: var(--db-cal-teal-bar); }
+.db-cal-tone-blue { --db-cal-tone-soft: var(--db-cal-blue-soft); --db-cal-tone-bar: var(--db-cal-blue-bar); }
+.db-cal-tone-red { --db-cal-tone-soft: var(--db-cal-red-soft); --db-cal-tone-bar: var(--db-cal-red-bar); }

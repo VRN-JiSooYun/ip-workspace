@@ -32,7 +32,7 @@ const OfficeActionSearchBar: React.FC<Props> = ({
       onPressEnter={onSearch}
       placeholder="의견제출통지서 본문 검색"
       variant="borderless"
-      prefix={<Search size={18} className="oa-searchbar-icon" />}
+      prefix={<Search size={18} className="oa-searchbar-icon" style={{ marginInlineEnd: 12 }} />}
     />
     {/* 색은 브랜드 색상을 따른다. 시안의 주황은 시안 작성 시점의 브랜드 색이다. */}
     <Button

@@ -7,7 +7,8 @@ schema·migration을 변경할 때 이 문서도 같은 작업에서 갱신한�
   `backend/prisma/migrations/20260810160000_add_patent_internal_ref/`,
   `backend/prisma/migrations/20260811090000_add_patent_sheet_columns/`,
   `backend/prisma/migrations/20260812120000_add_patent_target_code/`,
-  `backend/prisma/migrations/20260812150000_add_patent_todo/`
+  `backend/prisma/migrations/20260812150000_add_patent_todo/`,
+  `backend/prisma/migrations/20260824100000_add_patent_expected_expiry_index/`
 - 이 묶음은 외부 특허 데이터를 적재하는 용도라 PK/FK가 `int`이고 column명이 snake_case다.
   기존 auth 도메인(uuid PK, camelCase column)과 규칙이 다르다.
 
@@ -238,6 +239,20 @@ F 25 W 001 US     F25W001US   미국 진입
 입력값은 대문자로 정규화해 저장한다(`a250001` → `A250001`). 대소문자만 다른 중복을 막기 위함이다.
 
 ## 제약 조건
+
+### Index
+
+조회 패턴에 맞춰 붙인 index다. FK column의 index는 Prisma 규칙대로 관계마다 자동으로 둔다.
+
+| 대상 | 근거 |
+| --- | --- |
+| `patent(country)`, `patent(attorney_number)`, `patent(legal_status)`, `patent(exam_status)`, `patent(target)` | 코드값 필터 (목록·진행 현황 집계) |
+| `patent(application_date)`, `patent(publication_date)` | 출원일·공개일 정렬과 월별 일정 조회 |
+| `patent(expected_expiry_date)` | 대시보드 기한 보드·KPI가 만료 임박 건을 범위로 조회한다. 다른 날짜 column과 달리 index가 빠져 있어 집계가 full scan이 되던 것을 보완함 |
+| `patent(ref_origin, ref_year, ref_type, ref_serial)` | 내부관리번호 구성요소별 조회와 다음 일련번호 채번 |
+| `patent_todo(completed, dueDate)` | 미완료 To-do의 마감일 범위 조회 (기한 보드) |
+| `patent_stage(group_code)`, `legal_status(stage_code)` | 진행 단계 매핑 조회 |
+| `admin(patent_id)`, `admin(action_date)` | 특허별 행정 이력 조회와 처분일 정렬 |
 
 ### Unique
 

@@ -17,6 +17,18 @@ type Props = {
   minSiblingWidth?: number;
   /** separator의 aria-label. 화면마다 무엇을 조절하는지 밝힌다. */
   label: string;
+  /**
+   * 폭을 부모가 소유할 때 넘긴다(controlled). 이 값이 있으면 내부 state를 쓰지 않으므로
+   * 폭을 저장하거나 항목마다 다르게 둘 수 있다. 없으면 예전처럼 스스로 들고 있다.
+   */
+  width?: number;
+  /** controlled일 때 폭이 바뀔 때마다 부른다. clamp를 통과한 값만 온다. */
+  onWidthChange?: (width: number) => void;
+  /**
+   * 드래그 시작·종료를 알린다. 부르는 쪽이 드래그 중에는 폭 애니메이션을 꺼야 하기
+   * 때문이다(전환이 켜져 있으면 패널이 커서를 뒤늦게 따라와 뻣뻣하게 느껴진다).
+   */
+  onResizingChange?: (resizing: boolean) => void;
   children: React.ReactNode;
 };
 
@@ -34,10 +46,30 @@ const ResizableSidePanel: React.FC<Props> = ({
   defaultWidth = SIDE_PANEL_DEFAULT_WIDTH,
   minSiblingWidth = SIDE_PANEL_MIN_SIBLING_WIDTH,
   label,
+  width: controlledWidth,
+  onWidthChange,
+  onResizingChange,
   children,
 }) => {
-  const [width, setWidth] = useState(defaultWidth);
+  const [uncontrolledWidth, setUncontrolledWidth] = useState(defaultWidth);
+  const isControlled = controlledWidth !== undefined;
+  const width = isControlled ? controlledWidth : uncontrolledWidth;
   const [isResizing, setIsResizing] = useState(false);
+
+  /**
+   * 아래 로직은 전부 `setWidth(다음값 또는 updater)` 형태로 쓰여 있다. controlled에서도
+   * 같은 모양을 유지하려고 updater를 여기서 풀어 현재 폭을 넣어 준다.
+   */
+  const setWidth = useCallback(
+    (next: number | ((current: number) => number)) => {
+      const resolve = (current: number) => (
+        typeof next === 'function' ? (next as (value: number) => number)(current) : next
+      );
+      if (isControlled) onWidthChange?.(resolve(controlledWidth as number));
+      else setUncontrolledWidth((current) => resolve(current));
+    },
+    [controlledWidth, isControlled, onWidthChange],
+  );
   const handleRef = useRef<HTMLDivElement>(null);
   const paneRef = useRef<HTMLDivElement>(null);
 
@@ -50,11 +82,14 @@ const ResizableSidePanel: React.FC<Props> = ({
       const pane = paneRef.current;
       const main = handleRef.current?.previousElementSibling;
       let effectiveMax = max;
-      if (pane && main) {
+      if (pane) {
+        // 본문(핸들의 앞 형제)의 왼쪽 경계를 기준으로 삼는다. 우측 레일처럼 핸들이 컨테이너의
+        // 첫 자식이면 앞 형제가 없는데, 그때 보호를 건너뛰면 본문을 0까지 밀 수 있다.
+        // 그런 자리에서는 viewport 왼쪽을 경계로 써서 보호가 조용히 죽는 일을 막는다
+        // (부르는 쪽이 max로 더 좁게 잡을 수 있다).
+        const leftBound = main ? main.getBoundingClientRect().left : 0;
         const available =
-          pane.getBoundingClientRect().right -
-          main.getBoundingClientRect().left -
-          minSiblingWidth;
+          pane.getBoundingClientRect().right - leftBound - minSiblingWidth;
         effectiveMax = Math.min(max, available);
       }
       // 상한이 하한보다 작아지는 아주 좁은 화면에서는 하한을 지킨다(세로 배치로 넘어간다).
@@ -63,16 +98,29 @@ const ResizableSidePanel: React.FC<Props> = ({
     [max, min, minSiblingWidth],
   );
 
-  /** 창이 줄어들면 저장된 폭이 현재 레이아웃보다 커질 수 있어 다시 맞춘다. */
+  /**
+   * 창이 줄어들면 저장된 폭이 현재 레이아웃보다 커질 수 있어 다시 맞춘다.
+   *
+   * 드래그 중에는 건너뛴다. 관찰 대상(부모)이 이 패널의 폭에 따라 함께 커지는 자리
+   * (우측 레일)에서는 폭 변경 → 옵저버 → 재클램프 → 폭 변경의 되먹임이 생겨, 이동 한 번에
+   * 렌더가 두 번씩 일어난다. 드래그 중의 클램프는 mousemove가 이미 하고 있다.
+   */
   useEffect(() => {
     const parent = paneRef.current?.parentElement;
     if (!parent || typeof ResizeObserver === 'undefined') return undefined;
     const observer = new ResizeObserver(() => {
+      if (isResizing) return;
       setWidth((current) => clamp(current));
     });
     observer.observe(parent);
     return () => observer.disconnect();
-  }, [clamp]);
+  }, [clamp, isResizing, setWidth]);
+
+  useEffect(() => {
+    onResizingChange?.(isResizing);
+    // 콜백만 바뀌었다고 다시 알릴 이유는 없다. isResizing이 바뀔 때만 통지한다.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isResizing]);
 
   useEffect(() => {
     if (!isResizing) return undefined;

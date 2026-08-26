@@ -1,0 +1,58 @@
+/* 상세 검색 패널 안쪽.
+   예전 PatentFilterCard.css를 물려받았지만, 상단 3열이 접히는 media/@container 분기는
+   전부 걷어냈다. 패널 크기는 이제 사용자가 정하고 최소 크기는 PATENT_PANEL_META가 잡는다. */
+
+/* 총 건수 한 줄. 탭 머리줄(tabBarExtraContent)이 하던 자리를 대신한다.
+   오른쪽 정렬인 이유: 탭이 있던 시절에도 건수는 머리줄 오른쪽 끝이었다. */
+.pm-filters-panel-head {
+  display: flex;
+  justify-content: flex-end;
+  flex: 0 0 auto;
+  margin-bottom: 8px;
+}
+
+/* ---- 아래는 tablist(특허/상표)를 되살릴 때 쓰는 규칙이다 -------------------
+   FiltersPanel의 Tabs를 주석 처리해 지금은 붙는 곳이 없다. 상표 관리가 들어오면
+   그 Tabs와 함께 다시 살아난다. 규칙만 남겨 두는 편이, 되살릴 때 레이아웃을
+   처음부터 다시 맞추는 것보다 낫다. */
+
+/* 패널 안쪽이 전부 flex 사슬이어야 탭 내용이 패널 높이에 맞춰 늘고 줄어든다. */
+.pm-filters-panel .pm-filter-tabs {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.pm-filters-panel .pm-filter-tabs > .ant-tabs-nav {
+  margin-bottom: 12px;
+}
+
+/* 탭 라벨은 패널 제목과 같은 급으로 읽혀야 한다. */
+.pm-filters-panel .pm-filter-tabs .ant-tabs-tab .ant-tabs-tab-btn {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-secondary);
+}
+
+.pm-filters-panel .pm-filter-tabs .ant-tabs-tab-active .ant-tabs-tab-btn {
+  color: var(--text-primary);
+}
+
+.pm-filters-panel .pm-filter-tabs > .ant-tabs-content-holder,
+.pm-filters-panel .pm-filter-tabs .ant-tabs-content,
+.pm-filters-panel .pm-filter-tabs .ant-tabs-tabpane-active {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.pm-filter-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1 1 auto;
+  min-height: 80px;
+  font-size: 12px;
+}

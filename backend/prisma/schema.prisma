@@ -29,11 +29,13 @@ model User {
   notificationRecipientImportRuns NotificationRecipientImportRun[]
   auditActions  AuthAuditLog[] @relation("AuditActor")
   auditTargets  AuthAuditLog[] @relation("AuditTarget")
+  patentAuditActions PatentAuditLog[] @relation("PatentAuditActor")
   organizationMembers Member[]
   organizationInvitations Invitation[] @relation("InvitationInviter")
   teamMembers    TeamMember[]
   groupwareTeamAssignment GroupwareTeamAssignment?
   updatedTeamModuleAccess TeamModuleAccess[] @relation("TeamModuleAccessUpdater")
+  calendarEvents CalendarEvent[] @relation("CalendarEventOwner")
 
   @@index([role, status])
   @@index([team])
@@ -104,9 +106,58 @@ model Team {
   moduleAccess   TeamModuleAccess[]
   groupwareAssignments GroupwareTeamAssignment[]
   invitations    Invitation[]
+  calendarEvents CalendarEvent[]
 
   @@index([organizationId])
   @@map("team")
+}
+
+/**
+ * 일정의 공개 범위.
+ *   PRIVATE — 만든 사람만 본다
+ *   TEAM    — 같은 팀(teamId) 사람들이 본다. 고치고 지우는 것은 여전히 만든 사람만.
+ */
+enum CalendarEventVisibility {
+  PRIVATE
+  TEAM
+}
+
+/**
+ * 대시보드 일정 위젯이 쓰는 사용자 일정.
+ *
+ * 특허 라이프사이클 날짜(patent.*)나 PatentTodo와는 다른 종류다. 저쪽은 특허에 딸린
+ * 사실이고 이쪽은 사람이 직접 적는 약속이라, 특허와 연결되지 않아도 존재할 수 있어야 한다.
+ *
+ * 날짜는 시각이 없는 `date`다. 달력이 다루는 것은 "며칠"이지 "몇 시 몇 분"이 아니라서,
+ * timestamp로 두면 시간대에 따라 하루가 밀려 보인다. 시각은 종일이 아닌 일정에만 있고
+ * `HH:mm` 문자열로 따로 담는다(그날의 벽시계 시각이지 절대 시각이 아니다).
+ */
+model CalendarEvent {
+  id         String                  @id @default(uuid()) @db.Uuid
+  ownerId    String                  @map("owner_id") @db.Uuid
+  /// visibility가 TEAM일 때만 채워진다.
+  teamId     String?                 @map("team_id") @db.Uuid
+  visibility CalendarEventVisibility @default(PRIVATE)
+  title      String
+  startDate  DateTime                @map("start_date") @db.Date
+  /// 종료일은 그날을 **포함**한다(사용자가 달력에서 보는 것과 같은 뜻).
+  endDate    DateTime                @map("end_date") @db.Date
+  allDay     Boolean                 @default(true) @map("all_day")
+  /// `HH:mm`. 종일이면 둘 다 NULL이다.
+  startTime  String?                 @map("start_time") @db.VarChar(5)
+  endTime    String?                 @map("end_time") @db.VarChar(5)
+  /// 화면의 색 표식(purple·orange·yellow·teal·blue·red).
+  color      String                  @default("purple") @db.VarChar(20)
+  memo       String?
+  createdAt  DateTime                @default(now()) @map("created_at")
+  updatedAt  DateTime                @updatedAt @map("updated_at")
+  owner      User                    @relation("CalendarEventOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  team       Team?                   @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  // 목록은 늘 "기간이 겹치는 것"을 묻는다. 소유자별·팀별로 각각 그 조건을 탄다.
+  @@index([ownerId, startDate, endDate])
+  @@index([teamId, startDate, endDate])
+  @@map("calendar_event")
 }
 
 model TeamMember {
@@ -487,7 +538,9 @@ model Patent {
   /// 정규화하지 않고 IP팀 운영 시트에 적힌 문장을 보존한다.
   target                  String?
   inventors               String?
-  /// "현재 Status"(legal_status) 옆에 붙는 자유 서술.
+  /// **더 이상 쓰지 않는다.** 20260826120000 마이그레이션이 이 값을 note('설명')로 옮겼고,
+  /// 코드 어디에서도 읽거나 쓰지 않는다. 합친 결과를 원본과 대조할 수 있게 컬럼만 남겨 둔
+  /// 것이며, 확인이 끝나면 DROP한다. 새 값을 여기 넣으면 화면에 나타나지 않는다.
   statusNote              String?      @map("status_note")
   todoDueDate             DateTime?    @map("todo_due_date")
   /// 분할/계속 등 원출원과의 관계. 상대 출원은 parent_application_number에 적는다.
@@ -497,7 +550,15 @@ model Patent {
   /// 지분약정(지분율 변경) 기존 출원인.
   shareAgreement          String?      @map("share_agreement")
   expectedExpiryDate      DateTime?    @map("expected_expiry_date")
+  /// 상세 모달의 '설명'. 화면의 WYSIWYG가 만든 HTML 조각이 들어 있다(옛 행과 CSV로 들어온
+  /// 값은 태그 없는 평문일 수 있어, 그리는 쪽이 둘 다 받아 준다). 옛 status_note도 여기로
+  /// 합쳐졌다 — 자유 서술은 이 컬럼 하나다.
   note                    String?
+
+  /// 이 행이 처음 만들어진 시각. 마이그레이션 이전 행은 마이그레이션 시점이 들어가 있다
+  /// (실제 등록 시점이 아니다 — 그 값은 어디에도 없었다).
+  createdAt               DateTime     @default(now()) @map("created_at")
+  updatedAt               DateTime     @updatedAt @map("updated_at")
 
   country     Country      @relation(fields: [countryId], references: [id])
   attorney    Attorney?    @relation(fields: [attorneyNumber], references: [attorneyNumber], onDelete: SetNull)
@@ -507,6 +568,7 @@ model Patent {
   patentIpcs  PatentIpc[]
   admins      PatentAdmin[]
   todos       PatentTodo[]
+  auditLogs   PatentAuditLog[]
 
   @@index([countryId])
   @@index([attorneyNumber])
@@ -515,9 +577,45 @@ model Patent {
   @@index([target])
   @@index([applicationDate])
   @@index([publicationDate])
+  // 대시보드 기한 보드/KPI가 만료 임박 건을 범위로 조회한다.
+  @@index([expectedExpiryDate])
   // 구성요소별 조회와 다음 일련번호 채번(2단계)을 위한 index.
   @@index([refOrigin, refYear, refType, refSerial])
   @@map("patent")
+}
+
+/// 관리 특허의 변경 이력.
+///
+/// `auth_audit_log`와 나란한 개념이지만 별도 테이블이다. 그쪽은 사용자를 축으로 색인돼
+/// 있어서 "이 특허의 이력"을 물으면 metadata JSON을 훑어야 한다 — 화면의 활동 피드가
+/// 쓸 수 없는 접근이다.
+model PatentAuditLog {
+  id          String   @id @default(uuid()) @db.Uuid
+  /// 특허를 지워도 이력은 남긴다(SetNull). "지웠다"는 기록까지 함께 사라지면 안 된다.
+  /// 그래서 nullable이고, 어느 건이었는지는 metadata의 출원번호로 읽는다.
+  patentId    Int?     @map("patent_id")
+  actorUserId String?  @map("actor_user_id") @db.Uuid
+  /// PATENT_CREATED | PATENT_FIELD_CHANGED | PATENT_IMPORTED | PATENT_DELETED
+  eventType   String   @map("event_type")
+  /// 바뀐 컬럼 이름. PATENT_FIELD_CHANGED에만 있다.
+  field       String?
+  /// 코드 id가 아니라 사람이 읽는 값으로 굳혀 둔다. `1 → 2`는 피드에서 뜻이 없고,
+  /// 코드 표의 이름이 나중에 바뀌면 과거 이력의 뜻까지 흔들린다.
+  beforeValue String?  @map("before_value")
+  afterValue  String?  @map("after_value")
+  /// 한 요청에서 나온 행들을 묶는다. 화면이 한 덩이로 그린다.
+  requestId   String?  @map("request_id")
+  metadata    Json?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  patent Patent? @relation(fields: [patentId], references: [id], onDelete: SetNull)
+  actor  User?   @relation("PatentAuditActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  /// 활동 피드는 늘 "이 특허의 최신순"을 묻는다.
+  @@index([patentId, createdAt])
+  @@index([actorUserId, createdAt])
+  @@index([createdAt])
+  @@map("patent_audit_log")
 }
 
 model PatentTodo {

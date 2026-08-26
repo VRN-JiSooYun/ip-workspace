@@ -17,6 +17,9 @@ import { AdminModule } from "./admin/admin.module";
 import { NotificationRecipientModule } from "./notification-recipient/notification-recipient.module";
 import { PatentAnalysisAdminModule } from "./patent-analysis-admin/patent-analysis-admin.module";
 import { AuthorizationModule } from "./authorization/authorization.module";
+import { CalendarEventModule } from "./calendar-event/calendar-event.module";
+import { OaDatabaseModule } from "./oa-database/oa-database.module";
+import { OaLookupModule } from "./oa-lookup/oa-lookup.module";
 
 @Module({
   imports: [
@@ -26,6 +29,7 @@ import { AuthorizationModule } from "./authorization/authorization.module";
       validate: validateEnv,
     }),
     DatabaseModule,
+    OaDatabaseModule,
     AuthModule.forRoot({
       auth,
       bodyParser: {
@@ -45,6 +49,8 @@ import { AuthorizationModule } from "./authorization/authorization.module";
     ConformerModule,
     CompoundApiModule,
     NotificationRecipientModule,
+    CalendarEventModule,
+    OaLookupModule,
   ],
 })
 export class AppModule {}

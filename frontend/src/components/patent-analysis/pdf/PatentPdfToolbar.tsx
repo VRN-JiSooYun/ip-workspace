@@ -1,6 +1,6 @@
 import React from 'react';
 import { Button, Input, InputNumber, Space, Tooltip, Typography } from 'antd';
-import { Maximize2, Minimize2, RotateCcw, RotateCw, PanelLeftClose, PanelLeftOpen, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Download, ExternalLink } from 'lucide-react';
+import { Maximize2, Minimize2, RotateCcw, RotateCw, PanelLeftClose, PanelLeftOpen, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Download, ExternalLink, ZoomIn, ZoomOut } from 'lucide-react';
 
 const { Text } = Typography;
 
@@ -40,6 +40,10 @@ type PatentPdfToolbarProps = {
   searchExecuted: boolean;
   currentPage: number;
   totalPages: number;
+  zoomPercent: number;
+  onZoomIn: () => void;
+  onZoomOut: () => void;
+  onResetZoom: () => void;
   onToggleFit?: () => void;
   onOpenPdfInBrowser?: () => void;
   onSearchQueryChange: (value: string) => void;
@@ -69,6 +73,10 @@ const PatentPdfToolbar: React.FC<PatentPdfToolbarProps> = ({
   searchExecuted,
   currentPage,
   totalPages,
+  zoomPercent,
+  onZoomIn,
+  onZoomOut,
+  onResetZoom,
   onToggleFit,
   onOpenPdfInBrowser,
   onSearchQueryChange,
@@ -202,6 +210,29 @@ const PatentPdfToolbar: React.FC<PatentPdfToolbarProps> = ({
       <Space size={4} style={{ marginLeft: 'auto' }}>
         <PdfToolbarButton
           size="small"
+          icon={<ZoomOut size={14} />}
+          onClick={onZoomOut}
+          disabled={zoomPercent <= 25}
+          tooltip="PDF 축소"
+        />
+        <PdfToolbarButton
+          size="small"
+          type="text"
+          onClick={onResetZoom}
+          tooltip="페이지 너비에 맞춤"
+          style={{ minWidth: 48, paddingInline: 6, color: textColor, fontSize: 11 }}
+        >
+          {zoomPercent}%
+        </PdfToolbarButton>
+        <PdfToolbarButton
+          size="small"
+          icon={<ZoomIn size={14} />}
+          onClick={onZoomIn}
+          disabled={zoomPercent >= 400}
+          tooltip="PDF 확대"
+        />
+        <PdfToolbarButton
+          size="small"
           icon={<ChevronUp size={14} />}
           onClick={() => onPageStep?.(-1)}
           disabled={!totalPages}
@@ -214,7 +245,8 @@ const PatentPdfToolbar: React.FC<PatentPdfToolbarProps> = ({
           disabled={!totalPages}
           tooltip="다음 PDF 페이지로 이동"
         />
-        <PdfToolbarButton
+        {/* IP Workspace에서는 불필요 기능 */}
+        {/* <PdfToolbarButton
           size="small"
           icon={<RotateCcw size={14} />}
           onClick={onRotateLeft}
@@ -225,7 +257,7 @@ const PatentPdfToolbar: React.FC<PatentPdfToolbarProps> = ({
           icon={<RotateCw size={14} />}
           onClick={onRotateRight}
           tooltip="PDF를 오른쪽으로 회전"
-        />
+        /> */}
         <PdfToolbarButton
           size="small"
           icon={<Download size={14} />}

@@ -13,6 +13,7 @@ import {
   PanelLeftClose,
 } from 'lucide-react';
 import RdkitDrawOptionsModal from '../common/RdkitDrawOptionsModal';
+import RightSidebar from './RightSidebar';
 import { withBasePath } from '../../config/basePath';
 import { useAuthSession } from '../../contexts/AuthSessionContext';
 import { useAccessContext } from '../../contexts/AccessContext';
@@ -449,6 +450,11 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
           </div>
         </Content>
       </Layout>
+
+      {/* 우측 상시 레일. 좌측 Sider와 대칭으로 root Layout의 형제이므로 화면 높이 전체를
+          쓰고, 화면(children)이 바뀌어도 그대로 남는다 — 그게 이 컴포넌트의 목적이다. */}
+      <RightSidebar />
+
       <RdkitDrawOptionsModal
         open={isRdkitDrawOptionsOpen}
         onCancel={() => setIsRdkitDrawOptionsOpen(false)}

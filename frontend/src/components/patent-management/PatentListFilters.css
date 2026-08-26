@@ -32,6 +32,19 @@
   height: 28px;
 }
 
+/* 텍스트·기간 입력도 select와 같은 급으로 낮춘다. 한 줄에 여러 종류가 섞여 있어
+   높이가 다르면 그리드가 들쭉날쭉해 보인다. */
+.pm-detail-filters .filter-field .ant-input-affix-wrapper,
+.pm-detail-filters .filter-field .ant-picker {
+  height: 28px;
+  padding-block: 0;
+}
+
+/* 조건이 13개라 두 줄 이상이 된다. 줄 간격을 조금 줄여 필터 칸이 목록을 덜 밀어낸다. */
+.pm-detail-filters .filter-grid {
+  gap: 8px 12px;
+}
+
 /* 진행 단계 칩. 라벨이 길어도 머리줄을 밀어내지 않게 잘라 준다. */
 .pm-detail-filters-stage-tag {
   max-width: 170px;

@@ -171,8 +171,11 @@ WHERE stage_code IS NULL
    시점이 있는 사건이다. 현재 상태로 넣으면 단계별 건수는 나오지만 "OA 발행 후 경과
    일수", "대응 기한 임박" 같은 지표는 만들 수 없다. 그 정보의 정본은
    `admin` → `office_action` → `response` 이력 테이블이고, 지금은 importer가 이
-   테이블을 채우지 않아 `patent.status_note` 자유 서술에만 남아 있다. 이력 적재는
-   별도 작업으로 다룬다.
+   테이블을 채우지 않아 `patent.note`(화면의 '설명') 자유 서술에만 남아 있다. 이력
+   적재는 별도 작업으로 다룬다.
+
+   > 이 서술은 원래 `patent.status_note`에 있었다. 20260826120000 마이그레이션이 그
+   > 값을 `patent.note`로 옮겼고, 시트의 `Status 설명` 열도 이제 `note`로 들어간다.
 3. `patent`가 단계를 직접 갖지 않고 `legal_status`를 경유한다. 같은 status 코드를 쓰는
    특허는 항상 같은 단계가 된다. 특허별로 단계를 따로 지정해야 할 요구가 생기면
    `patent.stage_code`를 추가하고 `legal_status` 매핑을 fallback으로 쓰면 된다.

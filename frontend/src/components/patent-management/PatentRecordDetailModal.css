@@ -1,0 +1,447 @@
+/* 관리 특허 상세 모달 — JIRA 이슈 상세와 같은 2단.
+   색은 index.css의 공용 custom property를 쓰므로 다크 모드가 따라온다. */
+
+/* 본문이 길어지면 모달 안에서만 스크롤한다. 페이지가 밀려나면 배경이 함께 움직인다. */
+.pm-detail-modal .ant-modal-body {
+  max-height: calc(100vh - 220px);
+  overflow: hidden;
+  padding-top: 12px;
+}
+
+/* ---- 머리줄 -------------------------------------------------------------- */
+
+.pm-detail-title-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  /* 기본 모달 제목 크기는 이 줄에 과하다. 번호가 주인공이다. */
+  font-size: 14px;
+  font-weight: 400;
+}
+
+.pm-detail-ref {
+  font-weight: 700;
+  font-size: 15px;
+  color: var(--text-primary);
+}
+
+.pm-detail-appno {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+
+.pm-detail-title-spacer {
+  flex: 1 1 auto;
+}
+
+/* 법적 상태를 JIRA의 상태 드롭다운 자리에 둔다. 닫기 버튼과 겹치지 않게 여백을 준다. */
+.pm-detail-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex: 0 0 auto;
+  margin-inline-end: 28px;
+}
+
+.pm-detail-status .ant-select {
+  min-width: 130px;
+}
+
+/* ---- 2단 ---------------------------------------------------------------- */
+
+.pm-detail-body {
+  display: flex;
+  align-items: stretch;
+  gap: 20px;
+  min-height: 0;
+  /* 모달 body가 overflow:hidden이라 이 안에서 각 단이 따로 스크롤한다. */
+  max-height: calc(100vh - 240px);
+}
+
+.pm-detail-main {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-y: auto;
+  /*
+    스크롤바 자리를 늘 비워 둔다.
+
+    이 칸은 내용에 따라 스크롤이 생겼다 없어졌다 한다. 그때마다 스크롤바 폭(11px)만큼
+    **안쪽 폭이 통째로 바뀐다** — '설명'을 눌러 편집기를 열면 글 높이가 늘어 스크롤이
+    생기고, 그 순간 방금까지 보던 읽기 화면보다 편집기가 좁아진 채 나타났다. 읽던 자리와
+    고치는 자리의 폭이 다르면 글이 다시 흐르면서 눈이 줄을 놓친다.
+
+    자리를 처음부터 비워 두면 두 상태의 폭이 같다. 대신 스크롤이 없을 때도 오른쪽이
+    그만큼 비는데, 폭이 튀는 것보다 낫다.
+  */
+  scrollbar-gutter: stable;
+  padding-right: 6px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--patent-scrollbar-thumb) transparent;
+}
+
+.pm-detail-side {
+  display: flex;
+  flex-direction: column;
+  flex: 0 0 320px;
+  min-width: 0;
+  overflow-y: auto;
+  padding: 8px 10px;
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  box-sizing: border-box;
+  scrollbar-width: thin;
+  scrollbar-color: var(--patent-scrollbar-thumb) transparent;
+}
+
+.pm-detail-main::-webkit-scrollbar,
+.pm-detail-side::-webkit-scrollbar {
+  width: 6px;
+}
+
+.pm-detail-main::-webkit-scrollbar-thumb,
+.pm-detail-side::-webkit-scrollbar-thumb {
+  background: var(--patent-scrollbar-thumb);
+  border-radius: 999px;
+}
+
+/* ---- 본문 섹션 ---------------------------------------------------------- */
+
+.pm-detail-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.pm-detail-section-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+/* 제목 줄. 인라인 편집이지만 값이 제목처럼 읽혀야 한다. */
+.pm-detail-heading-row,
+.pm-detail-subheading-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.pm-detail-heading-row .ant-input {
+  height: 34px;
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.pm-detail-subheading-row .ant-input {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+/*
+  고치는 중이라는 표시.
+
+  제목 칸은 평소 테두리가 없어 그냥 글로 보인다. 포커스가 들어오면 아래 적용·취소 줄이
+  함께 나타나므로, 그 둘이 한 덩이로 읽히도록 여백을 줄인다.
+*/
+.pm-detail-heading-row.is-active {
+  margin-bottom: 2px;
+}
+
+/* 적용·취소. JIRA의 인라인 편집과 같이 입력 아래 오른쪽에 붙는다. */
+.pm-detail-inline-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.pm-inline-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 26px;
+  padding: 0;
+  border: 1px solid var(--c-card-border);
+  border-radius: 6px;
+  background: var(--card-bg);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease, border-color 120ms ease;
+}
+
+.pm-inline-action:hover {
+  background: var(--bg-color);
+  color: var(--text-primary);
+}
+
+.pm-inline-action:focus-visible {
+  outline: 2px solid var(--brand-primary);
+  outline-offset: 1px;
+}
+
+/* 편집 중이 아닐 때는 입력 테두리를 죽여 읽기 화면처럼 보이게 한다(JIRA와 같은 감각). */
+.pm-detail-heading-row .ant-input:not(:focus):not(:hover),
+.pm-detail-subheading-row .ant-input:not(:focus):not(:hover) {
+  border-color: transparent;
+  background: transparent;
+}
+
+/* ---- 사이드바 줄 -------------------------------------------------------- */
+
+.pm-detail-row {
+  display: grid;
+  /* 라벨 폭 하한이 접히도록 min()을 쓴다(UI_STANDARD_GUIDE의 grid 하한 규칙). */
+  grid-template-columns: min(96px, 40%) minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+  font-size: 12px;
+}
+
+.pm-detail-row-label {
+  color: var(--text-secondary);
+}
+
+.pm-detail-row-value {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.pm-detail-row-value .ant-select,
+.pm-detail-row-value .ant-picker,
+.pm-detail-row-value .ant-input {
+  width: 100%;
+  min-width: 0;
+}
+
+/* Collapse ghost의 기본 padding이 사이드바를 좁게 만든다. */
+.pm-detail-side .ant-collapse-content-box {
+  padding: 4px 0 8px !important;
+}
+
+.pm-detail-side .ant-collapse-header {
+  padding: 6px 0 !important;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.pm-detail-stamps {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: auto;
+  padding-top: 10px;
+  border-top: 1px solid var(--border-color);
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+/* ---- 필드 저장 상태 ----------------------------------------------------- */
+
+.pm-field-badge {
+  flex: 0 0 auto;
+  width: 14px;
+  height: 14px;
+  padding: 0;
+  border: none;
+  background: transparent;
+}
+
+.pm-field-badge-ok {
+  color: #52c41a;
+}
+
+.pm-field-badge-error {
+  color: #ff4d4f;
+  cursor: pointer;
+}
+
+.pm-field-badge-spin {
+  color: var(--text-secondary);
+  animation: pm-field-spin 900ms linear infinite;
+}
+
+@keyframes pm-field-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ---- 하위 작업 ---------------------------------------------------------- */
+
+/*
+  비어 있는 칸의 '여기를 누르세요'.
+
+  생김새는 설명 칸의 .rich-text-empty와 같게 맞춘다(RichTextField.css) — 같은 모달 안에서
+  같은 뜻의 자리가 다르게 보이면 하나는 눌리는 것이고 하나는 아니라고 읽힌다.
+  cursor만 다르다: 저쪽은 글을 쓰는 칸이라 text, 여기는 줄을 여는 버튼이라 pointer다.
+*/
+.pm-empty-action {
+  width: 100%;
+  padding: 8px;
+  border: 1px dashed var(--c-card-border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease;
+}
+
+.pm-empty-action:hover {
+  background: var(--bg-color);
+  color: var(--text-primary);
+}
+
+.pm-empty-action:focus-visible {
+  outline: 2px solid var(--brand-primary);
+  outline-offset: 1px;
+}
+
+.pm-subtasks {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pm-subtask-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pm-subtask {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-size: 13px;
+}
+
+.pm-subtask-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pm-subtask-done .pm-subtask-title {
+  color: var(--text-secondary);
+  text-decoration: line-through;
+}
+
+.pm-subtask-add {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.pm-subtask-add .ant-input {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* ---- 활동 피드 ---------------------------------------------------------- */
+
+.pm-audit-feed {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.pm-audit-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-left: 10px;
+  /* 한 덩이(같은 requestId)를 왼쪽 선으로 묶는다. */
+  border-left: 2px solid var(--border-color);
+}
+
+.pm-audit-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.pm-audit-actor {
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.pm-audit-stamp {
+  color: var(--text-secondary);
+}
+
+.pm-audit-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pm-audit-line {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.pm-audit-field {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.pm-audit-value {
+  max-width: 220px;
+  padding: 0 6px;
+  border-radius: 4px;
+  background: var(--bg-color);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 이전 값은 지워진 값이라는 것이 보여야 한다. */
+.pm-audit-value-before {
+  text-decoration: line-through;
+  opacity: 0.7;
+}
+
+.pm-audit-value-after {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.pm-audit-arrow {
+  opacity: 0.6;
+}
+
+.pm-audit-imported-fields {
+  padding: 0 6px;
+  border-radius: 4px;
+  background: var(--bg-color);
+}

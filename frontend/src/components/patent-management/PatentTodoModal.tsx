@@ -21,7 +21,7 @@ import {
   type PatentRecord,
   type PatentTodo,
 } from '../../services/patentRecordApi';
-import { formatDisplayDateOnly } from '../../utils/displayFormat';
+import { formatDisplayDateTime } from '../../utils/displayFormat';
 
 const { Text } = Typography;
 const { TextArea } = Input;
@@ -189,7 +189,7 @@ const PatentTodoModal: React.FC<Props> = ({
       dataIndex: 'dueDate',
       key: 'dueDate',
       width: 116,
-      render: (value: string | null) => formatDisplayDateOnly(value),
+      render: (value: string | null) => formatDisplayDateTime(value),
     },
     {
       title: '',

@@ -107,6 +107,9 @@ export const PATENT_CSV_COLUMNS: ColumnSpec[] = [
     aliases: ["currentstatus", "status", "법적상태", "legalstatus", "legal_status", "법적 상태"],
   },
   {
+    // 시트의 열 이름이지 DB 컬럼 이름이 아니다 — 이 값은 '기타'와 함께 note('설명')로
+    // 들어간다(patent-record-import.service의 mergeNote). status_note 컬럼은 더 이상
+    // 쓰지 않는다. 시트가 이 열을 그대로 두고 있어 헤더는 남긴다.
     field: "statusNote",
     header: "Status 설명",
     aliases: ["statusnote", "status_note", "status설명", "상태설명"],

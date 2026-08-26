@@ -161,6 +161,11 @@ Backend 컨테이너는 `docker-compose.yml`의 환경변수로 외부 API 주�
 | `PATENT_ANALYSIS_HELPER_API_URL` | `http://172.16.1.210:10130` | 특허 분석 helper API |
 | `PATENT_ANALYSIS_UPLOAD_API_URL` | `http://172.16.1.210:8000` | 특허 분석 업로드 API |
 | `PATENT_INSIGHT_API_URL` | `http://172.16.1.210:8000` | Patent Insight API |
+| `SEAWEEDFS_FILER_URL` | `http://172.16.1.183:8888` | SeaweedFS 쓰기·삭제 Filer URL |
+| `SEAWEEDFS_PUBLIC_URL` | `http://172.16.1.183:8888` | Backend 이미지 조회에 사용할 Filer URL |
+| `SEAWEEDFS_BASE_PATH` | 빈 값 | 환경 디렉터리 아래의 선택적 추가 경로 |
+| `SEAWEEDFS_ROOT_DIR` | `buckets` | SeaweedFS 최상위 디렉터리 |
+| `SEAWEEDFS_ENV_DIR` | `ip_ws_dev` | 배포 환경별 저장 디렉터리 |
 | `CONFORMER_API_URL` | `http://172.16.1.203:8000` | conformer 생성 API |
 | `VPROP_API_URL` | `http://172.16.1.207:8100` | Vprop 물성 예측 API |
 | `VPROP_API_TIMEOUT_MS` | `25000` | Vprop 동기 계산 timeout |

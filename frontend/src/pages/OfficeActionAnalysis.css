@@ -1,21 +1,28 @@
 /* 의견제출통지서 전문 검색 — 색은 index.css의 공용 custom property를 따른다.
    브랜드 색상은 var(--brand-primary)로만 참조하고 hex를 직접 쓰지 않는다. */
 
-/* MainLayout의 Content가 고정 높이 overflow:hidden 껍데기라 페이지가 스크롤을 소유한다
-   (.pm-layout, .conference-page와 같은 규약). */
+/**
+ * MainLayout의 Content가 고정 높이 overflow:hidden 껍데기다.
+ *
+ * 페이지는 스크롤을 갖지 않는다. 페이지가 스크롤하면 검색 바와 고급 검색이 결과와 함께
+ * 위로 밀려 올라가, 다음 페이지를 보려고 내렸다가 다시 검색하려면 매번 맨 위로 되돌아와야
+ * 한다. 스크롤은 결과 카드 목록(.oa-result-cards)이 갖고, 검색 바·필터·결과 헤더·
+ * 페이지네이션은 제자리에 남는다.
+ *
+ * align-items가 start가 아니라 stretch인 이유: start면 .oa-main이 내용 높이로 줄어들어
+ * 결과 목록이 남는 높이를 받지 못한다(그러면 스크롤할 것도 없어진다).
+ */
 .oa-page {
   display: flex;
-  gap: 0;
-  align-items: start;
-  /* 스크롤은 이 요소가 소유하므로 폭을 좁히지 않는다(스크롤바가 안쪽으로 들어온다).
-     본문은 왼쪽에 붙고(justify-content 기본값), 본문 상한을 넘는 폭은 문서 뷰어가 받는다.
-     가운데 정렬을 두면 [본문 | 뷰어] 묶음이 한 덩어리로 밀려 뷰어 오른쪽에 여백이 남는다. */
-  padding: 0 16px 24px;
+  align-items: stretch;
+  /* 본문은 왼쪽에 붙는다(justify-content 기본값). 가운데 정렬을 두지 않는 이유: 본문 상한
+     (1400px)을 넘는 폭이 좌우로 갈려 본문이 화면 가운데로 떠 보인다. 뷰어가 이 화면에서
+     빠진 뒤에도 이 규칙은 그대로 필요하다(남는 폭은 오른쪽에 둔다). */
+  padding: 0 16px 16px;
   width: 100%;
   height: 100%;
   min-height: 0;
-  overflow-y: auto;
-  overflow-x: hidden;
+  overflow: hidden;
   box-sizing: border-box;
 }
 
@@ -33,74 +40,15 @@
   flex-direction: column;
   gap: 16px;
   min-width: 0;
+  /* 결과 목록이 남는 높이를 받아 그 안에서 스크롤할 수 있게 한다. */
+  min-height: 0;
   max-width: 1400px;
 }
 
-/**
- * 뷰어가 열리면 본문 상한(1400px)을 넘는 폭은 전부 뷰어가 쓴다.
- *
- * 본문의 flex-basis를 상한과 같은 확정값으로 두는 이유: `auto`면 basis가 내용 폭
- * (max-content)이 되어 필터를 접었는지에 따라 본문 폭이 흔들리고, 남는 폭이 본문과
- * 패널로 갈려 들어간다. 확정값이면 늘어나는 몫은 grow가 있는 패널만 받는다.
- * 좁아질 때는 여전히 본문이 먼저 줄어든다(shrink 1).
- */
-.oa-page-viewer-open > .oa-main {
-  flex: 0 1 1400px;
-}
-
-/**
- * 패널이 본문 오른쪽의 남는 폭을 모두 채운다. 인라인 width(드래그로 정한 값)가
- * flex-basis라 하한 역할을 하고, 그보다 넓은 여백이 있으면 grow가 끌어와 쓴다.
- * shrink를 0으로 두어야 넓히는 드래그가 포인터와 정확히 맞는다(줄어드는 몫은 본문이 받는다).
- */
-.oa-page-viewer-open > .resizable-side-panel-pane {
-  flex: 1 0 auto;
-}
-
-/* 뷰어가 열리면 화면(=MainLayout Content) 높이를 전부 쓴다.
-   .oa-page가 스크롤 주인이라 여기의 100%는 '보이는 높이'로 풀린다. sticky top:0과 함께
-   두어야 목록을 내려도 뷰어가 따라온다. 특허 관리 화면의 .pm-page > pane과 같은 규약이다.
-   (없으면 패널이 내용 높이로만 잡혀 오른쪽 아래가 통째로 빈다.) */
-.oa-page > .resizable-side-panel-pane,
-.oa-page > .resizable-side-panel-handle {
-  position: sticky;
-  top: 0;
-  height: 100%;
-  align-self: stretch;
-}
-
-/* 좁은 화면에서는 뷰어를 목록 아래로 내리고 너비 조절 UI를 숨긴다. */
-@media (max-width: 1200px) {
-  .oa-page-viewer-open {
-    flex-direction: column;
-    gap: 16px;
-  }
-
-  .oa-page.oa-page-viewer-open .resizable-side-panel-handle {
-    display: none;
-  }
-
-  /* 세로로 쌓이면 교차축이 가로여서 align-items:start가 본문을 내용 폭까지 줄인다.
-     flex 값은 이때 높이에 걸리므로(basis 1400px = 높이 1400px) 되돌리고,
-     폭은 따로 펴 줘야 한다(아래 pane의 width:100%도 같은 이유로 있다). */
-  .oa-page.oa-page-viewer-open > .oa-main {
-    flex: 1 1 auto;
-    width: 100%;
-  }
-
-  /* 세로로 쌓이면 폭 조절이 의미가 없어 인라인 width를 무시한다.
-     grow도 이때는 높이에 걸리므로 되돌린다(아래 height가 곧 패널 높이다). */
-  .oa-page.oa-page-viewer-open > .resizable-side-panel-pane {
-    position: static;
-    flex: 0 0 auto;
-    /* 세로로 쌓여도 높이는 확정값으로 둔다. auto로 두면 뷰어가 본문 길이만큼(수천 px)
-       늘어나 목록 아래가 끝없이 길어진다. 뷰어 안에서 본문만 스크롤하게 한다. */
-    height: min(80vh, 760px);
-    width: 100% !important;
-    min-width: 0 !important;
-    max-width: none !important;
-  }
-}
+/* 문서 뷰어는 우측 상시 레일로 옮겼다(components/layout/rightSidebar.css).
+   이 화면이 뷰어를 직접 들고 있을 때 필요했던 규칙 — 본문/패널 폭 배분
+   (.oa-page-viewer-open), sticky pane, 1200px 이하에서 뷰어를 아래로 내리는 처리 —
+   은 모두 함께 지웠다. 이제 이 페이지에는 본문 한 칸만 있다. */
 
 .oa-ellipsis {
   overflow: hidden;
@@ -119,9 +67,10 @@
 /* ---- 검색 바 ------------------------------------------------------------- */
 
 .oa-searchbar {
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 12px;
   padding: 10px 10px 10px 16px;
 }
 
@@ -143,12 +92,16 @@
 /* ---- 고급 검색 ----------------------------------------------------------- */
 
 /**
- * 이 패널의 가용 폭은 viewport가 아니라 **문서 뷰어를 얼마나 넓혔는지**로 정해진다.
+ * 이 패널의 가용 폭은 viewport가 아니라 **우측 레일을 얼마나 넓혔는지**로 정해진다.
  * 그래서 반응형 기준을 viewport(@media)가 아니라 자기 컨테이너 폭(@container)으로 잡는다.
- * viewport가 1500px이어도 뷰어를 최대로 키우면 이 패널은 200px 이하가 되므로,
+ * viewport가 1500px이어도 레일을 최대로 키우면 이 패널은 200px 이하가 되므로,
  * @media 기준으로는 좁아진 것을 알 수 없어 내부 요소가 카드 밖으로 삐져나왔다.
  */
+/* 고급 검색은 제 높이를 그대로 쓴다. 줄이지도 스크롤하지도 않는다 — 필터는 한눈에
+   전부 보여야 하는 것이라, 안에서 스크롤하면 어떤 조건이 걸려 있는지 가려진다.
+   대신 펼쳤을 때 남는 높이를 넘기면 그만큼 결과 목록이 줄어든다. */
 .oa-filters {
+  flex: 0 0 auto;
   padding: 4px 8px;
   container-type: inline-size;
   container-name: oa-filters;
@@ -212,7 +165,7 @@
  *
  * 상한이 확정 길이면 auto-fit의 열 개수도 하한(150px)이 아니라 상한으로 계산된다
  * (`floor((폭 + gap) / (상한 + gap))`). 그래서 상한이 클수록 열이 쉽게 줄어든다.
- * 180px은 이 식이 .oa-main의 상한(1400px)에서 7열, 뷰어를 열어 패널이 600px쯤일 때
+ * 180px은 이 식이 .oa-main의 상한(1400px)에서 7열, 레일을 열어 본문이 600px쯤일 때
  * 3열이 되는 값이다. 200px이면 각각 6열·2열이 되어 오른쪽이 한 칸씩 빈다.
  */
 .oa-filter-grid {
@@ -357,8 +310,21 @@
   flex-direction: column;
   gap: 12px;
   min-width: 0;
+  /* 페이지 대신 이 영역이 남는 높이를 전부 받는다. min-height:0이 없으면 flex 자식의
+     기본 min-height:auto 때문에 내용 길이만큼 부풀어 스크롤이 페이지로 새어 나간다. */
+  flex: 1 1 auto;
+  min-height: 0;
   container-type: inline-size;
   container-name: oa-results;
+}
+
+/* 헤더(N Results · Sort By)와 페이지네이션은 스크롤에서 제외한다. 카드를 내리는 동안에도
+   전체 건수와 페이지 이동이 늘 보여야 한다. */
+.oa-results-header,
+.oa-results-pagination,
+.oa-results-empty,
+.oa-result-card-skeleton {
+  flex: 0 0 auto;
 }
 
 .oa-results-header {
@@ -424,11 +390,59 @@
   padding: 40px 16px;
 }
 
+/* 이 화면의 유일한 스크롤 영역. */
 .oa-result-cards {
   display: flex;
   flex-direction: column;
   gap: 12px;
   min-width: 0;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  /* 카드 테두리·focus ring이 스크롤바에 잘리지 않게 한 칸 띄운다. */
+  padding-right: 4px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--patent-scrollbar-thumb) transparent;
+}
+
+.oa-result-cards::-webkit-scrollbar {
+  width: 6px;
+}
+
+.oa-result-cards::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.oa-result-cards::-webkit-scrollbar-thumb {
+  background: var(--patent-scrollbar-thumb);
+  border-radius: 999px;
+}
+
+/**
+ * 낮은 화면에서는 펼쳐진 필터가 결과 목록의 가용 높이를 모두 차지할 수 있다.
+ * 이때는 카드 목록만 스크롤하는 데스크톱 구조를 버리고 Office Actions 페이지 전체를
+ * 하나의 스크롤 영역으로 전환한다. MainLayout의 전역 스크롤 정책에는 영향을 주지 않는다.
+ */
+@media (max-height: 820px) {
+  .oa-page {
+    align-items: flex-start;
+    overflow-y: auto;
+  }
+
+  .oa-main {
+    flex: 0 0 auto;
+    min-height: 100%;
+    width: 100%;
+  }
+
+  .oa-results {
+    flex: 0 0 auto;
+  }
+
+  .oa-result-cards {
+    flex: 0 0 auto;
+    overflow-y: visible;
+  }
 }
 
 /* ---- 결과 카드 ----------------------------------------------------------- */
@@ -493,8 +507,6 @@
   margin-inline-end: 0;
   border-radius: 990px;
   padding: 1px 10px;
-  background: rgba(var(--brand-primary-rgb), 0.12);
-  color: var(--brand-primary);
   font-size: 12px;
 }
 

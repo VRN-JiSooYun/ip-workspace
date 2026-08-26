@@ -1,0 +1,296 @@
+/**
+ * 이진 트리 레이아웃의 껍데기 스타일.
+ *
+ * 패널 위치는 전부 인라인 style(px)로 들어온다 — measure()가 계산한 값이다. 여기서는
+ * 색·테두리·탭 스트립처럼 좌표와 무관한 것만 다룬다. 좌표를 CSS로 흉내내려 들면
+ * 트리와 화면이 어긋난다.
+ *
+ * 색은 index.css의 테마 변수를 쓰므로 다크 모드가 따라온다.
+ */
+
+.lt-grid {
+  position: relative;
+  flex: 1 1 auto;
+  width: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* 좁은 화면에서는 패널을 세로로 쌓고 컨테이너가 스크롤을 갖는다. */
+.lt-grid-stacked {
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.lt-grid-canvas {
+  position: relative;
+  width: 100%;
+}
+
+/* 드래그 중에는 텍스트 선택과 패널 내부 포인터 반응을 막는다. 목록 위를 지나갈 때
+   행이 하이라이트되거나 글자가 잡히면 무엇을 끌고 있는지 보이지 않는다. */
+.lt-grid-dragging {
+  user-select: none;
+}
+
+.lt-grid-dragging .lt-panel-body {
+  pointer-events: none;
+}
+
+.lt-panel-slot {
+  position: absolute;
+  box-sizing: border-box;
+}
+
+/* ---- 패널 --------------------------------------------------------------- */
+
+.lt-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  box-sizing: border-box;
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.lt-panel-body {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+}
+
+.lt-panel-pane {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* hidden 속성이 display:flex에 지므로 명시적으로 눌러 준다. 비활성 탭을 언마운트하지
+   않고 숨기는 이유는 PanelFrame 주석 참고(스크롤 위치·PDF 렌더 상태 보존). */
+.lt-panel-pane[hidden] {
+  display: none;
+}
+
+/* ---- 패널 헤더 (그립 + 탭 + 추가) ------------------------------------- */
+
+/* 이 높이는 dropZone.ts의 DEFAULT_TAB_STRIP_HEIGHT(40)와 같아야 한다. 드롭 판정이
+   "헤더 안이냐"를 그 값으로 가른다. 한쪽만 바꾸면 판정 경계가 눈에 보이는 경계와
+   어긋나 탭 자리에 놓으려다 화면이 쪼개진다. */
+.lt-tabstrip {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex: 0 0 auto;
+  height: 40px;
+  padding: 0 6px;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--card-bg);
+}
+
+/* 패널 이동 손잡이. 탭 드래그와는 다른 동작이라(탭 하나가 아니라 패널 전체가 움직인다)
+   손잡이를 따로 두고 위치도 탭과 겹치지 않게 헤더 맨 왼쪽에 고정한다. */
+.lt-panel-grip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 20px;
+  height: 24px;
+  border-radius: 6px;
+  color: var(--text-secondary);
+  opacity: 0.45;
+  cursor: grab;
+  /* 터치에서 그립을 끌 때 브라우저가 스크롤로 가로채지 않게 한다. */
+  touch-action: none;
+}
+
+.lt-panel-grip:hover {
+  opacity: 1;
+  background: rgba(var(--brand-primary-rgb), 0.1);
+}
+
+/* 패널을 끄는 중에는 원래 자리를 흐리게 남겨 무엇이 움직이는지 보이게 한다. */
+.lt-panel-dragging {
+  opacity: 0.55;
+}
+
+/* 탭과 '+'가 함께 흐르는 줄. '+'는 마지막 탭 바로 오른쪽에 붙는다(헤더 끝으로 밀지 않는다).
+   탭이 많아 넘치면 이 안에서만 가로 스크롤한다. */
+.lt-tabstrip-tabs {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+
+.lt-tabstrip-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+/* 알약형 탭. 활성 탭만 배경으로 구분하고 밑줄은 쓰지 않는다. */
+.lt-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  flex: 0 0 auto;
+  max-width: 180px;
+  height: 28px;
+  padding: 0 6px 0 10px;
+  border-radius: 8px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  outline: none;
+}
+
+.lt-tab-draggable {
+  cursor: grab;
+  touch-action: none;
+}
+
+.lt-tab:hover {
+  background: rgba(var(--brand-primary-rgb), 0.08);
+}
+
+.lt-tab-active {
+  background: var(--bg-color);
+  color: var(--text-primary);
+}
+
+.lt-tab-active:hover {
+  background: var(--bg-color);
+}
+
+.lt-tab-dragging {
+  opacity: 0.4;
+}
+
+.lt-tab-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 닫기 버튼은 자리를 늘 차지하되 평소에는 감춘다. 표시/숨김을 visibility로 하면
+   hover할 때 탭 폭이 흔들리지 않는다. */
+.lt-tab-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  opacity: 0;
+  visibility: hidden;
+}
+
+.lt-tab:hover .lt-tab-close,
+.lt-tab-active .lt-tab-close {
+  opacity: 0.5;
+  visibility: visible;
+}
+
+.lt-tab .lt-tab-close:hover {
+  opacity: 1;
+  background: rgba(var(--brand-primary-rgb), 0.2);
+}
+
+/* '+'. 탭과 같은 높이로 두어 한 줄로 읽히게 한다. */
+.lt-tab-add.ant-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 24px;
+  min-width: 24px;
+  height: 24px;
+  padding: 0;
+  border-radius: 6px;
+  color: var(--text-secondary);
+}
+
+/* ---- 분할선 ------------------------------------------------------------- */
+
+.lt-splitter {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* 패널 사이 gap을 그대로 채운다. 두께는 measure()가 준 값(=gap)이다. */
+  box-sizing: border-box;
+  background: transparent;
+  outline: none;
+  touch-action: none;
+  z-index: 2;
+}
+
+.lt-splitter-row {
+  cursor: col-resize;
+}
+
+.lt-splitter-column {
+  cursor: row-resize;
+}
+
+/* 실제로 보이는 선. 히트 영역(8px)보다 얇게 그려 시각적 소음을 줄인다. */
+.lt-splitter-line {
+  display: block;
+  border-radius: 2px;
+  background: transparent;
+  transition: background-color 120ms ease;
+}
+
+.lt-splitter-row .lt-splitter-line {
+  width: 2px;
+  height: 100%;
+}
+
+.lt-splitter-column .lt-splitter-line {
+  width: 100%;
+  height: 2px;
+}
+
+.lt-splitter:hover .lt-splitter-line,
+.lt-splitter:focus-visible .lt-splitter-line,
+.lt-splitter-dragging .lt-splitter-line {
+  background: var(--brand-primary);
+}
+
+/* ---- 드롭 미리보기 ------------------------------------------------------ */
+
+.lt-drop-overlay {
+  position: absolute;
+  box-sizing: border-box;
+  border-radius: 10px;
+  /* 드래그 중 elementFromPoint / 패널 히트 판정을 가로막지 않아야 한다. */
+  pointer-events: none;
+  z-index: 3;
+}
+
+/* 화면을 쪼개는 드롭 — 새 패널이 생길 자리를 채워서 보여 준다. */
+.lt-drop-overlay-split {
+  background: rgba(var(--brand-primary-rgb), 0.18);
+  border: 2px solid var(--brand-primary);
+}
+
+/* 탭으로 합쳐지는 드롭 — 자리가 새로 생기지 않으므로 테두리만 준다. */
+.lt-drop-overlay-merge {
+  background: rgba(var(--brand-primary-rgb), 0.08);
+  border: 2px dashed var(--brand-primary);
+}

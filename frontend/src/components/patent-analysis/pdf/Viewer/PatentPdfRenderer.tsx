@@ -4,6 +4,7 @@ import PatentPdfHighlightContainer from '../PatentPdfHighlightContainer';
 
 type PatentPdfRendererProps = {
   pdfDocument: any;
+  pdfScaleValue: 'page-width' | number;
   pdfTotalPages: number;
   activeBBox: { pageNumber: number; rect: number[] } | null;
   dynamicHighlights: any[];
@@ -16,6 +17,7 @@ type PatentPdfRendererProps = {
 
 const PatentPdfRenderer: React.FC<PatentPdfRendererProps> = ({
   pdfDocument,
+  pdfScaleValue,
   pdfTotalPages,
   activeBBox,
   dynamicHighlights,
@@ -47,7 +49,7 @@ const PatentPdfRenderer: React.FC<PatentPdfRendererProps> = ({
       pdfDocument={pdfDocument}
       highlights={dynamicHighlights}
       utilsRef={setHighlighterUtils}
-      pdfScaleValue="page-width"
+      pdfScaleValue={pdfScaleValue}
     >
       <PatentPdfHighlightContainer onHighlightClick={onHighlightClick} />
     </PdfHighlighter>
