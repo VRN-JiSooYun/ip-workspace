@@ -1,4 +1,6 @@
 import { Injectable } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
+import { createDocumentUrlRewriter } from "../common/document-url";
 import {
   PatentSearchDateField,
   PatentSearchDto,
@@ -146,7 +148,22 @@ export type PatentSearchResult = {
  */
 @Injectable()
 export class PatentSearchService {
-  constructor(private readonly client: PatentSearchClient) {}
+  /**
+   * 사내망 문서 주소 → 밖에서 닿는 주소.
+   *
+   * 상류가 주는 값은 그대로 두고 **응답에 실을 때만** 옮긴다(common/document-url).
+   * PATENT_DOCUMENT_BASE_URL이 없으면 그대로 통과시킨다.
+   */
+  private readonly toPublicDocumentUrl: (value: string | null | undefined) => string | null;
+
+  constructor(
+    private readonly client: PatentSearchClient,
+    config: ConfigService,
+  ) {
+    this.toPublicDocumentUrl = createDocumentUrlRewriter(
+      config.get<string | null>("documents.baseUrl", null),
+    );
+  }
 
   async search(dto: PatentSearchDto): Promise<PatentSearchResult> {
     const body: UpstreamSearchRequest = {
@@ -330,7 +347,7 @@ export class PatentSearchService {
       adminId: row.admin_id ?? row.admin_id_ref ?? null,
       content: includeContent ? (row.office_action_content ?? null) : null,
       contentLength: row.office_action_content?.length ?? 0,
-      documentPath: row.office_action_document_path ?? null,
+      documentPath: this.toPublicDocumentUrl(row.office_action_document_path),
       actionDate: row.action_date ?? null,
       action: row.action ?? null,
       actionNumber: row.action_number ?? null,
@@ -362,7 +379,7 @@ export class PatentSearchService {
             : null,
         content: includeContent ? (submission.content ?? null) : null,
         contentLength: submission.content?.length ?? 0,
-        documentPath: submission.document_path ?? null,
+        documentPath: this.toPublicDocumentUrl(submission.document_path),
       })),
       rejections: (row.legal_statutes ?? []).map((rejection) => ({
         rejectionId: rejection.rejection_id ?? null,

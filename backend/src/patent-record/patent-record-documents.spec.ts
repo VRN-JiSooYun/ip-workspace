@@ -194,6 +194,47 @@ describe("toPatentDocumentItems", () => {
   });
 });
 
+describe("문서 주소 치환", () => {
+  /** 사무실 밖에서 닿는 주소로 옮기는 함수(common/document-url). 여기서는 접두만 붙여 확인한다. */
+  const toPublicUrl = (value: string | null | undefined) =>
+    (value ? value.replace("https://example.invalid", "https://proxy.test") : null);
+
+  it("통지서와 제출 서류의 주소를 함께 옮긴다", () => {
+    // 뷰어가 여는 것은 이 두 자리다. 하나만 옮기면 다른 하나가 사무실 밖에서 안 열린다.
+    const [item] = toPatentDocumentItems(
+      patent,
+      [admin({
+        officeActions: [officeAction({
+          responses: [
+            { id: 20, type: 1, content: "의견", documentPath: "https://example.invalid/op.pdf" },
+          ],
+        })],
+      })],
+      toPublicUrl,
+    );
+
+    expect(item.documentPath).toBe("https://proxy.test/oa.pdf");
+    expect(item.submissions[0].documentPath).toBe("https://proxy.test/op.pdf");
+  });
+
+  it("특허 단위 문서도 같은 규칙으로 옮긴다", () => {
+    const [item] = toPatentDocumentItems(
+      { ...patent, documentPath: "https://example.invalid/spec.pdf" },
+      [],
+      toPublicUrl,
+    );
+
+    expect(item.documentPath).toBe("https://proxy.test/spec.pdf");
+  });
+
+  it("넘기지 않으면 상류 주소를 그대로 쓴다", () => {
+    // PATENT_DOCUMENT_BASE_URL이 없는 사내 환경. 원본 주소로 그대로 열린다.
+    const [item] = toPatentDocumentItems(patent, [admin()]);
+
+    expect(item.documentPath).toBe("https://example.invalid/oa.pdf");
+  });
+});
+
 describe("countDocumentsByPatent", () => {
   it("통지서 수로 세고 특허별로 합산한다", () => {
     const counts = countDocumentsByPatent([

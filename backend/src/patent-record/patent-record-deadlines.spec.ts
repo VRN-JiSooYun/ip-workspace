@@ -5,6 +5,7 @@
  */
 jest.mock("../database/prisma.client", () => ({ prisma: {} }));
 
+import type { ConfigService } from "@nestjs/config";
 import type { PrismaService } from "../database/prisma.service";
 import type { PatentDeadlineQueryDto } from "./dto/patent-deadline-query.dto";
 import type { PatentRecordListQueryDto } from "./dto/patent-record-list-query.dto";
@@ -80,7 +81,7 @@ const makePrisma = (options: {
   };
 
   const prisma = { client } as unknown as PrismaService;
-  const service = new PatentRecordService(prisma, new PatentAuditService(prisma));
+  const service = new PatentRecordService(prisma, new PatentAuditService(prisma), noProxyConfig);
   return { service, calls, client };
 };
 
@@ -114,6 +115,14 @@ beforeEach(() => {
 afterEach(() => {
   jest.useRealTimers();
 });
+
+/**
+ * 이 테스트가 보는 것은 문서 주소가 아니다. PATENT_DOCUMENT_BASE_URL을 주지 않아 상류 주소가 그대로
+ * 나가는(프록시 없는) 사내 환경으로 둔다.
+ */
+const noProxyConfig = {
+  get: (_key: string, fallback: unknown) => fallback,
+} as unknown as ConfigService;
 
 describe("deadlines - 조회 범위", () => {
   it("to를 포함한다 (상한은 다음 날 자정)", async () => {

@@ -192,6 +192,18 @@ filter option과 문서 레일 상태 표시는 외부 DB를 직접 읽는 `/api
 `law_type`은 1=특허법(13,488) / 2=특허법 시행령(2,452)뿐이고 3 이상은 0건이다.
 명칭으로 넘길 때는 공백까지 정확해야 한다("특허법시행령"은 0건).
 
+`documentPath`의 origin은 `PATENT_DOCUMENT_BASE_URL`이 설정돼 있으면 그 값으로 **바꿔서** 내려간다
+(`common/document-url.ts`). 상류가 주는 주소는 사내망 호스트라
+(`http://172.16.1.210:8888/oa/2022/….pdf`) 사무실 밖 브라우저에서는 열리지 않기 때문이다.
+앞에 Nginx를 세워 같은 경로로 중계하고, 응답에 실을 때 origin만 갈아 끼운다.
+
+- 바꾸는 것은 origin뿐이다. 경로·쿼리는 **원문 그대로** 옮긴다(파일명의 한글이
+  퍼센트 인코딩으로 바뀌지 않게 문자열에서 잘라 붙인다).
+- `PATENT_DOCUMENT_BASE_URL`에 경로가 있으면(`https://ip.example.com/files`) 그 뒤에 이어 붙인다.
+- 설정이 없거나 URL 형식이 아니면 상류 주소를 그대로 쓴다. 사내에서는 그대로 열린다.
+- **저장은 원본 그대로 한다.** 관리 특허에 이어 붙인 문서(`office_action.document_path`)도
+  사내망 주소로 저장되고, 나가는 길에만 바뀐다 — 프록시 주소는 배포 설정이지 데이터가 아니다.
+
 `documentPath`는 PDF 원본의 절대 URL이다(SeaweedFS). 이 호스트는
 `Access-Control-Allow-Origin: *`로 응답하므로 **자격증명을 함께 보내면 브라우저가 요청을
 막는다**(`credentials: 'include'` 실패 / `'omit'` 200 확인). 화면에서 PDF를 직접 렌더할 때는
@@ -264,6 +276,7 @@ operator does not exist: text >= timestamp without time zone
 | --- | --- | --- |
 | `PATENT_SEARCH_API_URL` | `http://172.16.1.210:10000` | 외부 검색 API base URL |
 | `PATENT_SEARCH_API_TIMEOUT_MS` | `60000` | 본문이 커서 전역 30s보다 길게 잡았다 |
+| `PATENT_DOCUMENT_BASE_URL` | (없음) | 문서 PDF를 중계하는 프록시 주소. 아래 참고 |
 
 controller에는 `@SkipTimeout()`이 붙어 있어 전역 `TimeoutInterceptor`가 적용되지 않는다.
 실제 제한은 위 client timeout이다.

@@ -10,6 +10,7 @@
  */
 jest.mock("../database/prisma.client", () => ({ prisma: {} }));
 
+import type { ConfigService } from "@nestjs/config";
 import type { PrismaService } from "../database/prisma.service";
 import type { CreatePatentRecordDto } from "./dto/create-patent-record.dto";
 import type { UpdatePatentRecordDto } from "./dto/update-patent-record.dto";
@@ -101,7 +102,7 @@ const runUpdate = async (
   };
 
   const prisma = { client } as unknown as PrismaService;
-  const service = new PatentRecordService(prisma, new PatentAuditService(prisma));
+  const service = new PatentRecordService(prisma, new PatentAuditService(prisma), noProxyConfig);
   await service.update(1, dto, "actor-1", "req-1");
 
   return {
@@ -112,6 +113,14 @@ const runUpdate = async (
     written: (patentUpdates[0]?.data ?? {}) as Call,
   };
 };
+
+/**
+ * 이 테스트가 보는 것은 문서 주소가 아니다. PATENT_DOCUMENT_BASE_URL을 주지 않아 상류 주소가 그대로
+ * 나가는(프록시 없는) 사내 환경으로 둔다.
+ */
+const noProxyConfig = {
+  get: (_key: string, fallback: unknown) => fallback,
+} as unknown as ConfigService;
 
 describe("diffAuditableFields", () => {
   const base = patentRow() as unknown as AuditablePatent;
@@ -267,7 +276,7 @@ describe("create / remove - 감사 로그", () => {
     };
     const prisma = { client } as unknown as PrismaService;
     return {
-      service: new PatentRecordService(prisma, new PatentAuditService(prisma)),
+      service: new PatentRecordService(prisma, new PatentAuditService(prisma), noProxyConfig),
       client,
       events: auditCreate,
     };

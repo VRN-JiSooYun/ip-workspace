@@ -1,3 +1,4 @@
+import type { ConfigService } from "@nestjs/config";
 import {
   PATENT_SEARCH_DATE_FIELDS,
   PatentSearchDto,
@@ -55,18 +56,28 @@ const row = (
   ...overrides,
 });
 
+/**
+ * 서비스 하나. 설정은 PATENT_DOCUMENT_BASE_URL 하나만 보므로 가짜 ConfigService로 그것만 준다.
+ * 값을 주지 않으면 문서 주소를 그대로 내보내는(프록시 없는) 사내 환경이다.
+ */
+const makeService = (client: never, baseUrl: string | null = null) =>
+  new PatentSearchService(client, {
+    get: (key: string, fallback: unknown) =>
+      (key === "documents.baseUrl" ? baseUrl : fallback),
+  } as unknown as ConfigService);
+
 describe("PatentSearchService", () => {
   describe("request mapping", () => {
     it("omits filters and keywords when no condition is given", async () => {
       const { client, search } = clientWith();
-      await new PatentSearchService(client).search(dto());
+      await makeService(client).search(dto());
 
       expect(sentBody(search)).toEqual({ page: 1, size: 20 });
     });
 
     it("renames filters to the upstream snake_case contract", async () => {
       const { client, search } = clientWith();
-      await new PatentSearchService(client).search(
+      await makeService(client).search(
         dto({
           filters: {
             legalStatusText: ["등록"],
@@ -93,7 +104,7 @@ describe("PatentSearchService", () => {
 
     it("sends date ranges with the from/to aliases the upstream model expects", async () => {
       const { client, search } = clientWith();
-      await new PatentSearchService(client).search(
+      await makeService(client).search(
         dto({
           filters: {
             dateRanges: [
@@ -114,7 +125,7 @@ describe("PatentSearchService", () => {
 
     it("maps every allowed date field to its upstream column", async () => {
       const { client, search } = clientWith();
-      await new PatentSearchService(client).search(
+      await makeService(client).search(
         dto({
           filters: {
             dateRanges: PATENT_SEARCH_DATE_FIELDS.map((field) => ({
@@ -143,7 +154,7 @@ describe("PatentSearchService", () => {
 
     it("drops date ranges that carry neither bound", async () => {
       const { client, search } = clientWith();
-      await new PatentSearchService(client).search(
+      await makeService(client).search(
         dto({ filters: { dateRanges: [{ field: "examDate" }] } }),
       );
 
@@ -152,7 +163,7 @@ describe("PatentSearchService", () => {
 
     it("maps ipc and statute filters, preferring the law type name over the code", async () => {
       const { client, search } = clientWith();
-      await new PatentSearchService(client).search(
+      await makeService(client).search(
         dto({
           filters: {
             ipc: [{ section: "A", classCode: "61", mainGroup: "31" }],
@@ -175,7 +186,7 @@ describe("PatentSearchService", () => {
 
     it("drops ipc entries that carry no component", async () => {
       const { client, search } = clientWith();
-      await new PatentSearchService(client).search(
+      await makeService(client).search(
         dto({ filters: { ipc: [{}] } }),
       );
 
@@ -185,7 +196,7 @@ describe("PatentSearchService", () => {
     // 외부 API는 targets가 2개 이상이면 500으로 실패한다. 항목당 하나만 보내야 한다.
     it("wraps each keyword target in a single-element array", async () => {
       const { client, search } = clientWith();
-      await new PatentSearchService(client).search(
+      await makeService(client).search(
         dto({
           keywords: [
             { query: "egfr", target: "officeAction", operator: "AND" },
@@ -244,7 +255,7 @@ describe("PatentSearchService", () => {
         96,
       );
 
-      const result = await new PatentSearchService(client).search(dto());
+      const result = await makeService(client).search(dto());
 
       expect(result.total).toBe(96);
       expect(result.items).toHaveLength(1);
@@ -274,6 +285,32 @@ describe("PatentSearchService", () => {
       });
     });
 
+    it("PATENT_DOCUMENT_BASE_URL이 있으면 문서 주소를 프록시 주소로 바꿔 내보낸다", async () => {
+      // 사무실 밖에서는 사내망 호스트에 닿지 않는다. 경로는 그대로 두고 origin만 옮긴다.
+      const { client } = clientWith([
+        row({
+          responses: [
+            { id: 1, type: 1, content: "의견", document_path: "http://example.test/opinion.pdf" },
+            { id: 2, type: 2, content: "보정", document_path: "http://example.test/amendment.pdf" },
+          ],
+        }),
+      ]);
+      const result = await makeService(client, "https://ip.example.com").search(dto());
+
+      expect(result.items[0].documentPath).toBe("https://ip.example.com/oa.pdf");
+      expect(result.items[0].submissions.map((item) => item.documentPath)).toEqual([
+        "https://ip.example.com/opinion.pdf",
+        "https://ip.example.com/amendment.pdf",
+      ]);
+    });
+
+    it("PATENT_DOCUMENT_BASE_URL이 없으면 상류 주소를 그대로 쓴다", async () => {
+      const { client } = clientWith([row()]);
+      const result = await makeService(client).search(dto());
+
+      expect(result.items[0].documentPath).toBe("http://example.test/oa.pdf");
+    });
+
     it("leaves kind null for response type codes it does not know", async () => {
       const { client } = clientWith([
         row({
@@ -284,7 +321,7 @@ describe("PatentSearchService", () => {
         }),
       ]);
 
-      const result = await new PatentSearchService(client).search(dto());
+      const result = await makeService(client).search(dto());
 
       expect(result.items[0].submissions.map((s) => s.kind)).toEqual([
         null,
@@ -301,7 +338,7 @@ describe("PatentSearchService", () => {
         }),
       ]);
 
-      const result = await new PatentSearchService(client).search(
+      const result = await makeService(client).search(
         dto({ includeContent: false }),
       );
 
@@ -315,7 +352,7 @@ describe("PatentSearchService", () => {
     it("echoes the requested page and size rather than the upstream values", async () => {
       const { client } = clientWith([], 13488);
 
-      const result = await new PatentSearchService(client).search(
+      const result = await makeService(client).search(
         dto({ page: 7, size: 50 }),
       );
 
@@ -327,7 +364,7 @@ describe("PatentSearchService", () => {
         row({ examiners: null, responses: null, legal_statutes: null }),
       ]);
 
-      const result = await new PatentSearchService(client).search(dto());
+      const result = await makeService(client).search(dto());
 
       expect(result.items[0]).toMatchObject({
         examiners: [],
@@ -339,7 +376,7 @@ describe("PatentSearchService", () => {
     it("preserves the upstream keyword relevance score", async () => {
       const { client } = clientWith([row({ relevance_score: 3.0359515666390378 })]);
 
-      const result = await new PatentSearchService(client).search(dto());
+      const result = await makeService(client).search(dto());
 
       expect(result.items[0].relevanceScore).toBe(3.0359515666390378);
     });
@@ -354,7 +391,7 @@ describe("PatentSearchService", () => {
         row({ legal_status: null }),
       ]);
 
-      const result = await new PatentSearchService(client).search(dto());
+      const result = await makeService(client).search(dto());
 
       expect(result.items.map((item) => item.legalStatus)).toEqual([
         "거절",
@@ -389,7 +426,7 @@ describe("PatentSearchService", () => {
     it("does not call the detail endpoint unless asked", async () => {
       const { client, findPatentByApplicationNumber } = clientWith([row()]);
 
-      const result = await new PatentSearchService(client).search(dto());
+      const result = await makeService(client).search(dto());
 
       expect(findPatentByApplicationNumber).not.toHaveBeenCalled();
       expect(result.items[0].patent).toBeNull();
@@ -399,7 +436,7 @@ describe("PatentSearchService", () => {
       const { client, findPatentByApplicationNumber } = clientWith([row()]);
       findPatentByApplicationNumber.mockResolvedValue(detail);
 
-      const result = await new PatentSearchService(client).search(
+      const result = await makeService(client).search(
         dto({ includePatentDetail: true }),
       );
 
@@ -432,7 +469,7 @@ describe("PatentSearchService", () => {
       ]);
       findPatentByApplicationNumber.mockResolvedValue(detail);
 
-      const result = await new PatentSearchService(client).search(
+      const result = await makeService(client).search(
         dto({ includePatentDetail: true }),
       );
 
@@ -444,7 +481,7 @@ describe("PatentSearchService", () => {
       const { client, findPatentByApplicationNumber } = clientWith([row()]);
       findPatentByApplicationNumber.mockResolvedValue(null);
 
-      const result = await new PatentSearchService(client).search(
+      const result = await makeService(client).search(
         dto({ includePatentDetail: true }),
       );
 

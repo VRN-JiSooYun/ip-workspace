@@ -128,12 +128,15 @@ export type PatentDocumentItem = {
  * 통지서가 없는 문서라 admin·office_action이 비어 있다. 뷰어는 항목 하나에 `documentPath`가
  * 있으면 그것을 열므로, 처분명 자리에 무엇인지만 적어 주면 그대로 그려진다.
  */
-const toPatentDocumentItem = (patent: PatentForDocuments): PatentDocumentItem => ({
+const toPatentDocumentItem = (
+  patent: PatentForDocuments,
+  toPublicUrl: DocumentUrlRewriter,
+): PatentDocumentItem => ({
   officeActionId: null,
   adminId: null,
   content: null,
   contentLength: 0,
-  documentPath: patent.documentPath,
+  documentPath: toPublicUrl(patent.documentPath),
   actionDate: null,
   action: "특허 문서",
   actionNumber: null,
@@ -152,18 +155,28 @@ const toPatentDocumentItem = (patent: PatentForDocuments): PatentDocumentItem =>
   patent: null,
 });
 
+/**
+ * 문서 URL을 밖에서 닿는 주소로 옮기는 함수. 넘기지 않으면 상류 주소를 그대로 쓴다.
+ * (검색 화면과 같은 규칙이다 — common/document-url 하나를 둘이 쓴다.)
+ */
+export type DocumentUrlRewriter = (value: string | null | undefined) => string | null;
+
+const passThrough: DocumentUrlRewriter = (value) => value ?? null;
+
 export const toPatentDocumentItems = (
   patent: PatentForDocuments,
   admins: AdminWithDocuments[],
+  toPublicUrl: DocumentUrlRewriter = passThrough,
 ): PatentDocumentItem[] => [
   // 특허 문서를 맨 앞에 둔다. 처분 이력보다 앞선 문서이고 날짜가 없어 정렬에 끼지 못한다.
-  ...(patent.documentPath ? [toPatentDocumentItem(patent)] : []),
-  ...toOfficeActionItems(patent, admins),
+  ...(patent.documentPath ? [toPatentDocumentItem(patent, toPublicUrl)] : []),
+  ...toOfficeActionItems(patent, admins, toPublicUrl),
 ];
 
 const toOfficeActionItems = (
   patent: PatentForDocuments,
   admins: AdminWithDocuments[],
+  toPublicUrl: DocumentUrlRewriter,
 ): PatentDocumentItem[] =>
   admins.flatMap((admin) =>
     admin.officeActions.map((officeAction) => ({
@@ -171,7 +184,7 @@ const toOfficeActionItems = (
       adminId: admin.id,
       content: officeAction.content,
       contentLength: officeAction.content?.length ?? 0,
-      documentPath: officeAction.documentPath,
+      documentPath: toPublicUrl(officeAction.documentPath),
       // 뷰어는 문자열 날짜를 받아 formatDisplayDateOnly로 찍는다.
       actionDate: admin.actionDate ? admin.actionDate.toISOString() : null,
       action: admin.action,
@@ -199,7 +212,7 @@ const toOfficeActionItems = (
         kind: response.type === null ? null : (RESPONSE_KIND_BY_CODE[response.type] ?? null),
         content: response.content,
         contentLength: response.content?.length ?? 0,
-        documentPath: response.documentPath,
+        documentPath: toPublicUrl(response.documentPath),
       })),
       rejections: officeAction.rejections.map((rejection) => ({
         rejectionId: rejection.id,

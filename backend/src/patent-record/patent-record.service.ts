@@ -3,6 +3,8 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
+import { createDocumentUrlRewriter } from "../common/document-url";
 import { PrismaService } from "../database/prisma.service";
 import { buildInternalRefColumns, normalizeInternalRef } from "./internal-ref";
 import type { CreatePatentRecordDto } from "./dto/create-patent-record.dto";
@@ -146,10 +148,21 @@ const RESPONSE_TYPE_LABELS: Record<number, string> = {
 
 @Injectable()
 export class PatentRecordService {
+  /**
+   * 사내망 문서 주소 → 밖에서 닿는 주소. PATENT_DOCUMENT_BASE_URL이 없으면 그대로 통과시킨다.
+   * 검색 화면(PatentSearchService)과 같은 규칙을 쓴다 — 같은 문서를 같은 뷰어가 연다.
+   */
+  private readonly toPublicDocumentUrl: (value: string | null | undefined) => string | null;
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: PatentAuditService,
-  ) {}
+    config: ConfigService,
+  ) {
+    this.toPublicDocumentUrl = createDocumentUrlRewriter(
+      config.get<string | null>("documents.baseUrl", null),
+    );
+  }
 
   /**
    * 목록과 진행 현황 집계가 같은 모집단을 보게 하려고 where를 한 곳에서 만든다.
@@ -404,7 +417,10 @@ export class PatentRecordService {
       },
     });
 
-    return { patentId, items: toPatentDocumentItems(patent, admins) }
+    return {
+      patentId,
+      items: toPatentDocumentItems(patent, admins, this.toPublicDocumentUrl),
+    }
   }
 
   /** 관리 가능한 Target 코드와 각 코드의 관리 특허 건수. */

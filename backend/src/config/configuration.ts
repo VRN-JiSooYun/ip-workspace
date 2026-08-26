@@ -52,6 +52,15 @@ export default () => ({
       5 * 60 * 1000,
     ),
   },
+  /**
+   * 문서 PDF를 밖에서 열 수 있게 중계하는 주소(Nginx reverse proxy).
+   *
+   * 비워 두면 상류가 준 사내망 주소를 그대로 내보낸다. 사내에서는 그 주소로 바로 열리므로
+   * 프록시가 필요 없다.
+   */
+  documents: {
+    baseUrl: process.env.PATENT_DOCUMENT_BASE_URL?.trim() || null,
+  },
   seaweedFs: {
     filerUrl:
       process.env.SEAWEEDFS_FILER_URL || "http://172.16.1.183:8888",
