@@ -192,22 +192,43 @@ filter option과 문서 레일 상태 표시는 외부 DB를 직접 읽는 `/api
 `law_type`은 1=특허법(13,488) / 2=특허법 시행령(2,452)뿐이고 3 이상은 0건이다.
 명칭으로 넘길 때는 공백까지 정확해야 한다("특허법시행령"은 0건).
 
-`documentPath`의 origin은 `PATENT_DOCUMENT_BASE_URL`이 설정돼 있으면 그 값으로 **바꿔서** 내려간다
-(`common/document-url.ts`). 상류가 주는 주소는 사내망 호스트라
-(`http://172.16.1.210:8888/oa/2022/….pdf`) 사무실 밖 브라우저에서는 열리지 않기 때문이다.
-앞에 Nginx를 세워 같은 경로로 중계하고, 응답에 실을 때 origin만 갈아 끼운다.
+`documentPath`는 **우리 서비스를 거치는 경로**로 바꿔서 내려간다.
 
-- 바꾸는 것은 origin뿐이다. 경로·쿼리는 **원문 그대로** 옮긴다(파일명의 한글이
-  퍼센트 인코딩으로 바뀌지 않게 문자열에서 잘라 붙인다).
-- `PATENT_DOCUMENT_BASE_URL`에 경로가 있으면(`https://ip.example.com/files`) 그 뒤에 이어 붙인다.
-- 설정이 없거나 URL 형식이 아니면 상류 주소를 그대로 쓴다. 사내에서는 그대로 열린다.
-- **저장은 원본 그대로 한다.** 관리 특허에 이어 붙인 문서(`office_action.document_path`)도
-  사내망 주소로 저장되고, 나가는 길에만 바뀐다 — 프록시 주소는 배포 설정이지 데이터가 아니다.
+```
+저장·상류:  http://172.16.1.210:8888/oa/2022/….pdf
+응답:       /patent-documents/oa/2022/….pdf
+```
 
-`documentPath`는 PDF 원본의 절대 URL이다(SeaweedFS). 이 호스트는
-`Access-Control-Allow-Origin: *`로 응답하므로 **자격증명을 함께 보내면 브라우저가 요청을
-막는다**(`credentials: 'include'` 실패 / `'omit'` 200 확인). 화면에서 PDF를 직접 렌더할 때는
-`withCredentials: false`로 받아야 한다 — `PatentDocumentPdfPane`이 그렇게 넘긴다.
+이유는 파일 호스트(SeaweedFS)에 **인증이 없기 때문이다.** 주소만 알면 누구나 받아 갈 수
+있고 주소도 규칙적이라(`/oa/{연도}/{출원번호}_{문서종류}_{YYYYMMDD}.pdf`), 그 호스트를
+밖에 열면 5만여 건이 전부 공개된다. 대신 `GET /api/patent-documents/*`가 중계하고 거기에
+기존 세션·권한(`patentAnalysis.read`)이 걸린다. 설명 편집기 이미지를
+`/patent-records/:id/note-images/:fileName`으로 내보내는 것과 같은 방식이다.
+
+- **origin만 바꾸고 경로는 그대로 둔다.** 화면이 이 주소에서 파일명과 날짜를 읽어
+  타임라인을 만든다(`patentDocumentNodes.ts`). 질의 문자열에 경로를 담는 식으로 모양을
+  바꾸면 그 파싱이 조용히 깨진다.
+- 돌려주는 값은 **API 기준 상대 경로**다. 브라우저가 이 서버를 어떤 주소로 부르는지
+  서버는 모르므로(앞단 nginx의 `/ip-workspace/` prefix), 완성은 화면이 한다
+  (`patentRecordApi.documentDisplayUrl`).
+- 중계는 `Range`를 그대로 넘긴다. PDF.js가 첫 화면만 먼저 받아 그리는데, 삼키면 매번
+  파일 전체를 받아야 열린다(상류는 `Accept-Ranges: bytes`를 준다).
+- 통과시키는 경로는 `/oa/**`와 `/response/**`뿐이다(`common/document-url.ts`). 이 목록이
+  곧 열린 프록시가 되지 않게 막는 문이다.
+- **저장은 원본 그대로 한다.** 중계 경로는 배포 구조지 데이터가 아니다 — 저장해 두면
+  구조가 바뀔 때마다 쌓인 주소가 전부 틀린 값이 된다.
+- `PATENT_DOCUMENT_FILE_ORIGIN`을 비우면 중계하지 않고 상류 주소를 그대로 내보낸다.
+  그때는 브라우저가 파일 호스트로 직접 가므로 사내망에서만 열린다.
+
+자격증명은 **주소에 따라 다르다.** 하나로 고정하면 둘 중 하나가 반드시 깨진다.
+
+| 주소 | origin | 자격증명 |
+| --- | --- | --- |
+| 중계 경로(`/patent-documents/…`) | 우리와 같다 | **보내야 한다.** 세션이 있어야 권한 검사를 통과한다 |
+| 상류 주소(중계를 끄면) | 파일 호스트 | **보내면 안 된다.** `Access-Control-Allow-Origin: *`라 브라우저가 막는다(`'include'` 실패 / `'omit'` 200 확인) |
+
+`PatentDocumentPdfPane`이 주소를 보고 정한다 — 서버가 준 값이 중계 경로면
+`withCredentials: true`, 상류 주소 그대로면 `false`다.
 
 `submissions[].typeCode`는 외부 `response.type` 원본이고 `kind`는 그 해석값이다.
 
@@ -276,7 +297,7 @@ operator does not exist: text >= timestamp without time zone
 | --- | --- | --- |
 | `PATENT_SEARCH_API_URL` | `http://172.16.1.210:10000` | 외부 검색 API base URL |
 | `PATENT_SEARCH_API_TIMEOUT_MS` | `60000` | 본문이 커서 전역 30s보다 길게 잡았다 |
-| `PATENT_DOCUMENT_BASE_URL` | (없음) | 문서 PDF를 중계하는 프록시 주소. 아래 참고 |
+| `PATENT_DOCUMENT_FILE_ORIGIN` | `http://172.16.1.210:8888` | OA 문서 PDF 파일 호스트. 서비스가 이 주소를 중계한다 |
 
 controller에는 `@SkipTimeout()`이 붙어 있어 전역 `TimeoutInterceptor`가 적용되지 않는다.
 실제 제한은 위 client timeout이다.

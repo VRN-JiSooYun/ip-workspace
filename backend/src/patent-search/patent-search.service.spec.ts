@@ -37,7 +37,7 @@ const row = (
   relevance_score: null,
   admin_id: 108229,
   office_action_content: "발송번호: 9-5-2023-097003752",
-  office_action_document_path: "http://example.test/oa.pdf",
+  office_action_document_path: "http://example.test/oa/2022/a.pdf",
   admin_id_ref: 108229,
   action_date: "2023-10-26T00:00:00",
   action: "의견제출통지서",
@@ -57,13 +57,13 @@ const row = (
 });
 
 /**
- * 서비스 하나. 설정은 PATENT_DOCUMENT_BASE_URL 하나만 보므로 가짜 ConfigService로 그것만 준다.
- * 값을 주지 않으면 문서 주소를 그대로 내보내는(프록시 없는) 사내 환경이다.
+ * 서비스 하나. 설정은 파일 호스트 하나만 보므로 가짜 ConfigService로 그것만 준다.
+ * 값을 주지 않으면 중계하지 않고 상류 주소를 그대로 내보낸다.
  */
-const makeService = (client: never, baseUrl: string | null = null) =>
+const makeService = (client: never, fileOrigin: string | null = null) =>
   new PatentSearchService(client, {
     get: (key: string, fallback: unknown) =>
-      (key === "documents.baseUrl" ? baseUrl : fallback),
+      (key === "documents.fileOrigin" ? fileOrigin : fallback),
   } as unknown as ConfigService);
 
 describe("PatentSearchService", () => {
@@ -268,7 +268,7 @@ describe("PatentSearchService", () => {
         legalStatusId: 1,
         examStatusId: 4,
         exam: true,
-        documentPath: "http://example.test/oa.pdf",
+        documentPath: "http://example.test/oa/2022/a.pdf",
       });
       expect(item.examiners[0]).toMatchObject({ id: 7, name: "박희연" });
       expect(item.submissions.map((s) => s.kind)).toEqual([
@@ -285,30 +285,40 @@ describe("PatentSearchService", () => {
       });
     });
 
-    it("PATENT_DOCUMENT_BASE_URL이 있으면 문서 주소를 프록시 주소로 바꿔 내보낸다", async () => {
-      // 사무실 밖에서는 사내망 호스트에 닿지 않는다. 경로는 그대로 두고 origin만 옮긴다.
+    it("파일 호스트가 설정돼 있으면 중계 경로로 바꿔 내보낸다", async () => {
+      // 파일 호스트에는 인증이 없다. 브라우저가 그쪽으로 직접 가지 않게 우리 경로로 돌린다.
       const { client } = clientWith([
         row({
           responses: [
-            { id: 1, type: 1, content: "의견", document_path: "http://example.test/opinion.pdf" },
-            { id: 2, type: 2, content: "보정", document_path: "http://example.test/amendment.pdf" },
+            {
+              id: 1,
+              type: 1,
+              content: "의견",
+              document_path: "http://example.test/response/opinion/2022/b.pdf",
+            },
+            {
+              id: 2,
+              type: 2,
+              content: "보정",
+              document_path: "http://example.test/response/amendment/2022/c.pdf",
+            },
           ],
         }),
       ]);
-      const result = await makeService(client, "https://ip.example.com").search(dto());
+      const result = await makeService(client, "http://example.test").search(dto());
 
-      expect(result.items[0].documentPath).toBe("https://ip.example.com/oa.pdf");
+      expect(result.items[0].documentPath).toBe("/patent-documents/oa/2022/a.pdf");
       expect(result.items[0].submissions.map((item) => item.documentPath)).toEqual([
-        "https://ip.example.com/opinion.pdf",
-        "https://ip.example.com/amendment.pdf",
+        "/patent-documents/response/opinion/2022/b.pdf",
+        "/patent-documents/response/amendment/2022/c.pdf",
       ]);
     });
 
-    it("PATENT_DOCUMENT_BASE_URL이 없으면 상류 주소를 그대로 쓴다", async () => {
+    it("파일 호스트 설정이 없으면 상류 주소를 그대로 쓴다", async () => {
       const { client } = clientWith([row()]);
       const result = await makeService(client).search(dto());
 
-      expect(result.items[0].documentPath).toBe("http://example.test/oa.pdf");
+      expect(result.items[0].documentPath).toBe("http://example.test/oa/2022/a.pdf");
     });
 
     it("leaves kind null for response type codes it does not know", async () => {

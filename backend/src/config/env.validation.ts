@@ -70,8 +70,8 @@ export const validateEnv = (config: EnvConfig): EnvConfig => {
   );
   ensureUrl("PATENT_INSIGHT_API_URL", config.PATENT_INSIGHT_API_URL);
   ensureUrl("PATENT_SEARCH_API_URL", config.PATENT_SEARCH_API_URL);
-  // 문서 PDF를 중계하는 프록시 주소. 없으면 상류 주소를 그대로 쓴다.
-  ensureUrl("PATENT_DOCUMENT_BASE_URL", config.PATENT_DOCUMENT_BASE_URL);
+  // OA 문서 PDF 파일 호스트. 서비스가 이 주소를 중계한다.
+  ensureUrl("PATENT_DOCUMENT_FILE_ORIGIN", config.PATENT_DOCUMENT_FILE_ORIGIN);
   ensureUrl("SEAWEEDFS_FILER_URL", config.SEAWEEDFS_FILER_URL);
   ensureUrl("SEAWEEDFS_PUBLIC_URL", config.SEAWEEDFS_PUBLIC_URL);
   ensureUrl("CONFORMER_API_URL", config.CONFORMER_API_URL);

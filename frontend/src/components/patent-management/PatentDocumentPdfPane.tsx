@@ -1,8 +1,9 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { App as AntApp, theme } from 'antd';
 import PatentPdfToolbar from '../patent-analysis/pdf/PatentPdfToolbar';
 import PatentPdfViewer from '../patent-analysis/pdf/PatentPdfViewer';
 import { usePatentPdfViewer } from '../../hooks/usePatentPdfViewer';
+import { patentRecordApi } from '../../services/patentRecordApi';
 import { saveBlob } from '../../utils/patentPdf';
 
 /**
@@ -36,8 +37,15 @@ type Props = {
  *
  * 분할 화면이 없으므로 toolbar의 확대/축소(`onToggleFit`)만 넘기지 않아 버튼이 빠진다.
  *
- * `withCredentials`는 false다. OA 문서 호스트가 `Access-Control-Allow-Origin: *`로 응답해
- * 자격증명을 함께 보내면 브라우저가 요청을 막는다(확인함).
+ * 주소는 두 가지가 온다.
+ *
+ *  - **우리 서버를 거치는 중계 경로**(`/patent-documents/…`) — 파일 호스트에 인증이 없어
+ *    밖에 노출하지 않으려고 서비스가 대신 받아 준다. 같은 origin이고 **세션 쿠키가 있어야**
+ *    권한 검사를 통과한다.
+ *  - **상류 주소 그대로**(파일 호스트 설정이 없는 사내 환경) — 다른 origin이고
+ *    `Access-Control-Allow-Origin: *`이라, 반대로 자격증명을 함께 보내면 브라우저가 막는다.
+ *
+ * 그래서 자격증명 여부를 주소에 따라 정한다. 하나로 고정하면 둘 중 하나가 반드시 깨진다.
  */
 const PatentDocumentPdfPane: React.FC<Props> = ({ documentPath }) => {
   const { token } = theme.useToken();
@@ -48,9 +56,17 @@ const PatentDocumentPdfPane: React.FC<Props> = ({ documentPath }) => {
 
   const pdfViewer = usePatentPdfViewer({ currentHighlights: NO_HIGHLIGHTS });
 
+  /** 서버가 준 값은 API 기준 상대 경로일 수 있다. 브라우저가 쓸 주소로 완성한다. */
+  const fileUrl = useMemo(
+    () => patentRecordApi.documentDisplayUrl(documentPath),
+    [documentPath],
+  );
+  /** 주소가 바뀌었다면 우리 서버를 거친다는 뜻이다(위 머리글 참고). */
+  const viaProxy = fileUrl !== documentPath;
+
   const handleOpenInBrowser = useCallback(() => {
-    window.open(documentPath, '_blank', 'noopener,noreferrer');
-  }, [documentPath]);
+    window.open(fileUrl, '_blank', 'noopener,noreferrer');
+  }, [fileUrl]);
 
   /**
    * 특허 분석의 `downloadPatentPdfFile`은 공개번호로 OCR PDF를 받는 API라 여기서는 못 쓴다.
@@ -60,8 +76,11 @@ const PatentDocumentPdfPane: React.FC<Props> = ({ documentPath }) => {
   const handleDownload = useCallback(async () => {
     setDownloading(true);
     try {
-      const response = await fetch(documentPath, { credentials: 'omit' });
+      const response = await fetch(fileUrl, {
+        credentials: viaProxy ? 'same-origin' : 'omit',
+      });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      // 파일명은 원본 경로에서 읽는다. 중계 경로도 뒤쪽이 같지만 원본이 더 곧다.
       saveBlob(await response.blob(), fileNameOf(documentPath));
     } catch (error) {
       void message.error(
@@ -70,7 +89,7 @@ const PatentDocumentPdfPane: React.FC<Props> = ({ documentPath }) => {
     } finally {
       setDownloading(false);
     }
-  }, [documentPath, message]);
+  }, [documentPath, fileUrl, message, viaProxy]);
 
   return (
     <div className="pm-doc-pdf">
@@ -114,8 +133,8 @@ const PatentDocumentPdfPane: React.FC<Props> = ({ documentPath }) => {
 
       <div className="pm-doc-pdf-viewer">
         <PatentPdfViewer
-          document={documentPath}
-          withCredentials={false}
+          document={fileUrl}
+          withCredentials={viaProxy}
           rotation={pdfViewer.pdfRotation}
           pdfScaleValue={pdfViewer.pdfScaleValue}
           viewerContainerRef={pdfViewer.pdfViewerContainerRef}

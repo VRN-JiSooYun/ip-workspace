@@ -53,13 +53,16 @@ export default () => ({
     ),
   },
   /**
-   * 문서 PDF를 밖에서 열 수 있게 중계하는 주소(Nginx reverse proxy).
+   * OA 문서 PDF가 실제로 있는 파일 호스트(SeaweedFS).
    *
-   * 비워 두면 상류가 준 사내망 주소를 그대로 내보낸다. 사내에서는 그 주소로 바로 열리므로
-   * 프록시가 필요 없다.
+   * 이 호스트는 인증이 없어 밖에 열지 않는다. 대신 서비스가 `/api/patent-documents`로
+   * 중계하고, 응답의 documentPath도 그 경로로 바꿔 내보낸다.
+   *
+   * 비워 두면 중계를 하지 않고 상류 주소를 그대로 내보낸다(사내에서는 그대로 열린다).
    */
   documents: {
-    baseUrl: process.env.PATENT_DOCUMENT_BASE_URL?.trim() || null,
+    fileOrigin:
+      process.env.PATENT_DOCUMENT_FILE_ORIGIN?.trim() || "http://172.16.1.210:8888",
   },
   seaweedFs: {
     filerUrl:

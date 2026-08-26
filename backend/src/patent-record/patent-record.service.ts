@@ -160,7 +160,7 @@ export class PatentRecordService {
     config: ConfigService,
   ) {
     this.toPublicDocumentUrl = createDocumentUrlRewriter(
-      config.get<string | null>("documents.baseUrl", null),
+      config.get<string | null>("documents.fileOrigin", null),
     );
   }
 

@@ -194,6 +194,9 @@ const PATENT_NOTE_IMAGE_ERROR_MESSAGES: Record<string, string> = {
   SEAWEEDFS_IMAGE_UPLOAD_RESULT_INVALID: '이미지 저장 결과를 확인하지 못했습니다.',
 };
 
+/** 서버가 문서 주소를 돌릴 때 쓰는 경로. 백엔드 common/document-url과 같아야 한다. */
+const DOCUMENT_PROXY_PATH = '/patent-documents';
+
 const getApiBaseUrl = () => {
   const runtimeValue = typeof window !== 'undefined'
     ? (window as RuntimeWindow)._env_?.VITE_API_URL
@@ -737,6 +740,21 @@ export const patentRecordApi = {
       url: url(body.url),
       storageUrl: `/api${body.url}`,
     };
+  },
+
+  /**
+   * 문서 PDF 주소를 브라우저가 쓸 수 있는 절대 주소로.
+   *
+   * 서버는 중계 경로를 **API 기준 상대 경로**로 준다(`/patent-documents/oa/…`) — 브라우저가
+   * 자기를 어떤 주소로 부르는지 서버는 모르기 때문이다(앞단 nginx의 `/ip-workspace/` prefix).
+   * 다른 API 호출과 같은 규칙으로 앞을 붙여 완성한다.
+   *
+   * 중계 대상이 아닌 값(설정이 없어 상류 주소가 그대로 온 경우, 옛 표본 주소)은 그대로 둔다.
+   */
+  documentDisplayUrl(documentPath: string): string {
+    return documentPath.startsWith(DOCUMENT_PROXY_PATH)
+      ? url(documentPath)
+      : documentPath;
   },
 
   noteImageDisplayUrl(storedUrl: string): string {
