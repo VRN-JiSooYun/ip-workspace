@@ -49,7 +49,7 @@ const PatentPdfRenderer: React.FC<PatentPdfRendererProps> = ({
       pdfDocument={pdfDocument}
       highlights={dynamicHighlights}
       utilsRef={setHighlighterUtils}
-      pdfScaleValue={pdfScaleValue}
+      pdfScaleValue={String(pdfScaleValue)}
     >
       <PatentPdfHighlightContainer onHighlightClick={onHighlightClick} />
     </PdfHighlighter>
