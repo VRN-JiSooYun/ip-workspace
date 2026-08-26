@@ -67,7 +67,7 @@ const PatentListPanel: React.FC = () => {
     confirmDelete,
     setIsImportOpen,
     setTodoPatent,
-    setDocumentPatent,
+    openDocuments,
   } = usePatentWorkspace();
 
   const columns = useMemo<TableColumnsType<PatentRecord>>(() => [
@@ -176,7 +176,7 @@ const PatentListPanel: React.FC = () => {
               className="pm-doc-open"
               icon={<FileText size={14} />}
               aria-label={`${record.internalRef ?? record.applicationNumber} 문서 ${count}건 보기`}
-              onClick={() => setDocumentPatent(record)}
+              onClick={() => openDocuments(record)}
             >
               {count}
             </Button>
@@ -226,7 +226,7 @@ const PatentListPanel: React.FC = () => {
           },
         ]
       : []),
-  ], [canManage, confirmDelete, openDetailModal, search, setDocumentPatent, setTodoPatent]);
+  ], [canManage, confirmDelete, openDetailModal, openDocuments, search, setTodoPatent]);
 
   return (
     <div className="pm-panel-scroll pm-list-panel">

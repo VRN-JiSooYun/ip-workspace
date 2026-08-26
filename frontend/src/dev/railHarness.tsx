@@ -304,6 +304,40 @@ const runChecks = (): Check[] => {
     );
   }
 
+  /*
+    접었다가 다시 열면 보던 문서가 남아 있어야 한다.
+
+    특허 관리 목록의 문서 버튼은 누를 때마다 openItem('documents')를 보낸다. 그 한 줄이
+    쓸모가 있으려면 **접을 때 documentContext가 살아 있어야** 한다 — 접으면서 비워 버리면
+    다시 열어도 빈 뷰어가 나오고, 화면이 문서를 다시 실어 줄 때까지 아무것도 못 본다.
+  */
+  {
+    const store = useRightSidebarStore.getState();
+    store.showDocuments({
+      source: 'rail-harness',
+      patentId: 1,
+      label: '접힘 복원 확인',
+      items: [],
+      activeId: null,
+      legalStatusLabel: null,
+      examStatusLabel: null,
+    });
+    useRightSidebarStore.getState().collapse();
+    expect(
+      '접어도 보던 문서는 남는다',
+      useRightSidebarStore.getState().documentContext?.label === '접힘 복원 확인',
+      String(useRightSidebarStore.getState().documentContext?.label),
+    );
+    useRightSidebarStore.getState().openItem('documents');
+    const reopened = useRightSidebarStore.getState();
+    expect(
+      '접힌 상태에서 openItem이 문서를 그대로 다시 펼친다',
+      reopened.activeItem === 'documents'
+        && reopened.documentContext?.label === '접힘 복원 확인',
+      `${reopened.activeItem} / ${reopened.documentContext?.label}`,
+    );
+  }
+
   // 문서 컨텍스트: source가 다르면 지우지 않는다.
   {
     const store = useRightSidebarStore.getState();

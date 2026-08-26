@@ -96,7 +96,7 @@ const PatentManagement: React.FC = () => {
           canManage={state.canManage}
           onClose={state.closeDetailModal}
           onSaved={state.handleFieldSaved}
-          onOpenDocuments={state.setDocumentPatent}
+          onOpenDocuments={state.openDocuments}
           onOpenTodos={state.setTodoPatent}
         />
 

@@ -298,7 +298,7 @@ export const buildMockWorkspaceState = (
     reloadSchedule: async () => undefined,
 
     documentPatent: makeRecord(0),
-    setDocumentPatent: noop,
+    openDocuments: noop,
     documentItems: [DOCUMENT_ITEM],
     activeDocumentId: DOCUMENT_ITEM.officeActionId,
     setActiveDocumentId: noop,

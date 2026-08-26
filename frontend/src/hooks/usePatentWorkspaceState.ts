@@ -17,6 +17,7 @@ import {
   type PatentStageSummary,
 } from '../services/patentRecordApi';
 import { readPatentListQueryParams } from '../utils/patentListQueryParams';
+import { useRightSidebarStore } from '../store/useRightSidebarStore';
 
 export const PATENT_LIST_PAGE_SIZE = 20;
 
@@ -90,6 +91,7 @@ export const usePatentWorkspaceState = () => {
   const [todoPatent, setTodoPatent] = useState<PatentRecord | null>(null);
   /** 문서 뷰어 패널에 띄운 특허. null이면 패널이 빈 상태로 남는다. */
   const [documentPatent, setDocumentPatent] = useState<PatentRecord | null>(null);
+  const openRailItem = useRightSidebarStore((store) => store.openItem);
   const [documentItems, setDocumentItems] = useState<PatentSearchItem[]>([]);
 
   // ---- 조회 ----------------------------------------------------------------
@@ -356,6 +358,23 @@ export const usePatentWorkspaceState = () => {
    * 그 선택은 레일 store가 소유한다(useRightSidebarStore). 이 화면의 몫은 "어느 특허의
    * 문서인가"까지다.
    */
+  /**
+   * 문서를 레일에서 연다.
+   *
+   * **레일을 펴는 일을 여기서 함께 한다.** 문서를 실어 보내는 것은 화면(PatentManagement)이
+   * `documentPatent`·`documentItems` 변화를 보고 하는데, 그것만으로는 **같은 특허를 다시
+   * 누른 경우**가 빠진다 — 목록의 record는 렌더 사이에 같은 객체라 setState가 같은 값을
+   * 받고, React가 렌더를 건너뛰어 그 효과가 돌지 않는다. 레일을 접어 둔 채로 아까 보던
+   * 특허의 문서 버튼을 다시 누르면 아무 일도 일어나지 않던 이유가 이것이다.
+   *
+   * 무엇을 볼지는 여전히 화면이 정하고(showDocuments), 여기서는 "펼쳐라"만 보낸다.
+   * 누름은 사건이므로, 상태가 바뀌었는지에 매달리지 않고 누를 때마다 보낸다.
+   */
+  const openDocuments = useCallback((record: PatentRecord) => {
+    setDocumentPatent(record);
+    openRailItem('documents');
+  }, [openRailItem]);
+
   useEffect(() => {
     if (!documentPatent) {
       setDocumentItems([]);
@@ -435,7 +454,7 @@ export const usePatentWorkspaceState = () => {
 
     // 문서 뷰어
     documentPatent,
-    setDocumentPatent,
+    openDocuments,
     documentItems,
   };
 };
