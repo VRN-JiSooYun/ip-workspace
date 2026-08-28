@@ -14,3 +14,16 @@
   cursor: pointer;
   pointer-events: auto;
 }
+
+/* 문서를 받는 동안의 표시. 라이브러리 기본값은 색이 black 고정이라 쓰지 않는다. */
+.patent-pdf-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  height: 100%;
+  min-height: 120px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Card } from 'antd';
+import { Card, Spin } from 'antd';
 // @ts-ignore - runtime exports exist but not in type declarations
 import { PdfLoader, ThumbnailPanel, usePageNavigation } from 'react-pdf-highlighter-plus';
 import type { PdfHighlighterUtils } from 'react-pdf-highlighter-plus';
@@ -10,6 +10,26 @@ import { withBasePath } from '../../../config/basePath';
 const PDFJS_WASM_URL = import.meta.env.PROD
   ? withBasePath('pdfjs/wasm/')
   : 'https://cdn.jsdelivr.net/npm/pdfjs-dist@5.7.284/wasm/';
+
+/**
+ * 문서를 받는 동안의 표시.
+ *
+ * 라이브러리 기본값(`Loading n%`)을 쓰지 않는 이유는 두 가지다. 색이 `black` 고정이라 다크
+ * 테마에서 읽히지 않고, `total`이 0일 때 `Infinity%`를 그린다.
+ */
+const PdfLoadingIndicator: React.FC<{ progress: { loaded: number; total: number } }> = ({
+  progress,
+}) => {
+  const percent = progress.total > 0
+    ? Math.min(100, Math.floor((progress.loaded / progress.total) * 100))
+    : null;
+  return (
+    <div className="patent-pdf-loading">
+      <Spin size="small" />
+      <span>{percent === null ? '문서를 불러오는 중' : `문서를 불러오는 중 ${percent}%`}</span>
+    </div>
+  );
+};
 
 let pdfWorkerTerminationWarningFilterCount = 0;
 let originalConsoleWarn: typeof console.warn | null = null;
@@ -251,6 +271,54 @@ const PatentPdfViewerComponent: React.FC<PatentPdfViewerProps> = ({
     setHighlighterUtils(utils);
   }, [setHighlighterUtils]);
 
+  /**
+   * 문서 하나를 그리는 본체. `PdfLoader`의 children과 `beforeLoad` 두 곳에서 같이 쓴다.
+   *
+   * 두 곳에서 쓰는 이유가 이 화면의 버그 하나를 막는다. `PdfLoader`는 문서를 ref에 담고
+   * 로딩 표시를 끄는 일을 로드 promise의 `finally` **한 번**에만 맡긴다. 그런데 pdf.js는
+   * 문서 promise가 resolve된 뒤(`GetDoc`) 전체 수신이 끝나면 진행 이벤트를 하나 더 보낸다
+   * (`DataLoaded`, `loaded === total`). 그 이벤트가 로딩 표시를 다시 켜고, 끌 코드는 이미
+   * 지나가 버린 뒤라 화면이 `Loading 100%`에 영구히 갇힌다.
+   *
+   * 로컬에서는 파일이 사실상 한 번에 도착해 `DataLoaded`가 resolve보다 먼저 끝나서 드러나지
+   * 않는다. 배포에서는 앞단 nginx와 문서 중계를 거쳐 나눠 도착하므로 순서가 뒤집힌다.
+   *
+   * 그래서 이미 받아 둔 문서가 있으면 진행 이벤트가 와도 같은 뷰어를 그대로 그린다. 같은
+   * 위치에 같은 타입을 그리므로 React가 언마운트하지 않아 스크롤·하이라이트 상태도 남는다.
+   */
+  const renderViewer = (pdfDocument: any) => {
+    if (pdfDocument !== pdfDoc) {
+      setTimeout(() => setPdfDoc(pdfDocument), 0);
+    }
+    return (
+      <div
+        className="patent-pdf-main-viewer"
+        ref={viewerContainerRef}
+        style={{
+          height: '100%',
+          width: '100%',
+          position: 'relative',
+          transform: `rotate(${rotation}deg)`,
+          transformOrigin: 'center center',
+          transition: 'transform 0.2s ease',
+        }}
+      >
+        <PatentPdfRenderer
+          pdfDocument={pdfDocument}
+          pdfScaleValue={pdfScaleValue}
+          pdfTotalPages={pdfTotalPages}
+          activeBBox={activeBBox}
+          dynamicHighlights={dynamicHighlights}
+          onPdfDocumentReady={onPdfDocumentReady}
+          onPdfTotalPagesChange={onPdfTotalPagesChange}
+          setHighlighterUtils={handleHighlighterUtils}
+          onAddHighlight={onAddHighlight}
+          onHighlightClick={onHighlightClick}
+        />
+      </div>
+    );
+  };
+
 
   return (
     <Card
@@ -299,39 +367,16 @@ const PatentPdfViewerComponent: React.FC<PatentPdfViewerProps> = ({
         </div>
 
         <div style={{ flex: 1, minWidth: 0, position: 'relative', display: 'flex', flexDirection: 'column' }}>
-          <PdfLoader document={pdfDocumentParams}>
-            {(pdfDocument: any) => {
-              if (pdfDocument !== pdfDoc) {
-                setTimeout(() => setPdfDoc(pdfDocument), 0);
-              }
-              return (
-                <div
-                  className="patent-pdf-main-viewer"
-                  ref={viewerContainerRef}
-                  style={{
-                    height: '100%',
-                    width: '100%',
-                    position: 'relative',
-                    transform: `rotate(${rotation}deg)`,
-                    transformOrigin: 'center center',
-                    transition: 'transform 0.2s ease',
-                  }}
-                >
-                  <PatentPdfRenderer
-                    pdfDocument={pdfDocument}
-                    pdfScaleValue={pdfScaleValue}
-                    pdfTotalPages={pdfTotalPages}
-                    activeBBox={activeBBox}
-                    dynamicHighlights={dynamicHighlights}
-                    onPdfDocumentReady={onPdfDocumentReady}
-                    onPdfTotalPagesChange={onPdfTotalPagesChange}
-                    setHighlighterUtils={handleHighlighterUtils}
-                    onAddHighlight={onAddHighlight}
-                    onHighlightClick={onHighlightClick}
-                  />
-                </div>
-              );
-            }}
+          <PdfLoader
+            document={pdfDocumentParams}
+            // 뒤늦게 오는 진행 이벤트로 뷰어가 로딩 표시에 밀려나지 않게 한다(renderViewer 주석).
+            beforeLoad={(progress: { loaded: number; total: number }) => (
+              pdfDoc
+                ? renderViewer(pdfDoc)
+                : <PdfLoadingIndicator progress={progress} />
+            )}
+          >
+            {renderViewer}
           </PdfLoader>
         </div>
       </div>

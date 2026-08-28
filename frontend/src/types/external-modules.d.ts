@@ -9,9 +9,16 @@ declare module 'react-pdf-highlighter-plus' {
     [key: string]: any;
   };
 
+  export type PdfLoadProgress = { loaded: number; total: number };
+
   export const PdfLoader: React.FC<{
     document: PdfDocumentSource;
     children: (pdfDocument: any) => React.ReactNode;
+    /** 문서를 받는 동안 그릴 것. 생략하면 라이브러리 기본 `Loading n%`가 나온다. */
+    beforeLoad?: (progress: PdfLoadProgress) => React.ReactNode;
+    errorMessage?: (error: Error) => React.ReactNode;
+    onError?: (error: Error) => void;
+    workerSrc?: string;
   }>;
 
   export const PdfHighlighter: React.FC<{
