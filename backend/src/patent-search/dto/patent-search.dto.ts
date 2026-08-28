@@ -127,8 +127,9 @@ export class PatentSearchStatuteDto {
  *
  * 외부 API는 `targets`를 배열로 받지만 2개 이상을 넘기면 500(`index should have a
  * `WITH (key_field='...')` option`)으로 실패한다. 여러 문서를 함께 조건에 넣으려면
- * target 하나짜리 항목을 여러 개 보내야 하므로(항목 간에는 AND) 여기서는 배열이 아닌
- * `target` 하나만 받는다. 상세는 `docs/patent_search_api.md` 참고.
+ * target 하나짜리 항목을 여러 개 보내야 하므로 여기서는 배열이 아닌 `target` 하나만 받는다.
+ * 기존 page endpoint의 항목 관계와 matches endpoint의 AND-of-OR 관계는
+ * `docs/patent_search_api.md`에서 구분해 설명한다.
  */
 export class PatentSearchKeywordDto {
   @IsString()
@@ -139,9 +140,28 @@ export class PatentSearchKeywordDto {
   @IsIn(PATENT_SEARCH_KEYWORD_TARGETS)
   target!: PatentSearchKeywordTarget;
 
+  /**
+   * matches API에서 AND/OR는 INCLUDE 조건의 관계, NOT은 EXCLUDE를 뜻한다.
+   * 기존 page 기반 외부 API 계약과 호환하기 위해 아직 한 field로 유지한다.
+   */
   @IsOptional()
   @IsIn(PATENT_SEARCH_KEYWORD_OPERATORS)
   operator: PatentSearchKeywordOperator = "AND";
+}
+
+/**
+ * 본문 없이 전체 매칭 OA ID만 받는 경량 검색 요청.
+ *
+ * INCLUDE는 OR로 이어진 조건을 한 그룹으로 묶고 그룹 사이는 AND로 결합한다.
+ * NOT은 INCLUDE 후보 집합을 만든 뒤 전역 EXCLUDE로 적용한다.
+ */
+export class PatentSearchMatchesDto {
+  @IsArray()
+  @ArrayNotEmpty()
+  @ArrayMaxSize(10)
+  @ValidateNested({ each: true })
+  @Type(() => PatentSearchKeywordDto)
+  keywords!: PatentSearchKeywordDto[];
 }
 
 export class PatentSearchFiltersDto {

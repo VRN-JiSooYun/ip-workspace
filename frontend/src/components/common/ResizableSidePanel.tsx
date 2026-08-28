@@ -3,11 +3,18 @@ import './ResizableSidePanel.css';
 
 /** 문서 뷰어 패널의 공용 기본값. 특허 관리·의견제출통지서 화면이 같은 값을 쓴다. */
 export const SIDE_PANEL_MIN_WIDTH = 380;
-export const SIDE_PANEL_DEFAULT_WIDTH = 520;
+export const SIDE_PANEL_DEFAULT_WIDTH = 830;
 export const SIDE_PANEL_MAX_WIDTH = 1000;
 /** 왼쪽 본문에 최소한 남겨 둘 폭. 이만큼은 목록이 살아 있어야 한다. */
 export const SIDE_PANEL_MIN_SIBLING_WIDTH = 320;
 const RESIZE_STEP = 24;
+/**
+ * 최소 폭에서 이만큼 더 밀어야 접힌다.
+ *
+ * 여유 없이 최소 폭을 스치자마자 접으면, 최소 폭 근처로 좁히려던 드래그가 자꾸 패널을
+ * 없애 버린다. 반대로 너무 크면 접으려고 화면 끝까지 밀어야 한다.
+ */
+const COLLAPSE_SLACK = 64;
 
 type Props = {
   min?: number;
@@ -29,6 +36,13 @@ type Props = {
    * 때문이다(전환이 켜져 있으면 패널이 커서를 뒤늦게 따라와 뻣뻣하게 느껴진다).
    */
   onResizingChange?: (resizing: boolean) => void;
+  /**
+   * 최소 폭보다 더 좁히려고 밀었을 때 부른다. 패널을 접는 것은 부르는 쪽 몫이다
+   * (이 컴포넌트는 접힌 상태를 모른다 — 접히면 부모가 아예 렌더하지 않는다).
+   *
+   * 넘기지 않으면 예전처럼 최소 폭에서 멈춘다.
+   */
+  onCollapse?: () => void;
   children: React.ReactNode;
 };
 
@@ -49,6 +63,7 @@ const ResizableSidePanel: React.FC<Props> = ({
   width: controlledWidth,
   onWidthChange,
   onResizingChange,
+  onCollapse,
   children,
 }) => {
   const [uncontrolledWidth, setUncontrolledWidth] = useState(defaultWidth);
@@ -72,6 +87,21 @@ const ResizableSidePanel: React.FC<Props> = ({
   );
   const handleRef = useRef<HTMLDivElement>(null);
   const paneRef = useRef<HTMLDivElement>(null);
+  /** 이번 드래그를 시작할 때의 폭. 접을 때 되돌리려고 들고 있는다(아래 collapse 참고). */
+  const widthAtDragStart = useRef(width);
+
+  /**
+   * 최소 폭 아래로 더 민 결과: 드래그를 끝내고 접는다.
+   *
+   * 접기 전에 드래그 시작 폭으로 되돌린다. 미는 동안 폭은 최소 폭에 붙어 있어서, 그대로 두면
+   * 다시 펼쳤을 때 최소 폭으로 열린다. 사용자가 고른 폭은 밀기 시작하기 전의 그것이지
+   * '접으려고 지나친 최소 폭'이 아니다.
+   */
+  const collapse = useCallback(() => {
+    setIsResizing(false);
+    setWidth(widthAtDragStart.current);
+    onCollapse?.();
+  }, [onCollapse, setWidth]);
 
   /**
    * `max`만으로 자르면 화면이 좁을 때 본문이 0px까지 눌려 목록이 사라진다.
@@ -130,7 +160,13 @@ const ResizableSidePanel: React.FC<Props> = ({
       if (!pane) return;
       // 패널의 오른쪽 경계는 리사이즈 중에도 고정이다(레이아웃이 왼쪽으로 자란다).
       // 그래서 그 경계와 포인터의 거리가 곧 새 너비다.
-      setWidth(clamp(pane.getBoundingClientRect().right - event.clientX));
+      const desired = pane.getBoundingClientRect().right - event.clientX;
+      // clamp를 거치기 전에 본다. clamp는 최소 폭에서 잘라 버려서 '더 밀었다'가 사라진다.
+      if (onCollapse && desired < min - COLLAPSE_SLACK) {
+        collapse();
+        return;
+      }
+      setWidth(clamp(desired));
     };
     const handleMouseUp = () => setIsResizing(false);
     const previousCursor = document.body.style.cursor;
@@ -148,14 +184,22 @@ const ResizableSidePanel: React.FC<Props> = ({
       document.body.style.cursor = previousCursor;
       document.body.style.userSelect = previousUserSelect;
     };
-  }, [clamp, isResizing]);
+    // setWidth·collapse는 폭이 바뀔 때마다 새로 만들어진다. 의존성에 넣으면 mousemove마다
+    // 리스너를 떼었다 붙이게 된다. 둘 다 값을 넘겨 부르는 용도라 드래그 시작 시점의 것으로 족하다.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clamp, collapse, isResizing, min, onCollapse]);
 
   /** 마우스 없이도 조절할 수 있어야 한다. 왼쪽=넓히기(패널이 왼쪽으로 자란다). */
   const handleKeyDown = useCallback(
     (event: React.KeyboardEvent<HTMLDivElement>) => {
       const keyed: Record<string, () => void> = {
         ArrowLeft: () => setWidth((current) => clamp(current + RESIZE_STEP)),
-        ArrowRight: () => setWidth((current) => clamp(current - RESIZE_STEP)),
+        // 이미 최소 폭인데 한 번 더 좁히려는 것은 마우스로 최소 폭 아래로 미는 것과 같은 뜻이다.
+        ArrowRight: () => (
+          onCollapse && width <= min
+            ? onCollapse()
+            : setWidth((current) => clamp(current - RESIZE_STEP))
+        ),
         Home: () => setWidth(min),
         // max로 바로 가더라도 본문 최소 폭은 지켜야 하므로 clamp를 거친다.
         End: () => setWidth(clamp(max)),
@@ -167,7 +211,7 @@ const ResizableSidePanel: React.FC<Props> = ({
       event.preventDefault();
       action();
     },
-    [clamp, defaultWidth, max, min],
+    [clamp, defaultWidth, max, min, onCollapse, width],
   );
 
   return (
@@ -184,6 +228,7 @@ const ResizableSidePanel: React.FC<Props> = ({
         tabIndex={0}
         onMouseDown={(event) => {
           event.preventDefault();
+          widthAtDragStart.current = width;
           setIsResizing(true);
         }}
         onKeyDown={handleKeyDown}

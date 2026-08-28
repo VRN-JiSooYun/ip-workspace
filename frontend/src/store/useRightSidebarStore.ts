@@ -3,7 +3,7 @@ import {
   SIDE_PANEL_DEFAULT_WIDTH,
   SIDE_PANEL_MIN_WIDTH,
 } from '../components/common/ResizableSidePanel';
-import type { PatentSearchItem } from '../services/patentSearchApi';
+import type { PatentSearchItem, PatentSearchKeyword } from '../services/patentSearchApi';
 
 /**
  * 우측 레일의 상태.
@@ -68,6 +68,8 @@ export type RailDocumentContext = {
   activeId: number | null;
   legalStatusLabel: string | null;
   examStatusLabel: string | null;
+  /** 이 문서를 찾은 본문 검색 조건. 문서 뷰어의 검색 근거와 PDF 하이라이트에만 쓴다. */
+  searchKeywords?: PatentSearchKeyword[];
 };
 
 type RightSidebarState = {

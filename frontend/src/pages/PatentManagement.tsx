@@ -2,7 +2,6 @@ import React, { useEffect } from 'react';
 import PageHeaderBreadcrumb from '../components/common/PageHeaderBreadcrumb';
 import PatentCsvImportModal from '../components/patent-management/PatentCsvImportModal';
 import PatentRecordDetailModal from '../components/patent-management/PatentRecordDetailModal';
-import PatentRecordFormModal from '../components/patent-management/PatentRecordFormModal';
 import PatentSearchBar from '../components/patent-management/PatentSearchBar';
 import PatentTodoModal from '../components/patent-management/PatentTodoModal';
 import PatentManagementBody from '../components/patent-management/PatentManagementBody';
@@ -79,22 +78,16 @@ const PatentManagement: React.FC = () => {
       <div className="pm-page">
         <PatentManagementBody />
 
-        {/* 추가 — 일괄 POST 폼. 없는 레코드에는 PATCH를 할 수 없다. */}
-        <PatentRecordFormModal
-          open={state.isModalOpen}
-          lookups={state.lookups}
-          submitting={state.submitting}
-          onCancel={state.closeRecordModal}
-          onSubmit={(values) => void state.handleSubmit(values)}
-        />
-
-        {/* 수정 — JIRA식 상세. 필드별 즉시 PATCH라 하단 [저장]이 없다. */}
+        {/* 추가와 수정 모두 같은 상세 컴포넌트를 쓴다. 추가만 로컬 초안 후 일괄 POST한다. */}
         <PatentRecordDetailModal
-          open={state.editingRecord !== null}
+          open={state.isModalOpen || state.editingRecord !== null}
+          mode={state.isModalOpen ? 'create' : 'edit'}
           record={state.editingRecord}
           lookups={state.lookups}
           canManage={state.canManage}
-          onClose={state.closeDetailModal}
+          submitting={state.submitting}
+          onClose={state.isModalOpen ? state.closeRecordModal : state.closeDetailModal}
+          onCreate={(values) => void state.handleSubmit(values)}
           onSaved={state.handleFieldSaved}
           onOpenDocuments={state.openDocuments}
           onOpenTodos={state.setTodoPatent}

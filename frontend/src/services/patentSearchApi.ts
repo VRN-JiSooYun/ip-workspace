@@ -48,7 +48,23 @@ export const PATENT_SEARCH_KEYWORD_TARGET_LABELS: Record<PatentSearchKeywordTarg
   amendment: '보정서',
 };
 
+/** 키워드 항목 간 관계. matches API는 AND/OR/NOT을 모두 지원한다. */
 export type PatentSearchKeywordOperator = 'AND' | 'OR' | 'NOT';
+
+/** 화면에서 고를 수 있는 연산자. */
+export const PATENT_SEARCH_KEYWORD_OPERATORS = ['AND', 'OR', 'NOT'] as const;
+
+export type PatentSearchUsableKeywordOperator =
+  (typeof PATENT_SEARCH_KEYWORD_OPERATORS)[number];
+
+export const PATENT_SEARCH_KEYWORD_OPERATOR_LABELS: Record<
+  PatentSearchUsableKeywordOperator,
+  string
+> = {
+  AND: '포함',
+  OR: '포함',
+  NOT: '제외',
+};
 
 export type PatentSearchDateRange = {
   field: PatentSearchDateField;
@@ -77,8 +93,11 @@ export type PatentSearchStatute = {
 /**
  * 문서 전문 키워드 조건.
  *
- * 항목 하나에 target 하나만 지정한다. 여러 문서를 함께 조건에 넣으려면 항목을 여러 개
- * 보내며, 항목 간에는 AND로 묶인다. (외부 API가 target 2개 이상을 처리하지 못한다.)
+ * 항목 하나에 target 하나만 지정한다. matches API는 OR로 이어진 INCLUDE 조건을 한 그룹으로
+ * 묶고 그룹 사이는 AND로 처리하며, NOT은 전체 INCLUDE 후보에서 제외한다.
+ *
+ * 기존 page 기반 외부 API는 별도 semantics를 가지므로 이 구조를 그대로 전달하되 OR 사용 시
+ * 상류 결함이 발생할 수 있다. 현재 Office Actions 화면은 matches API만 사용한다.
  */
 export type PatentSearchKeyword = {
   query: string;
@@ -203,6 +222,43 @@ export type PatentSearchResult = {
   items: PatentSearchItem[];
 };
 
+export type PatentSearchMatchResult = {
+  total: number;
+  items: Array<{
+    officeActionId: number;
+    relevanceScore: number | null;
+  }>;
+};
+
+export type PatentSearchIndexIpc = {
+  section: string | null;
+  classCode: string | null;
+  subclass: string | null;
+  mainGroup: string | null;
+  subgroup: string | null;
+};
+
+/** content 없이 브라우저 필터링에 필요한 구조만 담은 OA 인덱스 항목. */
+export type PatentSearchIndexItem = PatentSearchItem & {
+  filterIndex: {
+    attorneyName: string | null;
+    examStatus: string | null;
+    ipcs: PatentSearchIndexIpc[];
+  };
+};
+
+export type PatentSearchIndexResult = {
+  generatedAt: string;
+  total: number;
+  items: PatentSearchIndexItem[];
+};
+
+export type PatentSearchDocumentContent = {
+  content: string | null;
+  contentLength: number;
+  submissions: PatentSearchSubmission[];
+};
+
 const getApiBaseUrl = () => {
   const runtimeValue = typeof window !== 'undefined'
     ? (window as RuntimeWindow)._env_?.VITE_API_URL
@@ -259,10 +315,32 @@ const compact = <T extends object>(source: T): Partial<T> => {
   return result as Partial<T>;
 };
 
+/** 같은 브라우저 세션에서는 페이지를 다시 열어도 큰 OA 인덱스를 다시 받지 않는다. */
+let patentSearchIndexRequest: Promise<PatentSearchIndexResult> | null = null;
+
 export const patentSearchApi = {
   /** 외부 OA PostgreSQL의 필터용 코드 목록. */
   lookups(): Promise<OaLookups> {
     return request<OaLookups>('/oa-lookups');
+  },
+
+  /** content 없는 전체 OA 인덱스. 키워드가 없을 때 프런트 상세 필터에 쓴다. */
+  index(): Promise<PatentSearchIndexResult> {
+    if (!patentSearchIndexRequest) {
+      patentSearchIndexRequest = request<PatentSearchIndexResult>('/patent-search/index')
+        .catch((error) => {
+          patentSearchIndexRequest = null;
+          throw error;
+        });
+    }
+    return patentSearchIndexRequest;
+  },
+
+  /** 인덱스에서 제외한 OA·제출 문서 본문을 선택한 결과 한 건에 대해서만 받는다. */
+  documentContent(officeActionId: number): Promise<PatentSearchDocumentContent> {
+    return request<PatentSearchDocumentContent>(
+      `/patent-search/${encodeURIComponent(officeActionId)}/content`,
+    );
   },
 
   /**
@@ -282,6 +360,14 @@ export const patentSearchApi = {
     return request<PatentSearchResult>('/patent-search', {
       method: 'POST',
       body: JSON.stringify(body),
+    });
+  },
+
+  /** 본문 없이 전체 키워드 매칭 OA ID와 관련도만 한 번에 받는다. */
+  matches(keywords: PatentSearchKeyword[]): Promise<PatentSearchMatchResult> {
+    return request<PatentSearchMatchResult>('/patent-search/matches', {
+      method: 'POST',
+      body: JSON.stringify({ keywords }),
     });
   },
 };

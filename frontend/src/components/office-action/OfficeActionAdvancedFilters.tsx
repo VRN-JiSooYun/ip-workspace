@@ -3,11 +3,11 @@ import {
   Button,
   Collapse,
   DatePicker,
+  Dropdown,
   InputNumber,
   Select,
   Tag,
   Tooltip,
-  Typography,
 } from 'antd';
 import dayjs from 'dayjs';
 import { Check, ChevronDown, Info, Plus, Settings2 } from 'lucide-react';
@@ -19,8 +19,6 @@ import {
   type OaLookups,
 } from '../../services/patentSearchApi';
 
-const { Text } = Typography;
-
 /**
  * 법종류. 외부 API는 `law_type`을 코드(int)나 명칭(str)으로 받는데, 실제로 데이터가 있는
  * 값은 이 둘뿐이다(1=특허법 13,488건 / 2=특허법 시행령 2,452건). 3 이상은 0건이다.
@@ -31,11 +29,20 @@ export const LAW_TYPE_OPTIONS = ['특허법', '특허법 시행령', '실용신�
 /** IPC 섹션은 표준 분류라 데이터와 무관하게 고정 목록이다. */
 const IPC_SECTIONS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'] as const;
 
+export type OfficeActionConditionJoin = 'OR' | 'AND';
+
+const CONDITION_JOIN_MENU_ITEMS = [
+  { label: 'AND', key: 'AND' },
+  { label: 'OR', key: 'OR' },
+];
+
 export type StatuteCondition = {
   lawTypeText: string;
   article?: number;
   paragraph?: number;
   subParagraph?: number;
+  /** 앞 조건과의 결합 연산자. 첫 조건에서는 사용하지 않는다. */
+  operator?: OfficeActionConditionJoin;
 };
 
 export type IpcCondition = {
@@ -44,6 +51,8 @@ export type IpcCondition = {
   subclass?: string;
   mainGroup?: string;
   subgroup?: string;
+  /** 앞 조건과의 결합 연산자. 첫 조건에서는 사용하지 않는다. */
+  operator?: OfficeActionConditionJoin;
 };
 
 export type OfficeActionFilterState = {
@@ -119,7 +128,17 @@ export const toPatentSearchFilters = (
         })),
       }
     : {}),
-  ...(state.ipc.length ? { ipc: state.ipc } : {}),
+  ...(state.ipc.length
+    ? {
+        ipc: state.ipc.map((ipc) => ({
+          ...(ipc.section ? { section: ipc.section } : {}),
+          ...(ipc.classCode ? { classCode: ipc.classCode } : {}),
+          ...(ipc.subclass ? { subclass: ipc.subclass } : {}),
+          ...(ipc.mainGroup ? { mainGroup: ipc.mainGroup } : {}),
+          ...(ipc.subgroup ? { subgroup: ipc.subgroup } : {}),
+        })),
+      }
+    : {}),
   // from/to 둘 다 없으면 기간 조건이 아니다.
   ...(state.dateFrom || state.dateTo
     ? {
@@ -164,11 +183,8 @@ type Props = {
    */
   onChange: React.Dispatch<React.SetStateAction<OfficeActionFilterState>>;
   /**
-   * '조건 적용'. 조건을 바꾸는 것만으로는 검색이 나가지 않는다 — 이 버튼이나 필터 안에서의
-   * Enter(또는 검색 바의 '검색')가 지금 조건으로 다시 검색하게 한다.
-   *
-   * 호출 시점의 조건이 아니라 **다음 render의 조건**으로 검색되어야 한다. Enter는 태그 확정
-   * 같은 조건 갱신과 같은 이벤트에서 일어나서, 그 자리에서 검색하면 방금 넣은 값이 빠진다.
+   * 현재 Search API 기준 목록에 상세 필터를 적용한다. 버튼과 필터 내부 Enter가 호출하며,
+   * 둘 다 서버 검색이 아니라 프런트 필터만 실행한다.
    */
   onApply: () => void;
   /** 검색 중. 적용 버튼에 그대로 물린다. */
@@ -198,7 +214,7 @@ const Field: React.FC<{
 );
 
 /**
- * 고급 검색 필터.
+ * 상세 필터 필터.
  *
  * 법적상태·심사진행상태 option은 외부 OA PostgreSQL의 코드 테이블에서 받는다. 로컬
  * `patentRecordApi.lookups()`은 IP팀 관리 데이터의 별개 ID 체계라 이 검색에는 사용하지 않는다.
@@ -218,25 +234,27 @@ const OfficeActionAdvancedFilters: React.FC<Props> = ({
   const patch = (next: Partial<OfficeActionFilterState>) =>
     onChange((prev) => ({ ...prev, ...next }));
 
-  const addStatute = () => {
+  const addStatute = (operator?: OfficeActionConditionJoin) => {
     if (!statuteDraft.lawTypeText) return;
     const label = statuteLabel(statuteDraft);
+    const condition = operator ? { ...statuteDraft, operator } : statuteDraft;
     onChange((prev) =>
       // 같은 조건을 두 번 넣어도 결과가 달라지지 않으므로 중복은 버린다.
       prev.statutes.some((statute) => statuteLabel(statute) === label)
         ? prev
-        : { ...prev, statutes: [...prev.statutes, statuteDraft] },
+        : { ...prev, statutes: [...prev.statutes, condition] },
     );
     setStatuteDraft({ lawTypeText: '' });
   };
 
-  const addIpc = () => {
+  const addIpc = (operator?: OfficeActionConditionJoin) => {
     if (!hasAnyComponent(ipcDraft)) return;
     const label = ipcLabel(ipcDraft);
+    const condition = operator ? { ...ipcDraft, operator } : ipcDraft;
     onChange((prev) =>
       prev.ipc.some((ipc) => ipcLabel(ipc) === label)
         ? prev
-        : { ...prev, ipc: [...prev.ipc, ipcDraft] },
+        : { ...prev, ipc: [...prev.ipc, condition] },
     );
     setIpcDraft({});
   };
@@ -244,23 +262,25 @@ const OfficeActionAdvancedFilters: React.FC<Props> = ({
   const activeCount = countActiveFilters(value);
 
   /**
-   * 필터 안에서의 Enter = 조건 적용.
+   * 필터 안에서의 Enter = 현재 기준 목록에 조건 적용.
    *
-   * 셀렉트·날짜 같은 antd 컴포넌트는 자기 Enter 처리(후보 확정, 날짜 확정)를 먼저 끝내고
-   * 여기까지 올려 보낸다. 그래서 여기서는 '이번 Enter로 바뀐 조건까지 넣어 검색해 달라'고
-   * 요청만 하면 된다(실제 검색은 조건이 반영된 다음 render에서 나간다).
+   * Select·날짜 입력의 값 확정과 같은 이벤트에서 실행될 수 있으므로 부모에는 적용 요청만
+   * 보내고, 부모가 다음 render에서 최신 필터 state로 처리한다.
    */
   const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
-    if (event.key !== 'Enter') return;
-    // 한글 조합을 끝내는 Enter는 입력의 일부다. 이걸로 검색하면 글자를 칠 때마다 검색된다.
-    if (event.nativeEvent.isComposing) return;
+    if (event.key !== 'Enter' || event.nativeEvent.isComposing) return;
     const target = event.target as HTMLElement;
-    // 버튼 위에서의 Enter는 그 버튼을 누른 것이다(추가·초기화·적용·패널 접기).
+    // 버튼 자체의 Enter는 해당 버튼 동작만 수행한다.
     if (target.closest('button, [role="button"]')) return;
-    // 법조문·IPC 칸의 Enter는 '추가'까지 대신 해 준다. 눈에 보이는 값이 조건에서 빠진 채
-    // 검색되는 것이 제일 헷갈린다. 조건이 안 되는 draft라면 각 함수가 알아서 아무것도 안 한다.
-    if (target.closest('.oa-subpanel-grid-statute')) addStatute();
-    if (target.closest('.oa-subpanel-grid-ipc')) addIpc();
+    // draft 입력 영역에서는 화면에 보이는 값도 조건 배열에 먼저 확정한다.
+    // Enter 자동 적용에서는 기존 동작과 호환되도록 후속 조건을 OR로 추가한다. AND/OR를
+    // 직접 고를 때는 '추가' 버튼의 dropdown을 사용한다.
+    if (target.closest('.oa-subpanel-grid-statute')) {
+      addStatute(value.statutes.length > 0 ? 'OR' : undefined);
+    }
+    if (target.closest('.oa-subpanel-grid-ipc')) {
+      addIpc(value.ipc.length > 0 ? 'OR' : undefined);
+    }
     onApply();
   };
 
@@ -268,7 +288,7 @@ const OfficeActionAdvancedFilters: React.FC<Props> = ({
     <div className="oa-card oa-filters" onKeyDown={handleKeyDown}>
       <Collapse
         ghost
-        defaultActiveKey={['advanced']}
+        defaultActiveKey={['']} // default to collapsed
         // 시안처럼 라벨 바로 뒤에 chevron을 두려고 antd 기본 아이콘은 끈다.
         expandIcon={() => null}
         items={[
@@ -277,7 +297,7 @@ const OfficeActionAdvancedFilters: React.FC<Props> = ({
             label: (
               <span className="oa-filters-header">
                 <Settings2 size={18} className="oa-filters-header-icon" />
-                <span className="oa-filters-header-title">고급 검색</span>
+                <span className="oa-filters-header-title">상세 필터</span>
                 <ChevronDown size={16} className="oa-filters-header-chevron" />
                 {activeCount > 0 && (
                   <Tag className="oa-filters-count">{`${activeCount}개 적용`}</Tag>
@@ -426,37 +446,65 @@ const OfficeActionAdvancedFilters: React.FC<Props> = ({
                       />
                     </Field>
                     <Field label=" ">
-                      <Button
-                        icon={<Plus size={14} />}
-                        disabled={!statuteDraft.lawTypeText}
-                        onClick={addStatute}
-                        block
-                      >
-                        추가
-                      </Button>
+                      {value.statutes.length > 0 ? (
+                        <Dropdown
+                          trigger={['click']}
+                          placement="bottomLeft"
+                          menu={{
+                            items: CONDITION_JOIN_MENU_ITEMS,
+                            onClick: ({ key }) =>
+                              addStatute(key as OfficeActionConditionJoin),
+                          }}
+                        >
+                          <Button
+                            icon={<Plus size={14} />}
+                            disabled={!statuteDraft.lawTypeText}
+                            className="oa-condition-add-dropdown"
+                            block
+                          >
+                            추가
+                            <ChevronDown size={12} />
+                          </Button>
+                        </Dropdown>
+                      ) : (
+                        <Button
+                          icon={<Plus size={14} />}
+                          disabled={!statuteDraft.lawTypeText}
+                          onClick={() => addStatute()}
+                          block
+                        >
+                          추가
+                        </Button>
+                      )}
                     </Field>
                   </div>
                 </div>
                 {value.statutes.length > 0 && (
                   <div className="oa-tag-row">
-                    {value.statutes.map((statute) => {
+                    {value.statutes.map((statute, index) => {
                       const label = statuteLabel(statute);
                       return (
-                        <Tag
-                          key={label}
-                          closable
-                          className="oa-condition-tag"
-                          onClose={() =>
-                            onChange((prev) => ({
-                              ...prev,
-                              statutes: prev.statutes.filter(
-                                (item) => statuteLabel(item) !== label,
-                              ),
-                            }))
-                          }
-                        >
-                          {label}
-                        </Tag>
+                        <React.Fragment key={label}>
+                          {index > 0 && (
+                            <span className="oa-condition-join">
+                              {statute.operator ?? 'OR'}
+                            </span>
+                          )}
+                          <Tag
+                            closable
+                            className="oa-condition-tag"
+                            onClose={() =>
+                              onChange((prev) => ({
+                                ...prev,
+                                statutes: prev.statutes.filter(
+                                  (item) => statuteLabel(item) !== label,
+                                ),
+                              }))
+                            }
+                          >
+                            <span className="oa-condition-tag-label">{label}</span>
+                          </Tag>
+                        </React.Fragment>
                       );
                     })}
                   </div>
@@ -537,35 +585,62 @@ const OfficeActionAdvancedFilters: React.FC<Props> = ({
                       />
                     </Field>
                     <Field label=" ">
-                      <Button
-                        icon={<Plus size={14} />}
-                        disabled={!hasAnyComponent(ipcDraft)}
-                        onClick={addIpc}
-                        block
-                      >
-                        추가
-                      </Button>
+                      {value.ipc.length > 0 ? (
+                        <Dropdown
+                          trigger={['click']}
+                          placement="bottomLeft"
+                          menu={{
+                            items: CONDITION_JOIN_MENU_ITEMS,
+                            onClick: ({ key }) => addIpc(key as OfficeActionConditionJoin),
+                          }}
+                        >
+                          <Button
+                            icon={<Plus size={14} />}
+                            disabled={!hasAnyComponent(ipcDraft)}
+                            className="oa-condition-add-dropdown"
+                            block
+                          >
+                            추가
+                            <ChevronDown size={12} />
+                          </Button>
+                        </Dropdown>
+                      ) : (
+                        <Button
+                          icon={<Plus size={14} />}
+                          disabled={!hasAnyComponent(ipcDraft)}
+                          onClick={() => addIpc()}
+                          block
+                        >
+                          추가
+                        </Button>
+                      )}
                     </Field>
                   </div>
                 </div>
                 {value.ipc.length > 0 && (
                   <div className="oa-tag-row">
-                    {value.ipc.map((ipc) => {
+                    {value.ipc.map((ipc, index) => {
                       const label = ipcLabel(ipc);
                       return (
-                        <Tag
-                          key={label}
-                          closable
-                          className="oa-condition-tag"
-                          onClose={() =>
-                            onChange((prev) => ({
-                              ...prev,
-                              ipc: prev.ipc.filter((item) => ipcLabel(item) !== label),
-                            }))
-                          }
-                        >
-                          {label}
-                        </Tag>
+                        <React.Fragment key={label}>
+                          {index > 0 && (
+                            <span className="oa-condition-join">
+                              {ipc.operator ?? 'OR'}
+                            </span>
+                          )}
+                          <Tag
+                            closable
+                            className="oa-condition-tag"
+                            onClose={() =>
+                              onChange((prev) => ({
+                                ...prev,
+                                ipc: prev.ipc.filter((item) => ipcLabel(item) !== label),
+                              }))
+                            }
+                          >
+                            <span className="oa-condition-tag-label">{label}</span>
+                          </Tag>
+                        </React.Fragment>
                       );
                     })}
                   </div>
@@ -613,11 +688,6 @@ const OfficeActionAdvancedFilters: React.FC<Props> = ({
                 </div>
 
                 <div className="oa-filters-footer">
-                  <Text type="secondary" style={{ fontSize: 12 }}>
-                    {dirty
-                      ? '변경한 조건은 아직 검색에 반영되지 않았습니다. Enter로도 적용됩니다.'
-                      : '법조문·IPC는 여러 건을 추가할 수 있습니다.'}
-                  </Text>
                   <div className="oa-filters-footer-actions">
                     <Button
                       disabled={activeCount === 0}
@@ -625,7 +695,7 @@ const OfficeActionAdvancedFilters: React.FC<Props> = ({
                     >
                       조건 초기화
                     </Button>
-                    {/* 본문 검색과 별개다. 여기 조건만 다시 걸어 검색한다. */}
+                    {/* Search API를 호출하지 않고 현재 기준 목록에 상세 필터만 적용한다. */}
                     <Button
                       type="primary"
                       loading={applying}

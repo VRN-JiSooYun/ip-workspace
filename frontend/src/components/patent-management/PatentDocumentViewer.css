@@ -143,6 +143,19 @@
   font-weight: 700;
 }
 
+.pm-timeline-chip-matched:not(.pm-timeline-chip-active) {
+  border-color: rgba(var(--brand-primary-rgb), 0.45);
+}
+
+.pm-timeline-match-badge {
+  padding: 0 4px;
+  border-radius: 4px;
+  background: rgba(var(--brand-primary-rgb), 0.12);
+  color: var(--brand-primary);
+  font-size: 10px;
+  font-weight: 700;
+}
+
 .pm-timeline-chip:focus-visible {
   outline: 2px solid var(--brand-primary);
   outline-offset: 1px;
@@ -255,6 +268,53 @@
   flex-direction: column;
   flex: 1 1 auto;
   min-height: 240px;
+}
+
+/* 선택한 검색 결과의 본문에서 실제 발견된 token. PDF 표준 검색의 활성 query와 연결된다. */
+.pm-doc-search-evidence {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  flex: 0 0 auto;
+  margin-bottom: 8px;
+  padding: 8px 10px;
+  border: 1px solid rgba(var(--brand-primary-rgb), 0.24);
+  border-radius: 10px;
+  background: rgba(var(--brand-primary-rgb), 0.05);
+}
+
+.pm-doc-search-evidence-static {
+  align-self: stretch;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.pm-doc-search-evidence-label {
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.pm-doc-search-target {
+  margin: 0;
+  color: var(--brand-primary);
+  background: rgba(var(--brand-primary-rgb), 0.1);
+}
+
+.pm-doc-search-terms {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  min-width: 0;
+}
+
+.pm-doc-search-term {
+  height: 24px;
+  padding-inline: 9px;
+  border-radius: 999px;
+  font-size: 11px;
 }
 
 /* PatentPdfViewer는 Card가 flex:1·minHeight:0이라 부모가 높이를 정해 줘야 한다. */

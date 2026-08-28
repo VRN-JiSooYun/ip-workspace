@@ -1,8 +1,18 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Button, Checkbox, Collapse, DatePicker, Input, Modal, Select, Tag, Tooltip, Typography } from 'antd';
 import type { InputRef } from 'antd';
 import dayjs from 'dayjs';
-import { AlertCircle, Check, FileText, Link2, ListChecks, Loader2, X } from 'lucide-react';
+import {
+  AlertCircle,
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  FileText,
+  Link2,
+  ListChecks,
+  Loader2,
+  X,
+} from 'lucide-react';
 import {
   usePatentFieldSave,
   type FieldSaveState,
@@ -10,6 +20,7 @@ import {
 } from '../../hooks/usePatentFieldSave';
 import {
   patentRecordApi,
+  type CreatePatentRecordInput,
   type PatentDocumentLinkResult,
   type PatentRecord,
   type PatentRecordLookups,
@@ -21,9 +32,14 @@ import './PatentRecordDetailModal.css';
 
 const { Text } = Typography;
 
+const DEFAULT_SIDE_WIDTH = 370;
+const MIN_SIDE_WIDTH = 300;
+const MAX_SIDE_WIDTH = 560;
+
 type Props = {
   open: boolean;
-  /** null이면 아무것도 그리지 않는다. */
+  mode?: 'create' | 'edit';
+  /** 수정 모드의 대상. 생성 모드에서는 null이며 컴포넌트가 빈 초안을 만든다. */
   record: PatentRecord | null;
   lookups: PatentRecordLookups | null;
   canManage: boolean;
@@ -40,7 +56,76 @@ type Props = {
    * 나은 화면이다. 상세에서는 그 창으로 가는 길만 둔다.
    */
   onOpenTodos?: (record: PatentRecord) => void;
+  submitting?: boolean;
+  onCreate?: (values: CreatePatentRecordInput) => void;
 };
+
+const EMPTY_RECORD: PatentRecord = {
+  id: 0,
+  countryId: 0,
+  internalRef: null,
+  refOrigin: null,
+  refYear: null,
+  refType: null,
+  refSerial: null,
+  refCountry: null,
+  koreanTitle: null,
+  englishTitle: null,
+  applicationNumber: '',
+  applicationDate: null,
+  applicant: null,
+  attorneyNumber: null,
+  registrationNumber: null,
+  registrationDate: null,
+  publicationNumber: null,
+  publicationDate: null,
+  intApplicationNumber: null,
+  intApplicationDate: null,
+  intPublicationNumber: null,
+  intPublicationDate: null,
+  parentApplicationNumber: null,
+  legalStatusId: null,
+  examStatusId: null,
+  exam: null,
+  examDate: null,
+  target: null,
+  country: { id: 0, country: '' },
+  attorney: null,
+  legalStatus: null,
+  examStatus: null,
+  note: null,
+};
+
+const nullableText = (value: string | null | undefined) => {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : null;
+};
+
+const toCreateInput = (record: PatentRecord): CreatePatentRecordInput => ({
+  countryId: record.countryId,
+  applicationNumber: record.applicationNumber.trim(),
+  internalRef: nullableText(record.internalRef),
+  target: nullableText(record.target),
+  koreanTitle: nullableText(record.koreanTitle),
+  englishTitle: nullableText(record.englishTitle),
+  applicationDate: record.applicationDate,
+  applicant: nullableText(record.applicant),
+  attorneyNumber: record.attorneyNumber,
+  registrationNumber: nullableText(record.registrationNumber),
+  registrationDate: nullableText(record.registrationDate),
+  publicationNumber: nullableText(record.publicationNumber),
+  publicationDate: record.publicationDate,
+  intApplicationNumber: nullableText(record.intApplicationNumber),
+  intApplicationDate: record.intApplicationDate,
+  intPublicationNumber: nullableText(record.intPublicationNumber),
+  intPublicationDate: record.intPublicationDate,
+  parentApplicationNumber: nullableText(record.parentApplicationNumber),
+  legalStatusId: record.legalStatusId,
+  examStatusId: record.examStatusId,
+  exam: record.exam,
+  examDate: record.examDate,
+  note: nullableText(record.note),
+});
 
 /** 필드 옆의 저장 상태. 조용히 실패하면 사용자가 저장됐다고 믿는다. */
 const SaveBadge: React.FC<{ state: FieldSaveState; onRetryHint?: () => void }> = ({
@@ -139,8 +224,8 @@ const describeLinkResult = (result: PatentDocumentLinkResult): string => {
  * 뒤의 두 규칙은 활동 피드 때문에 이렇게 됐다 — 타자 중에 저장하면 중간값마다 이력이
  * 한 줄씩 남아 피드가 타자 기록이 된다.
  *
- * 추가(생성)는 이 모달이 아니다 — 없는 레코드에는 PATCH를 할 수 없어 일괄 POST 폼이
- * 따로 있다(PatentRecordCreateModal). JIRA도 생성 다이얼로그와 상세 화면이 다르다.
+ * 생성도 같은 컴포넌트와 배치를 쓴다. 생성 중에는 값을 로컬 초안에 모으고 [추가]에서
+ * 한 번 POST하며, 기존 레코드를 열었을 때만 필드별 PATCH와 활동 피드를 사용한다.
  *
  * 읽기 전용 필드(inventors·권리 관계 등)는 DB·응답에는 있지만 갱신 DTO에 없어 편집할
  * 수 없다. CSV 임포트로만 채워진다. note('설명')는 이 규칙에서 빠져나와 편집 가능해졌고,
@@ -148,6 +233,7 @@ const describeLinkResult = (result: PatentDocumentLinkResult): string => {
  */
 const PatentRecordDetailModal: React.FC<Props> = ({
   open,
+  mode = 'edit',
   record,
   lookups,
   canManage,
@@ -155,7 +241,21 @@ const PatentRecordDetailModal: React.FC<Props> = ({
   onSaved,
   onOpenDocuments,
   onOpenTodos,
+  submitting = false,
+  onCreate,
 }) => {
+  const isCreate = mode === 'create';
+  const [createDraft, setCreateDraft] = useState<PatentRecord>(EMPTY_RECORD);
+  const [createErrors, setCreateErrors] = useState({ country: false, applicationNumber: false });
+  const activeRecord = isCreate ? createDraft : record;
+  const inputsDisabled = !canManage || (isCreate && submitting);
+
+  useEffect(() => {
+    if (open && isCreate) {
+      setCreateDraft(EMPTY_RECORD);
+      setCreateErrors({ country: false, applicationNumber: false });
+    }
+  }, [isCreate, open]);
   /** 저장이 일어나면 활동 피드를 다시 받는다(어떤 로그가 남았는지는 서버만 안다). */
   const [auditRevision, setAuditRevision] = useState(0);
   /**
@@ -166,22 +266,103 @@ const PatentRecordDetailModal: React.FC<Props> = ({
    */
   const [titleActive, setTitleActive] = useState(false);
   const titleRef = React.useRef<InputRef>(null);
+  const [headerEditField, setHeaderEditField] = useState<
+    'target' | 'internalRef' | 'applicationNumber' | null
+  >(null);
+  const headerEditInitialValue = React.useRef<string | null>(null);
+  const [sideWidth, setSideWidth] = useState(DEFAULT_SIDE_WIDTH);
+  const [isSideCollapsed, setIsSideCollapsed] = useState(false);
+  const [isSideResizing, setIsSideResizing] = useState(false);
+  const sideResizeStart = React.useRef({ pointerX: 0, width: DEFAULT_SIDE_WIDTH });
   /** 문서 연결이 도는 중인가. 상류 조회가 있어 몇 초 걸릴 수 있다. */
   const [linkingDocuments, setLinkingDocuments] = useState(false);
   /** 마지막 연결 결과를 사람 말로. 눌렀는데 아무 말이 없으면 눌린 줄 모른다. */
   const [linkMessage, setLinkMessage] = useState('');
 
   const save = usePatentFieldSave({
-    patent: record,
+    patent: isCreate ? null : record,
     onSaved: (next) => {
       onSaved(next);
       setAuditRevision((current) => current + 1);
     },
   });
 
-  if (!record) return null;
+  useEffect(() => {
+    setHeaderEditField(null);
+    setLinkMessage('');
+  }, [activeRecord?.id, isCreate, open]);
 
-  const badgeFor = (key: PatentFieldKey) => (
+  if (!activeRecord) return null;
+
+  const updateCreateDraft = (key: PatentFieldKey, value: unknown) => {
+    setCreateDraft((current) => ({ ...current, [key]: value } as PatentRecord));
+    if (key === 'countryId') {
+      setCreateErrors((current) => ({ ...current, country: false }));
+    }
+    if (key === 'applicationNumber') {
+      setCreateErrors((current) => ({ ...current, applicationNumber: false }));
+    }
+  };
+
+  const beginHeaderEdit = (
+    key: 'target' | 'internalRef' | 'applicationNumber',
+    value: string | null | undefined,
+  ) => {
+    if (inputsDisabled) return;
+    headerEditInitialValue.current = value ?? null;
+    setHeaderEditField(key);
+  };
+
+  const cancelHeaderTextEdit = (key: 'internalRef' | 'applicationNumber') => {
+    if (isCreate) updateCreateDraft(key, headerEditInitialValue.current);
+    else save.revert(key);
+    setHeaderEditField(null);
+  };
+
+  const activateWithKeyboard = (
+    event: React.KeyboardEvent<HTMLElement>,
+    action: () => void,
+  ) => {
+    if (event.key !== 'Enter' && event.key !== ' ') return;
+    event.preventDefault();
+    action();
+  };
+
+  const beginSideResize = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (isSideCollapsed || event.button !== 0) return;
+    event.preventDefault();
+    sideResizeStart.current = { pointerX: event.clientX, width: sideWidth };
+    event.currentTarget.setPointerCapture(event.pointerId);
+    setIsSideResizing(true);
+  };
+
+  const resizeSide = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (!isSideResizing) return;
+    const next = sideResizeStart.current.width
+      + sideResizeStart.current.pointerX
+      - event.clientX;
+    setSideWidth(Math.min(MAX_SIDE_WIDTH, Math.max(MIN_SIDE_WIDTH, next)));
+  };
+
+  const finishSideResize = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (!isSideResizing) return;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+    setIsSideResizing(false);
+  };
+
+  const submitCreate = () => {
+    const errors = {
+      country: !activeRecord.countryId,
+      applicationNumber: activeRecord.applicationNumber.trim().length === 0,
+    };
+    setCreateErrors(errors);
+    if (errors.country || errors.applicationNumber) return;
+    onCreate?.(toCreateInput(activeRecord));
+  };
+
+  const badgeFor = (key: PatentFieldKey) => isCreate ? null : (
     <SaveBadge state={save.stateOf(key)} onRetryHint={() => save.revert(key)} />
   );
 
@@ -196,11 +377,11 @@ const PatentRecordDetailModal: React.FC<Props> = ({
     setLinkingDocuments(true);
     setLinkMessage('');
     try {
-      const result = await patentRecordApi.linkDocuments(record.id);
+      const result = await patentRecordApi.linkDocuments(activeRecord.id);
       setLinkMessage(describeLinkResult(result));
       // 문서 건수가 바뀌었으면 이 행을 쓰는 곳(목록 배지·'문서 N건 열기')도 함께 고친다.
-      if (result.documentCount !== (record.documentCount ?? 0)) {
-        onSaved({ ...record, documentCount: result.documentCount });
+      if (result.documentCount !== (activeRecord.documentCount ?? 0)) {
+        onSaved({ ...activeRecord, documentCount: result.documentCount });
       }
       setAuditRevision((current) => current + 1);
     } catch (error) {
@@ -212,12 +393,20 @@ const PatentRecordDetailModal: React.FC<Props> = ({
 
   /** 적용 — 지금 값을 확정한다. blur도 같은 일을 하므로 두 번 불려도 안전하다. */
   const applyTitle = () => {
+    if (isCreate) {
+      titleRef.current?.blur();
+      return;
+    }
     save.commitText('koreanTitle');
     titleRef.current?.blur();
   };
 
   /** 취소 — 초안을 버리고 서버 값으로 되돌린다. 되돌린 뒤에 나가야 blur가 저장하지 않는다. */
   const cancelTitle = () => {
+    if (isCreate) {
+      titleRef.current?.blur();
+      return;
+    }
     save.revert('koreanTitle');
     titleRef.current?.blur();
   };
@@ -236,22 +425,34 @@ const PatentRecordDetailModal: React.FC<Props> = ({
       onFocus?: () => void;
       onBlur?: () => void;
       onKeyDown?: React.KeyboardEventHandler<HTMLInputElement>;
+      onPressEnter?: () => void;
+      placeholder?: string;
+      autoFocus?: boolean;
     },
   ) => (
     <Input
       ref={extra?.ref}
       size="small"
-      disabled={!canManage}
-      value={save.textValue(key, serverValue)}
-      onChange={(event) => save.editText(key, event.target.value, serverValue)}
+      disabled={inputsDisabled}
+      placeholder={extra?.placeholder}
+      autoFocus={extra?.autoFocus}
+      value={isCreate ? (serverValue ?? '') : save.textValue(key, serverValue)}
+      onChange={(event) => {
+        if (isCreate) updateCreateDraft(key, event.target.value);
+        else save.editText(key, event.target.value, serverValue);
+      }}
       onFocus={extra?.onFocus}
       onBlur={() => {
-        save.commitText(key);
+        if (!isCreate) save.commitText(key);
         extra?.onBlur?.();
       }}
-      onPressEnter={() => save.commitText(key)}
+      onPressEnter={() => {
+        if (!isCreate) save.commitText(key);
+        extra?.onPressEnter?.();
+      }}
       onKeyDown={extra?.onKeyDown}
-      status={save.stateOf(key).status === 'error' ? 'error' : undefined}
+      status={(key === 'applicationNumber' && createErrors.applicationNumber)
+        || save.stateOf(key).status === 'error' ? 'error' : undefined}
     />
   );
 
@@ -259,9 +460,13 @@ const PatentRecordDetailModal: React.FC<Props> = ({
   const dateInput = (key: PatentFieldKey, serverValue: string | null | undefined) => (
     <DatePicker
       size="small"
-      disabled={!canManage}
+      disabled={inputsDisabled}
       value={toDayjs(serverValue)}
-      onChange={(next) => save.saveValue(key, next ? next.format('YYYY-MM-DD') : null)}
+      onChange={(next) => {
+        const value = next ? next.format('YYYY-MM-DD') : null;
+        if (isCreate) updateCreateDraft(key, value);
+        else save.saveValue(key, value);
+      }}
     />
   );
 
@@ -276,56 +481,156 @@ const PatentRecordDetailModal: React.FC<Props> = ({
       showSearch
       optionFilterProp="label"
       placeholder="없음"
-      disabled={!canManage || !lookups}
-      value={value ?? undefined}
-      onChange={(next?: number) => save.saveValue(key, next ?? null)}
+      disabled={inputsDisabled || !lookups}
+      value={isCreate && !value ? undefined : (value ?? undefined)}
+      onChange={(next?: number) => {
+        if (isCreate) updateCreateDraft(key, next ?? null);
+        else save.saveValue(key, next ?? null);
+      }}
+      status={key === 'countryId' && createErrors.country ? 'error' : undefined}
       options={options}
     />
   );
 
-  const documentCount = record.documentCount ?? 0;
+  const documentCount = activeRecord.documentCount ?? 0;
   /** 값이 하나도 없으면 그룹째 숨긴다. 빈 항목만 늘어놓지 않는다. */
-  const rightsValues = [record.licenseAgreement, record.rightsChange, record.shareAgreement];
+  const rightsValues = [activeRecord.licenseAgreement, activeRecord.rightsChange, activeRecord.shareAgreement];
   const hasRights = rightsValues.some((value) => value && value.trim().length > 0);
 
   return (
     <Modal
       open={open}
       onCancel={onClose}
-      footer={null}
-      width={1120}
+      footer={isCreate ? undefined : null}
+      okText="추가"
+      cancelText="취소"
+      onOk={submitCreate}
+      confirmLoading={submitting}
+      width="min(1480px, calc(100vw - 40px))"
+      style={{ top: '10vh', paddingBottom: 0 }}
       destroyOnClose
       className="pm-detail-modal"
       title={
         <div className="pm-detail-title-bar">
-          <Tag color="blue" style={{ margin: 0 }}>{record.target ?? '-'}</Tag>
-          <span className="pm-detail-ref">{record.internalRef ?? '관리번호 없음'}</span>
-          <span className="pm-detail-appno">{record.applicationNumber}</span>
+          {headerEditField === 'target' ? (
+            <Select
+              className="pm-detail-title-target-select"
+              size="small"
+              allowClear
+              showSearch
+              autoFocus
+              defaultOpen
+              optionFilterProp="label"
+              placeholder="Target"
+              disabled={inputsDisabled || !lookups}
+              value={activeRecord.target ?? undefined}
+              onChange={(next?: string) => {
+                if (isCreate) updateCreateDraft('target', next ?? null);
+                else save.saveValue('target', next ?? null);
+                setHeaderEditField(null);
+              }}
+              onBlur={() => setHeaderEditField(null)}
+              onOpenChange={(nextOpen) => {
+                if (!nextOpen) setHeaderEditField(null);
+              }}
+              options={(lookups?.targets ?? []).map((item) => ({
+                value: item.target,
+                label: item.target,
+              }))}
+            />
+          ) : (
+            <Tag
+              color="blue"
+              className="pm-detail-title-edit-trigger"
+              aria-disabled={inputsDisabled}
+              tabIndex={inputsDisabled ? undefined : 0}
+              onClick={() => beginHeaderEdit('target', activeRecord.target)}
+              onKeyDown={(event) => activateWithKeyboard(
+                event,
+                () => beginHeaderEdit('target', activeRecord.target),
+              )}
+            >
+              {activeRecord.target ?? '-'}
+            </Tag>
+          )}
+          <span className="pm-detail-title-divider" aria-hidden="true">/</span>
+          {headerEditField === 'internalRef' ? (
+            <span className="pm-detail-ref pm-detail-title-input">
+              {textInput('internalRef', activeRecord.internalRef, {
+                placeholder: '내부관리번호',
+                autoFocus: true,
+                onBlur: () => setHeaderEditField(null),
+                onPressEnter: () => setHeaderEditField(null),
+                onKeyDown: (event) => {
+                  if (event.key !== 'Escape') return;
+                  event.stopPropagation();
+                  cancelHeaderTextEdit('internalRef');
+                },
+              })}
+              {badgeFor('internalRef')}
+            </span>
+          ) : (
+            <span
+              className={`pm-detail-ref pm-detail-title-edit-trigger${
+                isCreate && !activeRecord.internalRef ? ' is-placeholder' : ''
+              }`}
+              role="button"
+              aria-disabled={inputsDisabled}
+              tabIndex={inputsDisabled ? undefined : 0}
+              onClick={() => beginHeaderEdit('internalRef', activeRecord.internalRef)}
+              onKeyDown={(event) => activateWithKeyboard(
+                event,
+                () => beginHeaderEdit('internalRef', activeRecord.internalRef),
+              )}
+            >
+              {activeRecord.internalRef ?? (isCreate ? '내부관리번호' : '관리번호 없음')}
+            </span>
+          )}
+          <span className="pm-detail-title-divider" aria-hidden="true">/</span>
+          {headerEditField === 'applicationNumber' ? (
+            <span className="pm-detail-appno pm-detail-title-input">
+              {textInput('applicationNumber', activeRecord.applicationNumber, {
+                placeholder: '출원번호',
+                autoFocus: true,
+                onBlur: () => setHeaderEditField(null),
+                onPressEnter: () => setHeaderEditField(null),
+                onKeyDown: (event) => {
+                  if (event.key !== 'Escape') return;
+                  event.stopPropagation();
+                  cancelHeaderTextEdit('applicationNumber');
+                },
+              })}
+              {badgeFor('applicationNumber')}
+            </span>
+          ) : (
+            <span
+              className="pm-detail-appno pm-detail-title-edit-trigger"
+              role="button"
+              aria-disabled={inputsDisabled}
+              tabIndex={inputsDisabled ? undefined : 0}
+              onClick={() => beginHeaderEdit('applicationNumber', activeRecord.applicationNumber)}
+              onKeyDown={(event) => activateWithKeyboard(
+                event,
+                () => beginHeaderEdit('applicationNumber', activeRecord.applicationNumber),
+              )}
+            >
+              {activeRecord.applicationNumber || (isCreate ? '출원번호' : '')}
+            </span>
+          )}
           <span className="pm-detail-title-spacer" />
-          {/* 가장 자주 보고 바꾸는 값이라 JIRA의 상태 드롭다운 자리에 올린다. */}
-          <span className="pm-detail-status">
-            {codeSelect(
-              'legalStatusId',
-              record.legalStatusId,
-              (lookups?.legalStatuses ?? []).map((item) => ({ value: item.id, label: item.status })),
-            )}
-            {badgeFor('legalStatusId')}
-          </span>
         </div>
       }
     >
-      <div className="pm-detail-body">
+      <div className={`pm-detail-body${isSideResizing ? ' is-resizing' : ''}`}>
         {/* ---- 왼쪽: 사람이 읽는 것 ---- */}
         <div className="pm-detail-main">
-          {/*
-            지금 보고 고치는 것(제목·설명)을 한 칸으로 묶는다. 아래 '활동'과 7:3으로
-            나누려면 나눌 대상이 둘이어야 한다 — 섹션 셋이 나란히 있으면 비율을 줄 수 없다.
-          */}
+          {/* JIRA처럼 제목·주요 액션·설명을 먼저 읽고, 활동 이력은 그 아래에서 이어 본다. */}
           <div className="pm-detail-primary">
             <section className="pm-detail-section">
               <div className={`pm-detail-heading-row${titleActive ? ' is-active' : ''}`}>
-                {textInput('koreanTitle', record.koreanTitle, {
+                {textInput('koreanTitle', activeRecord.koreanTitle, {
                   ref: titleRef,
+                  placeholder: '특허 명칭',
                   onFocus: () => setTitleActive(true),
                   onBlur: () => setTitleActive(false),
                   onKeyDown: (event) => {
@@ -340,7 +645,7 @@ const PatentRecordDetailModal: React.FC<Props> = ({
                 })}
                 {badgeFor('koreanTitle')}
               </div>
-              {titleActive && (
+              {titleActive && !isCreate && (
                 /*
                   버튼을 누르는 동안 입력이 포커스를 잃으면 blur가 **먼저** 확정해 버려서
                   [취소]가 되돌릴 것이 남지 않는다. mousedown을 막아 포커스를 붙들어 두고,
@@ -373,36 +678,139 @@ const PatentRecordDetailModal: React.FC<Props> = ({
               )}
             </section>
 
+            {!isCreate && (
+              <div className="pm-detail-action-row">
+                <Button
+                  size="small"
+                  icon={<FileText size={15} />}
+                  disabled={documentCount === 0}
+                  onClick={() => onOpenDocuments(activeRecord)}
+                >
+                  {documentCount > 0 ? `문서 ${documentCount}건` : '연결된 문서 없음'}
+                </Button>
+                {canManage && (
+                  <Button
+                    size="small"
+                    icon={<Link2 size={15} />}
+                    loading={linkingDocuments}
+                    onClick={() => void linkDocuments()}
+                  >
+                    문서 연결
+                  </Button>
+                )}
+                {onOpenTodos && (
+                  <Button
+                    size="small"
+                    icon={<ListChecks size={15} />}
+                    onClick={() => onOpenTodos(activeRecord)}
+                  >
+                    To-do
+                  </Button>
+                )}
+              </div>
+            )}
+            {linkMessage && (
+              <Text type="secondary" className="pm-detail-link-message">{linkMessage}</Text>
+            )}
+
             <section className="pm-detail-section">
               <h4 className="pm-detail-section-title">설명</h4>
               <RichTextField
-                value={record.note}
-                readOnly={!canManage}
-                onSave={(next) => save.saveField('note', next)}
-                uploadImage={async (file) => patentRecordApi.uploadNoteImage(record.id, file)}
-                deleteImage={(imageUrl) => patentRecordApi.removeNoteImage(record.id, imageUrl)}
-                resolveImageUrl={patentRecordApi.noteImageDisplayUrl}
+                value={activeRecord.note}
+                readOnly={inputsDisabled}
+                onSave={async (next) => {
+                  if (isCreate) updateCreateDraft('note', next);
+                  else await save.saveField('note', next);
+                }}
+                uploadImage={isCreate
+                  ? undefined
+                  : async (file) => patentRecordApi.uploadNoteImage(activeRecord.id, file)}
+                deleteImage={isCreate
+                  ? undefined
+                  : (imageUrl) => patentRecordApi.removeNoteImage(activeRecord.id, imageUrl)}
+                resolveImageUrl={isCreate ? undefined : patentRecordApi.noteImageDisplayUrl}
               />
             </section>
           </div>
 
-          {/* 아래 3할. 지나간 기록이라 읽고 고치는 것과 자리를 갈라 둔다. */}
-          <section className="pm-detail-section pm-detail-activity">
-            <h4 className="pm-detail-section-title">활동</h4>
-            <PatentAuditFeed patentId={record.id} revision={auditRevision} />
-          </section>
+          {/* 현재 내용과 과거 변경 이력을 구분하되 같은 왼쪽 스크롤 흐름 안에 둔다. */}
+          {!isCreate && (
+            <section className="pm-detail-section pm-detail-activity">
+              <h4 className="pm-detail-section-title">활동</h4>
+              <PatentAuditFeed patentId={activeRecord.id} revision={auditRevision} />
+            </section>
+          )}
+        </div>
+
+        <div
+          className={`pm-detail-splitter${isSideResizing ? ' is-active' : ''}${
+            isSideCollapsed ? ' is-collapsed' : ''
+          }`}
+          role="separator"
+          aria-label="세부 정보 패널 너비 조절"
+          aria-orientation="vertical"
+          aria-valuemin={0}
+          aria-valuemax={MAX_SIDE_WIDTH}
+          aria-valuenow={isSideCollapsed ? 0 : sideWidth}
+          tabIndex={0}
+          onPointerDown={beginSideResize}
+          onPointerMove={resizeSide}
+          onPointerUp={finishSideResize}
+          onPointerCancel={finishSideResize}
+          onKeyDown={(event) => {
+            if (isSideCollapsed) return;
+            if (event.key === 'ArrowLeft') {
+              event.preventDefault();
+              setSideWidth((current) => Math.min(MAX_SIDE_WIDTH, current + 16));
+            }
+            if (event.key === 'ArrowRight') {
+              event.preventDefault();
+              setSideWidth((current) => Math.max(MIN_SIDE_WIDTH, current - 16));
+            }
+          }}
+        >
+          <button
+            type="button"
+            className="pm-detail-splitter-toggle"
+            aria-label={isSideCollapsed ? '세부 정보 패널 펼치기' : '세부 정보 패널 접기'}
+            aria-expanded={!isSideCollapsed}
+            onPointerDown={(event) => event.stopPropagation()}
+            onClick={() => setIsSideCollapsed((current) => !current)}
+          >
+            {isSideCollapsed ? <ChevronLeft size={18} /> : <ChevronRight size={18} />}
+          </button>
         </div>
 
         {/* ---- 오른쪽: 코드·날짜 ---- */}
-        <aside className="pm-detail-side">
+        <aside
+          className={`pm-detail-side${isSideCollapsed ? ' is-collapsed' : ''}`}
+          style={{ flexBasis: isSideCollapsed ? 0 : sideWidth }}
+          aria-hidden={isSideCollapsed}
+        >
+          <div className="pm-detail-side-status">
+            <span className="pm-detail-side-status-label">법적 상태</span>
+            <span className="pm-detail-status">
+              {codeSelect(
+                'legalStatusId',
+                activeRecord.legalStatusId,
+                (lookups?.legalStatuses ?? []).map((item) => ({
+                  value: item.id,
+                  label: item.status,
+                })),
+              )}
+              {badgeFor('legalStatusId')}
+            </span>
+          </div>
           <Collapse
             ghost
             size="small"
-            defaultActiveKey={['basic', 'links', 'status', 'dates']}
+            defaultActiveKey={isCreate
+              ? ['basic', 'numbers']
+              : ['basic']}
             items={[
               {
                 key: 'basic',
-                label: '기본',
+                label: '세부 사항',
                 children: (
                   <>
                     <Row label="Target" badge={badgeFor('target')}>
@@ -412,9 +820,12 @@ const PatentRecordDetailModal: React.FC<Props> = ({
                         showSearch
                         optionFilterProp="label"
                         placeholder="없음"
-                        disabled={!canManage || !lookups}
-                        value={record.target ?? undefined}
-                        onChange={(next?: string) => save.saveValue('target', next ?? null)}
+                        disabled={inputsDisabled || !lookups}
+                        value={activeRecord.target ?? undefined}
+                        onChange={(next?: string) => {
+                          if (isCreate) updateCreateDraft('target', next ?? null);
+                          else save.saveValue('target', next ?? null);
+                        }}
                         options={(lookups?.targets ?? []).map((item) => ({
                           value: item.target,
                           label: item.target,
@@ -422,22 +833,27 @@ const PatentRecordDetailModal: React.FC<Props> = ({
                       />
                     </Row>
                     <Row label="국가" badge={badgeFor('countryId')}>
-                      {codeSelect(
-                        'countryId',
-                        record.countryId,
-                        (lookups?.countries ?? []).map((item) => ({
-                          value: item.id,
-                          label: item.country,
-                        })),
-                      )}
+                      <>
+                        {codeSelect(
+                          'countryId',
+                          activeRecord.countryId,
+                          (lookups?.countries ?? []).map((item) => ({
+                            value: item.id,
+                            label: item.country,
+                          })),
+                        )}
+                        {createErrors.country && (
+                          <Text type="danger" className="pm-detail-field-error">필수</Text>
+                        )}
+                      </>
                     </Row>
                     <Row label="출원인" badge={badgeFor('applicant')}>
-                      {textInput('applicant', record.applicant)}
+                      {textInput('applicant', activeRecord.applicant)}
                     </Row>
                     <Row label="대리인" badge={badgeFor('attorneyNumber')}>
                       {codeSelect(
                         'attorneyNumber',
-                        record.attorneyNumber,
+                        activeRecord.attorneyNumber,
                         (lookups?.attorneys ?? []).map((item) => ({
                           value: item.attorneyNumber,
                           label: item.attorneyName ?? String(item.attorneyNumber),
@@ -445,76 +861,22 @@ const PatentRecordDetailModal: React.FC<Props> = ({
                       )}
                     </Row>
                     <Row label="발명자">
-                      <ReadOnly value={record.inventors} />
+                      <ReadOnly value={activeRecord.inventors} />
                     </Row>
                   </>
                 ),
               },
-              /*
-                본문에 있던 '첨부 파일'·'하위 작업'·'연결된 업무 항목'이 여기로 왔다.
-
-                셋 다 본문에서 한 칸씩 차지할 만큼 읽을 것이 없었다 — 문서는 건수와 여는
-                버튼, 하위 작업은 전용 창으로 가는 길, 연결은 번호 한 줄과 관계 한 줄이다.
-                본문은 사람이 읽는 것(제목·설명·활동)만 남기고, 이것들은 다른 필드와 같은
-                줄 모양으로 사이드바에 세운다.
-
-                '기본' 바로 다음에 두고 기본으로 펼쳐 둔다. 아래로 내리면 문서가 있는지조차
-                모르게 된다 — 누를 것이 있는 그룹이라 접어 두면 안 된다.
-              */
+              /* 문서·To-do 액션은 제목 아래 툴바에 두고, 관계 필드만 이 그룹에 둔다. */
               {
                 key: 'links',
                 label: '연결',
                 children: (
                   <>
-                    <Row label="문서">
-                      <div className="pm-detail-documents">
-                        {documentCount > 0 ? (
-                          <Button
-                            size="small"
-                            icon={<FileText size={13} />}
-                            onClick={() => onOpenDocuments(record)}
-                          >
-                            {`${documentCount}건 열기`}
-                          </Button>
-                        ) : (
-                          <ReadOnly value={null} />
-                        )}
-                        {canManage && (
-                          <Tooltip title="출원번호로 OA DB를 찾아 통지서·제출 서류를 이어 붙입니다.">
-                            <Button
-                              size="small"
-                              type="text"
-                              loading={linkingDocuments}
-                              icon={<Link2 size={13} />}
-                              onClick={() => void linkDocuments()}
-                            >
-                              {documentCount > 0 ? '다시 연결' : '문서 연결'}
-                            </Button>
-                          </Tooltip>
-                        )}
-                      </div>
-                    </Row>
-                    {linkMessage && (
-                      <Row label="">
-                        <Text type="secondary" style={{ fontSize: 11 }}>{linkMessage}</Text>
-                      </Row>
-                    )}
-                    {onOpenTodos && (
-                      <Row label="하위 작업">
-                        <Button
-                          size="small"
-                          icon={<ListChecks size={13} />}
-                          onClick={() => onOpenTodos(record)}
-                        >
-                          To-do 열기
-                        </Button>
-                      </Row>
-                    )}
                     <Row label="원출원번호" badge={badgeFor('parentApplicationNumber')}>
-                      {textInput('parentApplicationNumber', record.parentApplicationNumber)}
+                      {textInput('parentApplicationNumber', activeRecord.parentApplicationNumber)}
                     </Row>
                     <Row label="관계">
-                      <ReadOnly value={record.relationType} />
+                      <ReadOnly value={activeRecord.relationType} />
                     </Row>
                   </>
                 ),
@@ -527,7 +889,7 @@ const PatentRecordDetailModal: React.FC<Props> = ({
                     <Row label="심사 상태" badge={badgeFor('examStatusId')}>
                       {codeSelect(
                         'examStatusId',
-                        record.examStatusId,
+                        activeRecord.examStatusId,
                         (lookups?.examStatuses ?? []).map((item) => ({
                           value: item.id,
                           label: item.status,
@@ -536,13 +898,16 @@ const PatentRecordDetailModal: React.FC<Props> = ({
                     </Row>
                     <Row label="심사청구" badge={badgeFor('exam')}>
                       <Checkbox
-                        disabled={!canManage}
-                        checked={record.exam === true}
-                        onChange={(event) => save.saveValue('exam', event.target.checked)}
+                        disabled={inputsDisabled}
+                        checked={activeRecord.exam === true}
+                        onChange={(event) => {
+                          if (isCreate) updateCreateDraft('exam', event.target.checked);
+                          else save.saveValue('exam', event.target.checked);
+                        }}
                       />
                     </Row>
                     <Row label="심사일" badge={badgeFor('examDate')}>
-                      {dateInput('examDate', record.examDate)}
+                      {dateInput('examDate', activeRecord.examDate)}
                     </Row>
                   </>
                 ),
@@ -553,18 +918,18 @@ const PatentRecordDetailModal: React.FC<Props> = ({
                 children: (
                   <>
                     <Row label="출원일" badge={badgeFor('applicationDate')}>
-                      {dateInput('applicationDate', record.applicationDate)}
+                      {dateInput('applicationDate', activeRecord.applicationDate)}
                     </Row>
                     <Row label="공개일" badge={badgeFor('publicationDate')}>
-                      {dateInput('publicationDate', record.publicationDate)}
+                      {dateInput('publicationDate', activeRecord.publicationDate)}
                     </Row>
                     {/* registration_date는 컬럼이 문자열이다(형식이 제각각인 운영 시트 값을
                         보존한다). DatePicker로 바꾸면 기존 값을 잃는다. */}
                     <Row label="등록일" badge={badgeFor('registrationDate')}>
-                      {textInput('registrationDate', record.registrationDate)}
+                      {textInput('registrationDate', activeRecord.registrationDate)}
                     </Row>
                     <Row label="예상 만료일">
-                      <ReadOnly value={formatDisplayDateTime(record.expectedExpiryDate ?? null)} />
+                      <ReadOnly value={formatDisplayDateTime(activeRecord.expectedExpiryDate ?? null)} />
                     </Row>
                   </>
                 ),
@@ -575,16 +940,19 @@ const PatentRecordDetailModal: React.FC<Props> = ({
                 children: (
                   <>
                     <Row label="출원번호" badge={badgeFor('applicationNumber')}>
-                      {textInput('applicationNumber', record.applicationNumber)}
+                      {textInput('applicationNumber', activeRecord.applicationNumber)}
+                      {createErrors.applicationNumber && (
+                        <Text type="danger" className="pm-detail-field-error">필수 입력</Text>
+                      )}
                     </Row>
                     <Row label="내부관리번호" badge={badgeFor('internalRef')}>
-                      {textInput('internalRef', record.internalRef)}
+                      {textInput('internalRef', activeRecord.internalRef)}
                     </Row>
                     <Row label="공개번호" badge={badgeFor('publicationNumber')}>
-                      {textInput('publicationNumber', record.publicationNumber)}
+                      {textInput('publicationNumber', activeRecord.publicationNumber)}
                     </Row>
                     <Row label="등록번호" badge={badgeFor('registrationNumber')}>
-                      {textInput('registrationNumber', record.registrationNumber)}
+                      {textInput('registrationNumber', activeRecord.registrationNumber)}
                     </Row>
                   </>
                 ),
@@ -595,16 +963,16 @@ const PatentRecordDetailModal: React.FC<Props> = ({
                 children: (
                   <>
                     <Row label="국제출원번호" badge={badgeFor('intApplicationNumber')}>
-                      {textInput('intApplicationNumber', record.intApplicationNumber)}
+                      {textInput('intApplicationNumber', activeRecord.intApplicationNumber)}
                     </Row>
                     <Row label="국제출원일" badge={badgeFor('intApplicationDate')}>
-                      {dateInput('intApplicationDate', record.intApplicationDate)}
+                      {dateInput('intApplicationDate', activeRecord.intApplicationDate)}
                     </Row>
                     <Row label="국제공개번호" badge={badgeFor('intPublicationNumber')}>
-                      {textInput('intPublicationNumber', record.intPublicationNumber)}
+                      {textInput('intPublicationNumber', activeRecord.intPublicationNumber)}
                     </Row>
                     <Row label="국제공개일" badge={badgeFor('intPublicationDate')}>
-                      {dateInput('intPublicationDate', record.intPublicationDate)}
+                      {dateInput('intPublicationDate', activeRecord.intPublicationDate)}
                     </Row>
                   </>
                 ),
@@ -617,13 +985,13 @@ const PatentRecordDetailModal: React.FC<Props> = ({
                   children: (
                     <>
                       <Row label="실시권 계약">
-                        <ReadOnly value={record.licenseAgreement} />
+                        <ReadOnly value={activeRecord.licenseAgreement} />
                       </Row>
                       <Row label="권리관계 변경">
-                        <ReadOnly value={record.rightsChange} />
+                        <ReadOnly value={activeRecord.rightsChange} />
                       </Row>
                       <Row label="지분약정">
-                        <ReadOnly value={record.shareAgreement} />
+                        <ReadOnly value={activeRecord.shareAgreement} />
                       </Row>
                     </>
                   ),
@@ -632,12 +1000,12 @@ const PatentRecordDetailModal: React.FC<Props> = ({
             ]}
           />
 
-          <div className="pm-detail-stamps">
+          {!isCreate && <div className="pm-detail-stamps">
             {/* 감사 로그 마이그레이션 이전 행은 created_at이 마이그레이션 시점이다.
                 실제 등록 시점이 아니라는 것을 툴팁으로 밝힌다. */}
-            <span>{`만듦 ${formatDisplayDateTime(record.createdAt ?? null)}`}</span>
-            <span>{`업데이트 ${formatDisplayDateTime(record.updatedAt ?? null)}`}</span>
-          </div>
+            <span>{`만듦 ${formatDisplayDateTime(activeRecord.createdAt ?? null)}`}</span>
+            <span>{`업데이트 ${formatDisplayDateTime(activeRecord.updatedAt ?? null)}`}</span>
+          </div>}
         </aside>
       </div>
     </Modal>

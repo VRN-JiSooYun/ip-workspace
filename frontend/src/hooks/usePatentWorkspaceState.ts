@@ -266,19 +266,15 @@ export const usePatentWorkspaceState = () => {
     );
   }, [applyListFilters, isStageRowActive, listFilters]);
 
-  /**
-   * 추가와 수정이 다른 모달을 쓴다.
-   *
-   * 수정은 필드별 즉시 PATCH(JIRA식 상세)라서 하단 [저장]이 없다. 추가는 아직 없는
-   * 레코드에 PATCH를 할 수 없으니 일괄 POST 폼이어야 한다 — JIRA도 생성 다이얼로그와
-   * 상세 화면이 다르다.
-   */
+  /** 추가와 수정은 같은 상세 모달을 쓰며, 추가 모드만 로컬 초안을 일괄 POST한다. */
   const openCreateModal = useCallback(() => {
+    setEditingRecord(null);
     setIsModalOpen(true);
     void ensureLookups();
   }, [ensureLookups]);
 
   const openDetailModal = useCallback((record: PatentRecord) => {
+    setIsModalOpen(false);
     setEditingRecord(record);
     void ensureLookups();
   }, [ensureLookups]);

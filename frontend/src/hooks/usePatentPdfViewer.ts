@@ -9,6 +9,91 @@ const SEARCH_HIGHLIGHT_PADDING_Y = 1.5;
 const ENABLE_HIGHLIGHT_DEBUG_LOG = false;
 const ENABLE_SEARCH_HIGHLIGHT_TRACE_LOG = true;
 const PDF_ZOOM_LEVELS = [25, 50, 75, 100, 125, 150, 200, 250, 300, 400] as const;
+const PDF_FIND_WHITESPACE_PATCHED = Symbol.for(
+  'ipWorkspace.pdfFindWhitespacePatched',
+);
+
+type PdfJsFindMatch = {
+  index: number;
+  length: number;
+};
+
+type PdfFindController = {
+  match: (
+    query: string | string[],
+    pageContent: string,
+    pageIndex: number,
+  ) => PdfJsFindMatch[] | undefined;
+};
+
+/**
+ * PDF.js가 검색에 쓰는 pageContent에서 공백을 제거하면서, 압축된 각 UTF-16 index가
+ * 원문의 어느 index였는지 보존한다. PDF.js match 결과는 UTF-16 offset 계약이라
+ * code point가 아니라 code unit 단위로 순회해야 한글·보조평면 문자 모두 위치가 맞는다.
+ */
+const compactPdfSearchText = (text: string) => {
+  let compactText = '';
+  const originalIndexes: number[] = [];
+
+  for (let index = 0; index < text.length; index += 1) {
+    if (/\s/u.test(text[index])) continue;
+    compactText += text[index];
+    originalIndexes.push(index);
+  }
+
+  return { compactText, originalIndexes };
+};
+
+/**
+ * PDF.js는 textItem.hasEOL을 공백으로 정규화하므로 `제출기` + EOL + `일`은
+ * `제출기 일`이 되어 `제출기일` 검색에서 빠진다. 공개 메서드인 match만 감싸 검색용
+ * 문자열의 공백을 무시하고, 결과 offset은 다시 원문 범위로 복원한다. 복원된 length에
+ * 중간 공백이 포함되므로 PDF.js 기본 highlighter가 여러 text span을 그대로 칠할 수 있다.
+ */
+const installWhitespaceTolerantPdfSearch = (controller: PdfFindController | null) => {
+  const controllerRecord = controller as (PdfFindController & Record<symbol, unknown>) | null;
+  if (
+    !controllerRecord
+    || controllerRecord[PDF_FIND_WHITESPACE_PATCHED]
+    || typeof controllerRecord.match !== 'function'
+  ) {
+    return;
+  }
+
+  const originalMatch = controllerRecord.match;
+  controllerRecord.match = (query, pageContent, pageIndex) => {
+    // 현재 UI는 단일 문자열 검색만 사용한다. PDF.js의 다중 query 계약은 손대지 않는다.
+    if (typeof query !== 'string' || query.length === 0) {
+      return originalMatch.call(controllerRecord, query, pageContent, pageIndex);
+    }
+
+    const compactQuery = query.replace(/\s+/gu, '');
+    const { compactText, originalIndexes } = compactPdfSearchText(pageContent);
+    if (!compactQuery || !compactText) {
+      return originalMatch.call(controllerRecord, query, pageContent, pageIndex);
+    }
+
+    const compactMatches = originalMatch.call(
+      controllerRecord,
+      compactQuery,
+      compactText,
+      pageIndex,
+    );
+    if (!compactMatches) return compactMatches;
+
+    return compactMatches.flatMap((match) => {
+      const originalStart = originalIndexes[match.index];
+      const originalLast = originalIndexes[match.index + match.length - 1];
+      if (originalStart === undefined || originalLast === undefined) return [];
+
+      return [{
+        index: originalStart,
+        length: originalLast + 1 - originalStart,
+      }];
+    });
+  };
+  controllerRecord[PDF_FIND_WHITESPACE_PATCHED] = true;
+};
 
 type PdfHighlightTarget = {
   pageNumber: number;
@@ -749,6 +834,8 @@ export const usePatentPdfViewer = ({
   const setHighlighterUtils = React.useCallback((utils: any) => {
     const utilsChanged = highlighterUtilsRef.current !== utils;
     highlighterUtilsRef.current = utils;
+    const findController = utils?.getViewer?.()?.findController as PdfFindController | undefined;
+    installWhitespaceTolerantPdfSearch(findController ?? null);
     setIsHighlighterReady(Boolean(utils));
     if (utilsChanged) setHighlighterUtilsRevision((revision) => revision + 1);
   }, []);

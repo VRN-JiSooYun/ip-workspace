@@ -64,18 +64,106 @@
   box-sizing: border-box;
 }
 
+/* 검색 바와 상세 필터는 같은 검색 요청을 만드는 하나의 작업 영역이다. 하나의 외곽선을
+   공유하고 내부 구분선만 남겨, 독립 카드 두 장이 세로로 놓인 인상을 없앤다. */
+.oa-search-controls {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+  background: var(--card-bg);
+  border: 1px solid var(--c-card-border);
+  border-radius: 12px;
+  box-sizing: border-box;
+}
+
+.oa-search-controls > .oa-card {
+  border: 0;
+  border-radius: 0;
+}
+
+.oa-search-controls > .oa-filters {
+  border-block-start: 1px solid var(--c-card-border);
+}
+
 /* ---- 검색 바 ------------------------------------------------------------- */
 
 .oa-searchbar {
   flex: 0 0 auto;
   display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 10px 10px 10px 16px;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  container-type: inline-size;
+  container-name: oa-searchbar;
 }
 
-.oa-searchbar .ant-input-affix-wrapper {
-  padding-inline: 0;
+.oa-searchbar-row {
+  display: grid;
+  grid-template-columns:
+    minmax(min(160px, 100%), 190px)
+    minmax(min(180px, 100%), 1fr)
+    auto
+    minmax(116px, auto);
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.oa-searchbar-target,
+.oa-searchbar-input {
+  min-width: 0;
+  width: 100%;
+}
+
+.oa-searchbar-target .ant-select-selection-item {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+/* 우측 레일로 본문이 좁아지면 선택 행과 검색 실행 행을 나눠 폭을 확보한다. */
+@container oa-searchbar (max-width: 860px) {
+  .oa-searchbar-row {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .oa-searchbar-target {
+    grid-column: 1 / 3;
+  }
+
+  .oa-searchbar-input {
+    grid-column: 3 / 5;
+  }
+
+  .oa-searchbar-add-button {
+    grid-column: 1 / 3;
+    width: 100%;
+  }
+
+  .oa-searchbar-button {
+    grid-column: 3 / 5;
+    width: 100%;
+  }
+}
+
+@container oa-searchbar (max-width: 420px) {
+  .oa-searchbar-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .oa-searchbar-target {
+    grid-column: 1 / -1;
+  }
+
+  .oa-searchbar-input {
+    grid-column: 1 / -1;
+  }
+
+  .oa-searchbar-add-button,
+  .oa-searchbar-button {
+    grid-column: auto;
+  }
 }
 
 .oa-searchbar-icon {
@@ -84,9 +172,21 @@
 }
 
 .oa-searchbar-button {
-  flex-shrink: 0;
   min-width: 116px;
   font-weight: 600;
+}
+
+.oa-searchbar-add-button {
+  white-space: nowrap;
+}
+
+.oa-searchbar-conditions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  width: 100%;
+  padding-top: 10px;
+  border-block-start: 1px solid var(--c-card-border);
 }
 
 /* ---- 고급 검색 ----------------------------------------------------------- */
@@ -227,8 +327,6 @@
   justify-content: start;
 }
 
-/* 넉넉할 때는 시안대로 한 줄에 늘어놓는다. 상한은 입력 내용에 맞춘다 —
-   조·항·호는 두세 자리 숫자, IPC 구성요소는 한두 글자라 넓힐 이유가 없다. */
 .oa-subpanel-grid-statute {
   grid-template-columns:
     minmax(min(160px, 100%), 220px)
@@ -272,6 +370,40 @@
   margin: -2px 0 12px;
 }
 
+.oa-condition-join {
+  align-self: center;
+  color: var(--brand-primary);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 24px;
+}
+
+.oa-condition-group {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+  /* 안의 chip이 폭을 컨테이너까지로 묶을 수 있으려면 그룹부터 묶여 있어야 한다. */
+  max-width: 100%;
+}
+
+.oa-condition-parenthesis {
+  color: var(--text-secondary);
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 24px;
+}
+
+.oa-condition-join-exclude {
+  color: var(--text-secondary);
+}
+
+.oa-condition-add-dropdown .lucide-chevron-down {
+  flex: 0 0 auto;
+  margin-inline-start: 2px;
+}
+
 /* 추가된 조건 badge. 시안의 주황 pill은 브랜드 색을 따른다. */
 .oa-condition-tag {
   margin-inline-end: 0;
@@ -281,16 +413,62 @@
   background: var(--brand-primary);
   color: #fff;
   font-size: 12px;
+  /**
+   * 검색어가 길면 chip도 그만큼 길어진다. 폭을 컨테이너까지로 묶지 않으면 chip이 카드 밖으로
+   * 흘러 **닫기(×)가 잘려 나가고, 그 조건을 지울 방법이 사라진다.**
+   *
+   * 묶는 것만으로는 부족하다. Tag 안의 텍스트가 직계 텍스트 노드면 익명 flex item이 되어
+   * text-overflow가 걸리지 않고, 줄지 못한 텍스트가 ×를 다시 밖으로 밀어낸다. 그래서 문구는
+   * `.oa-condition-tag-label`로 감싸 그 span이 줄고, ×는 flex-shrink를 끈다.
+   */
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.oa-condition-tag-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .oa-condition-tag .ant-tag-close-icon {
   color: #fff;
   opacity: 0.85;
   margin-inline-start: 6px;
+  flex: 0 0 auto;
 }
 
 .oa-condition-tag .ant-tag-close-icon:hover {
   opacity: 1;
+}
+
+/* 제외(NOT) 조건. 포함과 같은 채운 pill이면 '무엇을 뺐는지'가 눈에 걸리지 않는다.
+   같은 브랜드 색을 테두리로만 써서 반대 성격임을 알린다. */
+.oa-condition-tag-not {
+  background: transparent;
+  border: 1px solid var(--brand-primary);
+  color: var(--brand-primary);
+}
+
+.oa-condition-tag-not .ant-tag-close-icon {
+  color: var(--brand-primary);
+}
+
+/* 제외 조건만 남아 검색에 실리지 않는 상태를 알린다. */
+.oa-keyword-warning {
+  display: block;
+  font-size: 12px;
+  margin: 0;
+}
+
+.oa-keyword-semantics-help {
+  display: block;
+  width: 100%;
+  font-size: 12px;
+  line-height: 1.5;
 }
 
 .oa-filters-footer {
@@ -347,6 +525,17 @@
 .oa-results-count {
   font-size: 15px;
   color: var(--text-secondary);
+}
+
+/* space-between 헤더의 가운데 자리를 쓰지 않고 결과 수 옆에 붙는다. */
+.oa-results-match {
+  margin-inline-start: 0;
+  margin-inline-end: auto;
+  border-radius: 990px;
+  padding: 1px 10px;
+  font-size: 12px;
+  background: rgba(var(--brand-primary-rgb), 0.1);
+  color: var(--brand-primary);
 }
 
 .oa-results-count strong {
@@ -427,27 +616,27 @@
 }
 
 /**
- * 낮은 화면에서는 펼쳐진 필터가 결과 목록의 가용 높이를 모두 차지할 수 있다.
- * 이때는 카드 목록만 스크롤하는 데스크톱 구조를 버리고 Office Actions 페이지 전체를
- * 하나의 스크롤 영역으로 전환한다. MainLayout의 전역 스크롤 정책에는 영향을 주지 않는다.
+ * 낮은 화면에서 상세 필터가 펼쳐졌을 때만 Office Actions 페이지 전체를 스크롤 영역으로
+ * 전환한다. 필터가 접히면 기본 레이아웃으로 돌아가 결과 카드 목록만 스크롤한다.
+ * MainLayout의 전역 스크롤 정책에는 영향을 주지 않는다.
  */
 @media (max-height: 820px) {
-  .oa-page {
+  .oa-page:has(.oa-filters .ant-collapse-item-active) {
     align-items: flex-start;
     overflow-y: auto;
   }
 
-  .oa-main {
+  .oa-page:has(.oa-filters .ant-collapse-item-active) .oa-main {
     flex: 0 0 auto;
     min-height: 100%;
     width: 100%;
   }
 
-  .oa-results {
+  .oa-page:has(.oa-filters .ant-collapse-item-active) .oa-results {
     flex: 0 0 auto;
   }
 
-  .oa-result-cards {
+  .oa-page:has(.oa-filters .ant-collapse-item-active) .oa-result-cards {
     flex: 0 0 auto;
     overflow-y: visible;
   }

@@ -15,6 +15,8 @@ type Props = {
   entries: PatentDocumentEntry[];
   selection: TimelineSelection;
   onSelect: (next: TimelineSelection) => void;
+  /** 선택 검색 결과에서 실제 검색 token이 발견된 문서 key. */
+  matchedEntryKeys?: ReadonlySet<string>;
 };
 
 
@@ -45,7 +47,12 @@ const KIND_LABEL: Record<PatentDocumentNode['kind'], string> = {
  * 파일명에서 읽은 값은 툴팁에 출처를 밝히고, 날짜를 못 읽은 문서는 축 끝에 모아 둔다 —
  * 없는 날짜를 지어내 시간축에 끼워 넣지 않는다.
  */
-const PatentDocumentTimeline: React.FC<Props> = ({ entries, selection, onSelect }) => {
+const PatentDocumentTimeline: React.FC<Props> = ({
+  entries,
+  selection,
+  onSelect,
+  matchedEntryKeys,
+}) => {
   const activeRef = useRef<HTMLButtonElement>(null);
 
   // 고른 문서가 축 밖에 있으면 보이게 끌어온다(문서가 많으면 축이 가로로 넘친다).
@@ -74,6 +81,9 @@ const PatentDocumentTimeline: React.FC<Props> = ({ entries, selection, onSelect 
       <ol className="pm-timeline-track">
         {entries.map(({ item, node }, index) => {
           const active = index === activeIndex;
+          const matched = matchedEntryKeys?.has(
+            `${item.officeActionId ?? 'none'}::${node.key}`,
+          ) ?? false;
           const dateLabel = node.date ? formatDisplayDateTime(node.date) : '날짜 없음';
           const showDate = groupLeaderOf[index] === index;
           const dateActive = index === activeGroupLeader;
@@ -111,7 +121,9 @@ const PatentDocumentTimeline: React.FC<Props> = ({ entries, selection, onSelect 
                   ref={active ? activeRef : undefined}
                   aria-current={active ? 'true' : undefined}
                   title={hint}
-                  className={`pm-timeline-chip${active ? ' pm-timeline-chip-active' : ''}`}
+                  className={`pm-timeline-chip${active ? ' pm-timeline-chip-active' : ''}${
+                    matched ? ' pm-timeline-chip-matched' : ''
+                  }`}
                   onClick={() => onSelect({
                     officeActionId: item.officeActionId,
                     nodeKey: node.key,
@@ -121,6 +133,7 @@ const PatentDocumentTimeline: React.FC<Props> = ({ entries, selection, onSelect 
                   <span className={`pm-timeline-dot${active ? ' pm-timeline-dot-selected' : ' pm-timeline-dot-response'}`} aria-hidden="true" />
                   <span className="pm-timeline-chip-label">{node.label}</span>
                   <span className="pm-timeline-chip-kind">{KIND_LABEL[node.kind]}</span>
+                  {matched && <span className="pm-timeline-match-badge">일치</span>}
                 </button>
             </li>
           );

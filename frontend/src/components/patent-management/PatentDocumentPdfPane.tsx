@@ -1,5 +1,5 @@
-import React, { useCallback, useMemo, useState } from 'react';
-import { App as AntApp, theme } from 'antd';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { App as AntApp, Button, Tag, theme } from 'antd';
 import PatentPdfToolbar from '../patent-analysis/pdf/PatentPdfToolbar';
 import PatentPdfViewer from '../patent-analysis/pdf/PatentPdfViewer';
 import { usePatentPdfViewer } from '../../hooks/usePatentPdfViewer';
@@ -25,6 +25,9 @@ const fileNameOf = (documentPath: string): string => {
 type Props = {
   /** 문서 PDF의 절대 URL (`documentPath`). */
   documentPath: string;
+  /** 선택 문서의 추출 본문에서 실제로 발견된 INCLUDE token. */
+  searchTerms?: string[];
+  searchTargetLabel?: string;
 };
 
 /**
@@ -47,7 +50,11 @@ type Props = {
  *
  * 그래서 자격증명 여부를 주소에 따라 정한다. 하나로 고정하면 둘 중 하나가 반드시 깨진다.
  */
-const PatentDocumentPdfPane: React.FC<Props> = ({ documentPath }) => {
+const PatentDocumentPdfPane: React.FC<Props> = ({
+  documentPath,
+  searchTerms = [],
+  searchTargetLabel,
+}) => {
   const { token } = theme.useToken();
   const { message } = AntApp.useApp();
   // 패널이 좁아 기본은 접어 둔다. toolbar 버튼으로 펼칠 수 있다.
@@ -55,6 +62,48 @@ const PatentDocumentPdfPane: React.FC<Props> = ({ documentPath }) => {
   const [downloading, setDownloading] = useState(false);
 
   const pdfViewer = usePatentPdfViewer({ currentHighlights: NO_HIGHLIGHTS });
+  const evidenceTerms = useMemo(() => {
+    const seen = new Set<string>();
+    return searchTerms.filter((term) => {
+      const key = term.normalize('NFC').toLocaleLowerCase();
+      if (!key || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }, [searchTerms]);
+  const [activeEvidenceTerm, setActiveEvidenceTerm] = useState<string | null>(null);
+
+  useEffect(() => {
+    const nextTerm = evidenceTerms[0] ?? null;
+    setActiveEvidenceTerm(nextTerm);
+    if (!nextTerm && pdfViewer.isHighlighterReady) {
+      pdfViewer.searchPdf('');
+    }
+    // PDF readiness 변화가 아니라 문서의 검색 근거가 바뀔 때만 자동 선택을 초기화한다.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [evidenceTerms]);
+
+  // PDF와 highlighter가 모두 준비된 뒤 첫 매칭 token을 자동으로 전체 하이라이트한다.
+  useEffect(() => {
+    if (
+      !activeEvidenceTerm
+      || !pdfViewer.isPdfDocumentReady
+      || !pdfViewer.isHighlighterReady
+    ) return;
+    pdfViewer.searchPdf(activeEvidenceTerm);
+  }, [
+    activeEvidenceTerm,
+    pdfViewer.isHighlighterReady,
+    pdfViewer.isPdfDocumentReady,
+    pdfViewer.searchPdf,
+  ]);
+
+  const activateEvidenceTerm = (term: string) => {
+    setActiveEvidenceTerm(term);
+    if (term === activeEvidenceTerm && pdfViewer.isHighlighterReady) {
+      pdfViewer.searchPdf(term);
+    }
+  };
 
   /** 서버가 준 값은 API 기준 상대 경로일 수 있다. 브라우저가 쓸 주소로 완성한다. */
   const fileUrl = useMemo(
@@ -93,6 +142,35 @@ const PatentDocumentPdfPane: React.FC<Props> = ({ documentPath }) => {
 
   return (
     <div className="pm-doc-pdf">
+      {evidenceTerms.length > 0 && (
+        <div className="pm-doc-search-evidence" aria-label="검색어 일치 근거">
+          <span
+            className="pm-doc-search-evidence-label"
+            title="검색 결과 판정에 사용된 추출 본문에서 실제로 발견된 검색어입니다."
+          >
+            검색어 일치
+          </span>
+          {searchTargetLabel && (
+            <Tag bordered={false} className="pm-doc-search-target">
+              {searchTargetLabel}
+            </Tag>
+          )}
+          <span className="pm-doc-search-terms">
+            {evidenceTerms.map((term) => (
+              <Button
+                key={term}
+                size="small"
+                type={activeEvidenceTerm === term ? 'primary' : 'default'}
+                className="pm-doc-search-term"
+                aria-pressed={activeEvidenceTerm === term}
+                onClick={() => activateEvidenceTerm(term)}
+              >
+                {term}
+              </Button>
+            ))}
+          </span>
+        </div>
+      )}
       <PatentPdfToolbar
         borderColor={token.colorBorderSecondary}
         backgroundColor={token.colorBgContainer}
@@ -108,9 +186,18 @@ const PatentDocumentPdfPane: React.FC<Props> = ({ documentPath }) => {
         onZoomOut={pdfViewer.zoomPdfOut}
         onResetZoom={pdfViewer.resetPdfZoom}
         onOpenPdfInBrowser={handleOpenInBrowser}
-        onSearchQueryChange={pdfViewer.setSearchQuery}
-        onRunSearch={(value) => pdfViewer.searchPdf(value ?? pdfViewer.searchQuery)}
-        onClearSearch={() => pdfViewer.searchPdf('')}
+        onSearchQueryChange={(value) => {
+          setActiveEvidenceTerm(null);
+          pdfViewer.setSearchQuery(value);
+        }}
+        onRunSearch={(value) => {
+          setActiveEvidenceTerm(null);
+          pdfViewer.searchPdf(value ?? pdfViewer.searchQuery);
+        }}
+        onClearSearch={() => {
+          setActiveEvidenceTerm(null);
+          pdfViewer.searchPdf('');
+        }}
         onMoveSearchMatch={(direction) =>
           direction > 0 ? pdfViewer.findNext() : pdfViewer.findPrevious()
         }

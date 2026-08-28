@@ -48,6 +48,7 @@ const DocumentRailPanel: React.FC = () => {
       examStatusLabel={context.examStatusLabel}
       activeTabKey={documentTabKey}
       onActiveTabKeyChange={setDocumentTabKey}
+      searchKeywords={context.searchKeywords}
     />
   );
 };

@@ -1,8 +1,12 @@
 import React from 'react';
-import { Empty, Pagination, Select, Skeleton, Tooltip, Typography } from 'antd';
+import { Empty, Pagination, Select, Skeleton, Tag, Tooltip, Typography } from 'antd';
 import { Info } from 'lucide-react';
 import { formatNumberWithComma } from '../../utils/displayFormat';
-import type { PatentSearchItem } from '../../services/patentSearchApi';
+import {
+  PATENT_SEARCH_KEYWORD_TARGET_LABELS,
+  type PatentSearchItem,
+  type PatentSearchKeywordTarget,
+} from '../../services/patentSearchApi';
 import OfficeActionResultCard from './OfficeActionResultCard';
 
 const { Text } = Typography;
@@ -28,6 +32,8 @@ type Props = {
   selectedId: number | null;
   /** 외부 API가 적용한 자동 정렬. 키워드가 있으면 relevance, 없으면 actionDateDesc다. */
   sortBy: OfficeActionSort;
+  /** 이 결과를 만든 검색이 본문을 뒤진 문서들. 카드에 일치 표시로 나간다. */
+  matchedTargets: PatentSearchKeywordTarget[];
   onSelect: (item: PatentSearchItem) => void;
   onPageChange: (page: number, pageSize: number) => void;
 };
@@ -43,6 +49,7 @@ const OfficeActionResultList: React.FC<Props> = ({
   error,
   selectedId,
   sortBy,
+  matchedTargets,
   onSelect,
   onPageChange,
 }) => (
@@ -51,6 +58,16 @@ const OfficeActionResultList: React.FC<Props> = ({
       <span className="oa-results-count">
         <strong>{formatNumberWithComma(total)}</strong> Results
       </span>
+      {/* 검색 단위 정보라 카드마다 반복하지 않고 헤더에 한 번만 둔다. */}
+      {matchedTargets.length > 0 && (
+        <Tooltip title="검색어가 이 문서들의 본문에서 발견된 통지 건입니다. 어느 문서로 찾았는지와 무관하게 결과는 의견제출통지서 단위로 나옵니다.">
+          <Tag className="oa-results-match" bordered={false}>
+            {`본문 일치: ${matchedTargets
+              .map((target) => PATENT_SEARCH_KEYWORD_TARGET_LABELS[target])
+              .join(' · ')}`}
+          </Tag>
+        </Tooltip>
+      )}
       <span className="oa-results-sort">
         <Text type="secondary" className="oa-results-sort-label">
           Sort By

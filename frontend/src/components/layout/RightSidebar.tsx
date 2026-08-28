@@ -70,6 +70,7 @@ const RightSidebar: React.FC = () => {
   const widths = useRightSidebarStore((state) => state.widths);
   const toggleItem = useRightSidebarStore((state) => state.toggleItem);
   const toggleCollapsed = useRightSidebarStore((state) => state.toggleCollapsed);
+  const collapse = useRightSidebarStore((state) => state.collapse);
   const setWidth = useRightSidebarStore((state) => state.setWidth);
   const hasDocuments = useRightSidebarStore((state) => state.documentContext !== null);
   /** 문서 패널 머리줄 부제. 어느 특허의 문서를 보고 있는지가 안 보이면 화면을 옮긴 뒤 헷갈린다. */
@@ -153,6 +154,8 @@ const RightSidebar: React.FC = () => {
             width={Math.min(widths[mounted.id], effectiveMax(mounted.id))}
             onWidthChange={handleWidthChange}
             onResizingChange={setIsResizing}
+            // 최소 폭보다 더 좁히려고 밀면 접는다. 레일 아이콘이 남으므로 다시 열 길은 있다.
+            onCollapse={collapse}
           >
             <div className="rs-panel">
               <div className="rs-panel-head">

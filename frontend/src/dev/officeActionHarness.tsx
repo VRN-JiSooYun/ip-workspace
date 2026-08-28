@@ -7,7 +7,7 @@
  * "진입했을 때 실제로 무슨 일이 벌어지는가"라서, 페이지를 흉내 낸 가짜를 그리면 의미가 없다.
  *
  * 보는 것 세 가지:
- *   1) 진입 즉시 /patent-search가 조건 없이 한 번 호출되는가 (그리고 딱 한 번인가)
+ *   1) 진입 즉시 content 없는 /patent-search/index를 한 번만 불러오는가
  *   2) 진입 시 우측 레일이 문서 뷰어로 펼쳐지는가
  *   3) 스크롤을 .oa-result-cards가 갖고 .oa-page는 갖지 않는가
  */
@@ -20,7 +20,11 @@ import OfficeActionAnalysis from '../pages/OfficeActionAnalysis';
 import RightSidebar from '../components/layout/RightSidebar';
 import { AccessContextProvider } from '../contexts/AccessContext';
 import { useRightSidebarStore } from '../store/useRightSidebarStore';
-import type { PatentSearchItem, PatentSearchResult } from '../services/patentSearchApi';
+import type {
+  PatentSearchIndexItem,
+  PatentSearchItem,
+  PatentSearchResult,
+} from '../services/patentSearchApi';
 import '../index.css';
 
 const ACCESS_CONTEXT = {
@@ -76,8 +80,15 @@ const makeItem = (index: number): PatentSearchItem => ({
   patent: null,
 });
 
-/** 스텁이 받은 /patent-search 요청. 진입 시 몇 번·어떤 조건으로 나갔는지 본다. */
+const makeIndexItem = (index: number): PatentSearchIndexItem => ({
+  ...makeItem(index),
+  content: null,
+  filterIndex: { attorneyName: null, examStatus: null, ipcs: [] },
+});
+
+/** 전문 검색과 content 없는 인덱스 호출을 따로 센다. */
 const searchCalls: { body: unknown; at: number }[] = [];
+let indexCalls = 0;
 
 const json = (body: unknown) => new Response(JSON.stringify(body), {
   status: 200,
@@ -97,6 +108,19 @@ const installFetchStub = () => {
       : input instanceof URL ? input.toString() : input.url;
 
     if (url.includes('/access-context')) return json(ACCESS_CONTEXT);
+
+    if (url.includes('/patent-search/index')) {
+      indexCalls += 1;
+      return json({
+        generatedAt: new Date().toISOString(),
+        total: 137,
+        items: Array.from({ length: 137 }, (_, index) => makeIndexItem(index)),
+      });
+    }
+
+    if (url.includes('/patent-search/') && url.endsWith('/content')) {
+      return json({ content: '선택한 통지서 본문', contentLength: 11, submissions: [] });
+    }
 
     if (url.includes('/patent-search')) {
       const body = typeof init?.body === 'string' ? JSON.parse(init.body) : null;
@@ -140,16 +164,11 @@ const measureChecks = (): Check[] => {
   const main = el('.oa-main');
   const cards = el('.oa-result-cards');
 
-  // 1) 진입 시 기본 검색
-  expect('진입 시 /patent-search가 호출된다', searchCalls.length > 0,
+  // 1) 진입 시 content 없는 로컬 필터 인덱스
+  expect('진입 시 /patent-search/index를 호출한다', indexCalls === 1,
+    `${indexCalls}회`);
+  expect('키워드가 없으면 전문 Search API를 호출하지 않는다', searchCalls.length === 0,
     `${searchCalls.length}회`);
-  expect('진입 검색은 한 번만 나간다(실시간 검색이 아니다)', searchCalls.length === 1,
-    `${searchCalls.length}회`);
-  const first = searchCalls[0]?.body as Record<string, unknown> | undefined;
-  expect('진입 검색은 조건 없이 나간다(keywords/filters 없음)',
-    !!first && first.keywords === undefined && first.filters === undefined,
-    JSON.stringify(first));
-  expect('진입 검색은 1페이지', first?.page === 1, `${first?.page}`);
   expect('결과 카드가 그려졌다', (document.querySelectorAll('.oa-result-card').length > 0),
     `${document.querySelectorAll('.oa-result-card').length}장`);
 

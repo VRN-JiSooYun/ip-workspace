@@ -25,6 +25,8 @@ export type PatentDocumentNode = {
   /** YYYY-MM-DD. 알 수 없으면 null. */
   date: string | null;
   dateSource: DocumentDateSource | null;
+  /** 목록 인덱스에는 없고 선택 문서 지연 조회가 끝나면 채워지는 추출 본문. */
+  content: string | null;
 };
 
 /** 타임라인에 놓이는 항목 하나 = 어느 통지 건의 어느 문서. */
@@ -128,6 +130,7 @@ export const buildDocumentNodes = (item: PatentSearchItem): PatentDocumentNode[]
       sources: item.documentPath
         ? [{ label: item.action ?? '의견제출통지서', path: item.documentPath }]
         : [],
+      content: item.content,
       ...(actionDate
         ? { date: actionDate, dateSource: 'actionDate' as const }
         : dateFor(item.documentPath)),
@@ -145,6 +148,7 @@ export const buildDocumentNodes = (item: PatentSearchItem): PatentDocumentNode[]
       sources: submission.documentPath
         ? [{ label, path: submission.documentPath }]
         : [],
+      content: submission.content,
       ...dateFor(submission.documentPath),
     });
   });
@@ -158,6 +162,7 @@ export const buildDocumentNodes = (item: PatentSearchItem): PatentDocumentNode[]
       sources: submission.documentPath
         ? [{ label, path: submission.documentPath }]
         : [],
+      content: submission.content,
       ...dateFor(submission.documentPath),
     });
   });
