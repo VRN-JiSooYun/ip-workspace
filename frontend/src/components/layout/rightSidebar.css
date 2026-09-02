@@ -41,6 +41,53 @@
   flex: 0 0 auto;
 }
 
+/**
+ * 넓게 보기.
+ *
+ * 본문을 밀어내지 않고 **덮는다.** 본문 최소 폭 보호(RightSidebar의 MIN_MAIN_WIDTH)는
+ * 극단 드래그로 본문이 짓눌리던 것을 막는 방어선이라 그대로 두고, 이 모드에서는 흐름 밖으로
+ * 나가 그 위에 얹힌다.
+ *
+ * 오른쪽 경계는 두 모드가 같다 — 흐름에서도 셸의 오른쪽은 아이콘 레일(56px) 왼쪽이고,
+ * 여기서도 `right: 56px`이다. 그래서 폭 전환이 자리 이동 없이 왼쪽으로 자라는 모양이 된다.
+ *
+ * z-index는 앱 안에서 쓰는 값(최대 60)보다 위, antd 팝업(1030~)보다 아래다. 패널 안에서 연
+ * 드롭다운·툴팁은 이 위에 떠야 한다.
+ */
+.rs-shell-wide {
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  /* 아이콘 레일 폭. .rs-rail의 56px과 같아야 한다. */
+  right: 56px;
+  z-index: 900;
+  background: var(--card-bg);
+  border-left: 1px solid var(--border-color);
+  box-shadow: -12px 0 28px rgba(0, 0, 0, 0.12);
+}
+
+/* 넓어진 셸을 패널이 채운다. 저장된 폭은 그대로 두고(모드를 끄면 그 폭으로 돌아간다)
+   보이는 폭만 늘린다 — `.rs-shell > *`의 `flex: 0 0 auto`를 여기서만 뒤집는다. */
+.rs-shell-wide > .resizable-side-panel-pane {
+  flex: 1 1 auto;
+}
+
+/**
+ * 이 모드에서는 폭 조절 핸들을 감춘다.
+ *
+ * 폭이 '가능한 만큼'으로 정해져 있어 조절할 것이 없다. 남겨 두면 핸들이 화면 왼쪽 끝에
+ * 붙는데, 거기서 시작한 드래그는 첫 이동부터 이미 상한을 한참 넘은 위치라 곧바로 다시
+ * 이 모드로 되돌아온다 — 잡히지 않는 손잡이가 된다. 나가는 길은 머리줄 토글과 Esc다.
+ */
+.rs-shell-wide > .resizable-side-panel-handle {
+  display: none;
+}
+
+/* 흐름에서 빠진 셸이 쓰던 자리. 본문이 다시 배치되지 않게 폭만 잡아 둔다. */
+.rs-shell-spacer {
+  flex: 0 0 auto;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .rs-shell {
     transition: none;
@@ -185,7 +232,8 @@
   color: var(--text-secondary);
 }
 
-.rs-panel-collapse {
+.rs-panel-collapse,
+.rs-panel-wide {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -198,9 +246,23 @@
   cursor: pointer;
 }
 
-.rs-panel-collapse:hover {
+.rs-panel-collapse:hover,
+.rs-panel-wide:hover {
   background: rgba(var(--brand-primary-rgb), 0.1);
   color: var(--brand-primary);
+}
+
+/* 켜져 있는 동안은 눌린 상태로 남는다. 이 모드에서 빠져나올 곳이 여기다. */
+.rs-panel-wide[aria-pressed='true'] {
+  background: rgba(var(--brand-primary-rgb), 0.12);
+  color: var(--brand-primary);
+}
+
+/* 부제가 없을 때도 토글은 오른쪽 끝에 붙는다. */
+.rs-panel-wide {
+  margin-inline-start: auto;
+  flex: 0 0 auto;
+  align-self: center;
 }
 
 /* 패널 본문이 스크롤을 갖는다. 페이지는 스크롤하지 않는다. */
@@ -391,7 +453,8 @@
 /* 본문이 눌려 못 쓰게 되는 폭. 내용 패널은 숨기고 아이콘 레일만 남긴다.
    레일 자체를 없애면 다시 펼 방법이 사라진다. */
 @media (max-width: 900px) {
-  .rs-shell {
+  .rs-shell,
+  .rs-shell-spacer {
     display: none;
   }
 }

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { App as AntApp, Button, Tag, theme } from 'antd';
+import { App as AntApp, theme } from 'antd';
 import PatentPdfToolbar from '../patent-analysis/pdf/PatentPdfToolbar';
 import PatentPdfViewer from '../patent-analysis/pdf/PatentPdfViewer';
 import { usePatentPdfViewer } from '../../hooks/usePatentPdfViewer';
@@ -25,9 +25,16 @@ const fileNameOf = (documentPath: string): string => {
 type Props = {
   /** 문서 PDF의 절대 URL (`documentPath`). */
   documentPath: string;
-  /** 선택 문서의 추출 본문에서 실제로 발견된 INCLUDE token. */
-  searchTerms?: string[];
-  searchTargetLabel?: string;
+  /**
+   * 하이라이트할 검색어. 근거 줄(어떤 token이 발견됐는지)은 타임라인 위에서 그리고,
+   * 여기로는 고른 token 하나만 내려온다 — 이 pane은 문서가 바뀔 때마다 remount되므로
+   * 그 줄을 안에 두면 통째로 다시 그려진다(`PatentDocumentViewer` 주석 참고).
+   */
+  activeTerm?: string | null;
+  /** 같은 검색어를 다시 눌렀을 때도 하이라이트를 다시 걸기 위한 번호. */
+  termRequest?: number;
+  /** toolbar에서 사용자가 직접 검색했을 때. 근거 줄의 선택 표시를 풀어야 한다. */
+  onManualSearch?: () => void;
 };
 
 /**
@@ -52,8 +59,9 @@ type Props = {
  */
 const PatentDocumentPdfPane: React.FC<Props> = ({
   documentPath,
-  searchTerms = [],
-  searchTargetLabel,
+  activeTerm = null,
+  termRequest = 0,
+  onManualSearch,
 }) => {
   const { token } = theme.useToken();
   const { message } = AntApp.useApp();
@@ -62,48 +70,31 @@ const PatentDocumentPdfPane: React.FC<Props> = ({
   const [downloading, setDownloading] = useState(false);
 
   const pdfViewer = usePatentPdfViewer({ currentHighlights: NO_HIGHLIGHTS });
-  const evidenceTerms = useMemo(() => {
-    const seen = new Set<string>();
-    return searchTerms.filter((term) => {
-      const key = term.normalize('NFC').toLocaleLowerCase();
-      if (!key || seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    });
-  }, [searchTerms]);
-  const [activeEvidenceTerm, setActiveEvidenceTerm] = useState<string | null>(null);
 
+  /**
+   * 고른 검색어를 PDF에 하이라이트한다.
+   *
+   * 의존성이 `activeTerm`이 아니라 **`termRequest`**인 것이 중요하다. 사용자가 toolbar에서
+   * 직접 검색하면 근거 줄의 선택이 풀려 `activeTerm`이 null이 되는데, 그것까지 이 effect가
+   * 받으면 방금 입력한 검색을 `searchPdf('')`로 지워 버린다. 그래서 '근거를 다시 걸어 달라'는
+   * 요청(번호 증가)에만 반응한다 — 같은 검색어를 다시 눌러도 번호가 올라 다시 걸린다.
+   */
   useEffect(() => {
-    const nextTerm = evidenceTerms[0] ?? null;
-    setActiveEvidenceTerm(nextTerm);
-    if (!nextTerm && pdfViewer.isHighlighterReady) {
+    if (!pdfViewer.isHighlighterReady) return;
+    if (!activeTerm) {
       pdfViewer.searchPdf('');
+      return;
     }
-    // PDF readiness 변화가 아니라 문서의 검색 근거가 바뀔 때만 자동 선택을 초기화한다.
+    if (!pdfViewer.isPdfDocumentReady) return;
+    pdfViewer.searchPdf(activeTerm);
+    // activeTerm은 번호와 함께 갱신되므로 여기서 다시 듣지 않는다(위 주석).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [evidenceTerms]);
-
-  // PDF와 highlighter가 모두 준비된 뒤 첫 매칭 token을 자동으로 전체 하이라이트한다.
-  useEffect(() => {
-    if (
-      !activeEvidenceTerm
-      || !pdfViewer.isPdfDocumentReady
-      || !pdfViewer.isHighlighterReady
-    ) return;
-    pdfViewer.searchPdf(activeEvidenceTerm);
   }, [
-    activeEvidenceTerm,
+    termRequest,
     pdfViewer.isHighlighterReady,
     pdfViewer.isPdfDocumentReady,
     pdfViewer.searchPdf,
   ]);
-
-  const activateEvidenceTerm = (term: string) => {
-    setActiveEvidenceTerm(term);
-    if (term === activeEvidenceTerm && pdfViewer.isHighlighterReady) {
-      pdfViewer.searchPdf(term);
-    }
-  };
 
   /** 서버가 준 값은 API 기준 상대 경로일 수 있다. 브라우저가 쓸 주소로 완성한다. */
   const fileUrl = useMemo(
@@ -142,35 +133,6 @@ const PatentDocumentPdfPane: React.FC<Props> = ({
 
   return (
     <div className="pm-doc-pdf">
-      {evidenceTerms.length > 0 && (
-        <div className="pm-doc-search-evidence" aria-label="검색어 일치 근거">
-          <span
-            className="pm-doc-search-evidence-label"
-            title="검색 결과 판정에 사용된 추출 본문에서 실제로 발견된 검색어입니다."
-          >
-            검색어 일치
-          </span>
-          {searchTargetLabel && (
-            <Tag bordered={false} className="pm-doc-search-target">
-              {searchTargetLabel}
-            </Tag>
-          )}
-          <span className="pm-doc-search-terms">
-            {evidenceTerms.map((term) => (
-              <Button
-                key={term}
-                size="small"
-                type={activeEvidenceTerm === term ? 'primary' : 'default'}
-                className="pm-doc-search-term"
-                aria-pressed={activeEvidenceTerm === term}
-                onClick={() => activateEvidenceTerm(term)}
-              >
-                {term}
-              </Button>
-            ))}
-          </span>
-        </div>
-      )}
       <PatentPdfToolbar
         borderColor={token.colorBorderSecondary}
         backgroundColor={token.colorBgContainer}
@@ -184,18 +146,20 @@ const PatentDocumentPdfPane: React.FC<Props> = ({
         zoomPercent={pdfViewer.pdfZoomPercent}
         onZoomIn={pdfViewer.zoomPdfIn}
         onZoomOut={pdfViewer.zoomPdfOut}
-        onResetZoom={pdfViewer.resetPdfZoom}
+        onZoomPercentChange={pdfViewer.applyPdfZoom}
+        onFitPageWidth={pdfViewer.fitPdfToPageWidth}
+        fitPageWidthActive={pdfViewer.pdfScaleValue === 'page-width'}
         onOpenPdfInBrowser={handleOpenInBrowser}
         onSearchQueryChange={(value) => {
-          setActiveEvidenceTerm(null);
+          onManualSearch?.();
           pdfViewer.setSearchQuery(value);
         }}
         onRunSearch={(value) => {
-          setActiveEvidenceTerm(null);
+          onManualSearch?.();
           pdfViewer.searchPdf(value ?? pdfViewer.searchQuery);
         }}
         onClearSearch={() => {
-          setActiveEvidenceTerm(null);
+          onManualSearch?.();
           pdfViewer.searchPdf('');
         }}
         onMoveSearchMatch={(direction) =>

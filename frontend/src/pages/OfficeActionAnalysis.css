@@ -848,3 +848,47 @@
   justify-content: flex-end;
   padding: 4px 4px 0;
 }
+
+/* 페이지 번호 버튼이 서로 붙어 보여서 좌우 여백을 준다.
+   antd 기본 규칙(.ant-pagination.ant-pagination-mini .ant-pagination-item)이 클래스 3개짜리라
+   여기서도 클래스 3개 이상이어야 덮어쓸 수 있다. */
+.oa-results-pagination ul.ant-pagination > li.ant-pagination-item {
+  margin-inline: 5px;
+}
+
+/* 페이지 번호는 가운데 정렬로 두고, 페이지 크기 선택(options)만 흐름에서 떼어
+   오른쪽 끝에 고정한다. 흐름 안에 두면 options 폭만큼 번호가 왼쪽으로 밀린다. */
+.oa-results-pagination ul.ant-pagination {
+  --oa-pagination-options-w: 96px;
+  position: relative;
+  justify-content: center;
+  width: 100%;
+  /* options가 절대 배치라 번호와 겹칠 수 있다. 그 폭만큼 자리를 비워 두되,
+     한쪽만 비우면 가운데가 틀어지므로 좌우 대칭으로 예약한다. */
+  padding-inline: var(--oa-pagination-options-w);
+}
+
+.oa-results-pagination ul.ant-pagination > li.ant-pagination-options {
+  position: absolute;
+  inset-inline-end: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  margin-inline: 0;
+}
+
+/* 예약 여백까지 감당 못 할 만큼 좁아지면, 겹치게 두는 대신 options를 아랫줄 우측으로 내린다. */
+@container oa-results (max-width: 420px) {
+  .oa-results-pagination ul.ant-pagination {
+    flex-wrap: wrap;
+    row-gap: 6px;
+    padding-inline: 0;
+  }
+
+  .oa-results-pagination ul.ant-pagination > li.ant-pagination-options {
+    position: static;
+    transform: none;
+    flex: 0 0 100%;
+    display: flex;
+    justify-content: flex-end;
+  }
+}

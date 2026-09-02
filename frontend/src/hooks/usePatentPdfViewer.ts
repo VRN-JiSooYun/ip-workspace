@@ -1,6 +1,12 @@
 import React from 'react';
 import type { PdfHighlighterUtils } from 'react-pdf-highlighter-plus';
 import { getPdfHighlightScale } from '../config/pdfHighlight';
+import {
+  PDF_ZOOM_LEVELS,
+  PDF_ZOOM_MAX_PERCENT,
+  PDF_ZOOM_MIN_PERCENT,
+  usePdfViewerStore,
+} from '../store/usePdfViewerStore';
 
 const HIGHLIGHT_PADDING_X = 8;
 const HIGHLIGHT_PADDING_Y = 10;
@@ -8,7 +14,9 @@ const SEARCH_HIGHLIGHT_PADDING_X = 2;
 const SEARCH_HIGHLIGHT_PADDING_Y = 1.5;
 const ENABLE_HIGHLIGHT_DEBUG_LOG = false;
 const ENABLE_SEARCH_HIGHLIGHT_TRACE_LOG = true;
-const PDF_ZOOM_LEVELS = [25, 50, 75, 100, 125, 150, 200, 250, 300, 400] as const;
+/* 배율 관련 상수는 store가 갖는다(뷰어 밖에서도 범위를 알아야 저장값을 자를 수 있다).
+   toolbar 등 기존 import 경로를 깨지 않도록 여기서 다시 내보낸다. */
+export { PDF_ZOOM_MAX_PERCENT, PDF_ZOOM_MIN_PERCENT };
 const PDF_FIND_WHITESPACE_PATCHED = Symbol.for(
   'ipWorkspace.pdfFindWhitespacePatched',
 );
@@ -234,8 +242,20 @@ export const usePatentPdfViewer = ({
   const [pdfCurrentPage, setPdfCurrentPage] = React.useState<number>(1);
   const [pdfTotalPages, setPdfTotalPages] = React.useState<number>(0);
   const [pdfRotation, setPdfRotation] = React.useState<number>(0);
-  const [pdfZoomPercent, setPdfZoomPercent] = React.useState<number>(100);
-  const [pdfScaleValue, setPdfScaleValue] = React.useState<'page-width' | number>('page-width');
+  /**
+   * 배율. 숫자면 그 비율로, `page-width`면 페이지 너비에 맞춘다.
+   *
+   * 시작값은 `usePdfViewerStore`가 들고 있는 마지막 배율이다. 이래야 다른 문서·다른 화면에서
+   * 뷰어를 새로 열어도 사용자가 맞춰 둔 배율 그대로 열린다. 구독이 아니라 mount 시점에 한 번만
+   * 읽는다 — 두 뷰어가 동시에 떠 있을 때 한쪽 확대가 다른 쪽 화면을 흔들면 곤란하다.
+   */
+  const [pdfScaleValue, setPdfScaleValue] = React.useState<'page-width' | number>(
+    () => usePdfViewerStore.getState().zoom,
+  );
+  // 'page-width'로 시작하면 실제 %는 pdf.js가 정하므로, 그때까지의 표시값만 100%로 둔다.
+  const [pdfZoomPercent, setPdfZoomPercent] = React.useState<number>(
+    () => (typeof pdfScaleValue === 'number' ? Math.round(pdfScaleValue * 100) : 100),
+  );
   const [isPdfDocumentReady, setIsPdfDocumentReady] = React.useState(false);
   const [isHighlighterReady, setIsHighlighterReady] = React.useState(false);
   const [highlighterUtilsRevision, setHighlighterUtilsRevision] = React.useState(0);
@@ -432,8 +452,15 @@ export const usePatentPdfViewer = ({
 
     const syncZoomPercent = (event?: { scale?: number }) => {
       const scale = Number(event?.scale ?? viewer.currentScale);
-      if (Number.isFinite(scale) && scale > 0) {
-        setPdfZoomPercent(Math.round(scale * 100));
+      if (!Number.isFinite(scale) || scale <= 0) return;
+
+      const percent = Math.round(scale * 100);
+      setPdfZoomPercent(percent);
+
+      // ctrl+휠처럼 toolbar를 거치지 않은 확대도 다음 문서로 물려준다. 단 pdf.js가
+      // 'page-width' 같은 프리셋으로 계산한 배율은 패널 폭에 딸린 값이라 저장하지 않는다.
+      if (Number.isFinite(Number(viewer.currentScaleValue))) {
+        usePdfViewerStore.getState().setZoomPercent(percent);
       }
     };
 
@@ -793,14 +820,15 @@ export const usePatentPdfViewer = ({
     setIsPdfDocumentReady(Boolean(pdfDocument));
   }, []);
 
+  /** 배율을 직접 지정한다. 사용자가 toolbar에 숫자를 입력하는 경로도 이것을 쓴다. */
   const applyPdfZoom = React.useCallback((percent: number) => {
     const viewer = (highlighterUtilsRef.current as any)?.getViewer?.();
     if (!viewer) return;
 
-    const minZoom = PDF_ZOOM_LEVELS[0];
-    const maxZoom = PDF_ZOOM_LEVELS[PDF_ZOOM_LEVELS.length - 1];
-    const nextPercent = clamp(percent, minZoom, maxZoom);
+    const nextPercent = clamp(percent, PDF_ZOOM_MIN_PERCENT, PDF_ZOOM_MAX_PERCENT);
     setPdfScaleValue(nextPercent / 100);
+    // 다음에 열 문서가 물려받도록 남긴다.
+    usePdfViewerStore.getState().setZoomPercent(nextPercent);
     viewer.currentScaleValue = String(nextPercent / 100);
   }, []);
 
@@ -825,9 +853,17 @@ export const usePatentPdfViewer = ({
     applyPdfZoom(nextZoom);
   }, [applyPdfZoom]);
 
-  const resetPdfZoom = React.useCallback(() => {
+  /**
+   * 페이지 너비에 맞춘다.
+   *
+   * 기본 배율(100%)로 되돌리는 것이 아니라 폭에 맞추는 별개의 동작이라 이름을 그렇게 붙였다.
+   * 결과 배율은 pdf.js가 정하고, `scalechanging`으로 toolbar 표시값에 반영된다.
+   */
+  const fitPdfToPageWidth = React.useCallback(() => {
     const viewer = (highlighterUtilsRef.current as any)?.getViewer?.();
     setPdfScaleValue('page-width');
+    // 저장하는 값은 결과 %가 아니라 '폭 맞춤'이라는 의도다. 폭은 패널마다 다르다.
+    usePdfViewerStore.getState().setZoomToPageWidth();
     if (viewer) viewer.currentScaleValue = 'page-width';
   }, []);
 
@@ -868,7 +904,8 @@ export const usePatentPdfViewer = ({
     setPdfTotalPages,
     zoomPdfIn,
     zoomPdfOut,
-    resetPdfZoom,
+    applyPdfZoom,
+    fitPdfToPageWidth,
     // Highlight Handlers
     userHighlights,
     systemHighlights,

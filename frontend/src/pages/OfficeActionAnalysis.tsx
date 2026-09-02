@@ -131,7 +131,16 @@ const OfficeActionAnalysis: React.FC = () => {
     return () => setHeaderContent(null);
   }, [setHeaderContent]);
 
-  /** 화면을 떠나면 진행 중인 본문 보강을 무효화하고 이 화면이 올린 문서를 치운다. */
+  /**
+   * 레일에 올린 문서를 치우는 **유일한** 자리. 화면을 떠날 때다.
+   *
+   * 목록 조작으로는 닫지 않는다 — 페이지 이동·한 페이지 크기 변경·상세 필터·새 키워드 검색
+   * 모두 그대로 둔다. 목록을 이리저리 바꿔 가며 같은 문서를 곁에 두고 보는 것이 이 레일의
+   * 목적이라, 목록이 갱신될 때마다 닫히면 그 목적이 사라진다. 지금 결과에 없는 문서가 열려
+   * 있는 것은 이상하지 않다 — 레일은 목록의 미리보기가 아니라 따로 여는 작업 공간이다.
+   *
+   * 목록에 없는 문서는 카드 강조(`selectedId`)만 사라지고 뷰어는 유지된다.
+   */
   useEffect(() => () => {
     pendingDocumentIdRef.current = null;
     clearDocuments(DOCUMENT_SOURCE);
@@ -250,8 +259,6 @@ const OfficeActionAnalysis: React.FC = () => {
         setPage(nextPage);
         setPageSize(nextPageSize);
         setAppliedFilterKey(filterKeyOf(nextFilters));
-        pendingDocumentIdRef.current = null;
-        clearDocuments(DOCUMENT_SOURCE, { keepPanelOpen: true });
       } catch (caught) {
         setItems([]);
         setTotal(0);
@@ -262,7 +269,7 @@ const OfficeActionAnalysis: React.FC = () => {
         setLoading(false);
       }
     },
-    [clearDocuments, filters, loadIndex, message],
+    [filters, loadIndex, message],
   );
 
   /**
@@ -309,8 +316,6 @@ const OfficeActionAnalysis: React.FC = () => {
       setTotal(filtered.length);
       setPage(1);
       setAppliedFilterKey(filterKeyOf(filters));
-      pendingDocumentIdRef.current = null;
-      clearDocuments(DOCUMENT_SOURCE, { keepPanelOpen: true });
     } catch (caught) {
       setItems([]);
       setTotal(0);
@@ -320,7 +325,7 @@ const OfficeActionAnalysis: React.FC = () => {
       setPristine(false);
       setLoading(false);
     }
-  }, [clearDocuments, filters, keywordConditions, loadIndex, message, pageSize]);
+  }, [filters, keywordConditions, loadIndex, message, pageSize]);
 
   /**
    * Enter와 버튼 적용은 같은 tick의 필터 state 갱신까지 포함해야 하므로 다음 render에서 실행한다.

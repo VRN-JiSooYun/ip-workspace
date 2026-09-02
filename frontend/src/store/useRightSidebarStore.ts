@@ -43,7 +43,7 @@ export const RAIL_MIN_WIDTH: Record<RightRailItemId, number> = {
   todo: 280,
 };
 
-export const RAIL_MAX_WIDTH = 1000;
+export const RAIL_MAX_WIDTH = 4500;
 
 /** 아이콘 레일 자체의 폭. 항목 라벨이 두 줄로 접히지 않을 만큼만. */
 export const RAIL_WIDTH = 56;

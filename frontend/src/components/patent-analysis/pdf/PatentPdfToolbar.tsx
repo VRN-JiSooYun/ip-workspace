@@ -1,6 +1,10 @@
 import React from 'react';
 import { Button, Input, InputNumber, Space, Tooltip, Typography } from 'antd';
-import { Maximize2, Minimize2, RotateCcw, RotateCw, PanelLeftClose, PanelLeftOpen, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Download, ExternalLink, ZoomIn, ZoomOut } from 'lucide-react';
+import { Maximize2, Minimize2, MoveHorizontal, RotateCcw, RotateCw, PanelLeftClose, PanelLeftOpen, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Download, ExternalLink, ZoomIn, ZoomOut } from 'lucide-react';
+import {
+  PDF_ZOOM_MAX_PERCENT,
+  PDF_ZOOM_MIN_PERCENT,
+} from '../../../hooks/usePatentPdfViewer';
 
 const { Text } = Typography;
 
@@ -43,7 +47,12 @@ type PatentPdfToolbarProps = {
   zoomPercent: number;
   onZoomIn: () => void;
   onZoomOut: () => void;
-  onResetZoom: () => void;
+  /** 사용자가 직접 입력한 배율(%). 범위 밖 값은 부르는 쪽에서 잘린다. */
+  onZoomPercentChange: (percent: number) => void;
+  /** 페이지 너비에 맞춘다. 기본 배율로 되돌리는 것과는 다른 동작이다. */
+  onFitPageWidth: () => void;
+  /** 지금 폭 맞춤 상태인지. 버튼을 눌린 모양으로 두는 데만 쓴다. */
+  fitPageWidthActive?: boolean;
   onToggleFit?: () => void;
   onOpenPdfInBrowser?: () => void;
   onSearchQueryChange: (value: string) => void;
@@ -76,7 +85,9 @@ const PatentPdfToolbar: React.FC<PatentPdfToolbarProps> = ({
   zoomPercent,
   onZoomIn,
   onZoomOut,
-  onResetZoom,
+  onZoomPercentChange,
+  onFitPageWidth,
+  fitPageWidthActive = false,
   onToggleFit,
   onOpenPdfInBrowser,
   onSearchQueryChange,
@@ -93,12 +104,35 @@ const PatentPdfToolbar: React.FC<PatentPdfToolbarProps> = ({
   onToggleThumbnail,
 }) => {
   const [pageInput, setPageInput] = React.useState<number | null>(currentPage);
+  /**
+   * 배율 입력값. 타이핑 중에는 화면 배율과 다를 수 있어 문자열로 따로 들고 있다가 확정될 때만
+   * 적용한다. 확대·축소나 폭 맞춤으로 배율이 밖에서 바뀌면 아래 effect가 맞춘다.
+   *
+   * `InputNumber`가 아니라 `Input`을 쓰는 이유: `InputNumber`는 내부에서 자기 `onKeyDown`을
+   * 달아 바깥에서 넘긴 Enter 처리가 닿지 않는다(값은 blur에서만 확정된다).
+   */
+  const [zoomInput, setZoomInput] = React.useState(String(zoomPercent));
   // 한글 등 IME 조합 중인지 추적. 조합 중에는 검색을 실행하지 않고, compositionEnd 시점에 실행한다.
   const isComposingRef = React.useRef(false);
 
   React.useEffect(() => {
     setPageInput(currentPage);
   }, [currentPage]);
+
+  React.useEffect(() => {
+    setZoomInput(String(zoomPercent));
+  }, [zoomPercent]);
+
+  /** 입력한 배율을 적용한다. 비었거나 숫자가 아니면 지금 배율로 되돌린다. */
+  const commitZoom = () => {
+    const next = Number(zoomInput);
+    if (!zoomInput || !Number.isFinite(next)) {
+      setZoomInput(String(zoomPercent));
+      return;
+    }
+    // 범위 밖 값은 부르는 쪽이 자른다. 잘린 결과는 scalechanging을 타고 표시값으로 돌아온다.
+    onZoomPercentChange(next);
+  };
 
   const commitPage = () => {
     if (pageInput && pageInput >= 1 && pageInput <= totalPages && onGoToPage) {
@@ -212,24 +246,37 @@ const PatentPdfToolbar: React.FC<PatentPdfToolbarProps> = ({
           size="small"
           icon={<ZoomOut size={14} />}
           onClick={onZoomOut}
-          disabled={zoomPercent <= 25}
+          disabled={zoomPercent <= PDF_ZOOM_MIN_PERCENT}
           tooltip="PDF 축소"
         />
-        <PdfToolbarButton
-          size="small"
-          type="text"
-          onClick={onResetZoom}
-          tooltip="페이지 너비에 맞춤"
-          style={{ minWidth: 48, paddingInline: 6, color: textColor, fontSize: 11 }}
-        >
-          {zoomPercent}%
-        </PdfToolbarButton>
+        <Tooltip title={`배율 직접 입력 (${PDF_ZOOM_MIN_PERCENT}~${PDF_ZOOM_MAX_PERCENT}%)`}>
+          <Input
+            size="small"
+            aria-label="PDF 배율"
+            inputMode="numeric"
+            value={zoomInput}
+            // 숫자만 받는다. 단위는 suffix가 보여 주므로 값에 섞이지 않는다.
+            onChange={(event) => setZoomInput(event.target.value.replace(/[^\d]/g, ''))}
+            onPressEnter={commitZoom}
+            onBlur={commitZoom}
+            suffix={<span style={{ fontSize: 11, color: textColor }}>%</span>}
+            style={{ width: 68, fontSize: 11 }}
+          />
+        </Tooltip>
         <PdfToolbarButton
           size="small"
           icon={<ZoomIn size={14} />}
           onClick={onZoomIn}
-          disabled={zoomPercent >= 400}
+          disabled={zoomPercent >= PDF_ZOOM_MAX_PERCENT}
           tooltip="PDF 확대"
+        />
+        <PdfToolbarButton
+          size="small"
+          icon={<MoveHorizontal size={14} />}
+          type={fitPageWidthActive ? 'primary' : 'default'}
+          onClick={onFitPageWidth}
+          aria-pressed={fitPageWidthActive}
+          tooltip="페이지 너비에 맞춤"
         />
         <PdfToolbarButton
           size="small"

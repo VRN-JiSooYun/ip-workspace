@@ -16,6 +16,12 @@ const RESIZE_STEP = 24;
  */
 const COLLAPSE_SLACK = 64;
 
+/**
+ * 상한에서 이만큼 더 밀어야 '더 넓게'로 친다. COLLAPSE_SLACK과 같은 이유의 반대편이다 —
+ * 상한에 닿자마자 반응하면 끝까지 넓히려던 드래그가 매번 다른 모드로 튄다.
+ */
+const EXPAND_SLACK = 64;
+
 type Props = {
   min?: number;
   max?: number;
@@ -43,6 +49,13 @@ type Props = {
    * 넘기지 않으면 예전처럼 최소 폭에서 멈춘다.
    */
   onCollapse?: () => void;
+  /**
+   * 상한보다 더 넓히려고 밀었을 때 부른다. 무엇을 할지는 부르는 쪽 몫이다(우측 레일은
+   * '넓게 보기'를 켠다). 상한은 본문을 지키려고 있는 것이라 이 컴포넌트가 스스로 넘지 않는다.
+   *
+   * 넘기지 않으면 예전처럼 상한에서 멈춘다.
+   */
+  onExpandBeyondMax?: () => void;
   children: React.ReactNode;
 };
 
@@ -64,6 +77,7 @@ const ResizableSidePanel: React.FC<Props> = ({
   onWidthChange,
   onResizingChange,
   onCollapse,
+  onExpandBeyondMax,
   children,
 }) => {
   const [uncontrolledWidth, setUncontrolledWidth] = useState(defaultWidth);
@@ -104,28 +118,30 @@ const ResizableSidePanel: React.FC<Props> = ({
   }, [onCollapse, setWidth]);
 
   /**
-   * `max`만으로 자르면 화면이 좁을 때 본문이 0px까지 눌려 목록이 사라진다.
-   * 핸들 왼쪽 형제(본문)의 왼쪽 경계를 기준으로 실제 상한을 다시 계산한다.
+   * 지금 레이아웃에서 실제로 허용되는 상한.
+   *
+   * `max`만으로 자르면 화면이 좁을 때 본문이 0px까지 눌려 목록이 사라진다. 핸들 왼쪽
+   * 형제(본문)의 왼쪽 경계를 기준으로 다시 계산한다.
    */
+  const effectiveMaxWidth = useCallback(() => {
+    const pane = paneRef.current;
+    if (!pane) return max;
+    // 본문(핸들의 앞 형제)의 왼쪽 경계를 기준으로 삼는다. 우측 레일처럼 핸들이 컨테이너의
+    // 첫 자식이면 앞 형제가 없는데, 그때 보호를 건너뛰면 본문을 0까지 밀 수 있다.
+    // 그런 자리에서는 viewport 왼쪽을 경계로 써서 보호가 조용히 죽는 일을 막는다
+    // (부르는 쪽이 max로 더 좁게 잡을 수 있다).
+    const main = handleRef.current?.previousElementSibling;
+    const leftBound = main ? main.getBoundingClientRect().left : 0;
+    const available = pane.getBoundingClientRect().right - leftBound - minSiblingWidth;
+    return Math.min(max, available);
+  }, [max, minSiblingWidth]);
+
   const clamp = useCallback(
-    (value: number) => {
-      const pane = paneRef.current;
-      const main = handleRef.current?.previousElementSibling;
-      let effectiveMax = max;
-      if (pane) {
-        // 본문(핸들의 앞 형제)의 왼쪽 경계를 기준으로 삼는다. 우측 레일처럼 핸들이 컨테이너의
-        // 첫 자식이면 앞 형제가 없는데, 그때 보호를 건너뛰면 본문을 0까지 밀 수 있다.
-        // 그런 자리에서는 viewport 왼쪽을 경계로 써서 보호가 조용히 죽는 일을 막는다
-        // (부르는 쪽이 max로 더 좁게 잡을 수 있다).
-        const leftBound = main ? main.getBoundingClientRect().left : 0;
-        const available =
-          pane.getBoundingClientRect().right - leftBound - minSiblingWidth;
-        effectiveMax = Math.min(max, available);
-      }
+    (value: number) => (
       // 상한이 하한보다 작아지는 아주 좁은 화면에서는 하한을 지킨다(세로 배치로 넘어간다).
-      return Math.min(Math.max(min, effectiveMax), Math.max(min, value));
-    },
-    [max, min, minSiblingWidth],
+      Math.min(Math.max(min, effectiveMaxWidth()), Math.max(min, value))
+    ),
+    [effectiveMaxWidth, min],
   );
 
   /**
@@ -161,9 +177,16 @@ const ResizableSidePanel: React.FC<Props> = ({
       // 패널의 오른쪽 경계는 리사이즈 중에도 고정이다(레이아웃이 왼쪽으로 자란다).
       // 그래서 그 경계와 포인터의 거리가 곧 새 너비다.
       const desired = pane.getBoundingClientRect().right - event.clientX;
-      // clamp를 거치기 전에 본다. clamp는 최소 폭에서 잘라 버려서 '더 밀었다'가 사라진다.
+      // clamp를 거치기 전에 본다. clamp는 경계에서 잘라 버려서 '더 밀었다'가 사라진다.
       if (onCollapse && desired < min - COLLAPSE_SLACK) {
         collapse();
+        return;
+      }
+      if (onExpandBeyondMax && desired > effectiveMaxWidth() + EXPAND_SLACK) {
+        // 폭은 상한에 둔 채로 넘긴다. 여기까지 민 것은 사용자가 원한 폭이 맞고,
+        // '넓게 보기'를 껐을 때 돌아갈 자리이기도 하다(접을 때와 다른 점).
+        setIsResizing(false);
+        onExpandBeyondMax();
         return;
       }
       setWidth(clamp(desired));
@@ -187,13 +210,18 @@ const ResizableSidePanel: React.FC<Props> = ({
     // setWidth·collapse는 폭이 바뀔 때마다 새로 만들어진다. 의존성에 넣으면 mousemove마다
     // 리스너를 떼었다 붙이게 된다. 둘 다 값을 넘겨 부르는 용도라 드래그 시작 시점의 것으로 족하다.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [clamp, collapse, isResizing, min, onCollapse]);
+  }, [clamp, collapse, effectiveMaxWidth, isResizing, min, onCollapse, onExpandBeyondMax]);
 
   /** 마우스 없이도 조절할 수 있어야 한다. 왼쪽=넓히기(패널이 왼쪽으로 자란다). */
   const handleKeyDown = useCallback(
     (event: React.KeyboardEvent<HTMLDivElement>) => {
       const keyed: Record<string, () => void> = {
-        ArrowLeft: () => setWidth((current) => clamp(current + RESIZE_STEP)),
+        // 이미 상한인데 한 번 더 넓히려는 것은 마우스로 상한 너머로 미는 것과 같은 뜻이다.
+        ArrowLeft: () => (
+          onExpandBeyondMax && width >= effectiveMaxWidth()
+            ? onExpandBeyondMax()
+            : setWidth((current) => clamp(current + RESIZE_STEP))
+        ),
         // 이미 최소 폭인데 한 번 더 좁히려는 것은 마우스로 최소 폭 아래로 미는 것과 같은 뜻이다.
         ArrowRight: () => (
           onCollapse && width <= min
@@ -211,7 +239,7 @@ const ResizableSidePanel: React.FC<Props> = ({
       event.preventDefault();
       action();
     },
-    [clamp, defaultWidth, max, min, onCollapse, width],
+    [clamp, defaultWidth, effectiveMaxWidth, max, min, onCollapse, onExpandBeyondMax, width],
   );
 
   return (

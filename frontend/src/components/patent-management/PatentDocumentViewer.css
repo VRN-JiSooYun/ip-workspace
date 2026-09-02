@@ -30,8 +30,10 @@
 }
 
 /* ---- 가로 타임라인 ------------------------------------------------------
-   축의 한 점 = 문서 한 건. 날짜(윗줄) + 칩(아랫줄) 두 줄이고, 탭 두 줄을 대신하는 것이라
-   전체 높이를 그 이상 먹지 않게 유지한다(패널이 좁을 때 본문을 밀어내지 않아야 한다). */
+   축의 한 점 = 문서 한 건. **날짜 칩(윗줄) + 문서 탭(아랫줄)** 두 줄이고, 전체 높이를 그
+   이상 먹지 않게 유지한다(패널이 좁을 때 본문을 밀어내지 않아야 한다).
+
+   윗줄이 시간축이다 — 날짜 칩끼리 선으로 이어지고, 아랫줄은 그 문서를 여는 탭이다. */
 
 .pm-timeline {
   flex: 0 0 auto;
@@ -76,54 +78,110 @@
   flex: 0 0 auto;
 }
 
-/* 점 사이를 잇는 선. 마지막 점 뒤에는 그리지 않는다. */
+/* 날짜 칩 사이를 잇는 선(= 시간축). 마지막 점 뒤에는 그리지 않는다. */
 .pm-timeline-stop:not(:last-child)::after {
   content: '';
   position: absolute;
-  /* 날짜 줄(16px) + gap(4px) + 칩(26px)의 절반 = 33px. 칩 세로 중앙과 맞춘다. */
-  top: 33px;
+  /* 날짜 칩(24px)의 세로 중앙. 칩 높이를 바꾸면 이 값도 함께 바꿔야 한다. */
+  top: 12px;
   right: -16px;
   width: 16px;
   height: 1px;
   background: var(--border-color);
 }
 
-/* 날짜 줄. 값이 없어도 자리는 차지해 점들이 같은 높이에 놓인다. */
-.pm-timeline-date {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  height: 16px;
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--text-secondary);
-  white-space: nowrap;
-}
-
-.pm-timeline-date-active {
-  color: var(--brand-primary);
-}
-
-/* 앞 문서와 같은 날짜라 생략한 줄. 자리만 남긴다. */
-.pm-timeline-date-repeat {
-  visibility: hidden;
-}
-
-/* 파일명에서 읽어 온 날짜임을 밝히는 표시. DB에 날짜 컬럼이 없는 의견서·보정서가 그렇다. */
-.pm-timeline-date-derived {
-  opacity: 0.55;
-}
-
-/* 문서 칩. */
+/* 날짜 칩. 한 날짜에 하나이고, 그 아래 탭들이 이 날짜에 속한다. */
 .pm-timeline-chip {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  height: 26px;
-  padding: 0 10px;
+  gap: 3px;
+  /* 테두리까지 24px로 고정한다. 위 연결선이 이 높이의 절반에 놓이므로 실제 높이가 값과
+     같아야 한다(content-box면 테두리만큼 어긋난다). */
+  box-sizing: border-box;
+  height: 24px;
+  padding: 0 9px;
   border: 1px solid var(--border-color);
   border-radius: 999px;
   background: var(--card-bg);
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* 고른 문서가 속한 날짜. 라벨은 구간의 첫 문서에만 있으므로 구간 단위로 켠다. */
+.pm-timeline-chip-active {
+  border-color: var(--brand-primary);
+  background: rgba(var(--brand-primary-rgb), 0.1);
+  color: var(--brand-primary);
+}
+
+/* 파일명에서 읽어 온 날짜임을 밝히는 표시. DB에 날짜 컬럼이 없는 의견서·보정서가 그렇다. */
+.pm-timeline-chip-derived {
+  opacity: 0.55;
+}
+
+/**
+ * 한 날짜의 문서 탭 줄.
+ *
+ * 탭끼리 붙여 한 덩어리로 보이게 한다(테두리는 1px씩 겹친다). 날짜 사이 간격은 트랙의
+ * gap이 담당하므로, 여기서 벌어지면 "어느 날짜의 탭인지"가 흐려진다.
+ */
+.pm-timeline-tabs {
+  display: flex;
+  align-items: flex-end;
+  min-width: 0;
+}
+
+.pm-timeline-tabs > .pm-timeline-tab + .pm-timeline-tab {
+  margin-inline-start: -1px;
+}
+
+/* 날짜 칩이 탭보다 넓으면 탭이 남는 폭을 나눠 갖는다. 탭 줄과 칩의 폭이 맞아야
+   "이 날짜의 탭"으로 묶여 보인다. */
+.pm-timeline-tabs > .pm-timeline-tab {
+  flex: 1 1 auto;
+  justify-content: center;
+}
+
+/**
+ * 날짜 칩과 탭 줄을 잇는 짧은 세로선.
+ *
+ * 탭이 위 날짜에 매달려 있다는 것을 보이게 한다. 칩의 점 자리(왼쪽에서 12px)에서 내려온다.
+ */
+.pm-timeline-stop::before {
+  content: '';
+  position: absolute;
+  left: 12px;
+  top: 24px;
+  width: 1px;
+  height: 4px;
+  background: var(--border-color);
+}
+
+/**
+ * 문서 탭 — 책갈피 모양.
+ *
+ * 아래 뷰어가 이 탭의 내용이다. 그 관계가 보이도록 위 두 모서리만 둥글리고 **아래 테두리를
+ * 두지 않아** 내용 쪽으로 열린 조각이 되게 한다(카드형 탭).
+ *
+ * 활성/비활성은 색만이 아니라 면과 높이로 가른다. 비활성은 눌린 면(`--bg-color`)에 3px
+ * 내려앉고, 활성은 내용과 같은 면(`--card-bg`)으로 올라와 브랜드 테두리와 윗줄 강조를 받는다.
+ * 색만으로 가르면 다크 모드에서 어느 탭이 열려 있는지 약해진다.
+ */
+.pm-timeline-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  box-sizing: border-box;
+  height: 28px;
+  /* 비활성은 이만큼 내려앉는다. 활성 탭이 그만큼 도드라져 보인다. */
+  margin-block-start: 2px;
+  padding: 0 10px;
+  border: 1px solid var(--border-color);
+  border-block-end: none;
+  border-radius: 8px 8px 0 0;
+  background: var(--bg-color);
   color: var(--text-secondary);
   font-size: 12px;
   font-weight: 500;
@@ -131,21 +189,35 @@
   cursor: pointer;
 }
 
-.pm-timeline-chip:hover {
+.pm-timeline-tab:hover:not(.pm-timeline-tab-active) {
   border-color: rgba(var(--brand-primary-rgb), 0.5);
   color: var(--text-primary);
 }
 
-.pm-timeline-chip-active {
+/**
+ * 열린 탭.
+ *
+ * 면(내용과 같은 `--card-bg`) + 브랜드 테두리 + 2px 들뜸까지만 쓴다. 여기에 윗줄 강조까지
+ * 더하면 한 탭에 강조가 셋이 되어 타임라인 전체가 시끄러워진다. 겹쳐 있는 이웃 탭의
+ * 테두리 위로 올라와야 열린 조각처럼 보이므로 z-index만 챙긴다.
+ */
+.pm-timeline-tab-active {
+  position: relative;
+  z-index: 1;
+  height: 30px;
+  margin-block-start: 0;
   border-color: var(--brand-primary);
-  background: rgba(var(--brand-primary-rgb), 0.1);
+  background: var(--card-bg);
   color: var(--brand-primary);
-  font-weight: 700;
+  font-weight: 600;
 }
 
-.pm-timeline-chip-matched:not(.pm-timeline-chip-active) {
-  border-color: rgba(var(--brand-primary-rgb), 0.45);
-}
+/**
+ * 검색어가 발견된 문서는 **탭 자체를 꾸미지 않는다.**
+ *
+ * 면을 옅게 깔거나 글자를 진하게 하면 고르지 않은 탭 하나만 달라 보여, 고르지도 않았는데
+ * 열린 것처럼 읽힌다. 이 상태는 탭 안의 '일치' 배지 하나로만 알린다.
+ */
 
 .pm-timeline-match-badge {
   padding: 0 4px;
@@ -156,47 +228,33 @@
   font-weight: 700;
 }
 
-.pm-timeline-chip:focus-visible {
+.pm-timeline-tab:focus-visible {
   outline: 2px solid var(--brand-primary);
   outline-offset: 1px;
 }
 
+/**
+ * 시간축의 점. 날짜 칩 안, 연결선과 같은 높이에 놓인다.
+ *
+ * 고르지 않은 날짜는 **비운 점**으로 모두 같은 모양이다. 문서 종류로 채움/테두리를 가르던
+ * 때는 통지서 자리만 채운 점이 되어 고르지 않은 항목이 강조돼 보였다 — 종류는 탭 이름이
+ * 말해 준다.
+ */
 .pm-timeline-dot {
   flex: 0 0 auto;
   width: 7px;
   height: 7px;
+  margin-inline-end: 2px;
+  border: 1.5px solid var(--text-secondary);
   border-radius: 999px;
   box-sizing: border-box;
+  background: transparent;
 }
 
-/* 통지서(심사관 → 출원인)는 채운 점, 대응 서류(출원인 → 심사관)는 테두리 점.
-   방향이 다른 문서를 색만으로 가르면 다크 모드에서 구분이 약해진다. */
-.pm-timeline-dot-action {
-  background: var(--brand-primary);
-}
-
-.pm-timeline-dot-response {
-  background: var(--card-bg);
-  border: 1.5px solid var(--brand-primary);
-}
-
-.pm-timeline-dot-other {
-  background: var(--border-color);
-}
-
+/* 고른 날짜의 점만 채우고 브랜드 색을 쓴다. 이 화면에서 브랜드 색은 '고른 것' 하나만 뜻한다. */
 .pm-timeline-dot-selected {
+  border-color: var(--brand-primary);
   background: var(--brand-primary);
-  border: 1.5px solid var(--brand-primary);
-}
-
-/* 종류 꼬리표(통지/대응/기타). 이름만으로는 방향이 안 읽히는 '기타 문서'를 위해 둔다. */
-.pm-timeline-chip-kind {
-  padding: 0 4px;
-  border-radius: 4px;
-  background: var(--bg-color);
-  font-size: 10px;
-  font-weight: 600;
-  opacity: 0.75;
 }
 
 /* 고른 문서 하나가 남는 높이를 채운다. */
@@ -270,24 +328,31 @@
   min-height: 240px;
 }
 
-/* 선택한 검색 결과의 본문에서 실제 발견된 token. PDF 표준 검색의 활성 query와 연결된다. */
+/**
+ * 검색어 일치 근거 줄. chip은 선택한 검색 결과의 본문에서 실제 발견된 token으로,
+ * PDF 표준 검색의 활성 query와 연결된다.
+ *
+ * 타임라인 **위**에 있다. 타임라인 탭은 바로 아래 내용을 여는 책갈피라, 그 사이에 이 줄이
+ * 끼면 탭과 내용이 이어져 보이지 않는다.
+ *
+ * 높이는 검색어가 몇 개든 한 줄로 고정한다. 줄바꿈을 허용하면 문서마다 1줄↔2줄이 갈리면서
+ * 아래 타임라인과 pane이 위아래로 튄다(줄의 존재 조건을 특허 단위로 올린 것과 같은 이유).
+ * 넘치는 chip은 가로로 흘린다. min-height는 chip(24px) + 위아래 padding(16px) + 테두리(2px)
+ * — 근거가 없는 문서에서 안내 문구만 남아도 줄 높이가 그대로여야 한다.
+ */
 .pm-doc-search-evidence {
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 6px;
   flex: 0 0 auto;
-  margin-bottom: 8px;
+  box-sizing: border-box;
+  min-height: 42px;
+  margin-bottom: 10px;
   padding: 8px 10px;
   border: 1px solid rgba(var(--brand-primary-rgb), 0.24);
   border-radius: 10px;
   background: rgba(var(--brand-primary-rgb), 0.05);
-}
-
-.pm-doc-search-evidence-static {
-  align-self: stretch;
-  width: 100%;
-  box-sizing: border-box;
 }
 
 .pm-doc-search-evidence-label {
@@ -295,22 +360,27 @@
   font-size: 12px;
   font-weight: 700;
   white-space: nowrap;
+  flex: 0 0 auto;
 }
 
-.pm-doc-search-target {
-  margin: 0;
-  color: var(--brand-primary);
-  background: rgba(var(--brand-primary-rgb), 0.1);
+/* 이 문서에서는 검색어가 발견되지 않았다는 안내. 줄 자체는 남는다. */
+.pm-doc-search-evidence-empty {
+  color: var(--text-secondary);
+  font-size: 12px;
+  white-space: nowrap;
 }
 
 .pm-doc-search-terms {
   display: inline-flex;
-  flex-wrap: wrap;
+  flex: 1 1 auto;
+  flex-wrap: nowrap;
   gap: 5px;
   min-width: 0;
+  overflow-x: auto;
 }
 
 .pm-doc-search-term {
+  flex: 0 0 auto;
   height: 24px;
   padding-inline: 9px;
   border-radius: 999px;

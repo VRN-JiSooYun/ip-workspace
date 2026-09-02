@@ -1,6 +1,5 @@
-import React, { useMemo, useState } from 'react';
-import { Empty, Tag, Tooltip, Typography } from 'antd';
-import { FileText } from 'lucide-react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Button, Empty, Tag, Typography } from 'antd';
 import PatentDocumentPdfPane from './PatentDocumentPdfPane';
 import PatentDocumentTimeline, { type TimelineSelection } from './PatentDocumentTimeline';
 import { buildTimelineEntries, type PdfSource } from './patentDocumentNodes';
@@ -92,9 +91,12 @@ const fileNameOf = (documentPath: string | null): string | null => {
  */
 const FullTextPane: React.FC<{
   sources: PdfSource[];
-  searchTerms: string[];
-  searchTargetLabel: string;
-}> = ({ sources, searchTerms, searchTargetLabel }) => {
+  /** 지금 하이라이트할 검색어. 근거 줄은 타임라인 위에서 그린다. */
+  activeTerm: string | null;
+  /** 같은 검색어를 다시 눌렀을 때도 하이라이트를 다시 걸기 위한 번호. */
+  termRequest: number;
+  onManualSearch: () => void;
+}> = ({ sources, activeTerm, termRequest, onManualSearch }) => {
   // sources가 빌 수 있다. PDF 없이 본문만 있는 통지서, PDF가 딸리지 않은 의견서·보정서가
   // 그렇다 — 부르는 쪽이 그 경우 []를 그대로 넘긴다. sources[0].path로 바로 읽으면
   // 그런 문서를 고르는 순간 뷰어가 아니라 앱 전체가 죽는다(위에 error boundary가 없다).
@@ -103,20 +105,6 @@ const FullTextPane: React.FC<{
   if (!resolvedPath) {
     return (
       <div className="pm-viewer-preview">
-        {searchTerms.length > 0 && (
-          <div className="pm-doc-search-evidence pm-doc-search-evidence-static">
-            <span
-              className="pm-doc-search-evidence-label"
-              title="검색 결과 판정에 사용된 추출 본문에서 실제로 발견된 검색어입니다."
-            >
-              검색어 일치
-            </span>
-            <Tag bordered={false} className="pm-doc-search-target">
-              {searchTargetLabel}
-            </Tag>
-            {searchTerms.map((term) => <Tag key={term}>{term}</Tag>)}
-          </div>
-        )}
         <Text type="secondary" style={{ fontSize: 12 }}>
           이 문서에는 첨부된 PDF 원본이 없습니다.
         </Text>
@@ -130,8 +118,9 @@ const FullTextPane: React.FC<{
       <PatentDocumentPdfPane
         key={resolvedPath}
         documentPath={resolvedPath}
-        searchTerms={searchTerms}
-        searchTargetLabel={searchTargetLabel}
+        activeTerm={activeTerm}
+        termRequest={termRequest}
+        onManualSearch={onManualSearch}
       />
     </div>
   );
@@ -294,6 +283,37 @@ const PatentDocumentViewer: React.FC<Props> = ({
     ) ?? NO_SEARCH_TERMS)
     : NO_SEARCH_TERMS;
 
+  /**
+   * 하이라이트할 검색어 하나. 근거 줄이 타임라인 **위**에 있고 PDF는 아래 pane에 있어,
+   * 둘 사이의 상태를 여기서 들고 양쪽에 나눠 준다.
+   *
+   * 근거 줄을 pane 안에 두면 pane이 문서마다 remount되면서(`key={resolvedPath}`) 줄이 통째로
+   * 다시 그려지고, 타임라인을 pane 안으로 내려도 같은 이유로 탭 포커스가 날아간다.
+   * 그래서 줄만 위로 올리고 상태를 이 컴포넌트가 갖는다.
+   */
+  const [evidenceTerm, setEvidenceTerm] = React.useState<string | null>(null);
+  /** 같은 검색어를 다시 눌렀을 때도 하이라이트를 다시 걸기 위한 번호. */
+  const [evidenceRequest, setEvidenceRequest] = React.useState(0);
+
+  useEffect(() => {
+    setEvidenceTerm(activeSearchTerms[0] ?? null);
+    setEvidenceRequest((request) => request + 1);
+  }, [activeSearchTerms]);
+
+  const requestEvidenceTerm = (term: string) => {
+    setEvidenceTerm(term);
+    setEvidenceRequest((request) => request + 1);
+  };
+
+  /** 고른 문서에 PDF가 없으면 하이라이트할 곳이 없다. 누를 수 없게 둔다. */
+  const canHighlight = (activeNode?.sources.length ?? 0) > 0;
+
+  /**
+   * 근거 줄을 낼지 말지. 특허 하나를 보는 동안 바뀌지 않는 값이어야 한다 —
+   * 이유는 아래 줄을 그리는 곳의 주석에 있다.
+   */
+  const hasSearchContext = matchedEntryKeys.size > 0;
+
   const headerFileName = activeItem
     ? (fileNameOf(activeItem.koreanTitle) ?? 'UNKNOWN')
     : null;
@@ -313,31 +333,61 @@ const PatentDocumentViewer: React.FC<Props> = ({
         />
       ) : (
         <>
+          {/* 파일 아이콘 자리에 법적 상태를 둔다. 모든 문서가 같은 아이콘이라 알려 주는 것이
+              없었고, 이 줄에서 정작 궁금한 것은 "이 특허가 지금 어떤 상태인가"다. */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-            <FileText size={20} style={{ color: 'var(--brand-primary)', flexShrink: 0 }} />
-            <Tooltip title={headerFileName}>
-              <span className="pm-ellipsis" style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)' }}>
-                {headerFileName}
-              </span>
-            </Tooltip>
+            {legalStatusLabel && (
+              <Tag
+                color={getLegalStatusTagColor(legalStatusLabel)}
+                style={{ marginInlineEnd: 0, flexShrink: 0 }}
+              >
+                {legalStatusLabel}
+              </Tag>
+            )}
+            <span className="pm-ellipsis" style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)' }}>
+              {headerFileName}
+            </span>
           </div>
 
-          <div className="pm-viewer-meta" style={{ marginBottom: 6 }}>
-            <span>출원번호 <span className="pm-viewer-meta-value">{activeItem.applicationNumber ?? '-'}</span></span>
-            <span className="pm-viewer-divider">|</span>
-            {legalStatusLabel && (
-              <>
-                <span>법적 상태 <span className="pm-viewer-meta-value"></span></span>
-                <Tag
-                  color={getLegalStatusTagColor(legalStatusLabel)}
-                  style={{ marginInlineEnd: 0 }}
-                >
-                  {legalStatusLabel}
-                </Tag>
-              </>
-            )}
-            {examStatusLabel && <Tag style={{ marginInlineEnd: 0 }}>{examStatusLabel}</Tag>}
-          </div>
+          {/**
+           * 검색어 일치 근거. 타임라인 **위**에 둔다 — 타임라인 탭은 바로 아래 내용을 여는
+           * 책갈피라, 그 사이에 다른 줄이 끼면 탭과 내용이 이어져 보이지 않는다.
+           *
+           * 줄을 내보내는 기준은 `hasSearchContext`다 — "지금 고른 문서가 매칭됐는가"가
+           * 아니라 "이 화면이 본문 검색으로 들어왔는가". 문서 단위로 조건을 걸면 같은 특허
+           * 안에서 탭만 옮겨도 줄이 마운트/언마운트되며 아래 타임라인과 pane이 통째로
+           * 위아래로 튄다. 매칭 없는 문서에서는 같은 높이에 흐린 안내만 남긴다.
+           */}
+          {hasSearchContext && (
+            <div className="pm-doc-search-evidence" aria-label="검색어 일치 근거">
+              <span
+                className="pm-doc-search-evidence-label"
+                title="검색 결과 판정에 사용된 추출 본문에서 실제로 발견된 검색어입니다."
+              >
+                검색어 일치
+              </span>
+              {activeSearchTerms.length > 0 ? (
+                <span className="pm-doc-search-terms">
+                  {activeSearchTerms.map((term) => (
+                    <Button
+                      key={term}
+                      size="small"
+                      type={evidenceTerm === term ? 'primary' : 'default'}
+                      className="pm-doc-search-term"
+                      aria-pressed={evidenceTerm === term}
+                      disabled={!canHighlight}
+                      title={canHighlight ? undefined : 'PDF 원본이 없어 하이라이트할 수 없습니다'}
+                      onClick={() => requestEvidenceTerm(term)}
+                    >
+                      {term}
+                    </Button>
+                  ))}
+                </span>
+              ) : (
+                <span className="pm-doc-search-evidence-empty">없음</span>
+              )}
+            </div>
+          )}
 
           {/* 탭 두 줄(통지 건 + 문서)을 대신하는 가로 타임라인. */}
           <PatentDocumentTimeline
@@ -353,8 +403,11 @@ const PatentDocumentViewer: React.FC<Props> = ({
             {activeNode ? (
               <FullTextPane
                 sources={activeNode.sources}
-                searchTerms={activeSearchTerms}
-                searchTargetLabel={activeNode.label}
+                activeTerm={evidenceTerm}
+                termRequest={evidenceRequest}
+                // 사용자가 PDF toolbar에서 직접 검색하면 근거 줄의 선택을 풀어 둔다.
+                // 번호는 올리지 않는다 — 올리면 방금 입력한 검색이 지워진다(pane 주석 참고).
+                onManualSearch={() => setEvidenceTerm(null)}
               />
             ) : (
               <div className="pm-viewer-preview">

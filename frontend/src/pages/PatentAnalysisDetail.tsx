@@ -2037,7 +2037,9 @@ const PatentAnalysisDetail: React.FC = () => {
               zoomPercent={pdfViewer.pdfZoomPercent}
               onZoomIn={pdfViewer.zoomPdfIn}
               onZoomOut={pdfViewer.zoomPdfOut}
-              onResetZoom={pdfViewer.resetPdfZoom}
+              onZoomPercentChange={pdfViewer.applyPdfZoom}
+              onFitPageWidth={pdfViewer.fitPdfToPageWidth}
+              fitPageWidthActive={pdfViewer.pdfScaleValue === 'page-width'}
               onToggleFit={fitPageToScreen}
               onOpenPdfInBrowser={browserPdfDocument ? handleOpenPdfInBrowser : undefined}
               onSearchQueryChange={pdfViewer.setSearchQuery}

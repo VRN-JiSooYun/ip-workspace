@@ -1,5 +1,13 @@
 import React from 'react';
-import { CalendarDays, ChevronsLeft, ChevronsRight, FileText, ListChecks } from 'lucide-react';
+import {
+  CalendarDays,
+  ChevronsLeft,
+  ChevronsRight,
+  FileText,
+  ListChecks,
+  Maximize2,
+  Minimize2,
+} from 'lucide-react';
 import ResizableSidePanel from '../common/ResizableSidePanel';
 import DocumentRailPanel from './rail/DocumentRailPanel';
 import ScheduleRailPanel from './rail/ScheduleRailPanel';
@@ -73,8 +81,21 @@ const RightSidebar: React.FC = () => {
   const collapse = useRightSidebarStore((state) => state.collapse);
   const setWidth = useRightSidebarStore((state) => state.setWidth);
   const hasDocuments = useRightSidebarStore((state) => state.documentContext !== null);
-  /** 문서 패널 머리줄 부제. 어느 특허의 문서를 보고 있는지가 안 보이면 화면을 옮긴 뒤 헷갈린다. */
-  const documentLabel = useRightSidebarStore((state) => state.documentContext?.label ?? null);
+  /**
+   * 문서 패널 머리줄 부제. 어느 특허의 문서를 보고 있는지가 안 보이면 화면을 옮긴 뒤 헷갈린다.
+   *
+   * 보여 주는 값은 지금 고른 통지 건의 출원번호다. 내부관리번호(`context.label`)는 조직 안에서만
+   * 통하는 이름이라, 문서를 남에게 짚어 줄 때 쓰는 번호를 부제로 둔다. 출원번호가 없는 건
+   * (검색 결과에서 온 문서)에만 label로 물러난다.
+   */
+  const documentSubtitle = useRightSidebarStore((state) => {
+    const context = state.documentContext;
+    if (!context) return null;
+    const activeDocument = context.items.find(
+      (item) => item.officeActionId === context.activeId,
+    ) ?? context.items[0];
+    return activeDocument?.applicationNumber ?? context.label;
+  });
 
   const active = activeItem ? ITEM_BY_ID.get(activeItem) : undefined;
 
@@ -82,13 +103,32 @@ const RightSidebar: React.FC = () => {
     if (activeItem) setWidth(activeItem, next);
   }, [activeItem, setWidth]);
 
-  /** 창이 바뀌면 상한도 바뀐다. 드래그 중에는 mousemove가 이미 클램프한다. */
+  /** 창이 바뀌면 상한도 '넓게 보기' 폭도 바뀐다. 드래그 중에는 mousemove가 이미 클램프한다. */
   const [maxWidth, setMaxWidth] = React.useState(computeMaxWidth);
+  const [viewportWidth, setViewportWidth] = React.useState(
+    () => (typeof window === 'undefined' ? 0 : window.innerWidth),
+  );
   React.useEffect(() => {
-    const onResize = () => setMaxWidth(computeMaxWidth());
+    const onResize = () => {
+      setMaxWidth(computeMaxWidth());
+      setViewportWidth(window.innerWidth);
+    };
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
   }, []);
+
+  /**
+   * 넓게 보기.
+   *
+   * 본문 최소 폭(MIN_MAIN_WIDTH)은 극단 드래그로 본문이 129px까지 짓눌리던 것을 막는
+   * 방어선이라 풀지 않는다. 대신 이 모드에서는 패널을 **본문 위로 띄운다** — 본문을
+   * 밀어내는 것이 아니라 덮으므로 보호를 깨지 않고도 화면 가득 문서를 볼 수 있다.
+   * 자세한 배치는 rightSidebar.css의 `.rs-shell-wide`에 있다.
+   *
+   * 저장하지 않는다. 읽는 동안만 쓰는 모드라, 새로고침했더니 본문이 가려진 채 시작하는
+   * 편보다 꺼진 채 시작하는 편이 덜 놀랍다(화면 이동으로는 유지된다).
+   */
+  const [wide, setWide] = React.useState(false);
 
   /** 이 항목이 지금 화면에서 가질 수 있는 최대 폭. 최소 폭보다 작아지지는 않는다. */
   const effectiveMax = React.useCallback((item: RightRailItemId) => (
@@ -100,6 +140,21 @@ const RightSidebar: React.FC = () => {
    * 뻣뻣하게 느껴진다 — 바로 이 화면에서 실제로 겪은 문제다.
    */
   const [isResizing, setIsResizing] = React.useState(false);
+
+  /** 레일을 접으면 넓게 보기도 끝난다. 다시 펼 때 화면이 덮인 채로 열리면 놀란다. */
+  React.useEffect(() => {
+    if (!activeItem) setWide(false);
+  }, [activeItem]);
+
+  /** 덮고 있는 모드는 Esc로 빠져나갈 수 있어야 한다. */
+  React.useEffect(() => {
+    if (!wide) return undefined;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setWide(false);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [wide]);
 
   /**
    * 접히는 동안에도 내용을 남겨 둘 항목.
@@ -134,12 +189,19 @@ const RightSidebar: React.FC = () => {
   const shellWidth = active
     ? Math.min(widths[active.id], effectiveMax(active.id)) + HANDLE_WIDTH
     : 0;
+  /**
+   * 넓게 보기의 폭. 아이콘 레일 자리는 남긴다 — 그 자리가 없으면 이 모드를 끌 길이 화면에서
+   * 사라진다(패널 머리줄의 토글과 Esc가 남지만, 눈에 보이는 출구가 있어야 한다).
+   */
+  const wideWidth = Math.max(shellWidth, viewportWidth - RAIL_WIDTH);
 
   return (
     <div className="rs-root">
       <div
-        className={`rs-shell${isResizing ? ' rs-shell-instant' : ''}`}
-        style={{ width: shellWidth }}
+        className={
+          `rs-shell${isResizing ? ' rs-shell-instant' : ''}${wide ? ' rs-shell-wide' : ''}`
+        }
+        style={{ width: wide ? wideWidth : shellWidth }}
         // 접힌 뒤에는 안의 내용이 키보드·스크린리더에 잡히지 않아야 한다.
         aria-hidden={!expanded}
       >
@@ -156,21 +218,40 @@ const RightSidebar: React.FC = () => {
             onResizingChange={setIsResizing}
             // 최소 폭보다 더 좁히려고 밀면 접는다. 레일 아이콘이 남으므로 다시 열 길은 있다.
             onCollapse={collapse}
+            // 상한보다 더 넓히려고 밀면 넓게 보기로 넘어간다. 상한에서 막히기만 하면
+            // '왜 안 늘어나지'로 끝나는데, 그때 원하는 것이 바로 이 모드다.
+            onExpandBeyondMax={() => setWide(true)}
           >
             <div className="rs-panel">
               <div className="rs-panel-head">
                 <span className="rs-panel-title">{mounted.label}</span>
-                {mounted.id === 'documents' && documentLabel ? (
-                  <span className="rs-panel-subtitle" title={documentLabel}>
-                    {documentLabel}
+                {mounted.id === 'documents' && documentSubtitle ? (
+                  <span className="rs-panel-subtitle" title={documentSubtitle}>
+                    {documentSubtitle}
                   </span>
                 ) : null}
+                <button
+                  type="button"
+                  className="rs-panel-wide"
+                  aria-pressed={wide}
+                  aria-label={wide ? '넓게 보기 끄기' : '넓게 보기'}
+                  title={wide ? '넓게 보기 끄기 (Esc)' : '넓게 보기'}
+                  onClick={() => setWide((current) => !current)}
+                >
+                  {wide ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
+                </button>
               </div>
               <div className="rs-panel-body">{panelBody}</div>
             </div>
           </ResizableSidePanel>
         ) : null}
       </div>
+
+      {/* 넓게 보기에서 셸이 흐름 밖으로 나가면 본문이 그만큼 넓어졌다가 모드를 끌 때 되돌아온다.
+          가려진 채로 본문을 두 번 다시 배치하는 셈이라, 셸이 쓰던 자리를 그대로 잡아 둔다. */}
+      {wide && (
+        <div className="rs-shell-spacer" style={{ width: shellWidth }} aria-hidden="true" />
+      )}
 
       <nav className="rs-rail" aria-label="우측 사이드바">
         {/*

@@ -399,15 +399,6 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
               <Button type="text" onClick={toggleTheme} style={{ width: 40, height: 40, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }} icon={
                 isDarkMode ? <Sun size={20} color={token.colorTextSecondary} /> : <Moon size={20} color={token.colorTextSecondary} />
               } />
-              <Tooltip title="RDKit Draw 설정">
-                <Button
-                  type="text"
-                  icon={<Palette size={20} color={token.colorTextSecondary} />}
-                  onClick={() => setIsRdkitDrawOptionsOpen(true)}
-                  aria-label="RDKit Draw 설정 열기"
-                  style={{ width: 40, height: 40, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
-                />
-              </Tooltip>
             </Space>
             <span
               title={userDisplayName}
