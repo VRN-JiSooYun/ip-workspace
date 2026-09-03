@@ -5,6 +5,7 @@ import { useCalendarEvents } from '../../../hooks/useCalendarEvents';
 import { usePatentScheduleEvents } from '../../../hooks/usePatentScheduleEvents';
 import { toLocalDateKey } from '../../../utils/patentCalendar';
 import type { PatentScheduleEvent } from '../../../services/patentRecordApi';
+import type { CalendarEvent } from '../../../utils/calendarEvents';
 
 type VisibleRange = { from: string; to: string; patentMonths: string[] };
 
@@ -29,6 +30,7 @@ const SchedulePanel: React.FC = () => {
     selectedTargets,
     openPatentList,
     loadPatentScheduleEvents,
+    searchPatentOptions,
     calendarGateway,
     teams,
     refreshToken,
@@ -58,7 +60,19 @@ const SchedulePanel: React.FC = () => {
 
   /** 특허 일정 팝업의 '특허 열기'. 그 한 건으로 좁혀 목록을 연다(기한 보드와 같은 방식). */
   const openPatent = useCallback((event: PatentScheduleEvent) => {
-    openPatentList({ q: event.applicationNumber, targets: [] });
+    openPatentList({ applicationNumber: event.applicationNumber, targets: [] });
+  }, [openPatentList]);
+
+  /**
+   * 내 일정에 연결한 특허로 목록을 연다. 내부관리번호가 있으면 그것으로 좁힌다 —
+   * 사용자가 고른 값이 그대로 상세 검색 칸에 보여야 어디서 온 조건인지 알 수 있다.
+   */
+  const openPatentRecord = useCallback((patent: NonNullable<CalendarEvent['patent']>) => {
+    openPatentList(
+      patent.internalRef
+        ? { internalRef: patent.internalRef, targets: [] }
+        : { applicationNumber: patent.applicationNumber, targets: [] },
+    );
   }, [openPatentList]);
 
   return (
@@ -73,6 +87,8 @@ const SchedulePanel: React.FC = () => {
         teams={teams}
         onRangeChange={setRange}
         onOpenPatent={openPatent}
+        onOpenPatentRecord={openPatentRecord}
+        searchPatents={searchPatentOptions}
         todayKey={todayKey}
         getHolidayName={getHolidayName}
         onCreate={events.createEvent}

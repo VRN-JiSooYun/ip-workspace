@@ -1,16 +1,68 @@
-import React, { useMemo } from 'react';
-import { Button, Pagination, Table, Tag, Tooltip, Typography } from 'antd';
+import React, { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { App as AntApp, Button, Pagination, Table, Tag, Tooltip, Typography } from 'antd';
 import type { TableColumnsType } from 'antd';
-import { FileText, ListTodo, Pencil, Plus, Trash2, UploadCloud } from 'lucide-react';
+import { Download, FileText, ListTodo, Pencil, Plus, Trash2, UploadCloud } from 'lucide-react';
 import { PATENT_LIST_PAGE_SIZE } from '../../../../hooks/usePatentWorkspaceState';
-import type { PatentRecord } from '../../../../services/patentRecordApi';
+import {
+  patentRecordApi,
+  type PatentRecord,
+  type PatentRecordListQuery,
+} from '../../../../services/patentRecordApi';
 import { formatDisplayDateTime, formatNumberWithComma } from '../../../../utils/displayFormat';
 import { getLegalStatusTagColor } from '../../../../utils/legalStatusTag';
+import { CountryTag } from '../../../common/CountryTag';
 import { usePatentWorkspace } from '../PatentWorkspaceContext';
 
 const { Text } = Typography;
 
 const emptyDash = (value: string | null | undefined) => value ?? '-';
+
+type OverflowTooltipTextProps = {
+  value: string | null | undefined;
+  children?: React.ReactNode;
+  lines?: 1 | 2;
+};
+
+/** 실제로 말줄임이 발생한 셀만 원문 Tooltip을 제공한다. */
+const OverflowTooltipText: React.FC<OverflowTooltipTextProps> = ({
+  value,
+  children,
+  lines = 1,
+}) => {
+  const textRef = useRef<HTMLSpanElement>(null);
+  const [truncated, setTruncated] = useState(false);
+
+  const measureOverflow = useCallback(() => {
+    const element = textRef.current;
+    if (!element) return;
+    setTruncated(
+      element.scrollWidth > element.clientWidth + 1
+      || element.scrollHeight > element.clientHeight + 1,
+    );
+  }, []);
+
+  useLayoutEffect(() => {
+    measureOverflow();
+    const element = textRef.current;
+    if (!element || typeof ResizeObserver === 'undefined') return undefined;
+
+    const observer = new ResizeObserver(measureOverflow);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [measureOverflow, value, children]);
+
+  return (
+    <Tooltip title={truncated ? value : undefined}>
+      <span
+        ref={textRef}
+        className={`pm-ellipsis${lines === 2 ? ' pm-ellipsis-two-lines' : ''}`}
+        onMouseEnter={measureOverflow}
+      >
+        {children ?? emptyDash(value)}
+      </span>
+    </Tooltip>
+  );
+};
 
 /**
  * 검색어와 일치한 구간을 <mark>로 감싼다. 서버가 대소문자 구분 없이 부분 일치로 찾으므로
@@ -50,6 +102,8 @@ const highlightMatch = (
  * 의견제출통지서 화면으로 일원화해서 여기서는 뺐다.
  */
 const PatentListPanel: React.FC = () => {
+  const { message } = AntApp.useApp();
+  const [csvDownloading, setCsvDownloading] = useState(false);
   const {
     canManage,
     patents,
@@ -57,6 +111,8 @@ const PatentListPanel: React.FC = () => {
     page,
     setPage,
     search,
+    selectedTargets,
+    listFilters,
     listLoading,
     listError,
     activeStageGroup,
@@ -70,74 +126,127 @@ const PatentListPanel: React.FC = () => {
     openDocuments,
   } = usePatentWorkspace();
 
-  const columns = useMemo<TableColumnsType<PatentRecord>>(() => [
+  const csvQuery = useMemo(() => ({
+    q: search || undefined,
+    targets: selectedTargets.length > 0 ? selectedTargets : undefined,
+    stageGroup: activeStageGroup ?? undefined,
+    ...listFilters,
+  } satisfies PatentRecordListQuery), [
+    activeStageGroup,
+    listFilters,
+    search,
+    selectedTargets,
+  ]);
+
+  const downloadCsv = useCallback(async () => {
+    setCsvDownloading(true);
+    try {
+      const blob = await patentRecordApi.exportCsv(csvQuery);
+      const objectUrl = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = objectUrl;
+      anchor.download = 'patent-records.csv';
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      URL.revokeObjectURL(objectUrl);
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : '알 수 없는 오류';
+      void message.error(`CSV를 다운로드하지 못했습니다: ${detail}`);
+    } finally {
+      setCsvDownloading(false);
+    }
+  }, [csvQuery, message]);
+
+  const columns = useMemo<TableColumnsType<PatentRecord>>(() => {
+    const allColumns: TableColumnsType<PatentRecord> = [
     {
-      title: '내부관리번호',
+      title: 'Target',
+      dataIndex: 'target',
+      key: 'target',
+      width: '7%',
+      render: (value: string | null) => (
+        <OverflowTooltipText value={value}>
+          {highlightMatch(value, search) ?? '-'}
+        </OverflowTooltipText>
+      ),
+    },
+    {
+      title: <span className="pm-no-wrap">내부관리번호</span>,
       key: 'internalRef',
-      width: 132,
+      width: '10%',
+      className: 'pm-internal-ref-cell',
       render: (_, record) => {
         if (!record.internalRef) return emptyDash(null);
         // 파싱된 구성요소가 없으면 IP팀 규칙에서 벗어난 값이다. 막지 않고 표시만 한다.
         const unparsed = record.refOrigin === null;
         return (
-          <Tooltip title={unparsed ? '알려진 번호 규칙과 형식이 다릅니다' : undefined}>
-            <span>
+            <span className="pm-no-wrap">
               {highlightMatch(record.internalRef, search)}
-              {unparsed && <Tag color="orange" style={{ marginLeft: 6 }}>규칙 외</Tag>}
             </span>
-          </Tooltip>
         );
       },
     },
     {
       title: '국가',
       key: 'country',
-      width: 80,
-      render: (_, record) => record.country?.country ?? '-',
+      width: '5%',
+      render: (_, record) => <CountryTag code={record.country?.country} />,
     },
     {
       title: '출원번호',
       dataIndex: 'applicationNumber',
       key: 'applicationNumber',
-      width: 168,
+      width: '10%',
       render: (value: string) => highlightMatch(value, search),
     },
     {
       title: '출원일',
       dataIndex: 'applicationDate',
       key: 'applicationDate',
-      width: 110,
-      render: (value: string | null) => formatDisplayDateTime(value),
+      width: '7%',
+      render: (value: string | null) => {
+        const displayValue = formatDisplayDateTime(value);
+        return <OverflowTooltipText value={displayValue} />;
+      },
     },
     {
       title: '명칭',
       key: 'title',
-      width: 260,
-      render: (_, record) => (
-        <Tooltip title={record.englishTitle ?? record.koreanTitle ?? ''}>
-          <span className="pm-ellipsis">
-            {highlightMatch(record.koreanTitle ?? record.englishTitle, search) ?? '-'}
-          </span>
-        </Tooltip>
-      ),
+      width: '12%',
+      render: (_, record) => {
+        const value = record.koreanTitle ?? record.englishTitle;
+        return (
+          <OverflowTooltipText value={value} lines={2}>
+            {highlightMatch(value, search) ?? '-'}
+          </OverflowTooltipText>
+        );
+      },
     },
     {
       title: '출원인',
       dataIndex: 'applicant',
       key: 'applicant',
-      width: 140,
-      render: (value: string | null) => highlightMatch(value, search) ?? emptyDash(null),
+      width: '9%',
+      render: (value: string | null) => (
+        <OverflowTooltipText value={value}>
+          {highlightMatch(value, search) ?? '-'}
+        </OverflowTooltipText>
+      ),
     },
     {
       title: '대리인',
       key: 'attorney',
-      width: 110,
-      render: (_, record) => record.attorney?.attorneyName ?? emptyDash(null),
+      width: '7%',
+      render: (_, record) => {
+        const value = record.attorney?.attorneyName;
+        return <OverflowTooltipText value={value} />;
+      },
     },
     {
       title: '법적 상태',
       key: 'legalStatus',
-      width: 110,
+      width: '7%',
       render: (_, record) =>
         record.legalStatus ? (
           <Tag color={getLegalStatusTagColor(record.legalStatus.status)}>
@@ -148,7 +257,7 @@ const PatentListPanel: React.FC = () => {
     {
       title: '심사 상태',
       key: 'examStatus',
-      width: 110,
+      width: '7%',
       render: (_, record) =>
         record.examStatus ? <Tag>{record.examStatus.status}</Tag> : emptyDash(null),
     },
@@ -156,13 +265,13 @@ const PatentListPanel: React.FC = () => {
       title: '등록번호',
       dataIndex: 'registrationNumber',
       key: 'registrationNumber',
-      width: 140,
+      width: '7%',
       render: emptyDash,
     },
     {
       title: '문서',
       key: 'documents',
-      width: 76,
+      width: '4%',
       align: 'center' as const,
       render: (_, record) => {
         const count = record.documentCount ?? 0;
@@ -189,7 +298,7 @@ const PatentListPanel: React.FC = () => {
           {
             title: '',
             key: 'actions',
-            width: 128,
+            width: '8%',
             align: 'center' as const,
             render: (_: unknown, record: PatentRecord) => (
               <span style={{ display: 'inline-flex', gap: 2 }}>
@@ -226,7 +335,17 @@ const PatentListPanel: React.FC = () => {
           },
         ]
       : []),
-  ], [canManage, confirmDelete, openDetailModal, openDocuments, search, setTodoPatent]);
+    ];
+
+    return allColumns;
+  }, [
+    canManage,
+    confirmDelete,
+    openDetailModal,
+    openDocuments,
+    search,
+    setTodoPatent,
+  ]);
 
   return (
     <div className="pm-panel-scroll pm-list-panel">
@@ -244,6 +363,14 @@ const PatentListPanel: React.FC = () => {
           )}
         </span>
         <span className="pm-list-header-controls">
+          <Button
+            icon={<Download size={14} />}
+            style={{ height: 30 }}
+            loading={csvDownloading}
+            onClick={() => void downloadCsv()}
+          >
+            CSV로 다운로드
+          </Button>
           {canManage && (
             <Button
               icon={<UploadCloud size={14} />}
@@ -274,7 +401,7 @@ const PatentListPanel: React.FC = () => {
           loading={listLoading}
           size="small"
           pagination={false}
-          scroll={{ x: 'max-content' }}
+          tableLayout="fixed"
           locale={{
             emptyText: listError
               ? `목록을 불러오지 못했습니다: ${listError}`

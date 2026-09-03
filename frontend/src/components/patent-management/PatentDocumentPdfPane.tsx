@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { App as AntApp, theme } from 'antd';
 import PatentPdfToolbar from '../patent-analysis/pdf/PatentPdfToolbar';
 import PatentPdfViewer from '../patent-analysis/pdf/PatentPdfViewer';
+import PdfSearchTermTray, { type PdfSearchTerm } from './PdfSearchTermTray';
 import { usePatentPdfViewer } from '../../hooks/usePatentPdfViewer';
 import { patentRecordApi } from '../../services/patentRecordApi';
 import { saveBlob } from '../../utils/patentPdf';
@@ -11,6 +12,9 @@ import { saveBlob } from '../../utils/patentPdf';
  * 하이라이트를 쓰지 않으므로 모듈 수준의 빈 배열을 고정해서 넘긴다.
  */
 const NO_HIGHLIGHTS: never[] = [];
+
+/** 위와 같은 이유(고정 참조)로 트레이 검색어의 기본값도 모듈 수준에 둔다. */
+const NO_SEARCH_TERMS: PdfSearchTerm[] = [];
 
 /** `http://.../oa/2023/1020237016326_의견제출통지서_20260526.pdf` → 마지막 경로 조각. */
 const fileNameOf = (documentPath: string): string => {
@@ -26,14 +30,24 @@ type Props = {
   /** 문서 PDF의 절대 URL (`documentPath`). */
   documentPath: string;
   /**
-   * 하이라이트할 검색어. 근거 줄(어떤 token이 발견됐는지)은 타임라인 위에서 그리고,
-   * 여기로는 고른 token 하나만 내려온다 — 이 pane은 문서가 바뀔 때마다 remount되므로
-   * 그 줄을 안에 두면 통째로 다시 그려진다(`PatentDocumentViewer` 주석 참고).
+   * 트레이에 놓을 검색어들. 개수 배지는 이 pane이 문서를 읽어 붙인다.
+   *
+   * 목록과 활성 검색어를 이 pane이 갖지 않는 이유: pane은 문서가 바뀔 때마다 remount되므로
+   * (`key={resolvedPath}`) 여기 두면 문서를 옮길 때 쌓아 둔 검색어가 사라진다.
+   * 여러 문서에 같은 검색어를 대 보는 것이 이 기능의 목적이라 상태는 위에서 들고 있다.
    */
+  searchTerms?: PdfSearchTerm[];
+  /** 지금 하이라이트할 검색어. */
   activeTerm?: string | null;
   /** 같은 검색어를 다시 눌렀을 때도 하이라이트를 다시 걸기 위한 번호. */
   termRequest?: number;
-  /** toolbar에서 사용자가 직접 검색했을 때. 근거 줄의 선택 표시를 풀어야 한다. */
+  /** 트레이의 칩을 눌렀을 때(활성 칩을 다시 누르는 경우는 여기까지 오지 않는다). */
+  onActivateTerm?: (term: string) => void;
+  /** toolbar에서 Enter/Search로 검색어를 쌓았을 때. */
+  onAddTerm?: (term: string) => void;
+  /** 트레이에서 사용자 검색어를 지웠을 때. */
+  onRemoveTerm?: (term: string) => void;
+  /** toolbar에서 사용자가 직접 입력해 검색했을 때. 칩의 선택 표시를 풀어야 한다. */
   onManualSearch?: () => void;
 };
 
@@ -59,8 +73,12 @@ type Props = {
  */
 const PatentDocumentPdfPane: React.FC<Props> = ({
   documentPath,
+  searchTerms = NO_SEARCH_TERMS,
   activeTerm = null,
   termRequest = 0,
+  onActivateTerm,
+  onAddTerm,
+  onRemoveTerm,
   onManualSearch,
 }) => {
   const { token } = theme.useToken();
@@ -95,6 +113,53 @@ const PatentDocumentPdfPane: React.FC<Props> = ({
     pdfViewer.isPdfDocumentReady,
     pdfViewer.searchPdf,
   ]);
+
+  /**
+   * 칩에 붙일 "이 문서에 몇 건". find controller를 쓰지 않고 전문을 따로 읽어 센다
+   * (`countPdfTextMatches` 주석 참고 — 세러 검색하면 보고 있던 하이라이트가 지워진다).
+   *
+   * 문서가 준비된 뒤 한 번, 그리고 검색어가 늘거나 줄 때 다시 센다. 전문은 훅이 문서 단위로
+   * 캐시하므로 두 번째부터는 문서를 다시 읽지 않는다.
+   */
+  const [matchCounts, setMatchCounts] = useState<Record<string, number>>({});
+  const termsKey = searchTerms.map(({ term }) => term).join('\u0000');
+
+  useEffect(() => {
+    if (!pdfViewer.isPdfDocumentReady) return;
+    const terms = termsKey ? termsKey.split('\u0000') : [];
+    if (terms.length === 0) {
+      setMatchCounts({});
+      return;
+    }
+    let cancelled = false;
+    void pdfViewer.countPdfTextMatches(terms).then((counts) => {
+      // 다 읽기 전에 문서를 옮겼다면 이 수는 다른 문서의 것이다. 버린다.
+      if (cancelled || !counts) return;
+      setMatchCounts(counts);
+    });
+    return () => { cancelled = true; };
+    // termsKey가 목록을 대신한다(배열은 매 렌더 새 참조다).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [termsKey, pdfViewer.isPdfDocumentReady, pdfViewer.countPdfTextMatches]);
+
+  const trayTerms = useMemo<PdfSearchTerm[]>(
+    () => searchTerms.map((entry) => ({ ...entry, count: matchCounts[entry.term] })),
+    [searchTerms, matchCounts],
+  );
+
+  /**
+   * 칩을 눌렀을 때.
+   *
+   * 활성 칩을 다시 누르면 **다음 결과로 넘긴다** — 같은 검색을 다시 걸면 첫 결과로 돌아가
+   * 칩만으로는 문서를 훑을 수 없다. 그래서 칩 자체가 이동 버튼 노릇을 한다.
+   */
+  const handleSelectTerm = useCallback((term: string) => {
+    if (term === activeTerm) {
+      pdfViewer.findNext();
+      return;
+    }
+    onActivateTerm?.(term);
+  }, [activeTerm, onActivateTerm, pdfViewer]);
 
   /** 서버가 준 값은 API 기준 상대 경로일 수 있다. 브라우저가 쓸 주소로 완성한다. */
   const fileUrl = useMemo(
@@ -162,6 +227,22 @@ const PatentDocumentPdfPane: React.FC<Props> = ({
           onManualSearch?.();
           pdfViewer.searchPdf('');
         }}
+        onCommitSearchTerm={onAddTerm
+          ? (value) => {
+            const term = value.trim();
+            if (!term) return;
+            onAddTerm(term);
+            /**
+             * 검색어가 칩으로 옮겨 갔으니 입력창을 비운다. 다음 검색어를 바로 칠 수 있고,
+             * 같은 낱말이 칩과 입력창에 겹쳐 보이지도 않는다. 하이라이트는 방금 건 그대로다
+             * (`searchPdf`를 다시 부르지 않는다).
+             *
+             * `onSearchQueryChange`가 아니라 훅을 직접 부르는 것이 중요하다 — 그 경로는
+             * '사용자가 직접 입력했다'로 보고(`onManualSearch`) 방금 만든 칩의 선택을 푼다.
+             */
+            pdfViewer.setSearchQuery('');
+          }
+          : undefined}
         onMoveSearchMatch={(direction) =>
           direction > 0 ? pdfViewer.findNext() : pdfViewer.findPrevious()
         }
@@ -180,6 +261,14 @@ const PatentDocumentPdfPane: React.FC<Props> = ({
         downloadTooltip="PDF 원본 다운로드"
         thumbnailCollapsed={thumbnailCollapsed}
         onToggleThumbnail={() => setThumbnailCollapsed((prev) => !prev)}
+      />
+
+      <PdfSearchTermTray
+        terms={trayTerms}
+        activeTerm={activeTerm}
+        onSelect={handleSelectTerm}
+        onRemove={(term) => onRemoveTerm?.(term)}
+        canHighlight
       />
 
       <div className="pm-doc-pdf-viewer">

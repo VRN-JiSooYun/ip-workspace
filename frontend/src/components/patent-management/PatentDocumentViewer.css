@@ -328,63 +328,139 @@
   min-height: 240px;
 }
 
-/**
- * 검색어 일치 근거 줄. chip은 선택한 검색 결과의 본문에서 실제 발견된 token으로,
- * PDF 표준 검색의 활성 query와 연결된다.
- *
- * 타임라인 **위**에 있다. 타임라인 탭은 바로 아래 내용을 여는 책갈피라, 그 사이에 이 줄이
- * 끼면 탭과 내용이 이어져 보이지 않는다.
- *
- * 높이는 검색어가 몇 개든 한 줄로 고정한다. 줄바꿈을 허용하면 문서마다 1줄↔2줄이 갈리면서
- * 아래 타임라인과 pane이 위아래로 튄다(줄의 존재 조건을 특허 단위로 올린 것과 같은 이유).
- * 넘치는 chip은 가로로 흘린다. min-height는 chip(24px) + 위아래 padding(16px) + 테두리(2px)
- * — 근거가 없는 문서에서 안내 문구만 남아도 줄 높이가 그대로여야 한다.
- */
-.pm-doc-search-evidence {
-  display: flex;
-  align-items: center;
-  flex-wrap: nowrap;
-  gap: 6px;
-  flex: 0 0 auto;
-  box-sizing: border-box;
-  min-height: 42px;
+/* toolbar가 아래쪽 여백을 스스로 갖고 있어(inline style) 트레이만 챙긴다. */
+.pm-doc-pdf > .pm-doc-search-tray {
   margin-bottom: 10px;
-  padding: 8px 10px;
+}
+
+/**
+ * PDF 검색어 트레이.
+ *
+ * toolbar **바로 아래**, PDF 위에 붙는다. 여기 칩이 곧 toolbar의 `3/12`와 ‹ › 가 가리키는
+ * 대상이라, 두 줄이 떨어지면 서로 무엇을 말하는지 알 수 없다.
+ *
+ * 칩이 있든 없든 줄은 남는다(빈 줄에는 쌓는 방법을 적어 둔다). 문서마다 줄이 생겼다
+ * 사라지면 아래 PDF가 그만큼 위아래로 튄다.
+ *
+ * 칩은 폭이 모자라면 다음 줄로 쌓인다 — 가로로 흘리면 오른쪽 끝의 칩이 스크롤 밖에 숨어
+ * "지금 무엇을 쌓아 뒀는지"를 한눈에 볼 수 없다. 대신 트레이 높이가 칩 수에 따라 자란다.
+ * 아래 PDF가 남은 높이를 먹으므로(`flex: 1`) 줄이 늘어도 넘치지 않는다.
+ *
+ * 라벨은 여러 줄이 되어도 첫 줄에 머무른다(`align-items: flex-start` + 칩 높이만큼의
+ * line-height). 가운데 정렬로 두면 칩이 늘어날수록 라벨이 아래로 떠내려간다.
+ */
+.pm-doc-search-tray {
+  display: flex;
+  align-items: flex-start;
+  flex-wrap: nowrap;
+  flex: 0 0 auto;
+  gap: 6px;
+  box-sizing: border-box;
+  min-height: 38px;
+  padding: 6px 10px;
   border: 1px solid rgba(var(--brand-primary-rgb), 0.24);
   border-radius: 10px;
   background: rgba(var(--brand-primary-rgb), 0.05);
 }
 
-.pm-doc-search-evidence-label {
+.pm-doc-search-tray-label {
+  flex: 0 0 auto;
+  /* 칩 높이. 첫 줄 칩과 글자 중심이 맞는다. */
+  line-height: 24px;
   color: var(--text-primary);
   font-size: 12px;
   font-weight: 700;
   white-space: nowrap;
-  flex: 0 0 auto;
 }
 
-/* 이 문서에서는 검색어가 발견되지 않았다는 안내. 줄 자체는 남는다. */
-.pm-doc-search-evidence-empty {
+/* 아직 쌓은 검색어가 없을 때. 줄의 목적을 적어 둔다 — Enter가 쌓기라는 것은 짐작할 수 없다. */
+.pm-doc-search-tray-hint {
+  min-width: 0;
+  overflow: hidden;
+  line-height: 24px;
   color: var(--text-secondary);
-  font-size: 12px;
+  font-size: 11px;
   white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
-.pm-doc-search-terms {
-  display: inline-flex;
+/* 칩을 담는 줄. 트레이의 flex item이라 inline-flex를 적어도 계산값은 flex다
+   (flex item은 blockification된다) — 적힌 대로 읽히게 flex로 둔다. */
+.pm-doc-search-tray-terms {
+  display: flex;
+  align-items: center;
   flex: 1 1 auto;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   gap: 5px;
   min-width: 0;
-  overflow-x: auto;
 }
 
-.pm-doc-search-term {
+/* 칩 하나 = 검색어 버튼 + (사용자 칩이면) 지우기. 둘을 한 덩어리로 묶는다. */
+.pm-doc-search-chip {
+  display: inline-flex;
+  align-items: center;
   flex: 0 0 auto;
+}
+
+.pm-doc-search-chip-button {
   height: 24px;
   padding-inline: 9px;
   border-radius: 999px;
   font-size: 11px;
+}
+
+/* 지우기가 붙는 사용자 칩은 오른쪽을 열어 둔 모양으로 이어 붙인다. */
+.pm-doc-search-chip:has(.pm-doc-search-chip-remove) .pm-doc-search-chip-button {
+  border-start-end-radius: 0;
+  border-end-end-radius: 0;
+}
+
+.pm-doc-search-chip-remove {
+  height: 24px;
+  width: 18px;
+  min-width: 18px;
+  padding: 0;
+  border: 1px solid var(--border-color);
+  border-inline-start: none;
+  border-start-end-radius: 999px;
+  border-end-end-radius: 999px;
+  color: var(--text-secondary);
+}
+
+/* 검색으로 들어온 근거 칩. 사용자가 쌓은 칩과 출처가 다르다는 것만 점으로 알린다. */
+.pm-doc-search-chip-evidence .pm-doc-search-chip-button::before {
+  content: '';
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  margin-inline-end: 5px;
+  border-radius: 999px;
+  background: var(--brand-primary);
+}
+
+.pm-doc-search-chip-active.pm-doc-search-chip-evidence .pm-doc-search-chip-button::before {
+  background: var(--card-bg);
+}
+
+/* 이 문서에서 몇 건인지. 눌러 보기 전에 알 수 있어야 훑는 순서를 정할 수 있다. */
+.pm-doc-search-chip-count {
+  margin-inline-start: 5px;
+  padding-inline: 4px;
+  border-radius: 4px;
+  background: var(--bg-color);
+  color: var(--text-secondary);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.pm-doc-search-chip-active .pm-doc-search-chip-count {
+  background: rgba(255, 255, 255, 0.22);
+  color: inherit;
+}
+
+/* 이 문서에 없는 검색어. 눌러도 갈 곳이 없어 비활성이고, 흐리게 두어 건너뛰게 한다. */
+.pm-doc-search-chip-empty .pm-doc-search-chip-button {
+  opacity: 0.55;
 }
 
 /* PatentPdfViewer는 Card가 flex:1·minHeight:0이라 부모가 높이를 정해 줘야 한다. */

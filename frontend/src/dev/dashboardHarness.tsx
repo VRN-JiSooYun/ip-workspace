@@ -16,6 +16,7 @@ import MovableGrid from '../components/workspace/MovableGrid';
 import { DashboardProvider } from '../components/dashboard/DashboardContext';
 import { DASHBOARD_PANEL_COMPONENTS } from '../components/dashboard/panels';
 import { DEADLINE_BUCKETS } from '../components/dashboard/widgets/DeadlineBoard';
+import { patentOptionLabel } from '../components/dashboard/widgets/ScheduleEventModal';
 import {
   DASHBOARD_LAYOUT_SCHEMA_VERSION,
   DASHBOARD_PANEL_META,
@@ -108,6 +109,7 @@ const checkEvent = (
     visibility: 'PRIVATE',
     teamId: null,
     teamName: null,
+    patent: null,
     owner: { id: 'me', name: '나' },
     canEdit: true,
     createdAt: '2026-08-01T00:00:00.000Z',
@@ -305,6 +307,18 @@ const runChecks = (): Check[] => {
       JSON.stringify(parsed),
     );
 
+    // 마감/To-do에서 특허 한 건으로 넘어갈 때 쓰는 딥링크. 통합 검색(q)으로 걸면
+    // 목록 화면에서 그 조건이 어느 입력에 걸렸는지 보이지 않아 해제할 수 없다.
+    const deadlineLink = readPatentListQueryParams(
+      new URLSearchParams(buildPatentListQuery({ applicationNumber: '10-2026-0000011' })),
+    );
+    expect(
+      '특허 한 건 딥링크는 상세 검색의 출원번호 조건으로 들어간다',
+      deadlineLink.filters.applicationNumber === '10-2026-0000011'
+        && deadlineLink.q === undefined,
+      JSON.stringify(deadlineLink),
+    );
+
     expect(
       '빈 seed는 빈 query가 된다',
       buildPatentListQuery({}) === '',
@@ -427,7 +441,7 @@ const runChecks = (): Check[] => {
 
   // ---- 입력 다듬기 ----
   {
-    const scope = { visibility: 'PRIVATE' as const, teamId: null };
+    const scope = { visibility: 'PRIVATE' as const, teamId: null, patentId: null };
     const flipped = sanitizeCalendarEventInput({
       ...scope,
       title: '  회의  ',
@@ -483,6 +497,68 @@ const runChecks = (): Check[] => {
     );
   }
 
+  // ---- 특허 연결 ----
+  {
+    const linked = sanitizeCalendarEventInput({
+      title: 'OA 대응 회의',
+      start: '2026-08-25',
+      end: '2026-08-25',
+      allDay: true,
+      startTime: null,
+      endTime: null,
+      color: 'blue',
+      memo: null,
+      visibility: 'PRIVATE',
+      teamId: null,
+      patentId: 11,
+    });
+    expect(
+      '연결한 특허 id는 그대로 남는다',
+      linked.patentId === 11,
+      String(linked.patentId),
+    );
+
+    // 그 특허가 실재하는지는 서버가 본다. 화면은 형식만 거른다.
+    const broken = sanitizeCalendarEventInput({
+      title: '회의',
+      start: '2026-08-25',
+      end: '2026-08-25',
+      allDay: true,
+      startTime: null,
+      endTime: null,
+      color: 'blue',
+      memo: null,
+      visibility: 'PRIVATE',
+      teamId: null,
+      patentId: 0,
+    });
+    expect(
+      '형식이 깨진 특허 id는 연결 없음으로 둔다',
+      broken.patentId === null,
+      String(broken.patentId),
+    );
+
+    expect(
+      '내부관리번호가 없으면 출원번호로 부른다',
+      patentOptionLabel({
+        id: 15, internalRef: null, applicationNumber: '10-2026-0000015', title: null,
+      }) === '10-2026-0000015'
+        && patentOptionLabel({
+          id: 11, internalRef: 'A25W011', applicationNumber: '10-2026-0000011', title: '화합물',
+        }) === 'A25W011 · 화합물',
+    );
+
+    // 팝업의 '관련 특허'가 여는 링크. 상세 검색의 내부관리번호 칸에 그대로 들어가야 한다.
+    const link = readPatentListQueryParams(
+      new URLSearchParams(buildPatentListQuery({ internalRef: 'A25W011' })),
+    );
+    expect(
+      '연결된 특허 링크는 상세 검색의 내부관리번호 조건이 된다',
+      link.filters.internalRef === 'A25W011' && link.q === undefined,
+      JSON.stringify(link),
+    );
+  }
+
   // ---- 공개 범위 ----
   {
     const shared = sanitizeCalendarEventInput({
@@ -496,6 +572,7 @@ const runChecks = (): Check[] => {
       memo: null,
       visibility: 'TEAM',
       teamId: 'team-ip',
+      patentId: null,
     });
     expect(
       '팀 공개는 팀과 함께 남는다',

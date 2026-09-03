@@ -1,4 +1,6 @@
 import {
+  ArrayUnique,
+  IsArray,
   IsBoolean,
   IsDateString,
   IsInt,
@@ -46,6 +48,12 @@ export class UpdatePatentRecordDto {
   @IsString()
   @MaxLength(200)
   applicant?: string | null;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayUnique()
+  @IsInt({ each: true })
+  inventorIds?: number[];
 
   @IsOptional()
   @IsInt()

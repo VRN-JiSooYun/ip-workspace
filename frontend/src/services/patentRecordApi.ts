@@ -9,6 +9,8 @@ export type PatentAttorney = { attorneyNumber: number; attorneyName: string | nu
 export type PatentLegalStatus = { id: number; status: string };
 export type PatentExamStatus = { id: number; status: string };
 export type PatentTargetCode = { id: number; target: string };
+export type PatentApplicantCode = { id: number; applicant: string };
+export type PatentInventorCode = { id: number; inventor: string };
 
 export type PatentRecord = {
   id: number;
@@ -25,6 +27,12 @@ export type PatentRecord = {
   applicationNumber: string;
   applicationDate: string | null;
   applicant: string | null;
+  /** 등록된 발명자 개인들과의 연결. ordinal 순서로 내려온다. */
+  inventorLinks: Array<{
+    inventorId: number;
+    ordinal: number;
+    inventor: PatentInventorCode;
+  }>;
   attorneyNumber: number | null;
   registrationNumber: string | null;
   registrationDate: string | null;
@@ -59,7 +67,6 @@ export type PatentRecord = {
   // DB에도 있고 응답에도 이미 실려 온다(Prisma가 scalar를 전부 돌려준다). 타입에만
   // 없어서 화면이 못 쓰고 있었다. 갱신 DTO에 없으므로 **편집은 불가**하고,
   // CSV 임포트로만 채워진다.
-  inventors?: string | null;
   expectedExpiryDate?: string | null;
   /** 분할/계속 등 원출원과의 관계. */
   relationType?: string | null;
@@ -111,6 +118,8 @@ export type PatentRecordLookups = {
   legalStatuses: PatentLegalStatus[];
   examStatuses: PatentExamStatus[];
   targets: PatentTargetCode[];
+  applicants: PatentApplicantCode[];
+  inventors: PatentInventorCode[];
 };
 
 /**
@@ -154,6 +163,7 @@ export type PatentRecordListQuery = {
 export type CreatePatentRecordInput = {
   countryId: number;
   applicationNumber: string;
+  inventorIds?: number[];
 } & Partial<
   Omit<
     PatentRecord,
@@ -164,6 +174,7 @@ export type CreatePatentRecordInput = {
     | 'attorney'
     | 'legalStatus'
     | 'examStatus'
+    | 'inventorLinks'
     | 'refOrigin'
     | 'refYear'
     | 'refType'
@@ -333,7 +344,7 @@ export const UNMAPPED_STAGE_GROUP = 'UNMAPPED';
  * 여기에 항목을 더하려면 그 DTO에도 같이 넣어야 한다.
  */
 export type PatentStageQuery = {
-  /** 관리번호·출원번호·명칭·출원인을 한 번에 훑는 바로가기 검색(OR). */
+  /** 관리번호·출원번호·명칭·출원인·발명자를 한 번에 훑는 바로가기 검색(OR). */
   q?: string;
   targets?: string[];
   countryId?: number;
@@ -530,6 +541,8 @@ export type PatentImportResult = {
     legalStatuses: string[];
     examStatuses: string[];
     targets: string[];
+    applicants: string[];
+    inventors: string[];
   };
   issues: PatentImportIssue[];
 };
@@ -576,6 +589,8 @@ export const PATENT_CODE_TYPES = [
   'legal-statuses',
   'exam-statuses',
   'targets',
+  'applicants',
+  'inventors',
 ] as const;
 
 export type PatentCodeType = (typeof PATENT_CODE_TYPES)[number];
@@ -648,6 +663,26 @@ export const patentTodoApi = {
 export const patentRecordApi = {
   list(query: PatentRecordListQuery = {}): Promise<PatentRecordListResult> {
     return request<PatentRecordListResult>(`/patent-records${toQueryString(query)}`);
+  },
+
+  async exportCsv(query: PatentRecordListQuery = {}): Promise<Blob> {
+    const response = await fetch(
+      url(`/patent-records/export${toQueryString(query)}`),
+      { credentials: 'include' },
+    );
+    notifyIfAuthRequired(response);
+    if (!response.ok) {
+      const body = await response.json().catch(() => null);
+      const rawMessage = (body as { message?: unknown } | null)?.message;
+      const message = Array.isArray(rawMessage)
+        ? rawMessage.join(', ')
+        : typeof rawMessage === 'string'
+          ? rawMessage
+          : `PATENT_EXPORT_${response.status}`;
+      if (response.status === 403) window.dispatchEvent(new Event(AUTH_REQUIRED_EVENT));
+      throw new Error(message);
+    }
+    return response.blob();
   },
 
   documents(patentId: number): Promise<PatentDocumentsResult> {

@@ -9,6 +9,7 @@ import type {
 } from '../../services/patentRecordApi';
 import type { OaLookups } from '../../services/patentSearchApi';
 import { UNMAPPED_STAGE_GROUP } from '../../services/patentRecordApi';
+import { formatCountryOptionLabel } from '../../utils/countryLabel';
 import '../../styles/filter-system.css';
 import './PatentListFilters.css';
 
@@ -375,9 +376,11 @@ const PatentListFilters: React.FC<Props> = ({
             onChange={(countryText?: string) => set({ countryText, countryId: undefined })}
             loading={oaLookupsLoading}
             disabled={!oaLookups}
+            showSearch
+            optionFilterProp="label"
             options={(oaLookups?.countries ?? []).map((item) => ({
               value: item.country,
-              label: item.country,
+              label: formatCountryOptionLabel(item.country),
             }))}
           />
         </Field>

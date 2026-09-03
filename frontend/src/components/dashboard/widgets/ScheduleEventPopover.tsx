@@ -1,6 +1,6 @@
 import React from 'react';
 import { Button } from 'antd';
-import { Pencil, Trash2, X } from 'lucide-react';
+import { ExternalLink, Pencil, Trash2, X } from 'lucide-react';
 import {
   formatEventPeriod,
   formatEventTime,
@@ -11,6 +11,8 @@ type Props = {
   event: CalendarEvent;
   onEdit: () => void;
   onDelete: () => void;
+  /** 연결된 특허 한 건으로 좁힌 '특허 관리' 목록을 연다. */
+  onOpenPatentRecord: (patent: NonNullable<CalendarEvent['patent']>) => void;
   onClose: () => void;
 };
 
@@ -26,7 +28,13 @@ type Props = {
  *
  * 위치 계산과 바깥 클릭 처리는 antd Popover가 한다. 여기서는 내용만 그린다.
  */
-const ScheduleEventPopover: React.FC<Props> = ({ event, onEdit, onDelete, onClose }) => (
+const ScheduleEventPopover: React.FC<Props> = ({
+  event,
+  onEdit,
+  onDelete,
+  onOpenPatentRecord,
+  onClose,
+}) => (
   <div className="db-cal-pop">
     {event.canEdit ? null : (
       <span className="db-cal-pop-tag">{`${event.owner.name} 님의 일정 · 읽기 전용`}</span>
@@ -48,6 +56,22 @@ const ScheduleEventPopover: React.FC<Props> = ({ event, onEdit, onDelete, onClos
           ? `${event.teamName ?? '팀'} 팀 공개`
           : '비공개 (나만 보기)'}
       </dd>
+      {event.patent ? (
+        <>
+          <dt>관련 특허</dt>
+          <dd>
+            <Button
+              size="small"
+              type="link"
+              className="db-cal-pop-patent"
+              icon={<ExternalLink size={12} />}
+              onClick={() => onOpenPatentRecord(event.patent!)}
+            >
+              {event.patent.internalRef ?? event.patent.applicationNumber}
+            </Button>
+          </dd>
+        </>
+      ) : null}
     </dl>
 
     {event.memo ? <p className="db-cal-pop-memo">{event.memo}</p> : null}

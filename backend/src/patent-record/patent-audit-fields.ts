@@ -23,6 +23,10 @@ export type AuditablePatent = {
   englishTitle: string | null;
   applicationDate: Date | null;
   applicant: string | null;
+  inventorLinks: Array<{
+    ordinal: number;
+    inventor: { inventor: string };
+  }>;
   registrationNumber: string | null;
   registrationDate: string | null;
   publicationNumber: string | null;
@@ -75,7 +79,7 @@ type FieldSpec = {
  * internalRef 하나가 바뀌면 다섯 개가 함께 움직여 피드가 같은 사실을 여섯 번 말한다.
  * 원문인 internalRef만 남긴다.
  *
- * 화면에서 편집할 수 없는 컬럼(inventors·권리 관계 등)은 넣지 않는다. CSV 임포트로만
+ * 화면에서 편집할 수 없는 컬럼(권리 관계 등)은 넣지 않는다. CSV 임포트로만
  * 바뀌고 임포트는 건별 요약 1행으로 따로 남기므로, 여기서 필드별로 또 남길 이유가 없다.
  * note는 예외다 — 상세 모달의 '설명'이 되면서 사람이 화면에서 고치는 값이 되었다.
  */
@@ -89,6 +93,15 @@ export const AUDITED_FIELDS: Record<string, FieldSpec> = {
   englishTitle: { label: '영문 명칭', read: (patent) => toText(patent.englishTitle) },
   applicationDate: { label: '출원일', read: (patent) => toDateText(patent.applicationDate) },
   applicant: { label: '출원인', read: (patent) => toText(patent.applicant) },
+  inventors: {
+    label: '발명자',
+    read: (patent) => toText(
+      [...patent.inventorLinks]
+        .sort((left, right) => left.ordinal - right.ordinal)
+        .map((link) => link.inventor.inventor)
+        .join(', '),
+    ),
+  },
   registrationNumber: {
     label: '등록번호',
     read: (patent) => toText(patent.registrationNumber),

@@ -97,8 +97,10 @@ export const APP_ROUTES: AppRoute[] = [
     element: <PatentAnalysisAdmin />,
   },
   {
+    // 코드 표는 특허 값의 정본이라 읽을 수 있는 사람은 모두 볼 수 있어야 한다.
+    // 고치는 것은 화면 안에서 `patentAnalysis.manage`로 다시 가린다(API도 같은 조건이다).
     path: '/workspace/patent-code-admin',
-    permission: 'patentAnalysis.manage',
+    permission: 'patentAnalysis.read',
     element: <PatentCodeAdmin />,
   },
 

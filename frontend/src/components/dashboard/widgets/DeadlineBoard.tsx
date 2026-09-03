@@ -2,6 +2,7 @@ import React from 'react';
 import { Tooltip, Typography } from 'antd';
 import type { PatentDeadlineItem } from '../../../services/patentRecordApi';
 import { formatDisplayDateTime, formatNumberWithComma } from '../../../utils/displayFormat';
+import { CountryTag } from '../../common/CountryTag';
 import {
   calendarDayDifference,
   ddayClassName,
@@ -127,7 +128,9 @@ const DeadlineBoard: React.FC<Props> = ({
                 onClick={() => onSelect(item)}
               >
                 <span className={ddayClassName(daysLeft)}>{ddayLabel(daysLeft)}</span>
-                <span className="db-deadline-country">{item.country}</span>
+                <span className="db-deadline-country">
+                  <CountryTag code={item.country} />
+                </span>
                 <Tooltip
                   title={[
                     item.patentTitle,

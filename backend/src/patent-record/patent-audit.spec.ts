@@ -38,6 +38,9 @@ const patentRow = (overrides: Record<string, any> = {}) => ({
   englishTitle: "English title",
   applicationDate: new Date("2026-01-14T00:00:00.000Z"),
   applicant: "보로노이",
+  inventorLinks: [
+    { inventorId: 1, ordinal: 0, inventor: { id: 1, inventor: "홍길동" } },
+  ],
   registrationNumber: null,
   registrationDate: null,
   publicationNumber: null,
@@ -88,6 +91,10 @@ const runUpdate = async (
     legalStatus: { findUnique: jest.fn(async () => ({ id: 1 })) },
     examStatus: { findUnique: jest.fn(async () => ({ id: 1 })) },
     patentTarget: { findUnique: jest.fn(async () => ({ target: "EGFR" })) },
+    patentApplicant: { findUnique: jest.fn(async () => ({ applicant: "보로노이" })) },
+    patentInventor: {
+      count: jest.fn(async ({ where }: Call) => where.id.in.length),
+    },
     patentAuditLog: {
       createMany: jest.fn(async (args: Call) => {
         auditCreateMany.push(args);
@@ -189,6 +196,24 @@ describe("diffAuditableFields", () => {
       { field: "applicant", label: "출원인", beforeValue: "보로노이", afterValue: null },
     ]);
   });
+
+  it("연결된 발명자 여러 명을 순서대로 하나의 변경 이력에 남긴다", () => {
+    const after = patentRow({
+      inventorLinks: [
+        { inventorId: 1, ordinal: 0, inventor: { id: 1, inventor: "홍길동" } },
+        { inventorId: 2, ordinal: 1, inventor: { id: 2, inventor: "김보로" } },
+      ],
+    }) as unknown as AuditablePatent;
+
+    expect(diffAuditableFields(base, after)).toEqual([
+      {
+        field: "inventors",
+        label: "발명자",
+        beforeValue: "홍길동",
+        afterValue: "홍길동, 김보로",
+      },
+    ]);
+  });
 });
 
 describe("update - 감사 로그", () => {
@@ -225,6 +250,34 @@ describe("update - 감사 로그", () => {
     expect(rows).toEqual([]);
     // 빈 배열로 createMany를 부르지도 않는다(무의미한 쿼리를 남기지 않는다).
     expect(createManyCalls).toBe(0);
+  });
+
+  it("발명자 id 목록을 기존 연결 전체와 교체한다", async () => {
+    const after = patentRow({
+      inventorLinks: [
+        { inventorId: 2, ordinal: 0, inventor: { id: 2, inventor: "김보로" } },
+        { inventorId: 3, ordinal: 1, inventor: { id: 3, inventor: "이윤호" } },
+      ],
+    });
+    const { rows, written } = await runUpdate(
+      patentRow(),
+      after,
+      { inventorIds: [2, 3] },
+    );
+
+    expect(written.inventorLinks).toEqual({
+      deleteMany: {},
+      create: [
+        { inventorId: 2, ordinal: 0 },
+        { inventorId: 3, ordinal: 1 },
+      ],
+    });
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      field: "inventors",
+      beforeValue: "홍길동",
+      afterValue: "김보로, 이윤호",
+    });
   });
 
   it("특허가 지워져도 어느 건이었는지 읽히게 metadata에 출원번호를 담는다", async () => {
@@ -265,6 +318,10 @@ describe("create / remove - 감사 로그", () => {
       legalStatus: { findUnique: jest.fn(async () => ({ id: 1 })) },
       examStatus: { findUnique: jest.fn(async () => ({ id: 1 })) },
       patentTarget: { findUnique: jest.fn(async () => ({ target: "EGFR" })) },
+      patentApplicant: { findUnique: jest.fn(async () => ({ applicant: "보로노이" })) },
+      patentInventor: {
+        count: jest.fn(async ({ where }: Call) => where.id.in.length),
+      },
       patentAuditLog: {
         create: jest.fn(async (args: Call) => {
           auditCreate.push(args);
@@ -334,8 +391,7 @@ describe("auditedFieldNames - 임포트 요약", () => {
   it("감사 대상 컬럼만 남긴다", () => {
     // 임포트가 tx.patent.update에 넘기는 data에는 파생 컬럼과 편집 불가 컬럼이 섞여 있다.
     // 요약에는 사람이 아는 필드만 담아야 "무엇이 바뀌었나"가 읽힌다.
-    // (note는 상세 모달의 '설명'이 되면서 감사 대상으로 옮겨 갔다 — 여기서는 여전히
-    //  편집 불가인 inventors로 제외를 확인한다.)
+    // note와 inventors는 상세 모달에서 편집할 수 있으므로 감사 대상에 포함한다.
     const names = auditedFieldNames([
       "applicant",
       "refOrigin",
@@ -346,7 +402,7 @@ describe("auditedFieldNames - 임포트 요약", () => {
       "존재하지않는컬럼",
     ]);
 
-    expect(names).toEqual(["applicant", "legalStatusId"]);
+    expect(names).toEqual(["applicant", "inventors", "legalStatusId"]);
   });
 
   it("값이 아니라 이름만 담는다(만 단위 행 폭발을 막는 이유)", () => {

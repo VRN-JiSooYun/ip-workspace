@@ -14,6 +14,7 @@ import {
   type PatentTargetSummary,
 } from '../services/patentRecordApi';
 import { shiftDateKey, toLocalDateKey } from '../utils/patentCalendar';
+import type { CalendarEventPatent } from '../utils/calendarEvents';
 import { buildPatentListQuery } from '../utils/patentListQueryParams';
 import type { DeadlineBucketKey } from '../components/dashboard/widgets/DeadlineBoard';
 import type { KpiTile } from '../components/dashboard/widgets/KpiStrip';
@@ -25,6 +26,9 @@ const DEADLINE_LIMIT = 100;
 
 /** 특허 관리 화면. routes.tsx의 실제 경로다(/patents/manage는 placeholder다). */
 const PATENT_MANAGEMENT_PATH = '/patent-management';
+
+/** 일정에 연결할 특허를 고를 때 한 번에 보여 줄 후보 수. 고르는 자리라 한 화면치면 된다. */
+const PATENT_OPTION_PAGE_SIZE = 20;
 const PATENT_CODE_ADMIN_PATH = '/workspace/patent-code-admin';
 
 const getErrorMessage = (error: unknown) =>
@@ -143,6 +147,29 @@ export const useDashboardState = () => {
     return result.events;
   }, [targetFilter]);
 
+  /**
+   * 일정 등록 모달의 '관련 특허' 고르기.
+   *
+   * 목록 조회를 그대로 쓴다(관리번호·출원번호·명칭·출원인을 한 번에 훑는 조건이 이미
+   * 있다). 고르는 자리라 한 화면치만 받고, 검색어가 없으면 최근 등록순 앞쪽을 준다.
+   */
+  const searchPatentOptions = useCallback(async (
+    keyword: string,
+  ): Promise<CalendarEventPatent[]> => {
+    const result = await patentRecordApi.list({
+      q: keyword.trim() || undefined,
+      sort: 'idDesc',
+      page: 1,
+      pageSize: PATENT_OPTION_PAGE_SIZE,
+    });
+    return result.items.map((item) => ({
+      id: item.id,
+      internalRef: item.internalRef,
+      applicationNumber: item.applicationNumber,
+      title: item.koreanTitle ?? item.englishTitle ?? null,
+    }));
+  }, []);
+
   const loadTargets = useCallback(async () => {
     if (!canRead) return;
     try {
@@ -226,8 +253,9 @@ export const useDashboardState = () => {
   }, []);
 
   const openDeadline = useCallback((item: PatentDeadlineItem) => {
-    // 특허 한 건으로 좁혀서 목록을 연다. 출원번호는 부분 일치 검색 대상이다.
-    openPatentList({ q: item.applicationNumber, targets: [] });
+    // 특허 한 건으로 좁혀서 목록을 연다. 통합 검색(q)이 아니라 상세 검색의 출원번호
+    // 조건으로 건다 — 그래야 넘어간 화면에서 무엇이 걸렸는지 보이고 해제할 수 있다.
+    openPatentList({ applicationNumber: item.applicationNumber, targets: [] });
   }, [openPatentList]);
 
   // ---- KPI 타일 -----------------------------------------------------------
@@ -321,6 +349,7 @@ export const useDashboardState = () => {
 
     kpiTiles,
     loadPatentScheduleEvents,
+    searchPatentOptions,
     refreshToken,
     navigateTo,
     getHolidayName,

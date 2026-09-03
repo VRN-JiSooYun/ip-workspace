@@ -25,6 +25,7 @@ import {
   type PatentRecord,
   type PatentRecordLookups,
 } from '../../services/patentRecordApi';
+import { formatCountryOptionLabel } from '../../utils/countryLabel';
 import { formatDisplayDateTime } from '../../utils/displayFormat';
 import RichTextField from '../common/RichTextField';
 import PatentAuditFeed from './PatentAuditFeed';
@@ -74,6 +75,7 @@ const EMPTY_RECORD: PatentRecord = {
   applicationNumber: '',
   applicationDate: null,
   applicant: null,
+  inventorLinks: [],
   attorneyNumber: null,
   registrationNumber: null,
   registrationDate: null,
@@ -110,6 +112,7 @@ const toCreateInput = (record: PatentRecord): CreatePatentRecordInput => ({
   englishTitle: nullableText(record.englishTitle),
   applicationDate: record.applicationDate,
   applicant: nullableText(record.applicant),
+  inventorIds: record.inventorLinks.map((link) => link.inventorId),
   attorneyNumber: record.attorneyNumber,
   registrationNumber: nullableText(record.registrationNumber),
   registrationDate: nullableText(record.registrationDate),
@@ -181,20 +184,10 @@ const toDayjs = (value: string | null | undefined) => (value ? dayjs(value) : nu
 
 /**
  * 문서 연결 결과 → 한 줄.
- *
- * '없다'를 뭉뚱그리지 않는다. 세 가지가 각각 다음에 할 일이 다르다 — 출원번호 형식이
- * 안 맞으면 사람이 할 수 있는 것이 없고, 상류에 특허가 없으면 나중에 다시 눌러 볼 만하고,
- * 문서만 없으면 특허는 맞게 찾은 것이다.
  */
 const describeLinkResult = (result: PatentDocumentLinkResult): string => {
   if (!result.matched) {
-    if (result.reason === 'NOT_KR_APPLICATION_NUMBER') {
-      return `OA DB는 국내 출원(13자리)만 담고 있습니다. 이 출원번호는 숫자 ${result.normalizedApplicationNumber.length}자리라 찾을 수 없습니다.`;
-    }
-    if (result.reason === 'NOT_FOUND_UPSTREAM') {
-      return `OA DB에 ${result.normalizedApplicationNumber} 출원이 없습니다.`;
-    }
-    return '특허는 찾았지만 연결할 문서가 없습니다.';
+    return '출원번호로 연결할 문서를 찾지 못했습니다.';
   }
 
   const { officeActions, responses } = result.created;
@@ -227,8 +220,8 @@ const describeLinkResult = (result: PatentDocumentLinkResult): string => {
  * 생성도 같은 컴포넌트와 배치를 쓴다. 생성 중에는 값을 로컬 초안에 모으고 [추가]에서
  * 한 번 POST하며, 기존 레코드를 열었을 때만 필드별 PATCH와 활동 피드를 사용한다.
  *
- * 읽기 전용 필드(inventors·권리 관계 등)는 DB·응답에는 있지만 갱신 DTO에 없어 편집할
- * 수 없다. CSV 임포트로만 채워진다. note('설명')는 이 규칙에서 빠져나와 편집 가능해졌고,
+ * 읽기 전용 필드(권리 관계 등)는 DB·응답에는 있지만 갱신 DTO에 없어 편집할 수 없다.
+ * 출원인·발명자는 코드 관리와 연결된 select로 편집한다. note('설명')도 편집 가능하며,
  * 옛 '상태 메모'(status_note)도 여기로 합쳐졌다 — 자유 서술은 '설명' 한 자리다.
  */
 const PatentRecordDetailModal: React.FC<Props> = ({
@@ -839,7 +832,7 @@ const PatentRecordDetailModal: React.FC<Props> = ({
                           activeRecord.countryId,
                           (lookups?.countries ?? []).map((item) => ({
                             value: item.id,
-                            label: item.country,
+                            label: formatCountryOptionLabel(item.country),
                           })),
                         )}
                         {createErrors.country && (
@@ -848,7 +841,23 @@ const PatentRecordDetailModal: React.FC<Props> = ({
                       </>
                     </Row>
                     <Row label="출원인" badge={badgeFor('applicant')}>
-                      {textInput('applicant', activeRecord.applicant)}
+                      <Select
+                        size="small"
+                        allowClear
+                        showSearch
+                        optionFilterProp="label"
+                        placeholder="없음"
+                        disabled={inputsDisabled || !lookups}
+                        value={activeRecord.applicant ?? undefined}
+                        onChange={(next?: string) => {
+                          if (isCreate) updateCreateDraft('applicant', next ?? null);
+                          else save.saveValue('applicant', next ?? null);
+                        }}
+                        options={(lookups?.applicants ?? []).map((item) => ({
+                          value: item.applicant,
+                          label: item.applicant,
+                        }))}
+                      />
                     </Row>
                     <Row label="대리인" badge={badgeFor('attorneyNumber')}>
                       {codeSelect(
@@ -860,8 +869,40 @@ const PatentRecordDetailModal: React.FC<Props> = ({
                         })),
                       )}
                     </Row>
-                    <Row label="발명자">
-                      <ReadOnly value={activeRecord.inventors} />
+                    <Row label="발명자" badge={badgeFor('inventorIds')}>
+                      <Select
+                        size="small"
+                        mode="multiple"
+                        allowClear
+                        showSearch
+                        maxTagCount="responsive"
+                        optionFilterProp="label"
+                        placeholder="발명자 선택"
+                        disabled={inputsDisabled || !lookups}
+                        value={activeRecord.inventorLinks.map((link) => link.inventorId)}
+                        onChange={(next: number[]) => {
+                          if (isCreate) {
+                            const byId = new Map(
+                              (lookups?.inventors ?? []).map((item) => [item.id, item]),
+                            );
+                            setCreateDraft((current) => ({
+                              ...current,
+                              inventorLinks: next.flatMap((inventorId, ordinal) => {
+                                const inventor = byId.get(inventorId);
+                                return inventor
+                                  ? [{ inventorId, ordinal, inventor }]
+                                  : [];
+                              }),
+                            }));
+                          } else {
+                            void save.saveValue('inventorIds', next);
+                          }
+                        }}
+                        options={(lookups?.inventors ?? []).map((item) => ({
+                          value: item.id,
+                          label: item.inventor,
+                        }))}
+                      />
                     </Row>
                   </>
                 ),

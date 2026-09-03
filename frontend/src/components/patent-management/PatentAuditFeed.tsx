@@ -1,5 +1,12 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Button, Typography } from 'antd';
+import React, {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
+import { Button, Tooltip, Typography } from 'antd';
 import { patentRecordApi, type PatentAuditEntry } from '../../services/patentRecordApi';
 
 const { Text } = Typography;
@@ -163,6 +170,50 @@ const describeNote = (entry: PatentAuditEntry): string => {
   return '설명을 수정했습니다';
 };
 
+type AuditValueProps = {
+  value: string;
+  tone: 'before' | 'after';
+};
+
+/** 요약 배치는 유지하되 실제로 잘린 감사 값은 hover 또는 focus로 전부 보여 준다. */
+const AuditValue: React.FC<AuditValueProps> = ({ value, tone }) => {
+  const valueRef = useRef<HTMLSpanElement>(null);
+  const [truncated, setTruncated] = useState(false);
+
+  const measureOverflow = useCallback(() => {
+    const element = valueRef.current;
+    if (!element) return;
+    setTruncated(element.scrollWidth > element.clientWidth + 1);
+  }, []);
+
+  useLayoutEffect(() => {
+    measureOverflow();
+    const element = valueRef.current;
+    if (!element || typeof ResizeObserver === 'undefined') return undefined;
+
+    const observer = new ResizeObserver(measureOverflow);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [measureOverflow, value]);
+
+  return (
+    <Tooltip
+      title={truncated ? value : undefined}
+      placement="topLeft"
+      overlayClassName="pm-audit-value-tooltip"
+    >
+      <span
+        ref={valueRef}
+        className={`pm-audit-value pm-audit-value-${tone}`}
+        tabIndex={truncated ? 0 : undefined}
+        onMouseEnter={measureOverflow}
+      >
+        {value}
+      </span>
+    </Tooltip>
+  );
+};
+
 type Props = {
   patentId: number;
   /**
@@ -259,9 +310,7 @@ const PatentAuditFeed: React.FC<Props> = ({ patentId, revision = 0 }) => {
                     <li key={entry.id} className="pm-audit-line">
                       <span className="pm-audit-event">{describeNote(entry)}</span>
                       {entry.afterValue && (
-                        <span className="pm-audit-value pm-audit-value-after">
-                          {entry.afterValue}
-                        </span>
+                        <AuditValue value={entry.afterValue} tone="after" />
                       )}
                     </li>
                   );
@@ -271,13 +320,9 @@ const PatentAuditFeed: React.FC<Props> = ({ patentId, revision = 0 }) => {
                     <span className="pm-audit-field">
                       {entry.fieldLabel ?? entry.field ?? '알 수 없는 필드'}
                     </span>
-                    <span className="pm-audit-value pm-audit-value-before">
-                      {entry.beforeValue ?? '없음'}
-                    </span>
+                    <AuditValue value={entry.beforeValue ?? '없음'} tone="before" />
                     <span className="pm-audit-arrow" aria-hidden="true">→</span>
-                    <span className="pm-audit-value pm-audit-value-after">
-                      {entry.afterValue ?? '없음'}
-                    </span>
+                    <AuditValue value={entry.afterValue ?? '없음'} tone="after" />
                   </li>
                 );
               }
@@ -292,7 +337,7 @@ const PatentAuditFeed: React.FC<Props> = ({ patentId, revision = 0 }) => {
                 <li key={entry.id} className="pm-audit-line">
                   <span className="pm-audit-event">{EVENT_LABEL[entry.eventType]}</span>
                   {linked && (
-                    <span className="pm-audit-value pm-audit-value-after">{linked}</span>
+                    <AuditValue value={linked} tone="after" />
                   )}
                   {/* 임포트는 값 단위로 남기지 않는다(500건 × 20필드면 로그가 만 단위가
                       된다). 어떤 필드가 대상이었는지만 밝힌다. */}

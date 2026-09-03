@@ -60,6 +60,16 @@ const makeRecord = (index: number): PatentRecord => {
     applicationNumber: `${country.country}${year}${String(index * 7919 % 1000000).padStart(6, '0')}`,
     applicationDate: `${year}-${String((index % 12) + 1).padStart(2, '0')}-14`,
     applicant: index % 3 === 0 ? '보로노이 주식회사' : 'Voronoi Inc.',
+    inventorLinks: [
+      {
+        inventorId: 1,
+        ordinal: 0,
+        inventor: { id: 1, inventor: '홍길동' },
+      },
+      ...(index % 2 === 0
+        ? [{ inventorId: 2, ordinal: 1, inventor: { id: 2, inventor: '김보로' } }]
+        : []),
+    ],
     attorneyNumber: 100 + (index % 4),
     registrationNumber: index % 4 === 0 ? `10-${2200000 + index}` : null,
     registrationDate: index % 4 === 0 ? `${year + 2}-03-02` : null,
@@ -251,6 +261,14 @@ export const buildMockWorkspaceState = (
       legalStatuses: LEGAL_STATUSES,
       examStatuses: EXAM_STATUSES,
       targets: TARGET_NAMES.map((target, index) => ({ id: index + 1, target })),
+      applicants: [
+        { id: 1, applicant: '보로노이 주식회사' },
+        { id: 2, applicant: 'Voronoi, Inc.' },
+      ],
+      inventors: [
+        { id: 1, inventor: '홍길동' },
+        { id: 2, inventor: '김보로' },
+      ],
     },
     oaLookups: {
       countries: COUNTRIES,

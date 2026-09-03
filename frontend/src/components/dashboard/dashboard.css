@@ -169,12 +169,25 @@
 
 /* 국가 배지. 해외 건은 영업일 보정을 하지 않으므로 국가가 한눈에 보여야 한다. */
 .db-deadline-country {
+  display: inline-flex;
   flex-shrink: 0;
   padding: 1px 6px;
   border: 1px solid var(--border-color);
   border-radius: 4px;
   font-size: 10px;
   color: var(--text-secondary);
+}
+
+/* 좁은 행이라 국기는 본문 글자 크기에 맞춰 줄인다. */
+.db-deadline-country .country-tag-flag {
+  font-size: 11px;
+}
+
+.db-deadline-country .country-tag-code {
+  padding: 0;
+  background: none;
+  font-size: 10px;
+  line-height: 14px;
 }
 
 .db-deadline-more {

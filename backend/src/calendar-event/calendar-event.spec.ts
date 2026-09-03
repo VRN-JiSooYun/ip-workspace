@@ -35,10 +35,14 @@ const row = (overrides: Partial<Record<string, unknown>> = {}) => ({
   updatedAt: day("2026-08-01"),
   owner: { id: "me", name: "김가이" },
   team: null,
+  patentId: null,
+  patent: null,
   ...overrides,
 });
 
-const makePrisma = (options: { rows?: any[]; existing?: any } = {}) => {
+const makePrisma = (
+  options: { rows?: any[]; existing?: any; patents?: number[] } = {},
+) => {
   const calls = {
     findMany: [] as any[],
     create: [] as any[],
@@ -65,6 +69,13 @@ const makePrisma = (options: { rows?: any[]; existing?: any } = {}) => {
         calls.delete.push(args);
         return { id: args.where.id };
       },
+    },
+    // 일정에 특허를 연결할 때 그 특허가 실재하는지 본다.
+    patent: {
+      findUnique: async (args: any) =>
+        (options.patents ?? []).includes(args.where.id)
+          ? { id: args.where.id }
+          : null,
     },
   };
 
@@ -205,6 +216,52 @@ describe("CalendarEventService.create", () => {
     await service.create(input(), ACTOR);
 
     expect(calls.create[0].data.ownerId).toBe("me");
+  });
+});
+
+describe("CalendarEventService 특허 연결", () => {
+  it("특허를 연결하면 patentId로 저장한다", async () => {
+    const { service, calls } = makePrisma({ patents: [11] });
+    await service.create(input({ patentId: 11 }), ACTOR);
+    expect(calls.create[0].data.patentId).toBe(11);
+  });
+
+  it("연결하지 않으면 null로 둔다", async () => {
+    const { service, calls } = makePrisma();
+    await service.create(input(), ACTOR);
+    expect(calls.create[0].data.patentId).toBeNull();
+  });
+
+  // 깨진 링크는 화면에서 '연결 없음'과 구분되지 않는다. 저장 전에 막는다.
+  it("없는 특허를 연결하려 하면 거절한다", async () => {
+    const { service } = makePrisma({ patents: [11] });
+    await expect(service.create(input({ patentId: 99 }), ACTOR)).rejects.toThrow(
+      BadRequestException,
+    );
+  });
+
+  it("연결된 특허는 내부관리번호와 함께 돌려준다", async () => {
+    const { service } = makePrisma({
+      rows: [
+        row({
+          patentId: 11,
+          patent: {
+            id: 11,
+            internalRef: "A25W011",
+            applicationNumber: "10-2026-0000011",
+            koreanTitle: "치환된 헤테로아릴 화합물",
+            englishTitle: null,
+          },
+        }),
+      ],
+    });
+    const [event] = await service.list({ from: "2026-08-01", to: "2026-08-31" }, ACTOR);
+    expect(event.patent).toEqual({
+      id: 11,
+      internalRef: "A25W011",
+      applicationNumber: "10-2026-0000011",
+      title: "치환된 헤테로아릴 화합물",
+    });
   });
 });
 

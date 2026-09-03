@@ -17,6 +17,7 @@ import {
   type PatentCodeItem,
   type PatentCodeType,
 } from '../../services/patentRecordApi';
+import { getCountryLabel } from '../../utils/countryLabel';
 
 const { Text } = Typography;
 
@@ -72,6 +73,22 @@ export const PATENT_CODE_TABS: PatentCodeTabConfig[] = [
     manualId: false,
     idLabel: 'ID',
   },
+  {
+    type: 'applicants',
+    label: '출원인',
+    valueLabel: '출원인',
+    valuePlaceholder: '보로노이 주식회사',
+    manualId: false,
+    idLabel: 'ID',
+  },
+  {
+    type: 'inventors',
+    label: '발명자',
+    valueLabel: '발명자',
+    valuePlaceholder: '홍길동',
+    manualId: false,
+    idLabel: 'ID',
+  },
 ];
 
 const getErrorMessage = (error: unknown) =>
@@ -86,6 +103,11 @@ const describeError = (error: unknown): string => {
   }
   if (raw === 'PATENT_COUNTRY_DUPLICATED') return '이미 등록된 국가입니다.';
   if (raw === 'PATENT_TARGET_DUPLICATED') return '이미 등록된 Target입니다.';
+  if (raw === 'PATENT_APPLICANT_DUPLICATED') return '이미 등록된 출원인입니다.';
+  if (raw === 'PATENT_INVENTOR_DUPLICATED') return '이미 등록된 발명자입니다.';
+  if (raw === 'PATENT_INVENTOR_MULTIPLE_VALUES') {
+    return '발명자는 사람 한 명씩 등록해 주세요.';
+  }
   if (raw === 'PATENT_ATTORNEY_NUMBER_DUPLICATED') {
     return '이미 등록된 대리인번호입니다.';
   }
@@ -218,6 +240,17 @@ const PatentCodeTablePanel: React.FC<Props> = ({
     });
   };
 
+  /** 코드만으로는 어느 나라인지 알기 어려우므로 아는 코드에 한해 이름을 붙인다. */
+  const countryHint = (code: string) => {
+    const country = getCountryLabel(code);
+    if (!country.known) return null;
+    return (
+      <Text type="secondary">
+        {` ${country.flag ? `${country.flag} ` : ''}${country.name}`}
+      </Text>
+    );
+  };
+
   const columns: TableColumnsType<PatentCodeItem> = [
     { title: config.idLabel, dataIndex: 'id', key: 'id', width: 110 },
     {
@@ -234,7 +267,15 @@ const PatentCodeTablePanel: React.FC<Props> = ({
             onPressEnter={() => void handleUpdate(item)}
           />
         ) : (
-          item.value || <Text type="secondary">(비어 있음)</Text>
+          // 국가 탭은 코드가 원본이므로 코드를 그대로 두고 한국어 이름만 덧붙인다.
+          item.value
+            ? (
+              <span className="pm-code-value">
+                {item.value}
+                {config.type === 'countries' && countryHint(item.value)}
+              </span>
+            )
+            : <Text type="secondary">(비어 있음)</Text>
         ),
     },
     {

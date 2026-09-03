@@ -58,6 +58,13 @@ type PatentPdfToolbarProps = {
   onSearchQueryChange: (value: string) => void;
   onRunSearch: (value?: string) => void;
   onClearSearch: () => void;
+  /**
+   * 입력한 검색어를 **쌓아 두라**는 요청. Enter와 Search 버튼에서만 부른다.
+   *
+   * 넘기지 않으면 예전처럼 검색만 하고 끝난다(특허 분석 화면). 넘긴 화면은 검색어를
+   * 칩으로 모아 두고 눌러 오갈 수 있다.
+   */
+  onCommitSearchTerm?: (value: string) => void;
   onMoveSearchMatch: (direction: number) => void;
   onRotateLeft: () => void;
   onRotateRight: () => void;
@@ -93,6 +100,7 @@ const PatentPdfToolbar: React.FC<PatentPdfToolbarProps> = ({
   onSearchQueryChange,
   onRunSearch,
   onClearSearch,
+  onCommitSearchTerm,
   onMoveSearchMatch,
   onRotateLeft,
   onRotateRight,
@@ -114,6 +122,16 @@ const PatentPdfToolbar: React.FC<PatentPdfToolbarProps> = ({
   const [zoomInput, setZoomInput] = React.useState(String(zoomPercent));
   // 한글 등 IME 조합 중인지 추적. 조합 중에는 검색을 실행하지 않고, compositionEnd 시점에 실행한다.
   const isComposingRef = React.useRef(false);
+  /**
+   * 조합 중에 눌린 Enter를 조합이 끝나는 시점으로 넘기기 위한 표시.
+   *
+   * 한글에서 Enter는 두 가지 일을 한 번에 한다 — 조합 중인 글자를 확정하고, 그 다음에야
+   * '입력을 마쳤다'는 뜻이 된다. 확정 전의 Enter를 그대로 받아 검색어로 쌓으면 조합이
+   * 깨지면서 마지막 글자가 입력창에 남고, 그것이 다시 쌓여 `청구항` + `항`처럼 칩이
+   * 둘로 갈린다. 그래서 조합 중의 Enter는 흘려보내고 여기에 표시만 남긴 뒤,
+   * 곧바로 오는 compositionend에서 **확정된 값**으로 쌓는다.
+   */
+  const commitOnCompositionEndRef = React.useRef(false);
 
   React.useEffect(() => {
     setPageInput(currentPage);
@@ -132,6 +150,19 @@ const PatentPdfToolbar: React.FC<PatentPdfToolbarProps> = ({
     }
     // 범위 밖 값은 부르는 쪽이 자른다. 잘린 결과는 scalechanging을 타고 표시값으로 돌아온다.
     onZoomPercentChange(next);
+  };
+
+  /**
+   * 검색을 실행하고, 쌓아 두는 화면이면 검색어로도 쌓는다. Enter와 Search 버튼이 같이 쓴다.
+   *
+   * 빈 값은 흘려보낸다 — 검색어를 쌓고 나면 입력창이 비므로, 그 상태의 Enter까지 받으면
+   * `searchPdf('')`가 방금 건 하이라이트를 지운다. 쌓지 않는 화면(특허 분석)은 예전처럼
+   * 빈 검색도 그대로 실행해 검색을 지우는 데 쓴다.
+   */
+  const runSearchAndCommit = (value: string) => {
+    if (onCommitSearchTerm && !value.trim()) return;
+    onRunSearch(value);
+    onCommitSearchTerm?.(value);
   };
 
   const commitPage = () => {
@@ -198,13 +229,29 @@ const PatentPdfToolbar: React.FC<PatentPdfToolbarProps> = ({
             onRunSearch(value);
           }
         }}
-        onCompositionStart={() => { isComposingRef.current = true; }}
+        onCompositionStart={() => {
+          isComposingRef.current = true;
+          commitOnCompositionEndRef.current = false;
+        }}
         onCompositionEnd={(event) => {
           isComposingRef.current = false;
+          const value = (event.target as HTMLInputElement).value;
+          // 조합 중에 Enter가 눌렸다면 그 Enter는 이 값을 두고 한 것이다(위 ref 주석).
+          if (commitOnCompositionEndRef.current) {
+            commitOnCompositionEndRef.current = false;
+            runSearchAndCommit(value);
+            return;
+          }
           // 한글 조합 완료 시점의 최종 값으로 검색 실행
-          onRunSearch((event.target as HTMLInputElement).value);
+          onRunSearch(value);
         }}
-        onPressEnter={(event) => onRunSearch((event.target as HTMLInputElement).value)}
+        onPressEnter={(event) => {
+          if (event.nativeEvent.isComposing || isComposingRef.current) {
+            commitOnCompositionEndRef.current = true;
+            return;
+          }
+          runSearchAndCommit((event.target as HTMLInputElement).value);
+        }}
         placeholder="PDF 텍스트 조회"
         style={{ flex: '1 1 180px', minWidth: 160, maxWidth: 260 }}
         size="small"
@@ -214,7 +261,7 @@ const PatentPdfToolbar: React.FC<PatentPdfToolbarProps> = ({
         size="small"
         type="primary"
         tooltip="입력한 텍스트를 PDF에서 검색"
-        onClick={() => onRunSearch(searchQuery)}
+        onClick={() => runSearchAndCommit(searchQuery)}
       >
         Search
       </PdfToolbarButton>

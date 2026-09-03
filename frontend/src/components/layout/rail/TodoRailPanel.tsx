@@ -102,7 +102,11 @@ const TodoRailPanel: React.FC = () => {
   }, [message]);
 
   const openPatent = React.useCallback((item: PatentDeadlineItem) => {
-    navigate(`/patent-management${buildPatentListQuery({ q: item.applicationNumber })}`);
+    // 상세 검색의 출원번호 조건으로 넘긴다. 통합 검색(q)으로 넘기면 목록 화면에서
+    // 그 조건이 어느 입력에 걸렸는지 보이지 않는다.
+    navigate(`/patent-management${buildPatentListQuery({
+      applicationNumber: item.applicationNumber,
+    })}`);
   }, [navigate]);
 
   if (!canRead) {

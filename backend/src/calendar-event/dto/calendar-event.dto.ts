@@ -1,7 +1,9 @@
 import {
   IsBoolean,
   IsIn,
+  IsInt,
   IsOptional,
+  IsPositive,
   IsString,
   Matches,
   MaxLength,
@@ -71,6 +73,15 @@ export class CreateCalendarEventDto {
   @IsOptional()
   @IsString()
   teamId?: string | null;
+
+  /**
+   * 연결할 관리 특허(patent.id). 선택 사항이며 null이면 연결을 끊는다.
+   * 내부관리번호가 아니라 id로 받는다 — 내부관리번호는 나중에 고쳐질 수 있는 표기다.
+   */
+  @IsOptional()
+  @IsInt()
+  @IsPositive()
+  patentId?: number | null;
 }
 
 /**

@@ -1,6 +1,6 @@
 # 특허 도메인 Database Schema
 
-`backend/prisma/schema.prisma`의 특허 도메인 16개 table에 대한 ERD와 table 설명이다.
+`backend/prisma/schema.prisma`의 특허 도메인 19개 table에 대한 ERD와 table 설명이다.
 schema·migration을 변경할 때 이 문서도 같은 작업에서 갱신한다 (`AGENTS.md` DB Schema·ERD 동기화 항목).
 
 - Migration: `backend/prisma/migrations/20260810120000_add_patent_domain/`,
@@ -8,7 +8,10 @@ schema·migration을 변경할 때 이 문서도 같은 작업에서 갱신한�
   `backend/prisma/migrations/20260811090000_add_patent_sheet_columns/`,
   `backend/prisma/migrations/20260812120000_add_patent_target_code/`,
   `backend/prisma/migrations/20260812150000_add_patent_todo/`,
-  `backend/prisma/migrations/20260824100000_add_patent_expected_expiry_index/`
+  `backend/prisma/migrations/20260824100000_add_patent_expected_expiry_index/`,
+  `backend/prisma/migrations/20260903120000_add_patent_party_codes/`,
+  `backend/prisma/migrations/20260903130000_grant_patent_party_sequence_privileges/`,
+  `backend/prisma/migrations/20260903160000_link_patents_to_individual_inventors/`
 - 이 묶음은 외부 특허 데이터를 적재하는 용도라 PK/FK가 `int`이고 column명이 snake_case다.
   기존 auth 도메인(uuid PK, camelCase column)과 규칙이 다르다.
 
@@ -23,6 +26,9 @@ erDiagram
     patent_stage ||--o{ legal_status : "진행 단계 매핑"
     exam_status ||--o{ patent : "심사 상태"
     patent_target ||--o{ patent : "Target"
+    patent_applicant ||--o{ patent : "출원인"
+    patent ||--o{ patent_inventor_link : "발명자 연결"
+    patent_inventor ||--o{ patent_inventor_link : "발명자 개인"
     patent ||--o{ patent_todo : "To-do"
     patent ||--o{ patent_ipc : "IPC 분류"
     ipc ||--o{ patent_ipc : "IPC 코드"
@@ -76,6 +82,22 @@ erDiagram
         text target UK
     }
 
+    patent_applicant {
+        int id PK
+        text applicant UK
+    }
+
+    patent_inventor {
+        int id PK
+        text inventor UK
+    }
+
+    patent_inventor_link {
+        int patent_id PK,FK
+        int inventor_id PK,FK
+        int ordinal
+    }
+
     patent {
         int id PK
         int country FK
@@ -89,7 +111,7 @@ erDiagram
         text english_title
         text application_number UK
         datetime application_date
-        text applicant
+        text applicant FK
         int attorney_number FK
         text registration_number
         text registration_date
@@ -201,6 +223,9 @@ erDiagram
 | `patent_stage` | `PatentStage` | 진행 현황의 상세 단계 코드. 정의·국가별 적용 범위·매핑 근거는 [`patent_stage_definitions.md`](patent_stage_definitions.md). |
 | `exam_status` | `ExamStatus` | 특허의 심사 상태 코드 테이블. |
 | `patent_target` | `PatentTarget` | 관리 특허의 Target 코드. `target`에 unique이며 코드명 변경은 참조 중인 특허에 cascade된다. |
+| `patent_applicant` | `PatentApplicant` | 출원인 코드. 기존 `patent.applicant` 값을 초기 코드로 사용하며 코드명 변경은 참조 중인 특허에 cascade된다. |
+| `patent_inventor` | `PatentInventor` | 발명자 개인 코드. 사람 한 명을 행 하나로 등록한다. |
+| `patent_inventor_link` | `PatentInventorLink` | 특허와 발명자의 다대다 연결. `ordinal`로 해당 특허에서의 표시 순서를 보존한다. |
 | `patent` | `Patent` | 특허 본체. `application_number`에 unique. 국내·국제 출원/공개 번호와 일자를 함께 보관한다. IP팀 내부관리번호는 `internal_ref`(원문, unique)에 두고 `ref_*`에 파싱 결과를 함께 저장한다. |
 | `patent_todo` | `PatentTodo` | 관리 특허별 To-do 목록. 제목·설명·마감일·완료 상태를 보관하며 향후 알림 설정이 참조할 독립 ID를 제공한다. |
 | `ipc` | `Ipc` | IPC 분류 코드. `ipc_code`에 unique이며 section·class·subclass·group으로 분해해 둔다. |
@@ -246,7 +271,8 @@ F 25 W 001 US     F25W001US   미국 진입
 
 | 대상 | 근거 |
 | --- | --- |
-| `patent(country)`, `patent(attorney_number)`, `patent(legal_status)`, `patent(exam_status)`, `patent(target)` | 코드값 필터 (목록·진행 현황 집계) |
+| `patent(country)`, `patent(attorney_number)`, `patent(legal_status)`, `patent(exam_status)`, `patent(target)`, `patent(applicant)` | 코드값 참조·필터와 코드별 사용 건수 조회 |
+| `patent_inventor_link(inventor_id)` | 발명자별 연결 특허 조회와 사용 건수 집계 |
 | `patent(application_date)`, `patent(publication_date)` | 출원일·공개일 정렬과 월별 일정 조회 |
 | `patent(expected_expiry_date)` | 대시보드 기한 보드·KPI가 만료 임박 건을 범위로 조회한다. 다른 날짜 column과 달리 index가 빠져 있어 집계가 full scan이 되던 것을 보완함 |
 | `patent(ref_origin, ref_year, ref_type, ref_serial)` | 내부관리번호 구성요소별 조회와 다음 일련번호 채번 |
@@ -262,6 +288,9 @@ F 25 W 001 US     F25W001US   미국 진입
 | `patent.application_number` | ERD 표기 |
 | `patent.internal_ref` | ERD에 없음. IP팀 내부관리번호는 건별 고유해야 하므로 추가함 |
 | `patent_target.target` | Target 이름을 FK 참조값으로 사용하므로 중복될 수 없음 |
+| `patent_applicant.applicant` | 출원인 이름을 FK 참조값으로 사용하므로 중복될 수 없음 |
+| `patent_inventor.inventor` | 같은 발명자 개인을 중복 등록하지 않도록 이름을 unique로 제약 |
+| `patent_inventor_link(patent_id, inventor_id)` | 한 특허에 같은 발명자가 중복 연결되지 않도록 복합 PK로 제약 |
 | `patent_todo.source_key` | 기존 단일 `todo_due_date`와 CSV 값을 중복 생성 없이 동기화하기 위한 nullable 내부 key |
 | `ipc.ipc_code` | ERD에 없음. 코드가 분해 column들의 원본이라 중복될 수 없어 추가함 |
 | `patent_ipc(patent_id, ipc_id)` | ERD에 없음. 같은 특허에 동일 IPC가 중복 연결되지 않도록 추가함 |
@@ -269,7 +298,8 @@ F 25 W 001 US     F25W001US   미국 진입
 
 ### NOT NULL
 
-PK 외에 `country.country`, `legal_status.status`, `exam_status.status`, `patent_target.target`, `ipc.ipc_code`,
+PK 외에 `country.country`, `legal_status.status`, `exam_status.status`, `patent_target.target`,
+`patent_applicant.applicant`, `patent_inventor.inventor`, `patent_inventor_link.ordinal`, `ipc.ipc_code`,
 `examiner.name`, `patent.application_number`, `patent.country`, `patent_todo.title`,
 `patent_todo.completed`, `patent_todo.created_at`, `patent_todo.updated_at`, `patent_ipc.ordinal`,
 그리고 소유 관계를 이루는 FK(`patent_todo.patent_id`, `patent_ipc.patent_id`, `patent_ipc.ipc_id`, `admin.patent_id`,
@@ -278,7 +308,8 @@ PK 외에 `country.country`, `legal_status.status`, `exam_status.status`, `paten
 
 ### onDelete
 
-- 소유 관계(`patent → patent_todo`, `patent → admin → office_action → response`/`rejection`, `patent_ipc`, `oa_examiner`)는 `Cascade`.
-- 조회용 참조(`patent.attorney_number`, `patent.legal_status`, `patent.exam_status`, `patent.target`, `rejection.statute_id`)는 `SetNull`.
-- `patent.target`은 코드명 변경 시 기존 관리 특허의 문자열 값도 함께 바뀌도록 `onUpdate: Cascade`다.
+- 소유 관계(`patent → patent_todo`, `patent → patent_inventor_link`, `patent → admin → office_action → response`/`rejection`, `patent_ipc`, `oa_examiner`)는 `Cascade`.
+- 조회용 참조(`patent.attorney_number`, `patent.legal_status`, `patent.exam_status`, `patent.target`, `patent.applicant`, `rejection.statute_id`)는 `SetNull`.
+- `patent.target`, `patent.applicant`는 코드명 변경 시 기존 관리 특허의 문자열 값도 함께 바뀌도록 `onUpdate: Cascade`다.
+- `patent_inventor_link.inventor_id`는 연결 중인 발명자 삭제를 `Restrict`하고, 코드 관리 API도 사용 중인 코드 삭제를 차단한다.
 - `patent.country`는 NOT NULL이라 기본값인 `Restrict`. 참조 중인 국가는 삭제되지 않는다.

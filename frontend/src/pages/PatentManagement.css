@@ -184,10 +184,7 @@
   min-height: 0;
 }
 
-/* 가로 스크롤바의 주인은 .ant-table-content다(scroll.x 때문에 rc-table이 overflow-x를
-   여기에 준다). 기본 높이가 헤더+행뿐이라 패널이 늘어나면 스크롤바가 표 바로 아래,
-   즉 패널 중간에 떠 보인다. wrapper부터 content까지 높이를 물려줘서 스크롤바가
-   패널 하단(페이지네이션 위)에 붙게 한다. */
+/* wrapper부터 content까지 높이를 물려줘서 목록 영역이 남는 높이를 모두 채우게 한다. */
 .pm-list-table > .ant-table-wrapper,
 .pm-list-table .ant-spin-nested-loading,
 .pm-list-table .ant-spin-container,
@@ -202,17 +199,44 @@
 .pm-list-table .ant-table-content {
   flex: 1 1 auto;
   min-height: 0;
-  overflow: auto;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
-/* '명칭' 열은 한 줄로 자른다(전체 제목은 Tooltip으로 본다). 이 클래스는 예전부터
-   markup에만 있고 정의가 없어 실제로는 아무 일도 하지 않았다. */
+/* 부모 폭에 맞춰 줄어드는 텍스트 열. 실제로 잘린 경우에만 컴포넌트가 Tooltip을 연다. */
 .pm-list-panel .pm-ellipsis {
   display: block;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* 내부관리번호는 식별자이므로 줄바꿈하거나 말줄임하지 않고 원문을 유지한다. */
+.pm-list-panel .pm-no-wrap {
+  white-space: nowrap;
+}
+
+.pm-list-table .ant-table-cell.pm-internal-ref-cell {
+  overflow: visible;
+  text-overflow: clip;
+  white-space: nowrap;
+}
+
+/* 명칭은 식별에 도움이 되도록 두 줄까지 허용하고 이후 내용을 말줄임한다. */
+.pm-list-panel .pm-ellipsis-two-lines {
+  display: -webkit-box;
+  line-height: 18px;
+  max-height: 36px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+/* fixed table에서 Tag나 셀 콘텐츠가 열 너비를 다시 밀어내지 않게 한다. */
+.pm-list-table .ant-table-cell {
+  overflow: hidden;
 }
 
 /* 페이지네이션은 패널 맨 아래에 붙는다(표가 짧아도 바닥 정렬). */

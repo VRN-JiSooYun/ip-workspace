@@ -23,6 +23,7 @@ import {
   sanitizeCalendarEventInput,
   type CalendarEvent,
   type CalendarEventInput,
+  type CalendarEventPatent,
 } from '../utils/calendarEvents';
 import type { CalendarEventGateway } from '../services/calendarEventApi';
 
@@ -242,6 +243,19 @@ const MOCK_TEAMS = [
 
 const MOCK_ME = { id: 'dashboard-harness', name: '나' };
 
+/** 일정에 연결할 수 있는 특허. 등록 모달의 '관련 특허' 고르기가 여기서 찾는다. */
+const MOCK_PATENTS: CalendarEventPatent[] = [
+  { id: 11, internalRef: 'A25W011', applicationNumber: '10-2026-0000011', title: '치환된 헤테로아릴 화합물' },
+  { id: 12, internalRef: 'A25W012', applicationNumber: '10-2026-0000012', title: '이중 저해제 조성물' },
+  { id: 13, internalRef: 'F25W003US', applicationNumber: '17/123,456', title: 'Substituted heteroaryl compounds' },
+  { id: 14, internalRef: 'A25W014', applicationNumber: '10-2026-0000014', title: null },
+  // 내부관리번호가 없는 행. 화면이 출원번호로 대신 부르는지 볼 수 있다.
+  { id: 15, internalRef: null, applicationNumber: '10-2026-0000015', title: '규칙 밖 번호 표본' },
+];
+
+const findMockPatent = (id: number | null): CalendarEventPatent | null =>
+  MOCK_PATENTS.find((item) => item.id === id) ?? null;
+
 /**
  * 일정 저장소를 메모리로 흉내 낸다.
  *
@@ -256,9 +270,12 @@ const mockEvent = (
 ): CalendarEvent => {
   const clean = sanitizeCalendarEventInput(input);
   const team = MOCK_TEAMS.find((item) => item.id === clean.teamId) ?? null;
+  // 서버는 patentId를 받아 저장하고 표기는 특허 쪽에서 읽어 온다. 여기서도 같게 만든다.
+  const { patentId, ...stored } = clean;
   return {
     id: `mock-${Math.random().toString(36).slice(2, 10)}`,
-    ...clean,
+    ...stored,
+    patent: findMockPatent(patentId),
     teamName: team?.name ?? null,
     owner: MOCK_ME,
     canEdit: true,
@@ -271,17 +288,19 @@ const mockEvent = (
 const seedCalendarEvents = (): CalendarEvent[] => {
   const at = (offset: number) => relativeDate(offset);
   return [
-    mockEvent({ title: '[외근] 특허사무소 미팅', start: at(-7), end: at(-7), allDay: false, startTime: '08:00', endTime: '11:00', color: 'purple', memo: null, visibility: 'PRIVATE', teamId: null }),
-    mockEvent({ title: '내부 교육', start: at(-7), end: at(-7), allDay: false, startTime: '13:00', endTime: '14:00', color: 'orange', memo: null, visibility: 'PRIVATE', teamId: null }),
-    mockEvent({ title: '[휴가] 김가이', start: at(-6), end: at(-5), allDay: true, startTime: null, endTime: null, color: 'teal', memo: null, visibility: 'TEAM', teamId: 'team-ip' }),
-    mockEvent({ title: '신입사원 교육', start: at(0), end: at(1), allDay: true, startTime: null, endTime: null, color: 'orange', memo: null, visibility: 'TEAM', teamId: 'team-ip' }),
-    mockEvent({ title: '[외근] 송채안', start: at(0), end: at(0), allDay: false, startTime: '08:00', endTime: '10:00', color: 'purple', memo: null, visibility: 'PRIVATE', teamId: null }),
+    mockEvent({ title: '[외근] 특허사무소 미팅', start: at(-7), end: at(-7), allDay: false, startTime: '08:00', endTime: '11:00', color: 'purple', memo: null, visibility: 'PRIVATE', teamId: null, patentId: null }),
+    mockEvent({ title: '내부 교육', start: at(-7), end: at(-7), allDay: false, startTime: '13:00', endTime: '14:00', color: 'orange', memo: null, visibility: 'PRIVATE', teamId: null, patentId: null }),
+    // 특허를 연결한 표본. 팝업의 '관련 특허' 링크를 손으로 확인할 수 있다.
+    mockEvent({ title: 'OA 대응 회의', start: at(1), end: at(1), allDay: false, startTime: '15:00', endTime: '16:00', color: 'blue', memo: null, visibility: 'PRIVATE', teamId: null, patentId: 11 }),
+    mockEvent({ title: '[휴가] 김가이', start: at(-6), end: at(-5), allDay: true, startTime: null, endTime: null, color: 'teal', memo: null, visibility: 'TEAM', teamId: 'team-ip', patentId: null }),
+    mockEvent({ title: '신입사원 교육', start: at(0), end: at(1), allDay: true, startTime: null, endTime: null, color: 'orange', memo: null, visibility: 'TEAM', teamId: 'team-ip', patentId: null }),
+    mockEvent({ title: '[외근] 송채안', start: at(0), end: at(0), allDay: false, startTime: '08:00', endTime: '10:00', color: 'purple', memo: null, visibility: 'PRIVATE', teamId: null, patentId: null }),
     // 남이 만든 팀 일정. 팝업에 수정·삭제가 없어야 한다.
     mockEvent(
-      { title: '[공유] 분기 IP 보고', start: at(3), end: at(3), allDay: false, startTime: '10:00', endTime: '11:00', color: 'blue', memo: null, visibility: 'TEAM', teamId: 'team-ip' },
+      { title: '[공유] 분기 IP 보고', start: at(3), end: at(3), allDay: false, startTime: '10:00', endTime: '11:00', color: 'blue', memo: null, visibility: 'TEAM', teamId: 'team-ip', patentId: null },
       { owner: { id: 'other', name: '송채안' }, canEdit: false },
     ),
-    mockEvent({ title: '전사 워크숍', start: at(9), end: at(11), allDay: true, startTime: null, endTime: null, color: 'red', memo: null, visibility: 'TEAM', teamId: 'team-research' }),
+    mockEvent({ title: '전사 워크숍', start: at(9), end: at(11), allDay: true, startTime: null, endTime: null, color: 'red', memo: null, visibility: 'TEAM', teamId: 'team-research', patentId: null }),
   ];
 };
 
@@ -412,6 +431,17 @@ export const buildMockDashboardState = (
 
     focusedBucket: null,
     focusDeadlineBucket: noop,
+
+    /** 등록 모달의 '관련 특허' 고르기. 서버 검색과 같은 축(번호·명칭)으로 거른다. */
+    searchPatentOptions: async (keyword: string) => {
+      const needle = keyword.trim().toLowerCase();
+      if (!needle) return MOCK_PATENTS;
+      return MOCK_PATENTS.filter((item) => [
+        item.internalRef,
+        item.applicationNumber,
+        item.title,
+      ].some((value) => value?.toLowerCase().includes(needle)));
+    },
 
     loadPatentScheduleEvents: async (year: number, month: number) => {
       if (isError) throw new Error('특허 일정 조회에 실패했습니다.');

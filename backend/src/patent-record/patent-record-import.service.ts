@@ -41,6 +41,8 @@ export type ImportResult = {
     legalStatuses: string[];
     examStatuses: string[];
     targets: string[];
+    applicants: string[];
+    inventors: string[];
   };
   issues: ImportIssue[];
 };
@@ -55,6 +57,8 @@ type Candidate = {
   examStatus: string | null;
   attorneyNumber: number | null;
   attorneyName: string | null;
+  /** CSV 한 셀의 구분 문자열을 개인 이름 단위로 분리한 결과. */
+  inventorNames: string[];
   data: {
     koreanTitle: string | null;
     englishTitle: string | null;
@@ -70,7 +74,6 @@ type Candidate = {
     intPublicationDate: Date | null;
     parentApplicationNumber: string | null;
     target: string | null;
-    inventors: string | null;
     todoDueDate: Date | null;
     relationType: string | null;
     licenseAgreement: string | null;
@@ -91,6 +94,21 @@ const textOrNull = (value: string | undefined): string | null => {
 };
 
 const normalizeCode = (value: string): string => value.trim().toLowerCase();
+
+/** 운영 시트의 쉼표 구분 발명자를 개인 단위로 분리하고 중복을 제거한다. */
+const splitInventorNames = (value: string | undefined): string[] => {
+  const names = (value ?? "")
+    .split(/[,，、;\n\r]+/)
+    .map((name) => name.trim())
+    .filter(Boolean);
+  const seen = new Set<string>();
+  return names.filter((name) => {
+    const key = normalizeCode(name);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+};
 
 @Injectable()
 export class PatentRecordImportService {
@@ -356,6 +374,7 @@ export class PatentRecordImportService {
       examStatus: textOrNull(raw.examStatus),
       attorneyNumber,
       attorneyName: textOrNull(raw.attorneyName),
+      inventorNames: splitInventorNames(raw.inventors),
       data: {
         koreanTitle: textOrNull(raw.koreanTitle),
         englishTitle: textOrNull(raw.englishTitle),
@@ -373,7 +392,6 @@ export class PatentRecordImportService {
         exam,
         examDate,
         target: textOrNull(raw.target),
-        inventors: textOrNull(raw.inventors),
         todoDueDate,
         relationType: textOrNull(raw.relationType),
         licenseAgreement: textOrNull(raw.licenseAgreement),
@@ -386,17 +404,27 @@ export class PatentRecordImportService {
   }
 
   /**
-   * country·legal_status·exam_status·target은 없으면 APPLY 때 만든다.
+   * country·legal_status·exam_status·target·applicant·inventor는 없으면 APPLY 때 만든다.
    * attorney는 PK가 외부 대리인번호라 임의 생성이 불가능해 오류로 남긴다.
    */
   private async resolveCodes(candidates: Candidate[], issues: ImportIssue[]) {
-    const [countries, legalStatuses, examStatuses, attorneys, targets] =
+    const [
+      countries,
+      legalStatuses,
+      examStatuses,
+      attorneys,
+      targets,
+      applicants,
+      inventors,
+    ] =
       await Promise.all([
         this.prisma.client.country.findMany(),
         this.prisma.client.legalStatus.findMany(),
         this.prisma.client.examStatus.findMany(),
         this.prisma.client.attorney.findMany(),
         this.prisma.client.patentTarget.findMany(),
+        this.prisma.client.patentApplicant.findMany(),
+        this.prisma.client.patentInventor.findMany(),
       ]);
 
     const countryIds = new Map(
@@ -420,14 +448,24 @@ export class PatentRecordImportService {
     const targetValues = new Map(
       targets.map((row) => [normalizeCode(row.target), row.target]),
     );
+    const applicantValues = new Map(
+      applicants.map((row) => [normalizeCode(row.applicant), row.applicant]),
+    );
+    const inventorIds = new Map(
+      inventors.map((row) => [normalizeCode(row.inventor), row.id]),
+    );
 
     const newCountries = new Map<string, string>();
     const newLegalStatuses = new Map<string, string>();
     const newExamStatuses = new Map<string, string>();
     const newTargets = new Map<string, string>();
+    const newApplicants = new Map<string, string>();
+    const newInventors = new Map<string, string>();
     const failedRows = new Set<number>();
     const attorneyByRow = new Map<number, number | null>();
     const targetByRow = new Map<number, string | null>();
+    const applicantByRow = new Map<number, string | null>();
+    const inventorNamesByRow = new Map<number, string[]>();
 
     for (const candidate of candidates) {
       const countryKey = normalizeCode(candidate.country);
@@ -458,6 +496,26 @@ export class PatentRecordImportService {
         }
       } else {
         targetByRow.set(candidate.rowNumber, null);
+      }
+
+      if (candidate.data.applicant) {
+        const key = normalizeCode(candidate.data.applicant);
+        const resolved = applicantValues.get(key) ?? newApplicants.get(key);
+        if (resolved) applicantByRow.set(candidate.rowNumber, resolved);
+        else {
+          newApplicants.set(key, candidate.data.applicant);
+          applicantByRow.set(candidate.rowNumber, candidate.data.applicant);
+        }
+      } else {
+        applicantByRow.set(candidate.rowNumber, null);
+      }
+
+      inventorNamesByRow.set(candidate.rowNumber, candidate.inventorNames);
+      for (const inventorName of candidate.inventorNames) {
+        const key = normalizeCode(inventorName);
+        if (!inventorIds.has(key) && !newInventors.has(key)) {
+          newInventors.set(key, inventorName);
+        }
       }
 
       // 대리인은 번호 우선, 없으면 이름으로 찾는다.
@@ -503,12 +561,17 @@ export class PatentRecordImportService {
       attorneyIdsByName,
       attorneyByRow,
       targetByRow,
+      applicantByRow,
+      inventorIds,
+      inventorNamesByRow,
       failedRows,
       newCodes: {
         countries: [...newCountries.values()],
         legalStatuses: [...newLegalStatuses.values()],
         examStatuses: [...newExamStatuses.values()],
         targets: [...newTargets.values()],
+        applicants: [...newApplicants.values()],
+        inventors: [...newInventors.values()],
       },
     };
   }
@@ -583,6 +646,7 @@ export class PatentRecordImportService {
       const countryIds = new Map(resolution.countryIds);
       const legalStatusIds = new Map(resolution.legalStatusIds);
       const examStatusIds = new Map(resolution.examStatusIds);
+      const inventorIds = new Map(resolution.inventorIds);
 
       for (const value of resolution.newCodes.countries) {
         const created = await tx.country.create({ data: { country: value } });
@@ -601,6 +665,15 @@ export class PatentRecordImportService {
       for (const value of resolution.newCodes.targets) {
         await tx.patentTarget.create({ data: { target: value } });
       }
+      for (const value of resolution.newCodes.applicants) {
+        await tx.patentApplicant.create({ data: { applicant: value } });
+      }
+      for (const value of resolution.newCodes.inventors) {
+        const created = await tx.patentInventor.create({
+          data: { inventor: value },
+        });
+        inventorIds.set(normalizeCode(value), created.id);
+      }
 
       for (const { candidate, existingId } of writable) {
         const countryId = countryIds.get(normalizeCode(candidate.country));
@@ -612,6 +685,7 @@ export class PatentRecordImportService {
         const data = {
           ...candidate.data,
           target: resolution.targetByRow.get(candidate.rowNumber) ?? null,
+          applicant: resolution.applicantByRow.get(candidate.rowNumber) ?? null,
           ...buildInternalRefColumns(candidate.internalRef),
           countryId,
           attorneyNumber,
@@ -622,10 +696,32 @@ export class PatentRecordImportService {
             ? (examStatusIds.get(normalizeCode(candidate.examStatus)) ?? null)
             : null,
         };
+        const rowInventorIds = (
+          resolution.inventorNamesByRow.get(candidate.rowNumber) ?? []
+        ).flatMap((name) => {
+          const id = inventorIds.get(normalizeCode(name));
+          return id === undefined ? [] : [id];
+        });
+        const inventorCreates = rowInventorIds.map((inventorId, ordinal) => ({
+          inventorId,
+          ordinal,
+        }));
 
         if (existingId !== null) {
-          await tx.patent.update({ where: { id: existingId }, data });
-          await this.recordImport(tx, existingId, candidate, data);
+          await tx.patent.update({
+            where: { id: existingId },
+            data: {
+              ...data,
+              inventorLinks: {
+                deleteMany: {},
+                create: inventorCreates,
+              },
+            },
+          });
+          await this.recordImport(tx, existingId, candidate, {
+            ...data,
+            inventors: candidate.inventorNames,
+          });
           await this.syncLegacyTodo(
             tx,
             existingId,
@@ -633,10 +729,19 @@ export class PatentRecordImportService {
           );
         } else {
           const created = await tx.patent.create({
-            data: { ...data, applicationNumber: candidate.applicationNumber },
+            data: {
+              ...data,
+              applicationNumber: candidate.applicationNumber,
+              ...(inventorCreates.length
+                ? { inventorLinks: { create: inventorCreates } }
+                : {}),
+            },
             select: { id: true },
           });
-          await this.recordImport(tx, created.id, candidate, data);
+          await this.recordImport(tx, created.id, candidate, {
+            ...data,
+            inventors: candidate.inventorNames,
+          });
           await this.syncLegacyTodo(
             tx,
             created.id,

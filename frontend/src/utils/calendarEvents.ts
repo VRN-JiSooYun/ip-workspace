@@ -82,22 +82,42 @@ export type CalendarEventVisibility = typeof CALENDAR_EVENT_VISIBILITIES[number]
  * `canEdit`은 서버가 계산해 준다. 팀에 공개된 일정은 팀원 모두에게 보이지만 고치고 지우는
  * 것은 만든 사람만 할 수 있는데, 그 판단이 화면과 서버 두 곳에 있으면 언젠가 갈린다.
  */
+/**
+ * 일정에 연결된 관리 특허. 서버가 patent.id로 저장하고 표기는 함께 내려 준다.
+ *
+ * 내부관리번호(internalRef)는 비어 있을 수 있다(규칙 밖 번호는 파싱만 실패하고 저장은
+ * 되지만, 아예 없는 행도 있다). 그래서 화면은 없을 때 출원번호로 대신 부른다.
+ */
+export type CalendarEventPatent = {
+  id: number;
+  internalRef: string | null;
+  applicationNumber: string;
+  title: string | null;
+};
+
 export type CalendarEvent = CalendarItem & {
   memo: string | null;
   visibility: CalendarEventVisibility;
   teamId: string | null;
   teamName: string | null;
+  /** 연결한 관리 특허. 연결하지 않았거나 그 특허가 지워졌으면 null이다. */
+  patent: CalendarEventPatent | null;
   owner: { id: string; name: string };
   canEdit: boolean;
   createdAt: string;
   updatedAt: string;
 };
 
-/** 등록·수정 폼이 서버로 보내는 값. id·작성자·시각 도장은 서버가 찍는다. */
+/**
+ * 등록·수정 폼이 서버로 보내는 값. id·작성자·시각 도장은 서버가 찍는다.
+ * 특허는 id만 보낸다 — 표기(내부관리번호·명칭)는 서버가 특허 쪽에서 읽어 온다.
+ */
 export type CalendarEventInput = Omit<
   CalendarEvent,
-  'id' | 'createdAt' | 'updatedAt' | 'teamName' | 'owner' | 'canEdit'
->;
+  'id' | 'createdAt' | 'updatedAt' | 'teamName' | 'owner' | 'canEdit' | 'patent'
+> & {
+  patentId: number | null;
+};
 
 // ---- 값 검증 ---------------------------------------------------------------
 
@@ -138,6 +158,7 @@ export const MIN_EVENT_MINUTES = 30;
  * - 종일이면 시각을 버리고, 종일이 아닌데 시각이 없으면 종일로 되돌린다
  * - 같은 날 안에서 끝 시각이 시작보다 앞서면 뒤집는다
  * - 비공개면 팀 연결을 끊는다(서버도 같은 규칙을 다시 확인한다)
+ * - 특허 연결은 양의 정수 id만 남긴다(그 특허가 실재하는지는 서버가 본다)
  */
 export const sanitizeCalendarEventInput = (input: CalendarEventInput): CalendarEventInput => {
   const title = input.title.trim() || '(제목 없음)';
@@ -148,7 +169,12 @@ export const sanitizeCalendarEventInput = (input: CalendarEventInput): CalendarE
   const memo = input.memo?.trim() ? input.memo.trim() : null;
   const visibility = input.visibility === 'TEAM' && input.teamId ? 'TEAM' : 'PRIVATE';
   const teamId = visibility === 'TEAM' ? input.teamId : null;
-  const shared = { color, memo, visibility, teamId } as const;
+  // 특허 연결은 있으면 그대로, 없으면 null. 형식이 깨진 값(0·음수·NaN)은 연결 없음으로 둔다.
+  const patentId = typeof input.patentId === 'number' && Number.isInteger(input.patentId)
+    && input.patentId > 0
+    ? input.patentId
+    : null;
+  const shared = { color, memo, visibility, teamId, patentId } as const;
 
   if (input.allDay || !isTimeValue(input.startTime) || !isTimeValue(input.endTime)) {
     return { title, start: from, end: to, allDay: true, startTime: null, endTime: null, ...shared };

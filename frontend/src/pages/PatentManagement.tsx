@@ -59,6 +59,12 @@ const PatentManagement: React.FC = () => {
 
   useEffect(() => () => clearDocuments(DOCUMENT_SOURCE), [clearDocuments]);
 
+  /**
+   * 검색바에 넣을 초기 검색어. URL query `q`로 들어온 값이 여기 담긴다.
+   * 헤더는 한 번만 심으므로 마운트 시점 값을 고정해 두고 쓴다.
+   */
+  const initialSearch = React.useRef(state.search).current;
+
   /** 검색바를 헤더의 breadcrumb과 같은 줄에 둔다. 값이 아니라 컴포넌트를 한 번만 심는다. */
   useEffect(() => {
     setHeaderContent(
@@ -66,11 +72,11 @@ const PatentManagement: React.FC = () => {
         <PageHeaderBreadcrumb items={[{ label: '특허 관리' }]} />
         {/* 검색 대상은 '관리 특허 목록'이다. 서버가 관리번호·출원번호·명칭·출원인을
             대소문자 구분 없이 부분 일치로 찾는다(patent-record.service). */}
-        <PatentSearchBar onSearch={state.applySearch} />
+        <PatentSearchBar onSearch={state.applySearch} initialValue={initialSearch} />
       </div>,
     );
     return () => setHeaderContent(null);
-  }, [setHeaderContent, state.applySearch]);
+  }, [initialSearch, setHeaderContent, state.applySearch]);
 
   return (
     // 값이 매 렌더 새 객체지만, 두 칸은 어차피 이 상태가 바뀔 때 다시 그려져야 한다.

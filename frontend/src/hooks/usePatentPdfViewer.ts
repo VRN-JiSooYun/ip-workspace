@@ -402,6 +402,64 @@ export const usePatentPdfViewer = ({
     });
   }, []);
 
+  /**
+   * 문서 전문을 공백 없는 한 덩어리로 만들어 둔다. 검색어 트레이의 칩마다 "이 문서에 몇 건"을
+   * 붙이는 데 쓴다.
+   *
+   * find controller로 세지 않는 이유: `search()`는 활성 쿼리를 갈아치우므로, 개수를 알아보려고
+   * 부르는 순간 사용자가 보고 있던 하이라이트가 지워진다. 그래서 텍스트만 따로 읽는다.
+   *
+   * 공백을 지우는 것은 검색 어댑터(`installWhitespaceTolerantPdfSearch`)와 같은 규칙이다.
+   * 규칙이 어긋나면 "12건"이라고 적힌 칩을 눌렀을 때 toolbar가 다른 수를 말한다.
+   */
+  const pdfCompactTextRef = React.useRef<{ document: any; text: string } | null>(null);
+
+  const readCompactPdfText = React.useCallback(async (): Promise<string | null> => {
+    const pdfDocument = pdfDocumentRef.current;
+    if (!pdfDocument) return null;
+
+    const cached = pdfCompactTextRef.current;
+    if (cached && cached.document === pdfDocument) return cached.text;
+
+    let raw = '';
+    for (let pageNumber = 1; pageNumber <= pdfDocument.numPages; pageNumber += 1) {
+      const page = await pdfDocument.getPage(pageNumber);
+      const content = await page.getTextContent();
+      // 읽는 동안 사용자가 다른 문서로 옮겼다면 그 결과를 캐시에 넣어선 안 된다.
+      if (pdfDocumentRef.current !== pdfDocument) return null;
+      raw += content.items.map((item: any) => item.str ?? '').join('');
+    }
+
+    const text = raw.normalize('NFC').replace(/\s+/gu, '').toLocaleLowerCase();
+    pdfCompactTextRef.current = { document: pdfDocument, text };
+    return text;
+  }, []);
+
+  /** 검색어별 매칭 수. 문서가 아직 없거나 읽는 중에 바뀌면 null을 준다. */
+  const countPdfTextMatches = React.useCallback(async (
+    terms: string[],
+  ): Promise<Record<string, number> | null> => {
+    if (terms.length === 0) return {};
+    const text = await readCompactPdfText();
+    if (text === null) return null;
+
+    const counts: Record<string, number> = {};
+    terms.forEach((term) => {
+      const needle = term.normalize('NFC').replace(/\s+/gu, '').toLocaleLowerCase();
+      if (!needle) {
+        counts[term] = 0;
+        return;
+      }
+      let count = 0;
+      // pdf.js와 같이 겹치지 않게 센다(찾은 길이만큼 건너뛴다).
+      for (let at = text.indexOf(needle); at !== -1; at = text.indexOf(needle, at + needle.length)) {
+        count += 1;
+      }
+      counts[term] = count;
+    });
+    return counts;
+  }, [readCompactPdfText]);
+
   const findNext = React.useCallback(() => {
     highlighterUtilsRef.current?.findNext();
   }, []);
@@ -816,6 +874,8 @@ export const usePatentPdfViewer = ({
     if (documentChanged) {
       pdfPageSizeRequestsRef.current.clear();
       setPdfPageSizes({});
+      // 이전 문서의 전문은 더 쓸 데가 없다(검색어 개수 세기용 캐시).
+      pdfCompactTextRef.current = null;
     }
     setIsPdfDocumentReady(Boolean(pdfDocument));
   }, []);
@@ -893,6 +953,7 @@ export const usePatentPdfViewer = ({
     setSearchQuery,
     matchCount,
     searchPdf,
+    countPdfTextMatches,
     findNext,
     findPrevious,
     // Page Handlers

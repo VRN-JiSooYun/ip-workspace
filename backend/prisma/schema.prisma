@@ -149,14 +149,19 @@ model CalendarEvent {
   /// 화면의 색 표식(purple·orange·yellow·teal·blue·red).
   color      String                  @default("purple") @db.VarChar(20)
   memo       String?
+  /// 이 일정이 가리키는 관리 특허. 선택 사항이며, 특허가 지워지면 연결만 끊고 일정은 남긴다
+  /// (일정 자체는 사람이 만든 것이라 특허가 사라졌다고 지울 값이 아니다).
+  patentId   Int?                    @map("patent_id")
   createdAt  DateTime                @default(now()) @map("created_at")
   updatedAt  DateTime                @updatedAt @map("updated_at")
   owner      User                    @relation("CalendarEventOwner", fields: [ownerId], references: [id], onDelete: Cascade)
   team       Team?                   @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  patent     Patent?                 @relation(fields: [patentId], references: [id], onDelete: SetNull)
 
   // 목록은 늘 "기간이 겹치는 것"을 묻는다. 소유자별·팀별로 각각 그 조건을 탄다.
   @@index([ownerId, startDate, endDate])
   @@index([teamId, startDate, endDate])
+  @@index([patentId])
   @@map("calendar_event")
 }
 
@@ -501,6 +506,36 @@ model PatentTarget {
   @@map("patent_target")
 }
 
+model PatentApplicant {
+  id        Int      @id @default(autoincrement())
+  applicant String   @unique
+  patents   Patent[]
+
+  @@map("patent_applicant")
+}
+
+model PatentInventor {
+  id          Int                  @id @default(autoincrement())
+  inventor    String               @unique
+  patentLinks PatentInventorLink[]
+
+  @@map("patent_inventor")
+}
+
+/// 특허와 발명자 개인의 다대다 연결. ordinal은 화면·CSV에서의 표시 순서를 보존한다.
+model PatentInventorLink {
+  patentId   Int @map("patent_id")
+  inventorId Int @map("inventor_id")
+  ordinal    Int @default(0)
+
+  patent   Patent         @relation(fields: [patentId], references: [id], onDelete: Cascade)
+  inventor PatentInventor @relation(fields: [inventorId], references: [id], onDelete: Restrict)
+
+  @@id([patentId, inventorId])
+  @@index([inventorId])
+  @@map("patent_inventor_link")
+}
+
 model Patent {
   id                      Int          @id @default(autoincrement())
   countryId               Int          @map("country")
@@ -534,10 +569,9 @@ model Patent {
   exam                    Boolean?
   examDate                DateTime?    @map("exam_date")
 
-  /// Target은 patent_target의 코드명을 참조한다. 나머지 항목은 코드 테이블로
-  /// 정규화하지 않고 IP팀 운영 시트에 적힌 문장을 보존한다.
+  /// Target·출원인은 각 코드 테이블의 코드명을 참조한다.
+  /// 발명자는 inventorLinks로 개인 여러 명을 연결한다.
   target                  String?
-  inventors               String?
   /// **더 이상 쓰지 않는다.** 20260826120000 마이그레이션이 이 값을 note('설명')로 옮겼고,
   /// 코드 어디에서도 읽거나 쓰지 않는다. 합친 결과를 원본과 대조할 수 있게 컬럼만 남겨 둔
   /// 것이며, 확인이 끝나면 DROP한다. 새 값을 여기 넣으면 화면에 나타나지 않는다.
@@ -563,21 +597,25 @@ model Patent {
   createdAt               DateTime     @default(now()) @map("created_at")
   updatedAt               DateTime     @updatedAt @map("updated_at")
 
-  country     Country      @relation(fields: [countryId], references: [id])
-  attorney    Attorney?    @relation(fields: [attorneyNumber], references: [attorneyNumber], onDelete: SetNull)
-  legalStatus LegalStatus? @relation(fields: [legalStatusId], references: [id], onDelete: SetNull)
-  examStatus  ExamStatus?  @relation(fields: [examStatusId], references: [id], onDelete: SetNull)
-  targetCode  PatentTarget? @relation(fields: [target], references: [target], onDelete: SetNull, onUpdate: Cascade)
-  patentIpcs  PatentIpc[]
-  admins      PatentAdmin[]
-  todos       PatentTodo[]
-  auditLogs   PatentAuditLog[]
+  country        Country          @relation(fields: [countryId], references: [id])
+  attorney       Attorney?        @relation(fields: [attorneyNumber], references: [attorneyNumber], onDelete: SetNull)
+  legalStatus    LegalStatus?     @relation(fields: [legalStatusId], references: [id], onDelete: SetNull)
+  examStatus     ExamStatus?      @relation(fields: [examStatusId], references: [id], onDelete: SetNull)
+  targetCode     PatentTarget?    @relation(fields: [target], references: [target], onDelete: SetNull, onUpdate: Cascade)
+  applicantCode  PatentApplicant? @relation(fields: [applicant], references: [applicant], onDelete: SetNull, onUpdate: Cascade)
+  inventorLinks  PatentInventorLink[]
+  patentIpcs     PatentIpc[]
+  admins         PatentAdmin[]
+  todos          PatentTodo[]
+  auditLogs      PatentAuditLog[]
+  calendarEvents CalendarEvent[]
 
   @@index([countryId])
   @@index([attorneyNumber])
   @@index([legalStatusId])
   @@index([examStatusId])
   @@index([target])
+  @@index([applicant])
   @@index([applicationDate])
   @@index([publicationDate])
   // 대시보드 기한 보드/KPI가 만료 임박 건을 범위로 조회한다.

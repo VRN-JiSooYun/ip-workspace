@@ -1,5 +1,6 @@
 import {
   PATENT_CSV_COLUMNS,
+  buildPatentExportCsv,
   buildTemplateCsv,
   parseCsv,
   parseCsvDate,
@@ -118,5 +119,55 @@ describe("patent CSV columns", () => {
   it("쉼표가 든 헤더가 생겨도 템플릿이 깨지지 않는다", () => {
     const [headerRow] = parseCsv(buildTemplateCsv());
     expect(headerRow).toHaveLength(PATENT_CSV_COLUMNS.length);
+  });
+});
+
+describe("buildPatentExportCsv", () => {
+  it("업로드 템플릿 순서로 날짜·관계명·긴 문장을 내보낸다", () => {
+    const csv = buildPatentExportCsv([{
+      internalRef: "A26W001",
+      target: "EGFR",
+      attorneyNumber: 12,
+      applicationNumber: "10-2026-0000001",
+      applicationDate: new Date("2026-09-03T00:00:00.000Z"),
+      koreanTitle: "쉼표, 포함 명칭",
+      englishTitle: null,
+      applicant: "VRN",
+      inventorLinks: [
+        { ordinal: 0, inventor: { inventor: "홍길동" } },
+        { ordinal: 1, inventor: { inventor: "김보로" } },
+      ],
+      todoDueDate: null,
+      relationType: null,
+      parentApplicationNumber: null,
+      publicationDate: null,
+      publicationNumber: null,
+      registrationNumber: null,
+      registrationDate: null,
+      licenseAgreement: null,
+      note: "<p>첫 줄</p><p>둘째 줄</p>",
+      rightsChange: null,
+      shareAgreement: null,
+      expectedExpiryDate: null,
+      intApplicationNumber: null,
+      intApplicationDate: null,
+      intPublicationNumber: null,
+      intPublicationDate: null,
+      exam: true,
+      examDate: null,
+      country: { country: "KR" },
+      attorney: { attorneyName: "가나다 특허법인" },
+      legalStatus: { status: "출원" },
+      examStatus: { status: "심사 중" },
+    }]);
+
+    const [headers, values] = parseCsv(csv);
+    const byHeader = new Map(headers.map((header, index) => [header, values[index]]));
+    expect(byHeader.get("Our Ref.")).toBe("A26W001");
+    expect(byHeader.get("출원일")).toBe("2026-09-03");
+    expect(byHeader.get("발명의 명칭")).toBe("쉼표, 포함 명칭");
+    expect(byHeader.get("발명자")).toBe("홍길동, 김보로");
+    expect(byHeader.get("기타")).toBe("첫 줄 둘째 줄");
+    expect(byHeader.get("심사청구")).toBe("청구");
   });
 });

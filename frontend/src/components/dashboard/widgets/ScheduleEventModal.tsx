@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { Checkbox, DatePicker, Form, Input, Modal, Select, TimePicker } from 'antd';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Checkbox, DatePicker, Form, Input, Modal, Select, Spin, TimePicker } from 'antd';
 import dayjs from 'dayjs';
 import {
   CALENDAR_EVENT_COLORS,
@@ -8,6 +8,7 @@ import {
   type CalendarEvent,
   type CalendarEventColor,
   type CalendarEventInput,
+  type CalendarEventPatent,
 } from '../../../utils/calendarEvents';
 
 const { TextArea } = Input;
@@ -27,10 +28,24 @@ type Props = {
   draft: ScheduleEventDraft | null;
   /** 내가 속한 팀. 팀 공개를 고를 수 있는 범위다(서버도 같은 조건을 다시 본다). */
   teams: { id: string; name: string }[];
+  /**
+   * 연결할 특허 찾기. 빈 문자열이면 최근 등록순으로 몇 건을 준다.
+   * 모달이 API를 직접 부르지 않는 이유는 나머지 대시보드 위젯과 같다 — IO는 훅이 갖는다.
+   */
+  searchPatents: (keyword: string) => Promise<CalendarEventPatent[]>;
   /** 저장이 끝날 때까지 기다린다(서버 저장이라 실패할 수 있다). */
   onSubmit: (input: CalendarEventInput) => void | Promise<void>;
   onClose: () => void;
 };
+
+/** 특허 한 건을 한 줄로 부르는 이름. 내부관리번호가 없는 행은 출원번호로 부른다. */
+export const patentOptionLabel = (patent: CalendarEventPatent): string => {
+  const number = patent.internalRef ?? patent.applicationNumber;
+  return patent.title ? `${number} · ${patent.title}` : number;
+};
+
+/** 검색어를 친 뒤 이만큼 조용하면 묻는다. 한 글자마다 부르지 않기 위한 값이다. */
+const PATENT_SEARCH_DEBOUNCE = 300;
 
 /**
  * 공개 범위를 한 칸으로 다룬다.
@@ -52,6 +67,8 @@ type FormValues = {
   color: CalendarEventColor;
   /** 'PRIVATE' 또는 팀 id. */
   scope: string;
+  /** 연결한 관리 특허의 id. 고르지 않으면 undefined. */
+  patentId?: number;
   memo?: string;
 };
 
@@ -108,12 +125,70 @@ const ScheduleEventModal: React.FC<Props> = ({
   event,
   draft,
   teams,
+  searchPatents,
   onSubmit,
   onClose,
 }) => {
   const [form] = Form.useForm<FormValues>();
   const [saving, setSaving] = useState(false);
   const allDay = Form.useWatch('allDay', form) ?? true;
+
+  // ---- 연결 특허 고르기 ----------------------------------------------------
+
+  const [patentOptions, setPatentOptions] = useState<CalendarEventPatent[]>([]);
+  const [patentLoading, setPatentLoading] = useState(false);
+  /** 늦게 온 응답이 최신 검색 결과를 덮지 않게 하는 표식(useCalendarEvents와 같은 방식). */
+  const patentRequestId = useRef(0);
+  const patentTimer = useRef<number | null>(null);
+
+  const loadPatents = useCallback(async (keyword: string) => {
+    const id = patentRequestId.current + 1;
+    patentRequestId.current = id;
+    setPatentLoading(true);
+    try {
+      const found = await searchPatents(keyword);
+      if (patentRequestId.current !== id) return;
+      setPatentOptions(found);
+    } catch {
+      // 검색 실패로 모달 전체를 막지 않는다. 목록만 비우고 나머지는 그대로 저장할 수 있다.
+      if (patentRequestId.current === id) setPatentOptions([]);
+    } finally {
+      if (patentRequestId.current === id) setPatentLoading(false);
+    }
+  }, [searchPatents]);
+
+  const searchPatentsDebounced = useCallback((keyword: string) => {
+    if (patentTimer.current !== null) window.clearTimeout(patentTimer.current);
+    patentTimer.current = window.setTimeout(() => {
+      patentTimer.current = null;
+      void loadPatents(keyword.trim());
+    }, PATENT_SEARCH_DEBOUNCE);
+  }, [loadPatents]);
+
+  useEffect(() => () => {
+    if (patentTimer.current !== null) window.clearTimeout(patentTimer.current);
+  }, []);
+
+  /**
+   * 열릴 때 최근 등록 몇 건을 미리 채운다. 빈 목록으로 열면 무엇을 칠 수 있는 칸인지
+   * 알기 어렵다. 수정 모드에서 이미 연결된 특허는 아래 options에서 따로 얹는다.
+   */
+  useEffect(() => {
+    if (!open) return;
+    void loadPatents('');
+  }, [loadPatents, open]);
+
+  /**
+   * 이미 연결된 특허는 검색 결과에 없어도 보여야 한다(그 이름을 모르면 '무엇이 연결돼
+   * 있는지'가 id 숫자로만 남는다). 중복은 id로 걸러 한 번만 놓는다.
+   */
+  const patentSelectOptions = useMemo(() => {
+    const linked = event?.patent;
+    const merged = linked && !patentOptions.some((item) => item.id === linked.id)
+      ? [linked, ...patentOptions]
+      : patentOptions;
+    return merged.map((item) => ({ value: item.id, label: patentOptionLabel(item) }));
+  }, [event?.patent, patentOptions]);
 
   useEffect(() => {
     if (!open) return;
@@ -131,6 +206,7 @@ const ScheduleEventModal: React.FC<Props> = ({
           ],
         color: event.color,
         scope: scopeOf(event),
+        patentId: event.patent?.id,
         memo: event.memo ?? undefined,
       });
       return;
@@ -150,6 +226,7 @@ const ScheduleEventModal: React.FC<Props> = ({
         : undefined,
       color: DEFAULT_CALENDAR_EVENT_COLOR,
       scope: PRIVATE_SCOPE,
+      patentId: undefined,
       memo: undefined,
     });
   }, [draft, event, form, open]);
@@ -180,6 +257,7 @@ const ScheduleEventModal: React.FC<Props> = ({
         memo: values.memo ?? null,
         visibility: values.scope === PRIVATE_SCOPE ? 'PRIVATE' : 'TEAM',
         teamId: values.scope === PRIVATE_SCOPE ? null : values.scope,
+        patentId: values.patentId ?? null,
       });
     } finally {
       setSaving(false);
@@ -230,6 +308,25 @@ const ScheduleEventModal: React.FC<Props> = ({
             minuteStep={5}
             allowClear={false}
             order={false}
+          />
+        </Form.Item>
+
+        {/* 연결한 특허는 일정 팝업에서 '특허 관리' 목록으로 바로 넘어가는 링크가 된다. */}
+        <Form.Item
+          name="patentId"
+          label="관련 특허"
+        >
+          <Select
+            allowClear
+            showSearch
+            placeholder="내부관리번호 · 명칭으로 찾기"
+            aria-label="관련 특허 선택"
+            // 검색은 서버가 한다. 받아 온 목록을 다시 거르면 이름이 조금 다른 건이 사라진다.
+            filterOption={false}
+            onSearch={searchPatentsDebounced}
+            onClear={() => void loadPatents('')}
+            notFoundContent={patentLoading ? <Spin size="small" /> : '결과가 없습니다.'}
+            options={patentSelectOptions}
           />
         </Form.Item>
 

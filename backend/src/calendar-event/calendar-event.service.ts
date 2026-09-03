@@ -58,8 +58,19 @@ const EVENT_SELECT = {
   memo: true,
   createdAt: true,
   updatedAt: true,
+  patentId: true,
   owner: { select: { id: true, name: true } },
   team: { select: { id: true, name: true } },
+  // 연결된 특허는 화면이 이름과 링크를 그릴 만큼만 가져온다.
+  patent: {
+    select: {
+      id: true,
+      internalRef: true,
+      applicationNumber: true,
+      koreanTitle: true,
+      englishTitle: true,
+    },
+  },
 } as const;
 
 type EventRow = {
@@ -77,8 +88,16 @@ type EventRow = {
   memo: string | null;
   createdAt: Date;
   updatedAt: Date;
+  patentId: number | null;
   owner: { id: string; name: string } | null;
   team: { id: string; name: string } | null;
+  patent: {
+    id: number;
+    internalRef: string | null;
+    applicationNumber: string;
+    koreanTitle: string | null;
+    englishTitle: string | null;
+  } | null;
 };
 
 @Injectable()
@@ -118,7 +137,7 @@ export class CalendarEventService {
   }
 
   async create(dto: CreateCalendarEventDto, actor: CalendarActor) {
-    const data = this.normalize(dto, actor);
+    const data = await this.normalize(dto, actor);
     const row = (await this.prisma.client.calendarEvent.create({
       data: { ...data, ownerId: actor.userId },
       select: EVENT_SELECT,
@@ -131,7 +150,7 @@ export class CalendarEventService {
     await this.assertOwned(id, actor);
     const row = (await this.prisma.client.calendarEvent.update({
       where: { id },
-      data: this.normalize(dto, actor),
+      data: await this.normalize(dto, actor),
       select: EVENT_SELECT,
     })) as EventRow;
     return this.toResponse(row, actor);
@@ -161,7 +180,7 @@ export class CalendarEventService {
    * 화면에도 같은 규칙이 있지만 여기서 다시 본다. API는 화면 말고도 부를 수 있고, 어긋난
    * 조합(종일인데 시각이 있는, 팀 공개인데 팀이 없는)이 들어오면 달력이 그리지 못한다.
    */
-  private normalize(dto: CreateCalendarEventDto, actor: CalendarActor) {
+  private async normalize(dto: CreateCalendarEventDto, actor: CalendarActor) {
     const title = dto.title.trim();
     if (!title) throw new BadRequestException("CALENDAR_EVENT_TITLE_REQUIRED");
     if (dto.start > dto.end) {
@@ -184,6 +203,19 @@ export class CalendarEventService {
       throw new ForbiddenException("CALENDAR_EVENT_TEAM_FORBIDDEN");
     }
 
+    // 없는 특허를 가리키는 일정은 만들지 않는다. 화면에는 '연결 없음'과 구분되지 않는
+    // 깨진 링크로 남고, 왜 안 열리는지 사용자가 알 방법이 없다.
+    const patentId = dto.patentId ?? null;
+    if (patentId !== null) {
+      const patent = await this.prisma.client.patent.findUnique({
+        where: { id: patentId },
+        select: { id: true },
+      });
+      if (!patent) {
+        throw new BadRequestException("CALENDAR_EVENT_PATENT_NOT_FOUND");
+      }
+    }
+
     return {
       title,
       startDate: fromDateKey(dto.start),
@@ -196,6 +228,7 @@ export class CalendarEventService {
       visibility: dto.visibility,
       // 비공개로 되돌리면 팀 연결도 끊는다. 남겨 두면 나중에 공개 범위와 팀이 어긋난다.
       teamId: isTeam ? dto.teamId! : null,
+      patentId,
     };
   }
 
@@ -219,6 +252,14 @@ export class CalendarEventService {
       visibility: row.visibility,
       teamId: row.teamId,
       teamName: row.team?.name ?? null,
+      patent: row.patent
+        ? {
+            id: row.patent.id,
+            internalRef: row.patent.internalRef,
+            applicationNumber: row.patent.applicationNumber,
+            title: row.patent.koreanTitle ?? row.patent.englishTitle ?? null,
+          }
+        : null,
       owner: { id: row.ownerId, name: row.owner?.name ?? "" },
       canEdit: row.ownerId === actor.userId,
       createdAt: row.createdAt.toISOString(),

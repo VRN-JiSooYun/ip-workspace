@@ -1,0 +1,30 @@
+/* 국가 표기 공통 배지. 관리 목록·마감 보드 등 국가를 보여주는 모든 자리에서 쓴다. */
+.country-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.country-tag-flag {
+  font-size: 14px;
+  line-height: 1;
+}
+
+/* 국기 이모지를 못 그리는 환경의 대체 배지. */
+.country-tag-code {
+  flex: none;
+  padding: 0 4px;
+  border-radius: 3px;
+  background: var(--table-row-hover-bg);
+  color: var(--text-secondary);
+  font-size: 11px;
+  line-height: 16px;
+  letter-spacing: 0.02em;
+}
+
+.country-tag-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

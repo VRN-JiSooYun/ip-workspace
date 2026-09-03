@@ -12,6 +12,7 @@ import {
   type CalendarBarSegment,
   type CalendarEvent,
   type CalendarEventInput,
+  type CalendarEventPatent,
 } from '../../../utils/calendarEvents';
 import {
   monthKeysOfDates,
@@ -71,6 +72,10 @@ type Props = {
    */
   onRangeChange: (range: { from: string; to: string; patentMonths: string[] }) => void;
   onOpenPatent: (event: PatentScheduleEvent) => void;
+  /** 내 일정에 연결된 특허로 목록을 여는 길. 팝업의 '관련 특허' 링크가 쓴다. */
+  onOpenPatentRecord: (patent: NonNullable<CalendarEvent['patent']>) => void;
+  /** 등록 모달의 특허 고르기. 검색은 서버가 한다. */
+  searchPatents: (keyword: string) => Promise<CalendarEventPatent[]>;
   /** 오늘. 부모가 넘기는 이유는 harness에서 고정할 수 있어야 하기 때문이다. */
   todayKey: string;
   getHolidayName: (dateKey: string) => string | undefined;
@@ -116,6 +121,8 @@ const ScheduleCalendar: React.FC<Props> = ({
   patentError,
   onRangeChange,
   onOpenPatent,
+  onOpenPatentRecord,
+  searchPatents,
   teams,
   eventsLoading,
   eventsError,
@@ -308,6 +315,10 @@ const ScheduleCalendar: React.FC<Props> = ({
           event={entry.event}
           onEdit={() => openEdit(entry.event)}
           onDelete={() => confirmDelete(entry.event)}
+          onOpenPatentRecord={(patent) => {
+            setOpenEventId(null);
+            onOpenPatentRecord(patent);
+          }}
           onClose={() => setOpenEventId(null)}
         />
       ) : (
@@ -323,7 +334,7 @@ const ScheduleCalendar: React.FC<Props> = ({
     >
       {node}
     </Popover>
-  ), [confirmDelete, onOpenPatent, openEdit, openEventId]);
+  ), [confirmDelete, onOpenPatent, onOpenPatentRecord, openEdit, openEventId]);
 
   const renderBar = useCallback((
     segment: CalendarBarSegment<ScheduleEntry>,
@@ -655,6 +666,7 @@ const ScheduleCalendar: React.FC<Props> = ({
         event={editing}
         draft={draft}
         teams={teams}
+        searchPatents={searchPatents}
         onSubmit={submitModal}
         onClose={closeModal}
       />

@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Button, Empty, Tag, Typography } from 'antd';
 import PatentDocumentPdfPane from './PatentDocumentPdfPane';
+import PdfSearchTermTray, { type PdfSearchTerm } from './PdfSearchTermTray';
 import PatentDocumentTimeline, { type TimelineSelection } from './PatentDocumentTimeline';
 import { buildTimelineEntries, type PdfSource } from './patentDocumentNodes';
 import { formatDisplayDateTime } from '../../utils/displayFormat';
@@ -91,23 +92,51 @@ const fileNameOf = (documentPath: string | null): string | null => {
  */
 const FullTextPane: React.FC<{
   sources: PdfSource[];
-  /** 지금 하이라이트할 검색어. 근거 줄은 타임라인 위에서 그린다. */
+  /** 트레이에 놓을 검색어들. 개수 배지는 pane이 문서를 읽어 붙인다. */
+  searchTerms: PdfSearchTerm[];
+  /** 지금 하이라이트할 검색어. */
   activeTerm: string | null;
   /** 같은 검색어를 다시 눌렀을 때도 하이라이트를 다시 걸기 위한 번호. */
   termRequest: number;
+  onActivateTerm: (term: string) => void;
+  onAddTerm: (term: string) => void;
+  onRemoveTerm: (term: string) => void;
   onManualSearch: () => void;
-}> = ({ sources, activeTerm, termRequest, onManualSearch }) => {
+}> = ({
+  sources,
+  searchTerms,
+  activeTerm,
+  termRequest,
+  onActivateTerm,
+  onAddTerm,
+  onRemoveTerm,
+  onManualSearch,
+}) => {
   // sources가 빌 수 있다. PDF 없이 본문만 있는 통지서, PDF가 딸리지 않은 의견서·보정서가
   // 그렇다 — 부르는 쪽이 그 경우 []를 그대로 넘긴다. sources[0].path로 바로 읽으면
   // 그런 문서를 고르는 순간 뷰어가 아니라 앱 전체가 죽는다(위에 error boundary가 없다).
   const resolvedPath = sources[0]?.path ?? null;
 
   if (!resolvedPath) {
+    /**
+     * PDF가 없는 문서. 트레이는 그대로 두고 칩만 누를 수 없게 한다 —
+     * 어떤 검색어가 이 문서의 근거였는지는 원본이 없어도 알려 줘야 하고,
+     * 줄을 빼면 문서를 옮길 때 그만큼 아래가 위로 밀린다.
+     */
     return (
-      <div className="pm-viewer-preview">
-        <Text type="secondary" style={{ fontSize: 12 }}>
-          이 문서에는 첨부된 PDF 원본이 없습니다.
-        </Text>
+      <div className="pm-doc-fulltext">
+        <PdfSearchTermTray
+          terms={searchTerms}
+          activeTerm={null}
+          onSelect={onActivateTerm}
+          onRemove={onRemoveTerm}
+          canHighlight={false}
+        />
+        <div className="pm-viewer-preview">
+          <Text type="secondary" style={{ fontSize: 12 }}>
+            이 문서에는 첨부된 PDF 원본이 없습니다.
+          </Text>
+        </div>
       </div>
     );
   }
@@ -118,8 +147,12 @@ const FullTextPane: React.FC<{
       <PatentDocumentPdfPane
         key={resolvedPath}
         documentPath={resolvedPath}
+        searchTerms={searchTerms}
         activeTerm={activeTerm}
         termRequest={termRequest}
+        onActivateTerm={onActivateTerm}
+        onAddTerm={onAddTerm}
+        onRemoveTerm={onRemoveTerm}
         onManualSearch={onManualSearch}
       />
     </div>
@@ -284,35 +317,93 @@ const PatentDocumentViewer: React.FC<Props> = ({
     : NO_SEARCH_TERMS;
 
   /**
-   * 하이라이트할 검색어 하나. 근거 줄이 타임라인 **위**에 있고 PDF는 아래 pane에 있어,
-   * 둘 사이의 상태를 여기서 들고 양쪽에 나눠 준다.
+   * 사용자가 toolbar에서 쌓아 둔 검색어.
    *
-   * 근거 줄을 pane 안에 두면 pane이 문서마다 remount되면서(`key={resolvedPath}`) 줄이 통째로
-   * 다시 그려지고, 타임라인을 pane 안으로 내려도 같은 이유로 탭 포커스가 날아간다.
-   * 그래서 줄만 위로 올리고 상태를 이 컴포넌트가 갖는다.
+   * PDF pane이 아니라 여기서 들고 있는다 — pane은 문서마다 remount되므로(`key={resolvedPath}`)
+   * 거기 두면 문서를 옮길 때 쌓아 둔 검색어가 사라진다. 여러 문서에 같은 검색어를 대 보는
+   * 것이 이 기능의 목적이라 문서보다 오래 살아야 한다.
    */
-  const [evidenceTerm, setEvidenceTerm] = React.useState<string | null>(null);
-  /** 같은 검색어를 다시 눌렀을 때도 하이라이트를 다시 걸기 위한 번호. */
-  const [evidenceRequest, setEvidenceRequest] = React.useState(0);
-
-  useEffect(() => {
-    setEvidenceTerm(activeSearchTerms[0] ?? null);
-    setEvidenceRequest((request) => request + 1);
-  }, [activeSearchTerms]);
-
-  const requestEvidenceTerm = (term: string) => {
-    setEvidenceTerm(term);
-    setEvidenceRequest((request) => request + 1);
-  };
-
-  /** 고른 문서에 PDF가 없으면 하이라이트할 곳이 없다. 누를 수 없게 둔다. */
-  const canHighlight = (activeNode?.sources.length ?? 0) > 0;
+  const [userTerms, setUserTerms] = React.useState<string[]>([]);
+  /** 지금 PDF에 걸려 있는 검색어. 근거 칩과 사용자 칩을 함께 가리킨다. */
+  const [activeTerm, setActiveTerm] = React.useState<string | null>(null);
+  /** 같은 검색어를 다시 걸어 달라는 요청 번호(같은 값을 다시 눌러도 하이라이트가 다시 걸린다). */
+  const [termRequest, setTermRequest] = React.useState(0);
 
   /**
-   * 근거 줄을 낼지 말지. 특허 하나를 보는 동안 바뀌지 않는 값이어야 한다 —
-   * 이유는 아래 줄을 그리는 곳의 주석에 있다.
+   * 트레이에 놓을 검색어. 근거 칩이 먼저, 사용자 칩이 뒤다.
+   *
+   * 근거 칩은 문서마다 갈리고 사용자 칩은 특허를 보는 동안 남는다. 같은 낱말이 양쪽에 있으면
+   * 근거 쪽만 남긴다 — 그쪽이 "이 문서가 왜 검색에 걸렸는지"를 말해 주는 출처다.
    */
-  const hasSearchContext = matchedEntryKeys.size > 0;
+  const searchTerms = useMemo<PdfSearchTerm[]>(() => {
+    const seen = new Set<string>();
+    const terms: PdfSearchTerm[] = [];
+    activeSearchTerms.forEach((term) => {
+      const key = normalizedSearchText(term);
+      if (seen.has(key)) return;
+      seen.add(key);
+      terms.push({ term, source: 'evidence' });
+    });
+    userTerms.forEach((term) => {
+      const key = normalizedSearchText(term);
+      if (seen.has(key)) return;
+      seen.add(key);
+      terms.push({ term, source: 'user' });
+    });
+    return terms;
+  }, [activeSearchTerms, userTerms]);
+
+  const requestTerm = React.useCallback((term: string | null) => {
+    setActiveTerm(term);
+    setTermRequest((request) => request + 1);
+  }, []);
+
+  const addTerm = React.useCallback((term: string) => {
+    setUserTerms((prev) => (
+      prev.some((item) => normalizedSearchText(item) === normalizedSearchText(term))
+        ? prev
+        : [...prev, term]
+    ));
+    // 방금 입력한 검색어를 활성 칩으로 둔다. 검색은 toolbar가 이미 실행했으므로
+    // 번호는 올리지 않는다 — 올리면 같은 검색을 한 번 더 걸어 첫 결과로 되돌아간다.
+    setActiveTerm(term);
+  }, []);
+
+  const removeTerm = React.useCallback((term: string) => {
+    setUserTerms((prev) => prev.filter((item) => item !== term));
+    // 지운 칩이 활성이었다면 하이라이트도 함께 걷는다.
+    setActiveTerm((prev) => {
+      if (prev !== term) return prev;
+      setTermRequest((request) => request + 1);
+      return null;
+    });
+  }, []);
+
+  /**
+   * 문서를 옮겼을 때 어떤 칩을 활성으로 둘지.
+   *
+   * 새 문서의 근거 칩이 있으면 그것이 먼저다 — 검색으로 들어온 사용자가 가장 먼저 보려는
+   * 것이 그 문서가 걸린 이유다. 없으면 쌓아 둔 사용자 칩 중 지금 것을 유지하고, 그것도
+   * 없으면 첫 사용자 칩으로 내려간다.
+   *
+   * 사용자 칩을 effect의 의존성에 넣지 않는 이유: 칩을 하나 더 쌓을 때마다 이 effect가 돌면
+   * 방금 고른 칩을 근거 칩으로 되돌려 버린다. 그래서 '문서가 바뀐 순간'에만 돌게 두고
+   * 목록은 ref로 읽는다.
+   */
+  const userTermsRef = React.useRef(userTerms);
+  userTermsRef.current = userTerms;
+
+  useEffect(() => {
+    const evidenceTerm = activeSearchTerms[0];
+    if (evidenceTerm) {
+      requestTerm(evidenceTerm);
+      return;
+    }
+    setActiveTerm((prev) => (
+      prev && userTermsRef.current.includes(prev) ? prev : userTermsRef.current[0] ?? null
+    ));
+    setTermRequest((request) => request + 1);
+  }, [activeSearchTerms, requestTerm]);
 
   const headerFileName = activeItem
     ? (fileNameOf(activeItem.koreanTitle) ?? 'UNKNOWN')
@@ -349,47 +440,9 @@ const PatentDocumentViewer: React.FC<Props> = ({
             </span>
           </div>
 
-          {/**
-           * 검색어 일치 근거. 타임라인 **위**에 둔다 — 타임라인 탭은 바로 아래 내용을 여는
-           * 책갈피라, 그 사이에 다른 줄이 끼면 탭과 내용이 이어져 보이지 않는다.
-           *
-           * 줄을 내보내는 기준은 `hasSearchContext`다 — "지금 고른 문서가 매칭됐는가"가
-           * 아니라 "이 화면이 본문 검색으로 들어왔는가". 문서 단위로 조건을 걸면 같은 특허
-           * 안에서 탭만 옮겨도 줄이 마운트/언마운트되며 아래 타임라인과 pane이 통째로
-           * 위아래로 튄다. 매칭 없는 문서에서는 같은 높이에 흐린 안내만 남긴다.
-           */}
-          {hasSearchContext && (
-            <div className="pm-doc-search-evidence" aria-label="검색어 일치 근거">
-              <span
-                className="pm-doc-search-evidence-label"
-                title="검색 결과 판정에 사용된 추출 본문에서 실제로 발견된 검색어입니다."
-              >
-                검색어 일치
-              </span>
-              {activeSearchTerms.length > 0 ? (
-                <span className="pm-doc-search-terms">
-                  {activeSearchTerms.map((term) => (
-                    <Button
-                      key={term}
-                      size="small"
-                      type={evidenceTerm === term ? 'primary' : 'default'}
-                      className="pm-doc-search-term"
-                      aria-pressed={evidenceTerm === term}
-                      disabled={!canHighlight}
-                      title={canHighlight ? undefined : 'PDF 원본이 없어 하이라이트할 수 없습니다'}
-                      onClick={() => requestEvidenceTerm(term)}
-                    >
-                      {term}
-                    </Button>
-                  ))}
-                </span>
-              ) : (
-                <span className="pm-doc-search-evidence-empty">없음</span>
-              )}
-            </div>
-          )}
-
-          {/* 탭 두 줄(통지 건 + 문서)을 대신하는 가로 타임라인. */}
+          {/* 탭 두 줄(통지 건 + 문서)을 대신하는 가로 타임라인.
+              검색어 칩은 PDF 검색 상태라 toolbar 옆(pane 안)에 있다 — 타임라인 탭과 그 내용
+              사이에 다른 줄이 끼면 탭이 무엇을 여는 책갈피인지 흐려진다. */}
           <PatentDocumentTimeline
             entries={entries}
             selection={selection}
@@ -403,11 +456,15 @@ const PatentDocumentViewer: React.FC<Props> = ({
             {activeNode ? (
               <FullTextPane
                 sources={activeNode.sources}
-                activeTerm={evidenceTerm}
-                termRequest={evidenceRequest}
-                // 사용자가 PDF toolbar에서 직접 검색하면 근거 줄의 선택을 풀어 둔다.
+                searchTerms={searchTerms}
+                activeTerm={activeTerm}
+                termRequest={termRequest}
+                onActivateTerm={requestTerm}
+                onAddTerm={addTerm}
+                onRemoveTerm={removeTerm}
+                // 사용자가 PDF toolbar에서 직접 입력하면 칩의 선택 표시를 풀어 둔다.
                 // 번호는 올리지 않는다 — 올리면 방금 입력한 검색이 지워진다(pane 주석 참고).
-                onManualSearch={() => setEvidenceTerm(null)}
+                onManualSearch={() => setActiveTerm(null)}
               />
             ) : (
               <div className="pm-viewer-preview">

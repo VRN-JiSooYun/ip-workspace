@@ -104,6 +104,18 @@ export class PatentRecordController {
     return buildTemplateCsv();
   }
 
+  /** 현재 검색·상세 필터에 맞는 전체 관리 특허를 CSV로 내려준다. */
+  @Get("export")
+  @SkipTimeout()
+  @Header("Content-Type", "text/csv; charset=utf-8")
+  @Header(
+    "Content-Disposition",
+    'attachment; filename="patent-records.csv"',
+  )
+  exportCsv(@Query() query: PatentRecordListQueryDto) {
+    return this.patents.exportCsv(query);
+  }
+
   /**
    * CSV 일괄 등록. DRY_RUN으로 결과를 먼저 확인하고 APPLY로 반영한다.
    * APPLY는 전부 하나의 transaction이라 중간에 실패하면 아무것도 남지 않는다.

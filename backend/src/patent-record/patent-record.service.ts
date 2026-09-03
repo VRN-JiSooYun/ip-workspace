@@ -24,12 +24,21 @@ import {
 import type { UpdatePatentRecordDto } from "./dto/update-patent-record.dto";
 import { normalizeRichText } from "./rich-text";
 import { PatentAuditService } from "./patent-audit.service";
+import { buildPatentExportCsv } from "./patent-csv";
 
 const LIST_INCLUDE = {
   country: { select: { id: true, country: true } },
   attorney: { select: { attorneyNumber: true, attorneyName: true } },
   legalStatus: { select: { id: true, status: true } },
   examStatus: { select: { id: true, status: true } },
+  inventorLinks: {
+    orderBy: { ordinal: "asc" as const },
+    select: {
+      inventorId: true,
+      ordinal: true,
+      inventor: { select: { id: true, inventor: true } },
+    },
+  },
 } as const;
 
 const ORDER_BY = {
@@ -185,6 +194,15 @@ export class PatentRecordService {
           { koreanTitle: { contains: q, mode: "insensitive" as const } },
           { englishTitle: { contains: q, mode: "insensitive" as const } },
           { applicant: { contains: q, mode: "insensitive" as const } },
+          {
+            inventorLinks: {
+              some: {
+                inventor: {
+                  inventor: { contains: q, mode: "insensitive" as const },
+                },
+              },
+            },
+          },
         ],
       });
     }
@@ -308,6 +326,16 @@ export class PatentRecordService {
       page: query.page,
       pageSize: query.pageSize,
     };
+  }
+
+  /** 페이지 구분 없이 현재 목록 조건에 맞는 전체 특허를 CSV로 내보낸다. */
+  async exportCsv(query: PatentRecordListQueryDto): Promise<string> {
+    const items = await this.prisma.client.patent.findMany({
+      where: this.buildListWhere(query),
+      include: LIST_INCLUDE,
+      orderBy: [...ORDER_BY[query.sort]],
+    });
+    return buildPatentExportCsv(items);
   }
 
   /**
@@ -922,7 +950,15 @@ export class PatentRecordService {
 
   /** 추가·변경 modal의 select 옵션. */
   async listLookups() {
-    const [countries, attorneys, legalStatuses, examStatuses, targets] =
+    const [
+      countries,
+      attorneys,
+      legalStatuses,
+      examStatuses,
+      targets,
+      applicants,
+      inventors,
+    ] =
       await Promise.all([
         this.prisma.client.country.findMany({ orderBy: { country: "asc" } }),
         this.prisma.client.attorney.findMany({
@@ -938,8 +974,22 @@ export class PatentRecordService {
         this.prisma.client.patentTarget.findMany({
           orderBy: { target: "asc" },
         }),
+        this.prisma.client.patentApplicant.findMany({
+          orderBy: { applicant: "asc" },
+        }),
+        this.prisma.client.patentInventor.findMany({
+          orderBy: { inventor: "asc" },
+        }),
       ]);
-    return { countries, attorneys, legalStatuses, examStatuses, targets };
+    return {
+      countries,
+      attorneys,
+      legalStatuses,
+      examStatuses,
+      targets,
+      applicants,
+      inventors,
+    };
   }
 
   async create(
@@ -962,7 +1012,17 @@ export class PatentRecordService {
           koreanTitle: dto.koreanTitle ?? null,
           englishTitle: dto.englishTitle ?? null,
           applicationDate: toDate(dto.applicationDate) ?? null,
-          applicant: dto.applicant ?? null,
+          applicant: toTrimmedText(dto.applicant) ?? null,
+          ...(dto.inventorIds?.length
+            ? {
+                inventorLinks: {
+                  create: dto.inventorIds.map((inventorId, ordinal) => ({
+                    inventorId,
+                    ordinal,
+                  })),
+                },
+              }
+            : {}),
           attorneyNumber: dto.attorneyNumber ?? null,
           registrationNumber: dto.registrationNumber ?? null,
           registrationDate: dto.registrationDate ?? null,
@@ -1022,7 +1082,20 @@ export class PatentRecordService {
       ...pick(dto, "koreanTitle"),
       ...pick(dto, "englishTitle"),
       ...pickDate(dto, "applicationDate"),
-      ...pick(dto, "applicant"),
+      ...(dto.applicant !== undefined
+        ? { applicant: toTrimmedText(dto.applicant) }
+        : {}),
+      ...(dto.inventorIds !== undefined
+        ? {
+            inventorLinks: {
+              deleteMany: {},
+              create: dto.inventorIds.map((inventorId, ordinal) => ({
+                inventorId,
+                ordinal,
+              })),
+            },
+          }
+        : {}),
       ...pick(dto, "attorneyNumber"),
       ...pick(dto, "registrationNumber"),
       ...pick(dto, "registrationDate"),
@@ -1124,6 +1197,8 @@ export class PatentRecordService {
     legalStatusId?: number | null;
     examStatusId?: number | null;
     target?: string | null;
+    applicant?: string | null;
+    inventorIds?: number[];
   }) {
     if (dto.countryId != null) {
       const country = await this.prisma.client.country.findUnique({
@@ -1165,6 +1240,25 @@ export class PatentRecordService {
       });
       if (!foundTarget) {
         throw new NotFoundException("PATENT_TARGET_NOT_FOUND");
+      }
+    }
+    const applicant = toTrimmedText(dto.applicant);
+    if (applicant) {
+      const foundApplicant = await this.prisma.client.patentApplicant.findUnique({
+        where: { applicant },
+        select: { id: true },
+      });
+      if (!foundApplicant) {
+        throw new NotFoundException("PATENT_APPLICANT_NOT_FOUND");
+      }
+    }
+    if (dto.inventorIds?.length) {
+      const inventorIds = [...new Set(dto.inventorIds)];
+      const foundInventors = await this.prisma.client.patentInventor.count({
+        where: { id: { in: inventorIds } },
+      });
+      if (foundInventors !== inventorIds.length) {
+        throw new NotFoundException("PATENT_INVENTOR_NOT_FOUND");
       }
     }
   }

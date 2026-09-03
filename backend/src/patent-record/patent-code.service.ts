@@ -13,6 +13,8 @@ export const PATENT_CODE_TYPES = [
   "legal-statuses",
   "exam-statuses",
   "targets",
+  "applicants",
+  "inventors",
 ] as const;
 
 export type PatentCodeType = (typeof PATENT_CODE_TYPES)[number];
@@ -85,6 +87,28 @@ export class PatentCodeService {
           usageCount: row._count.patents,
         }));
       }
+      case "applicants": {
+        const rows = await this.prisma.client.patentApplicant.findMany({
+          orderBy: { applicant: "asc" },
+          include: { _count: { select: { patents: true } } },
+        });
+        return rows.map((row) => ({
+          id: row.id,
+          value: row.applicant,
+          usageCount: row._count.patents,
+        }));
+      }
+      case "inventors": {
+        const rows = await this.prisma.client.patentInventor.findMany({
+          orderBy: { inventor: "asc" },
+          include: { _count: { select: { patentLinks: true } } },
+        });
+        return rows.map((row) => ({
+          id: row.id,
+          value: row.inventor,
+          usageCount: row._count.patentLinks,
+        }));
+      }
     }
   }
 
@@ -142,6 +166,21 @@ export class PatentCodeService {
           data: { target: value },
         });
         return { id: row.id, value: row.target, usageCount: 0 };
+      }
+      case "applicants": {
+        await this.assertApplicantNameFree(value);
+        const row = await this.prisma.client.patentApplicant.create({
+          data: { applicant: value },
+        });
+        return { id: row.id, value: row.applicant, usageCount: 0 };
+      }
+      case "inventors": {
+        this.assertSingleInventorName(value);
+        await this.assertInventorNameFree(value);
+        const row = await this.prisma.client.patentInventor.create({
+          data: { inventor: value },
+        });
+        return { id: row.id, value: row.inventor, usageCount: 0 };
       }
     }
   }
@@ -218,12 +257,39 @@ export class PatentCodeService {
           usageCount: row._count.patents,
         };
       }
+      case "applicants": {
+        await this.assertApplicantNameFree(value, id);
+        const row = await this.prisma.client.patentApplicant.update({
+          where: { id },
+          data: { applicant: value },
+          include: { _count: { select: { patents: true } } },
+        });
+        return {
+          id: row.id,
+          value: row.applicant,
+          usageCount: row._count.patents,
+        };
+      }
+      case "inventors": {
+        this.assertSingleInventorName(value);
+        await this.assertInventorNameFree(value, id);
+        const row = await this.prisma.client.patentInventor.update({
+          where: { id },
+          data: { inventor: value },
+          include: { _count: { select: { patentLinks: true } } },
+        });
+        return {
+          id: row.id,
+          value: row.inventor,
+          usageCount: row._count.patentLinks,
+        };
+      }
     }
   }
 
   /**
    * 사용 중인 코드는 지우지 않는다.
-   * schema상 country는 Restrict라 어차피 막히지만, 나머지 셋은 SetNull이라
+   * schema상 country는 Restrict라 어차피 막히지만, 나머지는 SetNull이라
    * 그대로 두면 특허 수백 건의 값이 조용히 비워진다. 모든 종류를 동일하게 막는다.
    */
   async remove(type: PatentCodeType, id: number): Promise<{ id: number }> {
@@ -251,6 +317,12 @@ export class PatentCodeService {
       case "targets":
         await this.prisma.client.patentTarget.delete({ where: { id } });
         break;
+      case "applicants":
+        await this.prisma.client.patentApplicant.delete({ where: { id } });
+        break;
+      case "inventors":
+        await this.prisma.client.patentInventor.delete({ where: { id } });
+        break;
     }
     return { id };
   }
@@ -275,6 +347,20 @@ export class PatentCodeService {
           select: { _count: { select: { patents: true } } },
         });
         return row?._count.patents ?? 0;
+      }
+      case "applicants": {
+        const row = await this.prisma.client.patentApplicant.findUnique({
+          where: { id },
+          select: { _count: { select: { patents: true } } },
+        });
+        return row?._count.patents ?? 0;
+      }
+      case "inventors": {
+        const row = await this.prisma.client.patentInventor.findUnique({
+          where: { id },
+          select: { _count: { select: { patentLinks: true } } },
+        });
+        return row?._count.patentLinks ?? 0;
       }
     }
   }
@@ -307,6 +393,16 @@ export class PatentCodeService {
             where: { id },
             select: { id: true },
           });
+        case "applicants":
+          return this.prisma.client.patentApplicant.findUnique({
+            where: { id },
+            select: { id: true },
+          });
+        case "inventors":
+          return this.prisma.client.patentInventor.findUnique({
+            where: { id },
+            select: { id: true },
+          });
       }
     })();
     if (!found) throw new NotFoundException("PATENT_CODE_NOT_FOUND");
@@ -329,6 +425,33 @@ export class PatentCodeService {
     });
     if (existing && existing.id !== excludeId) {
       throw new ConflictException("PATENT_TARGET_DUPLICATED");
+    }
+  }
+
+  private async assertApplicantNameFree(applicant: string, excludeId?: number) {
+    const existing = await this.prisma.client.patentApplicant.findUnique({
+      where: { applicant },
+      select: { id: true },
+    });
+    if (existing && existing.id !== excludeId) {
+      throw new ConflictException("PATENT_APPLICANT_DUPLICATED");
+    }
+  }
+
+  private async assertInventorNameFree(inventor: string, excludeId?: number) {
+    const existing = await this.prisma.client.patentInventor.findUnique({
+      where: { inventor },
+      select: { id: true },
+    });
+    if (existing && existing.id !== excludeId) {
+      throw new ConflictException("PATENT_INVENTOR_DUPLICATED");
+    }
+  }
+
+  /** 발명자 코드는 사람 한 명이 정본이다. 묶음 입력은 CSV 임포터만 분해해서 처리한다. */
+  private assertSingleInventorName(inventor: string) {
+    if (/[,，、;\n\r]/.test(inventor)) {
+      throw new BadRequestException("PATENT_INVENTOR_MULTIPLE_VALUES");
     }
   }
 }

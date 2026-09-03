@@ -538,6 +538,22 @@
   font-weight: 600;
 }
 
+/* 잘린 감사 값의 원문 Tooltip. 긴 문장과 줄바꿈도 한눈에 읽을 수 있게 폭과 높이를 제한한다. */
+.ant-tooltip.pm-audit-value-tooltip {
+  max-width: min(560px, calc(100vw - 32px));
+}
+
+.pm-audit-value-tooltip .ant-tooltip-inner {
+  max-height: min(60vh, 420px);
+  overflow-y: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.pm-audit-value[tabindex='0'] {
+  cursor: help;
+}
+
 .pm-audit-arrow {
   opacity: 0.6;
 }
@@ -670,7 +686,7 @@
 }
 
 .pm-detail-heading-row {
-  max-width: 860px;
+  max-width: 1200px;
 }
 
 .pm-detail-heading-row .ant-input {

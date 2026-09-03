@@ -5,6 +5,8 @@
  * BOM, 따옴표로 감싼 값 안의 쉼표·개행, CRLF를 모두 처리한다.
  */
 
+import { richTextToPlain } from "./rich-text";
+
 export type PatentCsvField =
   | "internalRef"
   | "target"
@@ -255,6 +257,99 @@ const escapeCsvCell = (value: string): string =>
 /** 빈 템플릿 CSV. Excel이 UTF-8로 열도록 BOM을 붙인다. */
 export const buildTemplateCsv = (): string =>
   `﻿${PATENT_CSV_COLUMNS.map((column) => escapeCsvCell(column.header)).join(",")}\n`;
+
+export type PatentCsvExportRecord = {
+  internalRef: string | null;
+  target: string | null;
+  attorneyNumber: number | null;
+  applicationNumber: string;
+  applicationDate: Date | null;
+  koreanTitle: string | null;
+  englishTitle: string | null;
+  applicant: string | null;
+  inventorLinks: Array<{
+    ordinal: number;
+    inventor: { inventor: string };
+  }>;
+  todoDueDate: Date | null;
+  relationType: string | null;
+  parentApplicationNumber: string | null;
+  publicationDate: Date | null;
+  publicationNumber: string | null;
+  registrationNumber: string | null;
+  registrationDate: string | null;
+  licenseAgreement: string | null;
+  note: string | null;
+  rightsChange: string | null;
+  shareAgreement: string | null;
+  expectedExpiryDate: Date | null;
+  intApplicationNumber: string | null;
+  intApplicationDate: Date | null;
+  intPublicationNumber: string | null;
+  intPublicationDate: Date | null;
+  exam: boolean | null;
+  examDate: Date | null;
+  country: { country: string };
+  attorney: { attorneyName: string | null } | null;
+  legalStatus: { status: string } | null;
+  examStatus: { status: string } | null;
+};
+
+const exportDate = (value: Date | null): string =>
+  value ? value.toISOString().slice(0, 10) : "";
+
+const exportText = (value: string | number | null | undefined): string =>
+  value === null || value === undefined ? "" : String(value);
+
+/** 현재 목록 조건에 맞는 특허를 업로드 템플릿과 같은 형식으로 내보낸다. */
+export const buildPatentExportCsv = (records: PatentCsvExportRecord[]): string => {
+  const rows = records.map((record) => {
+    const values: Record<PatentCsvField, string> = {
+      internalRef: exportText(record.internalRef),
+      target: exportText(record.target),
+      attorneyName: exportText(record.attorney?.attorneyName),
+      applicationNumber: record.applicationNumber,
+      applicationDate: exportDate(record.applicationDate),
+      country: record.country.country,
+      koreanTitle: exportText(record.koreanTitle),
+      applicant: exportText(record.applicant),
+      inventors: [...record.inventorLinks]
+        .sort((left, right) => left.ordinal - right.ordinal)
+        .map((link) => link.inventor.inventor)
+        .join(", "),
+      legalStatus: exportText(record.legalStatus?.status),
+      // status_note는 note로 통합되었으므로 중복해서 내보내지 않는다.
+      statusNote: "",
+      todoDueDate: exportDate(record.todoDueDate),
+      relationType: exportText(record.relationType),
+      parentApplicationNumber: exportText(record.parentApplicationNumber),
+      publicationDate: exportDate(record.publicationDate),
+      publicationNumber: exportText(record.publicationNumber),
+      registrationNumber: exportText(record.registrationNumber),
+      registrationDate: exportText(record.registrationDate),
+      licenseAgreement: exportText(record.licenseAgreement),
+      // WYSIWYG HTML을 그대로 내보내면 재업로드 시 태그가 본문이 되므로 평문으로 바꾼다.
+      note: richTextToPlain(record.note),
+      rightsChange: exportText(record.rightsChange),
+      shareAgreement: exportText(record.shareAgreement),
+      expectedExpiryDate: exportDate(record.expectedExpiryDate),
+      englishTitle: exportText(record.englishTitle),
+      attorneyNumber: exportText(record.attorneyNumber),
+      intApplicationNumber: exportText(record.intApplicationNumber),
+      intApplicationDate: exportDate(record.intApplicationDate),
+      intPublicationNumber: exportText(record.intPublicationNumber),
+      intPublicationDate: exportDate(record.intPublicationDate),
+      examStatus: exportText(record.examStatus?.status),
+      exam: record.exam === null ? "" : record.exam ? "청구" : "미청구",
+      examDate: exportDate(record.examDate),
+    };
+    return PATENT_CSV_COLUMNS
+      .map((column) => escapeCsvCell(values[column.field]))
+      .join(",");
+  });
+
+  return `${buildTemplateCsv()}${rows.length > 0 ? `${rows.join("\n")}\n` : ""}`;
+};
 
 /**
  * RFC 4180 파싱. 따옴표 안의 쉼표·개행·이스케이프된 따옴표("")를 보존한다.

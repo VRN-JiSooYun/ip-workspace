@@ -1,4 +1,6 @@
 import {
+  ArrayUnique,
+  IsArray,
   IsBoolean,
   IsDateString,
   IsInt,
@@ -45,6 +47,12 @@ export class CreatePatentRecordDto {
   @IsString()
   @MaxLength(200)
   applicant?: string;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayUnique()
+  @IsInt({ each: true })
+  inventorIds?: number[];
 
   @IsOptional()
   @IsInt()
