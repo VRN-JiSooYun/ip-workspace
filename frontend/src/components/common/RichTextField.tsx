@@ -9,11 +9,11 @@ import './RichTextField.css';
 const { Text } = Typography;
 
 /**
- * JIRA의 '설명'과 같은 필드 — 평소에는 읽는 글이고, 누르면 편집기가 열리고,
- * **[저장]을 눌러야** 나간다.
+ * JIRA의 '설명'과 같은 필드 — 평소에는 읽는 글이고, 누르면 편집기가 열린다.
+ * 내부 버튼은 onSave로 값을 넘길 뿐, 상위 화면이 실제 저장 시점을 결정한다.
  *
- * 왜 자동 저장이 아닌가. 이 화면의 다른 필드는 값을 고치는 순간 PATCH가 나가고 활동
- * 피드에 한 줄이 남는다. 한 칸짜리 값에는 맞는 규칙이지만 문단에는 맞지 않는다 —
+ * 왜 자동 적용이 아닌가. 문단은 한 칸짜리 값과 달라 작성을 마친 시점을
+ * 사용자가 명시적으로 결정해야 한다 —
  * 글을 쓰는 동안 손이 멈출 때마다 저장이 나가면 "설명 A → AB", "AB → ABC"가 줄줄이
  * 쌓여 피드가 타자 기록이 된다. 문단은 **다 쓰고 나서 한 번** 저장하는 것이 사람의
  * 단위이고, 그래야 이력 한 줄이 하나의 뜻을 갖는다.
@@ -109,14 +109,20 @@ type Props = {
   /** 서버가 준 값. 편집 중이 아닐 때 이 값을 그린다. */
   value: string | null | undefined;
   /**
-   * [저장]을 눌렀을 때. 내용이 비면 null이 온다(컬럼을 비우라는 뜻).
+   * 내부 적용 버튼을 눌렀을 때. 내용이 비면 null이 온다(컬럼을 비우라는 뜻).
    * 실패하면 throw해야 한다 — 이 컴포넌트가 편집 상태를 유지하고 오류를 보여 준다.
    */
   onSave: (next: string | null) => Promise<void>;
+  /** 편집 중 값. 서버 호출 없이 상위 폼의 로컬 초안을 실시간으로 맞출 때 사용한다. */
+  onDraftChange?: (next: string | null) => void;
+  /** 이미지 업로드 등으로 상위 폼의 적용·닫기를 잠시 막아야 할 때 알린다. */
+  onBusyChange?: (busy: boolean) => void;
   readOnly?: boolean;
   /** 비어 있을 때 읽기 상태에 뜨는 안내. 누르면 편집기가 열린다. */
   emptyText?: string;
   placeholder?: string;
+  /** 상위 화면이 별도 적용 단계를 가질 때 내부 버튼의 의미를 명확히 표시한다. */
+  saveText?: string;
   /** 파일 저장소 업로드가 완료되면 영구 이미지 URL을 돌려준다. */
   uploadImage?: (file: File) => Promise<{ url: string; storageUrl?: string }>;
   /** 편집 취소 또는 저장 시 본문에서 빠진 이미지를 정리한다. */
@@ -128,9 +134,12 @@ type Props = {
 const RichTextField: React.FC<Props> = ({
   value,
   onSave,
+  onDraftChange,
+  onBusyChange,
   readOnly = false,
   emptyText = '설명을 추가하세요',
   placeholder = '설명을 입력하세요',
+  saveText = '저장',
   uploadImage,
   deleteImage,
   resolveImageUrl,
@@ -141,6 +150,10 @@ const RichTextField: React.FC<Props> = ({
   const [uploadingCount, setUploadingCount] = React.useState(0);
   const [draggingImage, setDraggingImage] = React.useState(false);
 
+  React.useEffect(() => {
+    onBusyChange?.(uploadingCount > 0 || saving);
+  }, [onBusyChange, saving, uploadingCount]);
+
   const hostRef = React.useRef<HTMLDivElement | null>(null);
   const editorRef = React.useRef<Quill | null>(null);
   const fileInputRef = React.useRef<HTMLInputElement | null>(null);
@@ -148,6 +161,7 @@ const RichTextField: React.FC<Props> = ({
   const uploadImageRef = React.useRef(uploadImage);
   const deleteImageRef = React.useRef(deleteImage);
   const resolveImageUrlRef = React.useRef(resolveImageUrl);
+  const onDraftChangeRef = React.useRef(onDraftChange);
   const uploadedImagesRef = React.useRef(new Set<string>());
   const storageImageUrlsRef = React.useRef(new Map<string, string>());
   /**
@@ -163,7 +177,8 @@ const RichTextField: React.FC<Props> = ({
     uploadImageRef.current = uploadImage;
     deleteImageRef.current = deleteImage;
     resolveImageUrlRef.current = resolveImageUrl;
-  }, [deleteImage, resolveImageUrl, uploadImage]);
+    onDraftChangeRef.current = onDraftChange;
+  }, [deleteImage, onDraftChange, resolveImageUrl, uploadImage]);
 
   const serverHtml = value ?? '';
   const readHtml = React.useMemo(() => {
@@ -218,6 +233,12 @@ const RichTextField: React.FC<Props> = ({
      */
     editor.update('silent');
     baselineRef.current = toStored(cleanServerHtml);
+    editor.on('text-change', () => {
+      const storageHtml = replaceImageSources(editor.root.innerHTML, (source) => (
+        storageImageUrlsRef.current.get(absoluteImageKey(source)) ?? source
+      ));
+      onDraftChangeRef.current?.(toStored(storageHtml));
+    });
     // getLength()는 끝의 개행까지 센다. 한 칸 앞이 글 끝이다.
     editor.setSelection(Math.max(editor.getLength() - 1, 0), 0);
     editor.focus();
@@ -330,6 +351,7 @@ const RichTextField: React.FC<Props> = ({
       setError('이미지 업로드가 끝난 뒤 편집을 종료할 수 있습니다.');
       return;
     }
+    onDraftChangeRef.current?.(baselineRef.current);
     removeImages(uploadedImagesRef.current);
     uploadedImagesRef.current.clear();
     storageImageUrlsRef.current.clear();
@@ -500,7 +522,7 @@ const RichTextField: React.FC<Props> = ({
             disabled={uploadingCount > 0}
             onClick={() => void handleSave()}
           >
-            저장
+            {saveText}
           </Button>
           <Button type="text" size="small" disabled={saving || uploadingCount > 0} onClick={close}>
             취소
@@ -512,7 +534,7 @@ const RichTextField: React.FC<Props> = ({
           </Text>
         ) : (
           <Text type="secondary" className="rich-text-hint">
-            이미지 드롭/붙여넣기 · ⌘/Ctrl + Enter 저장 · Esc 취소
+            {`이미지 드롭/붙여넣기 · ⌘/Ctrl + Enter ${saveText} · Esc 취소`}
           </Text>
         )}
       </div>

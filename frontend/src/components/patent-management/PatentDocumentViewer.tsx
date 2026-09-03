@@ -28,7 +28,6 @@ type Props = {
   activeItemId: number | null;
   onActiveItemChange: (officeActionId: number | null) => void;
   legalStatusLabel: string | null;
-  examStatusLabel: string | null;
   /**
    * 보고 있는 문서 노드의 key. 통지 건을 바꿔도 같은 종류의 문서를 유지하려면 부르는 쪽이
    * 들고 있어야 한다(이 컴포넌트는 문서마다 다시 그려지므로 여기서 기억하면 뷰어가
@@ -170,7 +169,6 @@ const PatentDocumentViewer: React.FC<Props> = ({
   activeItemId,
   onActiveItemChange,
   legalStatusLabel,
-  examStatusLabel,
   activeTabKey,
   onActiveTabKeyChange,
   searchKeywords = [],

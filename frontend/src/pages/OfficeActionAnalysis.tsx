@@ -183,9 +183,6 @@ const OfficeActionAnalysis: React.FC = () => {
       legalStatusLabel:
         lookups?.legalStatuses.find((status) => status.id === nextItem.legalStatusId)?.status
         ?? nextItem.legalStatus,
-      examStatusLabel:
-        lookups?.examStatuses.find((status) => status.id === nextItem.examStatusId)?.status
-        ?? null,
       searchKeywords: appliedSearchKeywords,
     });
 

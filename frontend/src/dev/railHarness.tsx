@@ -320,7 +320,6 @@ const runChecks = (): Check[] => {
       items: [],
       activeId: null,
       legalStatusLabel: null,
-      examStatusLabel: null,
     });
     useRightSidebarStore.getState().collapse();
     expect(
@@ -348,7 +347,6 @@ const runChecks = (): Check[] => {
       items: [],
       activeId: null,
       legalStatusLabel: null,
-      examStatusLabel: null,
     });
     expect(
       'showDocuments가 문서 뷰어를 펼친다',
@@ -377,7 +375,6 @@ const runChecks = (): Check[] => {
       items: [],
       activeId,
       legalStatusLabel: null,
-      examStatusLabel: null,
     });
 
     api().showDocuments(ctx('patent-management', 1));
@@ -416,7 +413,6 @@ const runChecks = (): Check[] => {
       items: [],
       activeId,
       legalStatusLabel: null,
-      examStatusLabel: null,
     });
 
     api().showDocuments(ctx(1));
@@ -740,7 +736,6 @@ const Harness: React.FC = () => {
                       items: [],
                       activeId: null,
                       legalStatusLabel: '공개',
-                      examStatusLabel: '심사청구',
                     })}
                   >
                     문서 넣기(빈 묶음)
@@ -757,7 +752,6 @@ const Harness: React.FC = () => {
                         items: [doc],
                         activeId: doc.officeActionId,
                         legalStatusLabel: doc.legalStatus,
-                        examStatusLabel: null,
                       })}
                     >
                       {`문서 ${index + 1} 열기${index === 0 ? ' (대응 3건)' : ''}`}
@@ -773,7 +767,6 @@ const Harness: React.FC = () => {
                       items: RAIL_DOCUMENTS,
                       activeId: RAIL_DOCUMENTS[0].officeActionId,
                       legalStatusLabel: '공개',
-                      examStatusLabel: null,
                     })}
                   >
                     통지 3건 모두 열기 (타임라인)

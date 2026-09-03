@@ -65,11 +65,6 @@ export const readPatentListQueryParams = (
   const legalStatusText = params.get('legalStatusText')?.trim();
   if (legalStatusText) filters.legalStatusText = legalStatusText;
 
-  const examStatusId = toPositiveInt(params.get('examStatusId'));
-  if (examStatusId !== undefined) filters.examStatusId = examStatusId;
-  const examStatusText = params.get('examStatusText')?.trim();
-  if (examStatusText) filters.examStatusText = examStatusText;
-
   const stageCode = params.get('stageCode')?.trim();
   if (stageCode) filters.stageCode = stageCode;
 
@@ -124,8 +119,6 @@ export const buildPatentListQuery = (seed: {
   countryText?: string;
   legalStatusId?: number;
   legalStatusText?: string;
-  examStatusId?: number;
-  examStatusText?: string;
   attorneyNumber?: number;
   internalRef?: string;
   applicationNumber?: string;
@@ -148,10 +141,6 @@ export const buildPatentListQuery = (seed: {
     params.set('legalStatusId', String(seed.legalStatusId));
   }
   if (seed.legalStatusText) params.set('legalStatusText', seed.legalStatusText);
-  if (seed.examStatusId !== undefined) {
-    params.set('examStatusId', String(seed.examStatusId));
-  }
-  if (seed.examStatusText) params.set('examStatusText', seed.examStatusText);
   if (seed.attorneyNumber !== undefined) {
     params.set('attorneyNumber', String(seed.attorneyNumber));
   }

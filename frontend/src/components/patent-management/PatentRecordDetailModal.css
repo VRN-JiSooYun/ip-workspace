@@ -629,6 +629,29 @@
   font-weight: 600;
 }
 
+.pm-detail-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.pm-detail-apply-error {
+  min-width: 0;
+  overflow: hidden;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pm-detail-footer-actions {
+  display: flex;
+  flex: 0 0 auto;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-inline-start: auto;
+}
+
 .pm-detail-title-bar {
   gap: 9px;
   min-height: 26px;

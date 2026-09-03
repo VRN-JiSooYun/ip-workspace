@@ -1,31 +1,23 @@
 import React, { useEffect, useState } from 'react';
-import { Button, Checkbox, Collapse, DatePicker, Input, Modal, Select, Tag, Tooltip, Typography } from 'antd';
+import { Button, Checkbox, Collapse, DatePicker, Input, Modal, Select, Tag, Typography } from 'antd';
 import type { InputRef } from 'antd';
 import dayjs from 'dayjs';
 import {
-  AlertCircle,
-  Check,
   ChevronLeft,
   ChevronRight,
   FileText,
   Link2,
   ListChecks,
-  Loader2,
-  X,
 } from 'lucide-react';
-import {
-  usePatentFieldSave,
-  type FieldSaveState,
-  type PatentFieldKey,
-} from '../../hooks/usePatentFieldSave';
 import {
   patentRecordApi,
   type CreatePatentRecordInput,
   type PatentDocumentLinkResult,
   type PatentRecord,
   type PatentRecordLookups,
+  type UpdatePatentRecordInput,
 } from '../../services/patentRecordApi';
-import { formatCountryOptionLabel } from '../../utils/countryLabel';
+import { buildCountryOption, filterCountryOption } from '../common/CountryTag';
 import { formatDisplayDateTime } from '../../utils/displayFormat';
 import RichTextField from '../common/RichTextField';
 import PatentAuditFeed from './PatentAuditFeed';
@@ -36,6 +28,7 @@ const { Text } = Typography;
 const DEFAULT_SIDE_WIDTH = 370;
 const MIN_SIDE_WIDTH = 300;
 const MAX_SIDE_WIDTH = 560;
+type PatentFieldKey = keyof UpdatePatentRecordInput;
 
 type Props = {
   open: boolean;
@@ -45,7 +38,7 @@ type Props = {
   lookups: PatentRecordLookups | null;
   canManage: boolean;
   onClose: () => void;
-  /** 필드가 저장되면 갱신된 행을 넘긴다. 목록 행 갱신에 쓴다. */
+  /** 변경사항이 적용되면 갱신된 행을 넘긴다. 목록 행 갱신에 쓴다. */
   onSaved: (next: PatentRecord) => void;
   /** 문서 뷰어를 레일에서 열어 달라는 요청. 뷰어를 여기 겹쳐 그리지 않는다. */
   onOpenDocuments: (record: PatentRecord) => void;
@@ -130,45 +123,29 @@ const toCreateInput = (record: PatentRecord): CreatePatentRecordInput => ({
   note: nullableText(record.note),
 });
 
-/** 필드 옆의 저장 상태. 조용히 실패하면 사용자가 저장됐다고 믿는다. */
-const SaveBadge: React.FC<{ state: FieldSaveState; onRetryHint?: () => void }> = ({
-  state,
-  onRetryHint,
-}) => {
-  if (state.status === 'saving') {
-    return <Loader2 size={12} className="pm-field-badge pm-field-badge-spin" aria-label="저장 중" />;
-  }
-  if (state.status === 'saved') {
-    return <Check size={12} className="pm-field-badge pm-field-badge-ok" aria-label="저장됨" />;
-  }
-  if (state.status === 'error') {
-    return (
-      <Tooltip title={`${state.message ?? '저장하지 못했습니다.'} (눌러서 되돌리기)`}>
-        <button
-          type="button"
-          className="pm-field-badge pm-field-badge-error"
-          aria-label="저장 실패, 눌러서 되돌리기"
-          onClick={onRetryHint}
-        >
-          <AlertCircle size={12} />
-        </button>
-      </Tooltip>
-    );
-  }
-  return null;
+/** 원본과 다른 편집 가능 필드만 PATCH payload로 만든다. */
+const toChangedInput = (
+  before: PatentRecord,
+  after: PatentRecord,
+): UpdatePatentRecordInput => {
+  const previous = toCreateInput(before);
+  const next = toCreateInput(after);
+  return Object.fromEntries(
+    Object.entries(next).filter(([key, value]) => (
+      JSON.stringify(value) !== JSON.stringify(previous[key as keyof CreatePatentRecordInput])
+    )),
+  ) as UpdatePatentRecordInput;
 };
 
 /** 사이드바 한 줄. 라벨 왼쪽, 값 오른쪽. */
 const Row: React.FC<{
   label: string;
   children: React.ReactNode;
-  badge?: React.ReactNode;
-}> = ({ label, children, badge }) => (
+}> = ({ label, children }) => (
   <div className="pm-detail-row">
     <span className="pm-detail-row-label">{label}</span>
     <span className="pm-detail-row-value">
       {children}
-      {badge}
     </span>
   </div>
 );
@@ -181,6 +158,14 @@ const ReadOnly: React.FC<{ value: string | null | undefined }> = ({ value }) => 
 );
 
 const toDayjs = (value: string | null | undefined) => (value ? dayjs(value) : null);
+
+const noteImageUrls = (html: string | null | undefined): string[] => {
+  if (!html || typeof DOMParser === 'undefined') return [];
+  const documentNode = new DOMParser().parseFromString(html, 'text/html');
+  return Array.from(documentNode.querySelectorAll('img'))
+    .map((image) => image.getAttribute('src'))
+    .filter((source): source is string => Boolean(source));
+};
 
 /**
  * 문서 연결 결과 → 한 줄.
@@ -206,19 +191,9 @@ const describeLinkResult = (result: PatentDocumentLinkResult): string => {
 /**
  * 관리 특허 상세 — JIRA 이슈 상세와 같은 2단 배치.
  *
- * **필드별 저장이다.** 하단 [저장] 버튼이 없다. 필드 하나를 고치면 그 키만 담은 PATCH가
- * 나가고, 서버가 그 필드만 감사 로그에 남긴다. 다만 "언제 한 번인가"는 필드의 성격에
- * 따라 다르다(usePatentFieldSave):
- *
- *  - select·날짜·체크박스: 고르는 즉시. 한 번의 조작이 곧 최종값이다.
- *  - 한 줄 텍스트: blur·Enter로 확정할 때 한 번. 타자 중에는 보내지 않는다.
- *  - 설명: 편집기를 열고 [저장]을 눌러야. 문단은 다 쓰고 나서가 사람의 단위다.
- *
- * 뒤의 두 규칙은 활동 피드 때문에 이렇게 됐다 — 타자 중에 저장하면 중간값마다 이력이
- * 한 줄씩 남아 피드가 타자 기록이 된다.
- *
- * 생성도 같은 컴포넌트와 배치를 쓴다. 생성 중에는 값을 로컬 초안에 모으고 [추가]에서
- * 한 번 POST하며, 기존 레코드를 열었을 때만 필드별 PATCH와 활동 피드를 사용한다.
+ * 생성·수정 모두 값을 로컬 초안에 모은다. 수정은 우측 하단 [적용]을 눌렀을 때 원본과
+ * 달라진 필드만 PATCH 한 번으로 저장한다. select·날짜의 오클릭도 서버에 즉시 반영되지
+ * 않으며, [취소]는 초안을 버린다. 여러 필드의 감사 로그는 같은 requestId로 묶인다.
  *
  * 읽기 전용 필드(권리 관계 등)는 DB·응답에는 있지만 갱신 DTO에 없어 편집할 수 없다.
  * 출원인·발명자는 코드 관리와 연결된 select로 편집한다. note('설명')도 편집 가능하며,
@@ -239,24 +214,31 @@ const PatentRecordDetailModal: React.FC<Props> = ({
 }) => {
   const isCreate = mode === 'create';
   const [createDraft, setCreateDraft] = useState<PatentRecord>(EMPTY_RECORD);
+  const [editDraft, setEditDraft] = useState<PatentRecord | null>(null);
   const [createErrors, setCreateErrors] = useState({ country: false, applicationNumber: false });
-  const activeRecord = isCreate ? createDraft : record;
-  const inputsDisabled = !canManage || (isCreate && submitting);
+  const [applying, setApplying] = useState(false);
+  const [applyError, setApplyError] = useState('');
+  const [noteBusy, setNoteBusy] = useState(false);
+  /** [적용] 전 업로드된 설명 이미지는 취소 시 정리해야 하므로 따로 추적한다. */
+  const draftNoteUploads = React.useRef(new Set<string>());
+  const activeRecord = isCreate ? createDraft : (editDraft ?? record);
+  const inputsDisabled = !canManage || submitting || applying;
 
   useEffect(() => {
-    if (open && isCreate) {
+    if (!open) return;
+    if (isCreate) {
       setCreateDraft(EMPTY_RECORD);
       setCreateErrors({ country: false, applicationNumber: false });
+    } else if (record) {
+      // 같은 특허를 편집하는 동안 부모가 목록 행을 갱신해도 작성 중 초안을 덮지 않는다.
+      setEditDraft((current) => current?.id === record.id
+        ? current
+        : { ...record, inventorLinks: [...record.inventorLinks] });
     }
-  }, [isCreate, open]);
+    setApplyError('');
+  }, [isCreate, open, record]);
   /** 저장이 일어나면 활동 피드를 다시 받는다(어떤 로그가 남았는지는 서버만 안다). */
   const [auditRevision, setAuditRevision] = useState(0);
-  /**
-   * 명칭 칸이 포커스를 잡고 있는가. 잡고 있을 때만 적용·취소 아이콘을 낸다.
-   *
-   * 이 칸은 제목 자리라 평소에는 테두리도 없이 그냥 글로 보인다(JIRA와 같다). 그래서
-   * "지금 고치는 중이고, 이렇게 끝낸다"를 보여 줄 것이 필요하다.
-   */
   const [titleActive, setTitleActive] = useState(false);
   const titleRef = React.useRef<InputRef>(null);
   const [headerEditField, setHeaderEditField] = useState<
@@ -272,14 +254,6 @@ const PatentRecordDetailModal: React.FC<Props> = ({
   /** 마지막 연결 결과를 사람 말로. 눌렀는데 아무 말이 없으면 눌린 줄 모른다. */
   const [linkMessage, setLinkMessage] = useState('');
 
-  const save = usePatentFieldSave({
-    patent: isCreate ? null : record,
-    onSaved: (next) => {
-      onSaved(next);
-      setAuditRevision((current) => current + 1);
-    },
-  });
-
   useEffect(() => {
     setHeaderEditField(null);
     setLinkMessage('');
@@ -287,8 +261,13 @@ const PatentRecordDetailModal: React.FC<Props> = ({
 
   if (!activeRecord) return null;
 
-  const updateCreateDraft = (key: PatentFieldKey, value: unknown) => {
-    setCreateDraft((current) => ({ ...current, [key]: value } as PatentRecord));
+  const updateDraft = (key: PatentFieldKey, value: unknown) => {
+    const update = (current: PatentRecord) => (
+      { ...current, [key]: value } as PatentRecord
+    );
+    if (isCreate) setCreateDraft(update);
+    else setEditDraft((current) => (current ? update(current) : current));
+    setApplyError('');
     if (key === 'countryId') {
       setCreateErrors((current) => ({ ...current, country: false }));
     }
@@ -307,8 +286,7 @@ const PatentRecordDetailModal: React.FC<Props> = ({
   };
 
   const cancelHeaderTextEdit = (key: 'internalRef' | 'applicationNumber') => {
-    if (isCreate) updateCreateDraft(key, headerEditInitialValue.current);
-    else save.revert(key);
+    updateDraft(key, headerEditInitialValue.current);
     setHeaderEditField(null);
   };
 
@@ -355,9 +333,80 @@ const PatentRecordDetailModal: React.FC<Props> = ({
     onCreate?.(toCreateInput(activeRecord));
   };
 
-  const badgeFor = (key: PatentFieldKey) => isCreate ? null : (
-    <SaveBadge state={save.stateOf(key)} onRetryHint={() => save.revert(key)} />
-  );
+  const pendingUpdate = !isCreate && record && activeRecord
+    ? toChangedInput(record, activeRecord)
+    : {};
+  const hasPendingChanges = Object.keys(pendingUpdate).length > 0;
+
+  const removeNoteImages = (urls: Iterable<string>) => {
+    if (!record) return;
+    Array.from(new Set(urls)).forEach((url) => {
+      void patentRecordApi.removeNoteImage(record.id, url).catch(() => undefined);
+    });
+  };
+
+  const discardDraftUploads = () => {
+    if (record) removeNoteImages(draftNoteUploads.current);
+    draftNoteUploads.current.clear();
+  };
+
+  const closeAndDiscard = () => {
+    discardDraftUploads();
+    setEditDraft(null);
+    setCreateErrors({ country: false, applicationNumber: false });
+    setApplyError('');
+    onClose();
+  };
+
+  const requestClose = () => {
+    if (submitting || applying || noteBusy) return;
+    if (isCreate || !hasPendingChanges) {
+      closeAndDiscard();
+      return;
+    }
+    Modal.confirm({
+      title: '변경사항을 버릴까요?',
+      content: '적용하지 않은 변경사항은 저장되지 않습니다.',
+      okText: '변경사항 버리기',
+      okButtonProps: { danger: true },
+      cancelText: '계속 편집',
+      onOk: closeAndDiscard,
+    });
+  };
+
+  const submitEdit = async () => {
+    if (isCreate || !record || !activeRecord || !hasPendingChanges || noteBusy) return;
+    const errors = {
+      country: !activeRecord.countryId,
+      applicationNumber: activeRecord.applicationNumber.trim().length === 0,
+    };
+    setCreateErrors(errors);
+    if (errors.country || errors.applicationNumber) return;
+
+    setApplying(true);
+    setApplyError('');
+    try {
+      const next = await patentRecordApi.update(
+        record.id,
+        pendingUpdate,
+        globalThis.crypto?.randomUUID?.(),
+      );
+      const nextImageUrls = new Set(noteImageUrls(activeRecord.note));
+      removeNoteImages([
+        ...noteImageUrls(record.note).filter((url) => !nextImageUrls.has(url)),
+        ...Array.from(draftNoteUploads.current).filter((url) => !nextImageUrls.has(url)),
+      ]);
+      draftNoteUploads.current.clear();
+      onSaved(next);
+      setAuditRevision((current) => current + 1);
+      setEditDraft(null);
+      onClose();
+    } catch (error) {
+      setApplyError(error instanceof Error ? error.message : '변경사항을 적용하지 못했습니다.');
+    } finally {
+      setApplying(false);
+    }
+  };
 
   /**
    * OA DB에서 문서를 찾아 이어 붙인다.
@@ -374,7 +423,11 @@ const PatentRecordDetailModal: React.FC<Props> = ({
       setLinkMessage(describeLinkResult(result));
       // 문서 건수가 바뀌었으면 이 행을 쓰는 곳(목록 배지·'문서 N건 열기')도 함께 고친다.
       if (result.documentCount !== (activeRecord.documentCount ?? 0)) {
-        onSaved({ ...activeRecord, documentCount: result.documentCount });
+        const persistedRecord = record ?? activeRecord;
+        onSaved({ ...persistedRecord, documentCount: result.documentCount });
+        setEditDraft((current) => current
+          ? { ...current, documentCount: result.documentCount }
+          : current);
       }
       setAuditRevision((current) => current + 1);
     } catch (error) {
@@ -384,32 +437,18 @@ const PatentRecordDetailModal: React.FC<Props> = ({
     }
   };
 
-  /** 적용 — 지금 값을 확정한다. blur도 같은 일을 하므로 두 번 불려도 안전하다. */
+  /** 제목 편집을 마치되 서버 저장은 하단 [적용]에서만 한다. */
   const applyTitle = () => {
-    if (isCreate) {
-      titleRef.current?.blur();
-      return;
-    }
-    save.commitText('koreanTitle');
     titleRef.current?.blur();
   };
 
-  /** 취소 — 초안을 버리고 서버 값으로 되돌린다. 되돌린 뒤에 나가야 blur가 저장하지 않는다. */
+  /** 제목 한 칸만 모달을 열었을 때 값으로 되돌린다. */
   const cancelTitle = () => {
-    if (isCreate) {
-      titleRef.current?.blur();
-      return;
-    }
-    save.revert('koreanTitle');
+    updateDraft('koreanTitle', isCreate ? null : record?.koreanTitle ?? null);
     titleRef.current?.blur();
   };
 
-  /**
-   * 텍스트 입력 한 칸. blur·Enter로 확정한다(타자 중에는 보내지 않는다).
-   *
-   * extra는 이 규칙을 **더하는** 자리다 — onBlur는 덮어쓰지 않고 확정 뒤에 이어 부른다.
-   * 덮어쓸 수 있게 두면 확정을 빠뜨린 칸이 조용히 생긴다.
-   */
+  /** 텍스트 입력 한 칸. 모든 입력은 모달의 로컬 초안만 바꾼다. */
   const textInput = (
     key: PatentFieldKey,
     serverValue: string | null | undefined,
@@ -429,27 +468,21 @@ const PatentRecordDetailModal: React.FC<Props> = ({
       disabled={inputsDisabled}
       placeholder={extra?.placeholder}
       autoFocus={extra?.autoFocus}
-      value={isCreate ? (serverValue ?? '') : save.textValue(key, serverValue)}
-      onChange={(event) => {
-        if (isCreate) updateCreateDraft(key, event.target.value);
-        else save.editText(key, event.target.value, serverValue);
-      }}
+      value={serverValue ?? ''}
+      onChange={(event) => updateDraft(key, event.target.value)}
       onFocus={extra?.onFocus}
-      onBlur={() => {
-        if (!isCreate) save.commitText(key);
-        extra?.onBlur?.();
-      }}
+      onBlur={extra?.onBlur}
       onPressEnter={() => {
-        if (!isCreate) save.commitText(key);
         extra?.onPressEnter?.();
       }}
       onKeyDown={extra?.onKeyDown}
-      status={(key === 'applicationNumber' && createErrors.applicationNumber)
-        || save.stateOf(key).status === 'error' ? 'error' : undefined}
+      status={key === 'applicationNumber' && createErrors.applicationNumber
+        ? 'error'
+        : undefined}
     />
   );
 
-  /** 날짜 한 칸. 고르는 즉시 저장한다. */
+  /** 날짜 한 칸. 선택값은 [적용] 전까지 로컬 초안에만 둔다. */
   const dateInput = (key: PatentFieldKey, serverValue: string | null | undefined) => (
     <DatePicker
       size="small"
@@ -457,8 +490,7 @@ const PatentRecordDetailModal: React.FC<Props> = ({
       value={toDayjs(serverValue)}
       onChange={(next) => {
         const value = next ? next.format('YYYY-MM-DD') : null;
-        if (isCreate) updateCreateDraft(key, value);
-        else save.saveValue(key, value);
+        updateDraft(key, value);
       }}
     />
   );
@@ -466,19 +498,23 @@ const PatentRecordDetailModal: React.FC<Props> = ({
   const codeSelect = (
     key: PatentFieldKey,
     value: number | null | undefined,
-    options: { value: number; label: string }[],
+    // 국가처럼 label이 ReactNode인 옵션은 검색 문자열을 따로 들고 온다.
+    options: { value: number; label: React.ReactNode; search?: string }[],
   ) => (
     <Select
       size="small"
       allowClear
       showSearch
-      optionFilterProp="label"
+      filterOption={(input, option) => (
+        option?.search !== undefined
+          ? filterCountryOption(input, option)
+          : String(option?.label ?? '').toLowerCase().includes(input.trim().toLowerCase())
+      )}
       placeholder="없음"
       disabled={inputsDisabled || !lookups}
       value={isCreate && !value ? undefined : (value ?? undefined)}
       onChange={(next?: number) => {
-        if (isCreate) updateCreateDraft(key, next ?? null);
-        else save.saveValue(key, next ?? null);
+        updateDraft(key, next ?? null);
       }}
       status={key === 'countryId' && createErrors.country ? 'error' : undefined}
       options={options}
@@ -493,12 +529,37 @@ const PatentRecordDetailModal: React.FC<Props> = ({
   return (
     <Modal
       open={open}
-      onCancel={onClose}
-      footer={isCreate ? undefined : null}
-      okText="추가"
-      cancelText="취소"
-      onOk={submitCreate}
-      confirmLoading={submitting}
+      onCancel={requestClose}
+      footer={(
+        <div className="pm-detail-footer">
+          <Text
+            type={applyError ? 'danger' : 'secondary'}
+            className="pm-detail-apply-error"
+          >
+            {applyError || (noteBusy
+              ? '설명 이미지 업로드가 끝날 때까지 기다려 주세요.'
+              : !isCreate && hasPendingChanges
+                ? '적용되지 않은 변경사항이 있습니다.'
+                : '')}
+          </Text>
+          <div className="pm-detail-footer-actions">
+            <Button disabled={submitting || applying || noteBusy} onClick={closeAndDiscard}>
+              취소
+            </Button>
+            <Button
+              type="primary"
+              loading={isCreate ? submitting : applying}
+              disabled={noteBusy || !canManage || (!isCreate && !hasPendingChanges)}
+              onClick={() => {
+                if (isCreate) submitCreate();
+                else void submitEdit();
+              }}
+            >
+              {isCreate ? '추가' : '적용'}
+            </Button>
+          </div>
+        </div>
+      )}
       width="min(1480px, calc(100vw - 40px))"
       style={{ top: '10vh', paddingBottom: 0 }}
       destroyOnClose
@@ -518,8 +579,7 @@ const PatentRecordDetailModal: React.FC<Props> = ({
               disabled={inputsDisabled || !lookups}
               value={activeRecord.target ?? undefined}
               onChange={(next?: string) => {
-                if (isCreate) updateCreateDraft('target', next ?? null);
-                else save.saveValue('target', next ?? null);
+                updateDraft('target', next ?? null);
                 setHeaderEditField(null);
               }}
               onBlur={() => setHeaderEditField(null)}
@@ -560,7 +620,6 @@ const PatentRecordDetailModal: React.FC<Props> = ({
                   cancelHeaderTextEdit('internalRef');
                 },
               })}
-              {badgeFor('internalRef')}
             </span>
           ) : (
             <span
@@ -593,7 +652,6 @@ const PatentRecordDetailModal: React.FC<Props> = ({
                   cancelHeaderTextEdit('applicationNumber');
                 },
               })}
-              {badgeFor('applicationNumber')}
             </span>
           ) : (
             <span
@@ -636,39 +694,7 @@ const PatentRecordDetailModal: React.FC<Props> = ({
                     if (event.key === 'Enter') applyTitle();
                   },
                 })}
-                {badgeFor('koreanTitle')}
               </div>
-              {titleActive && !isCreate && (
-                /*
-                  버튼을 누르는 동안 입력이 포커스를 잃으면 blur가 **먼저** 확정해 버려서
-                  [취소]가 되돌릴 것이 남지 않는다. mousedown을 막아 포커스를 붙들어 두고,
-                  할 일을 한 뒤에 우리가 직접 나간다.
-                */
-                <div className="pm-detail-inline-actions">
-                  <Tooltip title="적용 (Enter)">
-                    <button
-                      type="button"
-                      className="pm-inline-action"
-                      aria-label="적용"
-                      onMouseDown={(event) => event.preventDefault()}
-                      onClick={applyTitle}
-                    >
-                      <Check size={15} />
-                    </button>
-                  </Tooltip>
-                  <Tooltip title="취소 (Esc)">
-                    <button
-                      type="button"
-                      className="pm-inline-action"
-                      aria-label="취소"
-                      onMouseDown={(event) => event.preventDefault()}
-                      onClick={cancelTitle}
-                    >
-                      <X size={15} />
-                    </button>
-                  </Tooltip>
-                </div>
-              )}
             </section>
 
             {!isCreate && (
@@ -708,19 +734,24 @@ const PatentRecordDetailModal: React.FC<Props> = ({
 
             <section className="pm-detail-section">
               <h4 className="pm-detail-section-title">설명</h4>
+              {/* 기존 본문 이미지는 [적용] 성공 뒤에만 지운다. 즉시 지우면 [취소]로
+                  원문을 되돌렸을 때 이미지 URL만 먼저 사라지는 데이터 손상이 생긴다. */}
               <RichTextField
                 value={activeRecord.note}
                 readOnly={inputsDisabled}
+                saveText="저장"
                 onSave={async (next) => {
-                  if (isCreate) updateCreateDraft('note', next);
-                  else await save.saveField('note', next);
+                  updateDraft('note', next);
                 }}
+                onDraftChange={(next) => updateDraft('note', next)}
+                onBusyChange={setNoteBusy}
                 uploadImage={isCreate
                   ? undefined
-                  : async (file) => patentRecordApi.uploadNoteImage(activeRecord.id, file)}
-                deleteImage={isCreate
-                  ? undefined
-                  : (imageUrl) => patentRecordApi.removeNoteImage(activeRecord.id, imageUrl)}
+                  : async (file) => {
+                      const uploaded = await patentRecordApi.uploadNoteImage(activeRecord.id, file);
+                      draftNoteUploads.current.add(uploaded.storageUrl);
+                      return uploaded;
+                    }}
                 resolveImageUrl={isCreate ? undefined : patentRecordApi.noteImageDisplayUrl}
               />
             </section>
@@ -791,7 +822,6 @@ const PatentRecordDetailModal: React.FC<Props> = ({
                   label: item.status,
                 })),
               )}
-              {badgeFor('legalStatusId')}
             </span>
           </div>
           <Collapse
@@ -806,7 +836,7 @@ const PatentRecordDetailModal: React.FC<Props> = ({
                 label: '세부 사항',
                 children: (
                   <>
-                    <Row label="Target" badge={badgeFor('target')}>
+                    <Row label="Target">
                       <Select
                         size="small"
                         allowClear
@@ -815,32 +845,27 @@ const PatentRecordDetailModal: React.FC<Props> = ({
                         placeholder="없음"
                         disabled={inputsDisabled || !lookups}
                         value={activeRecord.target ?? undefined}
-                        onChange={(next?: string) => {
-                          if (isCreate) updateCreateDraft('target', next ?? null);
-                          else save.saveValue('target', next ?? null);
-                        }}
+                        onChange={(next?: string) => updateDraft('target', next ?? null)}
                         options={(lookups?.targets ?? []).map((item) => ({
                           value: item.target,
                           label: item.target,
                         }))}
                       />
                     </Row>
-                    <Row label="국가" badge={badgeFor('countryId')}>
+                    <Row label="국가">
                       <>
                         {codeSelect(
                           'countryId',
                           activeRecord.countryId,
-                          (lookups?.countries ?? []).map((item) => ({
-                            value: item.id,
-                            label: formatCountryOptionLabel(item.country),
-                          })),
+                          (lookups?.countries ?? [])
+                            .map((item) => buildCountryOption(item.id, item.country)),
                         )}
                         {createErrors.country && (
                           <Text type="danger" className="pm-detail-field-error">필수</Text>
                         )}
                       </>
                     </Row>
-                    <Row label="출원인" badge={badgeFor('applicant')}>
+                    <Row label="출원인">
                       <Select
                         size="small"
                         allowClear
@@ -849,17 +874,14 @@ const PatentRecordDetailModal: React.FC<Props> = ({
                         placeholder="없음"
                         disabled={inputsDisabled || !lookups}
                         value={activeRecord.applicant ?? undefined}
-                        onChange={(next?: string) => {
-                          if (isCreate) updateCreateDraft('applicant', next ?? null);
-                          else save.saveValue('applicant', next ?? null);
-                        }}
+                        onChange={(next?: string) => updateDraft('applicant', next ?? null)}
                         options={(lookups?.applicants ?? []).map((item) => ({
                           value: item.applicant,
                           label: item.applicant,
                         }))}
                       />
                     </Row>
-                    <Row label="대리인" badge={badgeFor('attorneyNumber')}>
+                    <Row label="대리인">
                       {codeSelect(
                         'attorneyNumber',
                         activeRecord.attorneyNumber,
@@ -869,7 +891,7 @@ const PatentRecordDetailModal: React.FC<Props> = ({
                         })),
                       )}
                     </Row>
-                    <Row label="발명자" badge={badgeFor('inventorIds')}>
+                    <Row label="발명자">
                       <Select
                         size="small"
                         mode="multiple"
@@ -894,9 +916,19 @@ const PatentRecordDetailModal: React.FC<Props> = ({
                                   : [];
                               }),
                             }));
-                          } else {
-                            void save.saveValue('inventorIds', next);
-                          }
+                          } else setEditDraft((current) => current
+                            ? {
+                                ...current,
+                                inventorLinks: next.flatMap((inventorId, ordinal) => {
+                                  const inventor = (lookups?.inventors ?? [])
+                                    .find((item) => item.id === inventorId);
+                                  return inventor
+                                    ? [{ inventorId, ordinal, inventor }]
+                                    : [];
+                                }),
+                              }
+                            : current);
+                          setApplyError('');
                         }}
                         options={(lookups?.inventors ?? []).map((item) => ({
                           value: item.id,
@@ -913,7 +945,7 @@ const PatentRecordDetailModal: React.FC<Props> = ({
                 label: '연결',
                 children: (
                   <>
-                    <Row label="원출원번호" badge={badgeFor('parentApplicationNumber')}>
+                    <Row label="원출원번호">
                       {textInput('parentApplicationNumber', activeRecord.parentApplicationNumber)}
                     </Row>
                     <Row label="관계">
@@ -927,27 +959,14 @@ const PatentRecordDetailModal: React.FC<Props> = ({
                 label: '상태',
                 children: (
                   <>
-                    <Row label="심사 상태" badge={badgeFor('examStatusId')}>
-                      {codeSelect(
-                        'examStatusId',
-                        activeRecord.examStatusId,
-                        (lookups?.examStatuses ?? []).map((item) => ({
-                          value: item.id,
-                          label: item.status,
-                        })),
-                      )}
-                    </Row>
-                    <Row label="심사청구" badge={badgeFor('exam')}>
+                    <Row label="심사청구">
                       <Checkbox
                         disabled={inputsDisabled}
                         checked={activeRecord.exam === true}
-                        onChange={(event) => {
-                          if (isCreate) updateCreateDraft('exam', event.target.checked);
-                          else save.saveValue('exam', event.target.checked);
-                        }}
+                        onChange={(event) => updateDraft('exam', event.target.checked)}
                       />
                     </Row>
-                    <Row label="심사일" badge={badgeFor('examDate')}>
+                    <Row label="심사일">
                       {dateInput('examDate', activeRecord.examDate)}
                     </Row>
                   </>
@@ -958,15 +977,15 @@ const PatentRecordDetailModal: React.FC<Props> = ({
                 label: '일자',
                 children: (
                   <>
-                    <Row label="출원일" badge={badgeFor('applicationDate')}>
+                    <Row label="출원일">
                       {dateInput('applicationDate', activeRecord.applicationDate)}
                     </Row>
-                    <Row label="공개일" badge={badgeFor('publicationDate')}>
+                    <Row label="공개일">
                       {dateInput('publicationDate', activeRecord.publicationDate)}
                     </Row>
                     {/* registration_date는 컬럼이 문자열이다(형식이 제각각인 운영 시트 값을
                         보존한다). DatePicker로 바꾸면 기존 값을 잃는다. */}
-                    <Row label="등록일" badge={badgeFor('registrationDate')}>
+                    <Row label="등록일">
                       {textInput('registrationDate', activeRecord.registrationDate)}
                     </Row>
                     <Row label="예상 만료일">
@@ -980,19 +999,19 @@ const PatentRecordDetailModal: React.FC<Props> = ({
                 label: '번호',
                 children: (
                   <>
-                    <Row label="출원번호" badge={badgeFor('applicationNumber')}>
+                    <Row label="출원번호">
                       {textInput('applicationNumber', activeRecord.applicationNumber)}
                       {createErrors.applicationNumber && (
                         <Text type="danger" className="pm-detail-field-error">필수 입력</Text>
                       )}
                     </Row>
-                    <Row label="내부관리번호" badge={badgeFor('internalRef')}>
+                    <Row label="내부관리번호">
                       {textInput('internalRef', activeRecord.internalRef)}
                     </Row>
-                    <Row label="공개번호" badge={badgeFor('publicationNumber')}>
+                    <Row label="공개번호">
                       {textInput('publicationNumber', activeRecord.publicationNumber)}
                     </Row>
-                    <Row label="등록번호" badge={badgeFor('registrationNumber')}>
+                    <Row label="등록번호">
                       {textInput('registrationNumber', activeRecord.registrationNumber)}
                     </Row>
                   </>
@@ -1003,16 +1022,16 @@ const PatentRecordDetailModal: React.FC<Props> = ({
                 label: '국제(PCT)',
                 children: (
                   <>
-                    <Row label="국제출원번호" badge={badgeFor('intApplicationNumber')}>
+                    <Row label="국제출원번호">
                       {textInput('intApplicationNumber', activeRecord.intApplicationNumber)}
                     </Row>
-                    <Row label="국제출원일" badge={badgeFor('intApplicationDate')}>
+                    <Row label="국제출원일">
                       {dateInput('intApplicationDate', activeRecord.intApplicationDate)}
                     </Row>
-                    <Row label="국제공개번호" badge={badgeFor('intPublicationNumber')}>
+                    <Row label="국제공개번호">
                       {textInput('intPublicationNumber', activeRecord.intPublicationNumber)}
                     </Row>
-                    <Row label="국제공개일" badge={badgeFor('intPublicationDate')}>
+                    <Row label="국제공개일">
                       {dateInput('intPublicationDate', activeRecord.intPublicationDate)}
                     </Row>
                   </>

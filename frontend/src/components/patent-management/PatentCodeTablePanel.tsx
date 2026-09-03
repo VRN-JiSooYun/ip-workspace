@@ -17,6 +17,7 @@ import {
   type PatentCodeItem,
   type PatentCodeType,
 } from '../../services/patentRecordApi';
+import { CountryFlag } from '../common/CountryTag';
 import { getCountryLabel } from '../../utils/countryLabel';
 
 const { Text } = Typography;
@@ -54,14 +55,6 @@ export const PATENT_CODE_TABS: PatentCodeTabConfig[] = [
     label: '법적 상태',
     valueLabel: '상태',
     valuePlaceholder: '등록',
-    manualId: false,
-    idLabel: 'ID',
-  },
-  {
-    type: 'exam-statuses',
-    label: '심사 상태',
-    valueLabel: '상태',
-    valuePlaceholder: '심사중',
     manualId: false,
     idLabel: 'ID',
   },
@@ -240,14 +233,15 @@ const PatentCodeTablePanel: React.FC<Props> = ({
     });
   };
 
-  /** 코드만으로는 어느 나라인지 알기 어려우므로 아는 코드에 한해 이름을 붙인다. */
+  /** 코드만으로는 어느 나라인지 알기 어려우므로 아는 코드에 한해 국기와 이름을 붙인다. */
   const countryHint = (code: string) => {
     const country = getCountryLabel(code);
     if (!country.known) return null;
     return (
-      <Text type="secondary">
-        {` ${country.flag ? `${country.flag} ` : ''}${country.name}`}
-      </Text>
+      <span className="pm-code-country-hint">
+        <CountryFlag code={country.code} />
+        <Text type="secondary">{country.name}</Text>
+      </span>
     );
   };
 

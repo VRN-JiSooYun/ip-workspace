@@ -18,6 +18,7 @@ import { PatentWorkspaceProvider } from '../components/patent-management/workspa
 import PatentRecordDetailModal from '../components/patent-management/PatentRecordDetailModal';
 import type { PatentListFilterValues } from '../components/patent-management/PatentListFilters';
 import type { PatentRecord } from '../services/patentRecordApi';
+import { readPatentListQueryParams } from '../utils/patentListQueryParams';
 import { buildMockWorkspaceState } from './patentWorkspaceMock';
 import '../index.css';
 import '../styles/dday.css';
@@ -153,7 +154,6 @@ const measureChecks = (): Check[] => {
     /** 열 이름 → 필터 라벨. 이름이 다른 것만 적는다. */
     const ALIAS: Record<string, string> = {
       '법적 상태': '법적상태',
-      '심사 상태': '심사상태',
     };
     const uncovered = columnTitles.filter((title) => (
       !filterLabels.includes(ALIAS[title] ?? title)
@@ -313,7 +313,11 @@ const Harness: React.FC = () => {
 
   // 필터는 실제로 동작해야 확인할 수 있다(디바운스, select와 텍스트가 서로를 지우지 않는지).
   // 목록 조회는 없으니 조건만 상태로 들고 화면에 되돌려 준다.
-  const [listFilters, setListFilters] = useState<PatentListFilterValues>({});
+  // 딥링크로 들어온 조건도 이 화면에서 손으로 확인할 수 있게 URL query를 초기값으로 읽는다
+  // (실제 화면의 usePatentWorkspaceState와 같은 파서를 쓴다).
+  const [listFilters, setListFilters] = useState<PatentListFilterValues>(
+    () => readPatentListQueryParams(new URLSearchParams(window.location.search)).filters,
+  );
   const [selectedTargets, setSelectedTargets] = useState<string[]>([]);
   const [stageGroup, setStageGroup] = useState<string | null>(null);
 

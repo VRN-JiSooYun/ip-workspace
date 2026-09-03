@@ -67,7 +67,6 @@ export type RailDocumentContext = {
   /** 보고 있는 통지서(officeActionId). null이면 첫 항목을 본다. */
   activeId: number | null;
   legalStatusLabel: string | null;
-  examStatusLabel: string | null;
   /** 이 문서를 찾은 본문 검색 조건. 문서 뷰어의 검색 근거와 PDF 하이라이트에만 쓴다. */
   searchKeywords?: PatentSearchKeyword[];
 };

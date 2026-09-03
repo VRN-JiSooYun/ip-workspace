@@ -92,6 +92,16 @@ export default defineConfig(({ mode }) => {
     ],
   },
   build: {
+    /**
+     * 국기 SVG는 파일로 내보낸다.
+     *
+     * 기본값(4KB 미만은 data URI로 인라인)을 그대로 두면 flag-icons의 500여 개 국기가
+     * 전부 CSS 안으로 들어가 공통 CSS가 800KB를 넘는다. 화면에 실제로 뜨는 국기는 대여섯
+     * 개뿐이므로, 파일로 두고 필요한 것만 받게 한다(해시 URL이라 이후 영구 캐시된다).
+     */
+    assetsInlineLimit: (filePath: string) => (
+      filePath.includes('flag-icons') ? false : undefined
+    ),
     commonjsOptions: {
       include: [/pdfjs-dist/, /node_modules/],
     },

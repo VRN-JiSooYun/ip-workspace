@@ -24,12 +24,24 @@ const COUNTRIES = [
   { id: 3, country: 'EP' },
   { id: 4, country: 'JP' },
   { id: 5, country: 'CN' },
+  // 국기가 없는 제도 코드. 지구본 표식이 제대로 나오는지 눈으로 확인하려고 둔다.
+  { id: 6, country: 'WO' },
 ];
 
 const LEGAL_STATUSES = [
   { id: 1, status: '출원' },
   { id: 2, status: '등록' },
   { id: 3, status: '거절' },
+];
+
+/**
+ * OA DB 원문 목록. 로컬 코드 표와 겹치지 않는 값을 하나 섞어 둔다 — 법적상태 select가
+ * 어느 쪽을 보고 있는지 harness에서 눈으로 구분할 수 있어야 한다.
+ */
+const OA_LEGAL_STATUSES = [
+  { id: 1, status: '출원' },
+  { id: 2, status: '등록' },
+  { id: 9, status: '소멸 (포기)' },
 ];
 
 const EXAM_STATUSES = [
@@ -272,7 +284,7 @@ export const buildMockWorkspaceState = (
     },
     oaLookups: {
       countries: COUNTRIES,
-      legalStatuses: LEGAL_STATUSES,
+      legalStatuses: OA_LEGAL_STATUSES,
       examStatuses: EXAM_STATUSES,
     },
     oaLookupsLoading: false,

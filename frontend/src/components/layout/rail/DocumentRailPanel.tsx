@@ -45,7 +45,6 @@ const DocumentRailPanel: React.FC = () => {
       onActiveItemChange={setActiveDocumentId}
       // 고른 건의 법적 상태가 있으면 그것을, 없으면 화면이 준 특허 단위 값을 쓴다.
       legalStatusLabel={activeDocument?.legalStatus ?? context.legalStatusLabel}
-      examStatusLabel={context.examStatusLabel}
       activeTabKey={documentTabKey}
       onActiveTabKeyChange={setDocumentTabKey}
       searchKeywords={context.searchKeywords}

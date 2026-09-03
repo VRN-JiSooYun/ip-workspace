@@ -4,11 +4,7 @@ import { useSearchParams } from 'react-router-dom';
 import { buildStageTiles, type StageTileRow } from '../components/patent-management/PatentProgressPipeline';
 import type { PatentListFilterValues } from '../components/patent-management/PatentListFilters';
 import { useAccessContext } from '../contexts/AccessContext';
-import {
-  patentSearchApi,
-  type OaLookups,
-  type PatentSearchItem,
-} from '../services/patentSearchApi';
+import type { PatentSearchItem } from '../services/patentSearchApi';
 import {
   patentRecordApi,
   type CreatePatentRecordInput,
@@ -31,8 +27,9 @@ const getErrorMessage = (error: unknown) =>
  * 트리로 바뀌면서 패널이 서로 다른 위치에 독립적으로 마운트되므로, 상태를 한 곳에 모아
  * 컨텍스트로 내려 준다. 로직은 옮기기만 했고 동작은 그대로다.
  *
- * 목록·진행 현황·Target 결과는 로컬 DB(`/api/patent-records`)를 본다. 다만 상세 검색의
- * 국가·법적상태·심사상태 선택지는 office-actions와 같은 OA DB lookup을 정본으로 쓴다.
+ * 목록·진행 현황·Target 결과도, 상세 검색의 선택지도 모두 로컬 DB(`/api/patent-records`)를
+ * 본다. 국가·법적상태 후보는 '특허 코드 관리'가 고치는 코드 표가 정본이다 — 목록 표와
+ * 상세 모달이 이미 그 코드를 보여 주고 고치므로 후보만 다른 곳에서 뽑으면 어긋난다.
  *
  * 일정·To-do·문서 뷰어는 여기 없다. 우측 상시 레일이 갖는다
  * (components/layout/rail/) — 그쪽은 조회도 스스로 한다.
@@ -66,7 +63,7 @@ export const usePatentWorkspaceState = () => {
   const [activeStageGroup, setActiveStageGroup] = useState<string | null>(
     urlSeed.stageGroup ?? null,
   );
-  /** 국가·법적상태·심사상태. 목록과 진행 현황 집계가 함께 쓴다. */
+  /** 국가·법적상태 등 상세 검색 조건. 목록과 진행 현황 집계가 함께 쓴다. */
   const [listFilters, setListFilters] = useState<PatentListFilterValues>(urlSeed.filters);
   const [stageSummary, setStageSummary] = useState<PatentStageSummary | null>(null);
   const [stagesLoading, setStagesLoading] = useState(false);
@@ -82,8 +79,6 @@ export const usePatentWorkspaceState = () => {
 
   // ---- 모달·문서 뷰어 ----
   const [lookups, setLookups] = useState<PatentRecordLookups | null>(null);
-  const [oaLookups, setOaLookups] = useState<OaLookups | null>(null);
-  const [oaLookupsLoading, setOaLookupsLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingRecord, setEditingRecord] = useState<PatentRecord | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -159,28 +154,6 @@ export const usePatentWorkspaceState = () => {
 
   // Target·대리인 필터도 진입 직후부터 채워져 있어야 한다.
   useEffect(() => { void ensureLookups(); }, [ensureLookups]);
-
-  // 국가·법적상태·심사상태 상세 검색은 office-actions와 같은 OA DB 목록을 쓴다.
-  // 로컬 CRUD modal의 코드 목록과 ID 체계가 다르므로 별도 state로 유지한다.
-  useEffect(() => {
-    let active = true;
-    setOaLookupsLoading(true);
-    void patentSearchApi.lookups()
-      .then((next) => {
-        if (active) setOaLookups(next);
-      })
-      .catch((error) => {
-        if (!active) return;
-        setOaLookups(null);
-        void message.error(`OA 선택 목록을 불러오지 못했습니다: ${getErrorMessage(error)}`);
-      })
-      .finally(() => {
-        if (active) setOaLookupsLoading(false);
-      });
-    return () => {
-      active = false;
-    };
-  }, [message]);
 
   // ---- 필터 조작 ----------------------------------------------------------
 
@@ -266,7 +239,7 @@ export const usePatentWorkspaceState = () => {
     );
   }, [applyListFilters, isStageRowActive, listFilters]);
 
-  /** 추가와 수정은 같은 상세 모달을 쓰며, 추가 모드만 로컬 초안을 일괄 POST한다. */
+  /** 추가와 수정은 같은 상세 모달을 쓰며, 둘 다 로컬 초안을 일괄 저장한다. */
   const openCreateModal = useCallback(() => {
     setEditingRecord(null);
     setIsModalOpen(true);
@@ -288,8 +261,7 @@ export const usePatentWorkspaceState = () => {
   }, []);
 
   /**
-   * 상세 모달이 필드 하나를 저장한 뒤. 목록을 통째로 다시 받지 않고 그 행만 갈아 끼운다 —
-   * 필드마다 목록을 재조회하면 스크롤과 페이지가 흔들린다.
+   * 상세 모달이 변경사항을 적용한 뒤. 목록을 통째로 다시 받지 않고 그 행만 갈아 끼운다.
    *
    * 진행 현황 집계(총 N건·단계별 건수)는 법적 상태가 바뀌면 달라지므로 함께 새로 받는다.
    */
@@ -403,8 +375,6 @@ export const usePatentWorkspaceState = () => {
 
     // 필터·진행 현황
     lookups,
-    oaLookups,
-    oaLookupsLoading,
     listFilters,
     applyListFilters,
     stageSummary,

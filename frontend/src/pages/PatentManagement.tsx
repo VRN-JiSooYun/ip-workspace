@@ -53,7 +53,6 @@ const PatentManagement: React.FC = () => {
       items: state.documentItems,
       activeId: state.documentItems[0]?.officeActionId ?? null,
       legalStatusLabel: patent.legalStatus?.status ?? null,
-      examStatusLabel: patent.examStatus?.status ?? null,
     });
   }, [showDocuments, state.documentItems, state.documentPatent]);
 
@@ -84,7 +83,7 @@ const PatentManagement: React.FC = () => {
       <div className="pm-page">
         <PatentManagementBody />
 
-        {/* 추가와 수정 모두 같은 상세 컴포넌트를 쓴다. 추가만 로컬 초안 후 일괄 POST한다. */}
+        {/* 추가와 수정 모두 같은 상세 컴포넌트에서 로컬 초안을 만든 뒤 일괄 저장한다. */}
         <PatentRecordDetailModal
           open={state.isModalOpen || state.editingRecord !== null}
           mode={state.isModalOpen ? 'create' : 'edit'}

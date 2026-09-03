@@ -7,9 +7,8 @@ import type {
   PatentRecordLookups,
   PatentStageSummary,
 } from '../../services/patentRecordApi';
-import type { OaLookups } from '../../services/patentSearchApi';
 import { UNMAPPED_STAGE_GROUP } from '../../services/patentRecordApi';
-import { formatCountryOptionLabel } from '../../utils/countryLabel';
+import { buildCountryOption, filterCountryOption } from '../common/CountryTag';
 import '../../styles/filter-system.css';
 import './PatentListFilters.css';
 
@@ -24,15 +23,20 @@ const { RangePicker } = DatePicker;
  */
 export type PatentListFilterValues = {
   // ---- 코드·OA 명칭 조건 ----
+  /** 로컬 country.id. 상세 검색의 국가 select가 쓰는 조건이다. */
   countryId?: number;
-  /** OA DB country.country 원문. 상세 검색 UI가 쓰는 조건이다. */
+  /**
+   * country.country 원문(완전 일치). 옛 딥링크가 이름으로 걸어 오는 경우를 위해 남겨 둔다
+   * — select는 코드(id)로 고른다.
+   */
   countryText?: string;
+  /** 로컬 legal_status.id. 상세 검색의 법적상태 select가 쓰는 조건이다. */
   legalStatusId?: number;
-  /** OA DB legal_status.status 원문. */
+  /**
+   * legal_status.status 원문(완전 일치). 옛 딥링크가 이름으로 걸어 오는 경우를 위해
+   * 남겨 둔다 — select는 코드(id)로 고른다.
+   */
   legalStatusText?: string;
-  examStatusId?: number;
-  /** OA DB exam_status.status 원문. */
-  examStatusText?: string;
   attorneyNumber?: number;
 
   // ---- 부분 일치 조건 ----
@@ -111,11 +115,11 @@ const DOCUMENT_OPTIONS = [
 ];
 
 type Props = {
-  /** 로컬 코드 목록. Target·대리인과 로컬 ID 딥링크 라벨에 쓴다. */
+  /**
+   * 로컬 코드 목록(특허 코드 관리가 고치는 표). Target·대리인·국가·법적상태 select와
+   * 로컬 ID 딥링크 라벨에 쓴다.
+   */
   lookups: PatentRecordLookups | null;
-  /** OA DB 코드 목록. 국가·법적상태·심사상태 상세 검색의 정본이다. */
-  oaLookups: OaLookups | null;
-  oaLookupsLoading?: boolean;
   values: PatentListFilterValues;
   onChange: (next: PatentListFilterValues) => void;
 
@@ -154,15 +158,13 @@ const Field: React.FC<{ label: string; children: React.ReactNode; wide?: boolean
  * 드롭다운을 다는 방식도 있지만, 그러면 지금 몇 개가 걸렸는지·한 번에 초기화하는 일이
  * 두 군데로 갈린다. Target과 진행 단계도 예전에는 별도 패널이었는데 같은 이유로 들여왔다.
  *
- * 헤더의 통합 검색바(q)는 그대로 남는다. "번호 일부는 아는데 어느 열인지 모르겠다"는
+ * 후보 값은 모두 로컬 코드 표(특허 코드 관리)에서 온다. 헤더의 통합 검색바(q)는 그대로 남는다. "번호 일부는 아는데 어느 열인지 모르겠다"는
  * 검색은 열별 조건으로 표현할 수 없어 둘이 서로를 대체하지 않는다(서로 AND).
  *
  * 레이아웃은 의견제출통지서의 '고급 검색'과 같은 프리미티브(filter-system.css)를 쓴다.
  */
 const PatentListFilters: React.FC<Props> = ({
   lookups,
-  oaLookups,
-  oaLookupsLoading = false,
   values,
   onChange,
   selectedTargets,
@@ -229,7 +231,6 @@ const PatentListFilters: React.FC<Props> = ({
   const columnCount = [
     values.countryText ?? values.countryId,
     values.legalStatusText ?? values.legalStatusId,
-    values.examStatusText ?? values.examStatusId,
     values.attorneyNumber,
     values.internalRef,
     values.applicationNumber,
@@ -270,14 +271,40 @@ const PatentListFilters: React.FC<Props> = ({
       : []),
   ];
 
-  // 대시보드 딥링크·진행 현황은 기존 로컬 ID 계약을 유지한다. 그런 조건으로 들어온
-  // 경우에도 select에는 사람이 읽는 명칭을 보여 준다.
-  const selectedCountry = values.countryText
-    ?? lookups?.countries.find((item) => item.id === values.countryId)?.country;
-  const selectedLegalStatus = values.legalStatusText
-    ?? lookups?.legalStatuses.find((item) => item.id === values.legalStatusId)?.status;
-  const selectedExamStatus = values.examStatusText
-    ?? lookups?.examStatuses.find((item) => item.id === values.examStatusId)?.status;
+  /**
+   * 국가도 법적상태와 같다 — **로컬 코드 표**(특허 코드 관리)의 값을 코드(id)로 고른다.
+   * 목록 표와 상세 모달이 이미 이 코드(patent.country)를 보여 주고 고치기 때문이다.
+   */
+  const countryOptions = (lookups?.countries ?? [])
+    .map((item) => buildCountryOption(item.id, item.country));
+  /** 이름으로 들어온 옛 딥링크는 같은 코드가 있으면 그 코드로 바꿔 보여 준다. */
+  const countryTextId = values.countryText
+    ? lookups?.countries.find((item) => item.country === values.countryText)?.id
+    : undefined;
+  const selectedCountry = values.countryId ?? countryTextId;
+  /** 코드 표에 없는 이름으로 들어온 조건. select로는 못 고르므로 칩으로 되짚는다. */
+  const orphanCountryText = values.countryText && countryTextId === undefined
+    ? values.countryText
+    : undefined;
+  /**
+   * 법적상태는 **로컬 코드 표**(특허 코드 관리)의 값을 고른다. OA DB 원문이 아니라 이쪽이
+   * 정본인 이유는 목록 표와 상세 모달이 이미 이 코드(patent.legal_status)를 보여 주고
+   * 고치기 때문이다. 옵션만 OA 원문에서 뽑으면 코드 표에 있는 값이 목록에서 안 걸리고,
+   * 코드 표에 없는 값이 후보로 뜬다.
+   */
+  const legalStatusOptions = (lookups?.legalStatuses ?? []).map((item) => ({
+    value: item.id,
+    label: item.status,
+  }));
+  /** 이름으로 들어온 옛 딥링크는 같은 이름의 코드가 있으면 그 코드로 바꿔 보여 준다. */
+  const legalStatusTextId = values.legalStatusText
+    ? lookups?.legalStatuses.find((item) => item.status === values.legalStatusText)?.id
+    : undefined;
+  const selectedLegalStatus = values.legalStatusId ?? legalStatusTextId;
+  /** 코드 표에 없는 이름으로 들어온 조건. select로는 못 고르므로 칩으로 되짚는다. */
+  const orphanLegalStatusText = values.legalStatusText && legalStatusTextId === undefined
+    ? values.legalStatusText
+    : undefined;
 
   return (
     <section className="filter-subpanel pm-detail-filters">
@@ -299,6 +326,26 @@ const PatentListFilters: React.FC<Props> = ({
               className="pm-detail-filters-stage-tag"
             >
               {stageCodeLabel ?? values.stageCode}
+            </Tag>
+          )}
+          {orphanCountryText !== undefined && (
+            <Tag
+              closable
+              title={`국가: ${orphanCountryText} (코드 표에 없는 값)`}
+              onClose={() => onChange({ ...values, countryText: undefined })}
+              className="pm-detail-filters-stage-tag"
+            >
+              {orphanCountryText}
+            </Tag>
+          )}
+          {orphanLegalStatusText !== undefined && (
+            <Tag
+              closable
+              title={`법적상태: ${orphanLegalStatusText} (코드 표에 없는 값)`}
+              onClose={() => onChange({ ...values, legalStatusText: undefined })}
+              className="pm-detail-filters-stage-tag"
+            >
+              {orphanLegalStatusText}
             </Tag>
           )}
           {values.quality !== undefined && (
@@ -373,15 +420,12 @@ const PatentListFilters: React.FC<Props> = ({
             placeholder="전체"
             aria-label="국가로 거르기"
             value={selectedCountry}
-            onChange={(countryText?: string) => set({ countryText, countryId: undefined })}
-            loading={oaLookupsLoading}
-            disabled={!oaLookups}
+            // 이름 조건과 코드 조건이 함께 걸리면 서로 좁혀 0건이 된다. 하나만 남긴다.
+            onChange={(countryId?: number) => set({ countryId, countryText: undefined })}
+            disabled={!lookups}
             showSearch
-            optionFilterProp="label"
-            options={(oaLookups?.countries ?? []).map((item) => ({
-              value: item.country,
-              label: formatCountryOptionLabel(item.country),
-            }))}
+            filterOption={filterCountryOption}
+            options={countryOptions}
           />
         </Field>
 
@@ -456,37 +500,13 @@ const PatentListFilters: React.FC<Props> = ({
             placeholder="전체"
             aria-label="법적상태로 거르기"
             value={selectedLegalStatus}
-            onChange={(legalStatusText?: string) => set({
-              legalStatusText,
-              legalStatusId: undefined,
+            onChange={(legalStatusId?: number) => set({
+              legalStatusId,
+              // 이름 조건과 코드 조건이 함께 걸리면 서로 좁혀 0건이 된다. 하나만 남긴다.
+              legalStatusText: undefined,
             })}
-            loading={oaLookupsLoading}
-            disabled={!oaLookups}
-            options={(oaLookups?.legalStatuses ?? []).map((item) => ({
-              value: item.status,
-              label: item.status,
-            }))}
-          />
-        </Field>
-
-        <Field label="심사상태">
-          <Select
-            allowClear
-            showSearch
-            optionFilterProp="label"
-            placeholder="전체"
-            aria-label="심사상태로 거르기"
-            value={selectedExamStatus}
-            onChange={(examStatusText?: string) => set({
-              examStatusText,
-              examStatusId: undefined,
-            })}
-            loading={oaLookupsLoading}
-            disabled={!oaLookups}
-            options={(oaLookups?.examStatuses ?? []).map((item) => ({
-              value: item.status,
-              label: item.status,
-            }))}
+            disabled={!lookups}
+            options={legalStatusOptions}
           />
         </Field>
 

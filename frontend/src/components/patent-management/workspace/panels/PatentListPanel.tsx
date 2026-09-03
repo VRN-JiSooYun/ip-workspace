@@ -190,7 +190,8 @@ const PatentListPanel: React.FC = () => {
     {
       title: '국가',
       key: 'country',
-      width: '5%',
+      // 국기 SVG(약 16px)와 한국어 이름이 한 줄에 들어가야 한다.
+      width: '7%',
       render: (_, record) => <CountryTag code={record.country?.country} />,
     },
     {
@@ -213,7 +214,8 @@ const PatentListPanel: React.FC = () => {
     {
       title: '명칭',
       key: 'title',
-      width: '12%',
+      // 심사 상태 열을 걷어내며 남은 폭은 늘 말줄임되던 명칭이 가져간다.
+      width: '17%',
       render: (_, record) => {
         const value = record.koreanTitle ?? record.englishTitle;
         return (
@@ -253,13 +255,6 @@ const PatentListPanel: React.FC = () => {
             {record.legalStatus.status}
           </Tag>
         ) : emptyDash(null),
-    },
-    {
-      title: '심사 상태',
-      key: 'examStatus',
-      width: '7%',
-      render: (_, record) =>
-        record.examStatus ? <Tag>{record.examStatus.status}</Tag> : emptyDash(null),
     },
     {
       title: '등록번호',

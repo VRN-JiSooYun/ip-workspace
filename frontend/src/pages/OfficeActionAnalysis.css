@@ -291,7 +291,7 @@
   color: var(--text-secondary);
   /* 라벨이 빈 칸(추가 버튼 자리)에서도 높이를 유지해 입력들이 같은 baseline에 놓인다. */
   min-height: 18px;
-  /* nowrap이면 '심사진행상태' 같은 라벨이 열 폭을 밀어내 넘친다. 줄바꿈을 허용한다. */
+  /* nowrap이면 '심사청구 여부' 같은 긴 라벨이 열 폭을 밀어내 넘친다. 줄바꿈을 허용한다. */
   min-width: 0;
   overflow-wrap: anywhere;
 }

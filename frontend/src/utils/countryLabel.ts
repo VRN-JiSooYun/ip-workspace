@@ -4,6 +4,11 @@
  * DB에는 `KR`, `US`처럼 ISO 3166-1 alpha-2 코드가 들어가지만 EP(유럽특허청),
  * WO(PCT)처럼 국가가 아닌 특허 제도 코드도 섞여 있다. 그래서 ISO 변환만으로는
  * 부족하고, 아래 표에 제도 코드까지 함께 둔다.
+ *
+ * 국기는 유니코드 이모지가 아니라 `flag-icons` 패키지의 SVG를 쓴다. Windows의
+ * Chrome·Edge는 regional indicator 두 글자를 합자로 그리지 않아 `🇰🇷`가 `KR` 글자로
+ * 보인다 — 사내 PC 상당수가 그 조합이라 이모지로는 아무도 국기를 못 본다. SVG는 번들에
+ * 들어가므로 인트라넷·오프라인에서도 CDN이 필요 없다.
  */
 
 export type CountryLabel = {
@@ -13,8 +18,11 @@ export type CountryLabel = {
   name: string;
   /** Tooltip 등 넓은 자리에 쓰는 정식 명칭. */
   fullName: string;
-  /** 국기 이모지. 표에 없는 코드는 빈 문자열. */
-  flag: string;
+  /**
+   * flag-icons의 국기 클래스(`fi-kr`). 국기가 없는 제도 코드(WO·EA…)와 사전에 없는
+   * 코드는 null이며, 그리는 쪽이 코드 배지로 대신한다.
+   */
+  flagClass: string | null;
   /** 표에 있는 코드인지. false면 name === code다. */
   known: boolean;
 };
@@ -23,8 +31,11 @@ type CountryEntry = {
   name: string;
   /** 짧은 이름과 다를 때만 채운다. */
   fullName?: string;
-  /** 국가가 아니어서 코드에서 국기를 만들 수 없는 경우에만 채운다. */
-  flag?: string;
+  /**
+   * ISO 코드와 flag-icons의 파일명이 다를 때만 채운다. 국기가 아예 없는 제도 코드는
+   * `null`로 둔다 — 필드를 비우면 코드로 유추해 없는 파일을 가리키게 된다.
+   */
+  flagCode?: string | null;
 };
 
 /**
@@ -32,12 +43,13 @@ type CountryEntry = {
  */
 const COUNTRY_TABLE: Record<string, CountryEntry> = {
   // 특허 제도 코드 (ISO 국가가 아니다)
-  EP: { name: '유럽(EP)', fullName: '유럽특허청(EPO)', flag: '🇪🇺' },
-  WO: { name: 'PCT', fullName: 'PCT 국제출원(WIPO)', flag: '🌐' },
-  EA: { name: '유라시아', fullName: '유라시아특허청(EAPO)', flag: '🌐' },
-  AP: { name: 'ARIPO', fullName: '아프리카지역공업소유권기구(ARIPO)', flag: '🌐' },
-  OA: { name: 'OAPI', fullName: '아프리카지식재산기구(OAPI)', flag: '🌐' },
-  GC: { name: 'GCC', fullName: '걸프협력회의 특허청(GCC)', flag: '🌐' },
+  // 표의 국가 칸이 좁아 이름은 '유럽'까지만 둔다. 정식 명칭과 코드는 Tooltip이 보여 준다.
+  EP: { name: '유럽', fullName: '유럽특허청(EPO)', flagCode: 'eu' },
+  WO: { name: 'PCT', fullName: 'PCT 국제출원(WIPO)', flagCode: null },
+  EA: { name: '유라시아', fullName: '유라시아특허청(EAPO)', flagCode: null },
+  AP: { name: 'ARIPO', fullName: '아프리카지역공업소유권기구(ARIPO)', flagCode: null },
+  OA: { name: 'OAPI', fullName: '아프리카지식재산기구(OAPI)', flagCode: null },
+  GC: { name: 'GCC', fullName: '걸프협력회의 특허청(GCC)', flagCode: null },
 
   // 아시아
   KR: { name: '한국', fullName: '대한민국' },
@@ -112,19 +124,13 @@ const COUNTRY_TABLE: Record<string, CountryEntry> = {
   KE: { name: '케냐' },
 };
 
-const REGIONAL_INDICATOR_BASE = 0x1f1e6; // 🇦
-const LATIN_A = 'A'.charCodeAt(0);
-
-/** ISO alpha-2 코드를 regional indicator 두 글자(=국기 이모지)로 바꾼다. */
-const toFlagEmoji = (code: string): string => String.fromCodePoint(
-  ...[...code].map((letter) => REGIONAL_INDICATOR_BASE + (letter.charCodeAt(0) - LATIN_A)),
-);
-
 const normalizeCode = (value: string | null | undefined): string => (value ?? '')
   .trim()
   .toUpperCase();
 
-const UNKNOWN: CountryLabel = { code: '', name: '-', fullName: '-', flag: '', known: false };
+const UNKNOWN: CountryLabel = {
+  code: '', name: '-', fullName: '-', flagClass: null, known: false,
+};
 
 /**
  * 국가코드 하나를 표기 정보로 바꾼다. 사전에 없으면 코드를 그대로 이름으로 쓴다.
@@ -136,52 +142,36 @@ export const getCountryLabel = (value: string | null | undefined): CountryLabel 
 
   const entry = COUNTRY_TABLE[code];
   if (!entry) {
-    return { code, name: code, fullName: code, flag: '', known: false };
+    return { code, name: code, fullName: code, flagClass: null, known: false };
   }
+
+  // flagCode를 적지 않은 국가는 ISO 코드 소문자가 그대로 파일명이다(kr → fi-kr).
+  const flagCode = entry.flagCode === undefined
+    ? (/^[A-Z]{2}$/.test(code) ? code.toLowerCase() : null)
+    : entry.flagCode;
 
   return {
     code,
     name: entry.name,
     fullName: entry.fullName ?? entry.name,
-    flag: entry.flag ?? (/^[A-Z]{2}$/.test(code) ? toFlagEmoji(code) : ''),
+    flagClass: flagCode ? `fi-${flagCode}` : null,
     known: true,
   };
 };
 
-/** Select처럼 문자열 label만 받는 자리에 쓰는 한 줄 표기. 검색어로 코드·한글 모두 걸린다. */
+/** Select 옵션의 글자 부분. 국기는 그리는 쪽이 SVG로 따로 붙인다. */
 export const formatCountryOptionLabel = (value: string | null | undefined): string => {
-  const { code, name, flag, known } = getCountryLabel(value);
+  const { code, name, known } = getCountryLabel(value);
   if (!code) return '-';
   if (!known) return code;
-  return `${flag ? `${flag} ` : ''}${code} · ${name}`;
+  return `${code} · ${name}`;
 };
 
-let flagEmojiSupport: boolean | null = null;
-
 /**
- * 국기 이모지를 실제로 그릴 수 있는 환경인지 한 번만 재본다.
- *
- * Windows Chrome은 regional indicator 글리프를 합치지 않고 `US`처럼 알파벳 두 자로
- * 그린다. 그대로 두면 코드가 중복 노출되므로, 이 경우 국기를 빼고 코드 배지만 쓴다.
- * 판정은 "국기 한 개의 폭이 regional indicator 한 글자와 비슷한가"로 한다.
+ * Select 검색에 쓰는 문자열. label이 ReactNode가 되면 antd의 optionFilterProp을 쓸 수
+ * 없으므로, 코드·한글 이름을 함께 담은 이 값을 filterOption이 본다.
  */
-export const supportsFlagEmoji = (): boolean => {
-  if (flagEmojiSupport !== null) return flagEmojiSupport;
-  if (typeof document === 'undefined') return false;
-
-  try {
-    const context = document.createElement('canvas').getContext('2d');
-    if (!context) {
-      flagEmojiSupport = false;
-      return flagEmojiSupport;
-    }
-    context.font = '32px sans-serif';
-    const single = context.measureText('\u{1F1FA}').width; // 🇺 한 글자
-    const pair = context.measureText('\u{1F1FA}\u{1F1F8}').width; // 🇺🇸
-    flagEmojiSupport = pair > 0 && pair < single * 1.5;
-  } catch {
-    flagEmojiSupport = false;
-  }
-
-  return flagEmojiSupport;
+export const countryOptionSearchText = (value: string | null | undefined): string => {
+  const { code, name, fullName } = getCountryLabel(value);
+  return `${code} ${name} ${fullName}`.toLowerCase();
 };

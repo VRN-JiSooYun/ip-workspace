@@ -10,7 +10,10 @@ import { useUIStore } from '../store/useUIStore';
 const { Text } = Typography;
 
 /**
- * 특허 코드 관리 — 국가, 대리인, 법적 상태, 심사 상태, Target, 출원인, 발명자 코드 테이블.
+ * 특허 코드 관리 — 국가, 대리인, 법적 상태, Target, 출원인, 발명자 코드 테이블.
+ *
+ * 심사 상태 탭은 걷어냈다. 그 코드를 쓰는 화면(특허 관리·의견제출통지서)이 없어졌기
+ * 때문이다. API(`/patent-codes/exam-statuses`)와 코드 표 자체는 아직 남아 있다.
  *
  * 특허 값의 정본과 추가·변경 화면의 select 옵션이 여기서 나온다. 라우트는
  * `patentAnalysis.read`만 요구하므로 특허를 볼 수 있는 사람에게는 메뉴도 보인다
@@ -35,7 +38,7 @@ const PatentCodeAdmin: React.FC = () => {
     <div style={{ padding: 24 }}>
       <Card>
         <Text type="secondary" style={{ display: 'block', marginBottom: 16 }}>
-          특허 값의 정본으로 쓰이는 코드입니다. 발명자는 사람 한 명씩 등록하며,
+          특허 관리 메뉴의 각종 코드를 관리하는 화면입니다.
           사용 중인 코드는 삭제할 수 없습니다.
         </Text>
         <Tabs

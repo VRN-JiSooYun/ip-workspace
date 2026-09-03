@@ -25,8 +25,6 @@ const { Text } = Typography;
 const FiltersPanel: React.FC = () => {
   const {
     lookups,
-    oaLookups,
-    oaLookupsLoading,
     listFilters,
     applyListFilters,
     selectedTargets,
@@ -51,8 +49,6 @@ const FiltersPanel: React.FC = () => {
 
       <PatentListFilters
         lookups={lookups}
-        oaLookups={oaLookups}
-        oaLookupsLoading={oaLookupsLoading}
         values={listFilters}
         onChange={applyListFilters}
         selectedTargets={selectedTargets}
@@ -85,8 +81,6 @@ const FiltersPanel: React.FC = () => {
               children: (
                 <PatentListFilters
                   lookups={lookups}
-                  oaLookups={oaLookups}
-                  oaLookupsLoading={oaLookupsLoading}
                   values={listFilters}
                   onChange={applyListFilters}
                   selectedTargets={selectedTargets}

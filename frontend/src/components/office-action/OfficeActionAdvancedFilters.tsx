@@ -62,7 +62,6 @@ export type OfficeActionFilterState = {
   examinerNames: string[];
   attorneyNames: string[];
   legalStatusText: string[];
-  examStatusText: string[];
   statutes: StatuteCondition[];
   ipc: IpcCondition[];
   dateField: PatentSearchDateField;
@@ -75,7 +74,6 @@ export const EMPTY_OFFICE_ACTION_FILTERS: OfficeActionFilterState = {
   examinerNames: [],
   attorneyNames: [],
   legalStatusText: [],
-  examStatusText: [],
   statutes: [],
   ipc: [],
   dateField: 'applicationDate',
@@ -115,7 +113,6 @@ export const toPatentSearchFilters = (
   ...(state.examinerNames.length ? { examinerNames: state.examinerNames } : {}),
   ...(state.attorneyNames.length ? { attorneyNames: state.attorneyNames } : {}),
   ...(state.legalStatusText.length ? { legalStatusText: state.legalStatusText } : {}),
-  ...(state.examStatusText.length ? { examStatusText: state.examStatusText } : {}),
   ...(state.statutes.length
     ? {
         statutes: state.statutes.map((statute) => ({
@@ -162,7 +159,6 @@ export const countActiveFilters = (state: OfficeActionFilterState): number =>
     state.examinerNames.length > 0,
     state.attorneyNames.length > 0,
     state.legalStatusText.length > 0,
-    state.examStatusText.length > 0,
     state.statutes.length > 0,
     state.ipc.length > 0,
     Boolean(state.dateFrom || state.dateTo),
@@ -216,7 +212,7 @@ const Field: React.FC<{
 /**
  * 상세 필터 필터.
  *
- * 법적상태·심사진행상태 option은 외부 OA PostgreSQL의 코드 테이블에서 받는다. 로컬
+ * 법적상태 option은 외부 OA PostgreSQL의 코드 테이블에서 받는다. 로컬
  * `patentRecordApi.lookups()`은 IP팀 관리 데이터의 별개 ID 체계라 이 검색에는 사용하지 않는다.
  */
 const OfficeActionAdvancedFilters: React.FC<Props> = ({
@@ -374,23 +370,6 @@ const OfficeActionAdvancedFilters: React.FC<Props> = ({
                       value={value.examRequested}
                       onChange={(next) => patch({ examRequested: next ?? undefined })}
                       options={YES_NO_OPTIONS}
-                    />
-                  </Field>
-                  <Field label="심사진행상태">
-                    <Select
-                      mode="multiple"
-                      allowClear
-                      showSearch
-                      placeholder="전체"
-                      value={value.examStatusText}
-                      onChange={(next: string[]) => patch({ examStatusText: next })}
-                      optionFilterProp="label"
-                      loading={lookupsLoading}
-                      disabled={!lookups}
-                      options={(lookups?.examStatuses ?? []).map((item) => ({
-                        label: item.status,
-                        value: item.status,
-                      }))}
                     />
                   </Field>
                 </div>

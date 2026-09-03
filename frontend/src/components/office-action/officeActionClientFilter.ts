@@ -85,11 +85,6 @@ export const filterOfficeActionIndex = (
     && !filters.legalStatusText.includes(item.legalStatus ?? '')
   ) return false;
   if (
-    filters.examStatusText.length
-    && !filters.examStatusText.includes(item.filterIndex.examStatus ?? '')
-  ) return false;
-
-  if (
     filters.statutes.length
     && !matchesJoinedConditions(
       filters.statutes,

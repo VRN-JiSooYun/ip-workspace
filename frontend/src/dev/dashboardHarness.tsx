@@ -284,8 +284,6 @@ const runChecks = (): Check[] => {
       countryText: 'KR',
       legalStatusId: 2,
       legalStatusText: '등록',
-      examStatusId: 3,
-      examStatusText: '심사청구',
       quality: 'refParseFailed' as const,
     };
     const parsed = readPatentListQueryParams(
@@ -301,8 +299,6 @@ const runChecks = (): Check[] => {
         && parsed.filters.countryText === seed.countryText
         && parsed.filters.legalStatusId === seed.legalStatusId
         && parsed.filters.legalStatusText === seed.legalStatusText
-        && parsed.filters.examStatusId === seed.examStatusId
-        && parsed.filters.examStatusText === seed.examStatusText
         && parsed.filters.quality === seed.quality,
       JSON.stringify(parsed),
     );
@@ -326,7 +322,7 @@ const runChecks = (): Check[] => {
     );
 
     const junk = readPatentListQueryParams(
-      new URLSearchParams('countryId=abc&legalStatusId=0&examStatusId=-3&quality=nope&q=%20%20'),
+      new URLSearchParams('countryId=abc&legalStatusId=0&quality=nope&q=%20%20'),
     );
     expect(
       '형식이 깨진 값은 조용히 버린다',
