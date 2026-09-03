@@ -21,6 +21,13 @@ const PDF_FIND_WHITESPACE_PATCHED = Symbol.for(
   'ipWorkspace.pdfFindWhitespacePatched',
 );
 
+/** 이 앱의 PDF 검색 조건. 단일·다중 검색어가 같은 조건으로 걸려야 개수와 이동이 맞는다. */
+const PDF_SEARCH_OPTIONS = {
+  highlightAll: true,
+  caseSensitive: false,
+  matchDiacritics: false,
+} as const;
+
 type PdfJsFindMatch = {
   index: number;
   length: number;
@@ -70,20 +77,24 @@ const installWhitespaceTolerantPdfSearch = (controller: PdfFindController | null
 
   const originalMatch = controllerRecord.match;
   controllerRecord.match = (query, pageContent, pageIndex) => {
-    // 현재 UI는 단일 문자열 검색만 사용한다. PDF.js의 다중 query 계약은 손대지 않는다.
-    if (typeof query !== 'string' || query.length === 0) {
-      return originalMatch.call(controllerRecord, query, pageContent, pageIndex);
-    }
-
-    const compactQuery = query.replace(/\s+/gu, '');
+    /**
+     * query는 문자열 하나이거나 문자열 배열이다(배열은 PDF.js가 OR로 엮는다 —
+     * 검색어 칩을 여러 개 켠 경우). 둘 다 공백을 지운 사본으로 찾고 위치만 되돌린다.
+     * 배열을 그대로 넘기지 않는 이유: PDF.js가 그 배열을 제자리에서 정렬한다(`sort()`).
+     */
+    const queries = typeof query === 'string' ? [query] : query;
+    const compactQueries = queries
+      .map((part) => (typeof part === 'string' ? part.replace(/\s+/gu, '') : ''))
+      .filter(Boolean);
     const { compactText, originalIndexes } = compactPdfSearchText(pageContent);
-    if (!compactQuery || !compactText) {
+    if (compactQueries.length === 0 || !compactText) {
       return originalMatch.call(controllerRecord, query, pageContent, pageIndex);
     }
 
     const compactMatches = originalMatch.call(
       controllerRecord,
-      compactQuery,
+      // 원래 형태(문자열/배열)를 유지한다. PDF.js가 형태에 따라 다른 정규식을 만든다.
+      typeof query === 'string' ? compactQueries[0] : compactQueries,
       compactText,
       pageIndex,
     );
@@ -381,26 +392,92 @@ export const usePatentPdfViewer = ({
   }, []);
 
   // -- Library Standard Search Logic --
-  const searchPdf = React.useCallback((query: string) => {
+  /**
+   * 검색어가 둘 이상일 때 걸어 둔 목록. 없으면 단일 검색어(또는 검색 없음)다.
+   *
+   * 다음/이전 이동이 무엇을 대상으로 하는지 정하는 데 쓴다 — 라이브러리는 마지막 검색어를
+   * 자기 ref에 담아 두는데, 다중 검색어는 그 경로를 거치지 않기 때문이다(아래 주석).
+   */
+  const multiQueryRef = React.useRef<string[] | null>(null);
+
+  /**
+   * PDF.js의 `find` 이벤트를 직접 올린다.
+   *
+   * 라이브러리의 `utils.search()`를 쓸 수 없는 경우가 하나 있다 — 검색어 배열이다.
+   * 그 함수는 `query.trim()`을 부르므로 배열을 넘기면 그 자리에서 죽는다. 반면 PDF.js
+   * find controller는 배열을 정식으로 받아 `(a)|(b)` 정규식으로 엮는다(= OR 검색).
+   * 그래서 배열만 이 경로로 보낸다. payload는 라이브러리가 보내는 것과 같은 모양이다.
+   */
+  const dispatchPdfFind = React.useCallback((
+    query: string | string[],
+    options?: { again?: boolean; findPrevious?: boolean },
+  ): boolean => {
+    const utils = highlighterUtilsRef.current as any;
+    const eventBus = utils?.getEventBus?.();
+    if (!eventBus) return false;
+    const viewer = utils?.getViewer?.();
+
+    eventBus.dispatch('find', {
+      source: viewer?.findController ?? viewer,
+      // 'again'이면 같은 조건으로 다음(또는 이전) 결과만 옮긴다.
+      type: options?.again ? 'again' : undefined,
+      query,
+      phraseSearch: true,
+      findPrevious: options?.findPrevious ?? false,
+      entireWord: false,
+      ...PDF_SEARCH_OPTIONS,
+    });
+    return true;
+  }, []);
+
+  /**
+   * PDF에 검색을 건다. 검색어 하나(문자열)이거나 여럿(배열 = OR)이다.
+   *
+   * 여럿은 PDF.js가 하나의 정규식으로 엮으므로 결과 순서·개수·다음/이전 이동이 모두 한
+   * 검색으로 다뤄진다. 즉 칩 두 개를 켜면 "둘 중 아무거나"가 문서 순서대로 이어진다.
+   */
+  const searchPdf = React.useCallback((query: string | string[]) => {
     const utils = highlighterUtilsRef.current;
     if (!utils) return;
 
-    setSearchQuery(query);
-    if (!query) {
+    /**
+     * 입력창에 보일 값. **입력창은 사용자가 친 것만 담는다.**
+     *
+     * 문자열로 부르는 쪽은 toolbar 입력이므로 값을 **그대로** 넣는다(정규화한 값을 되돌려
+     * 넣으면 사용자가 치는 중에 글자가 바뀐다 — 예를 들어 끝의 공백이 사라진다).
+     *
+     * 배열로 부르는 쪽은 검색어 칩이라 입력창을 건드리지 않는다. 칩으로 걸린 검색은 칩이
+     * 말하고, 입력창에까지 옮겨 적으면 같은 낱말이 두 군데 보이거나 사용자가 치던 값이
+     * 지워진다.
+     */
+    if (typeof query === 'string') setSearchQuery(query);
+
+    // 한글 등 유니코드는 NFC로 정규화해 PDF 텍스트(대개 NFC)와 매칭이 어긋나지 않게 한다.
+    const queries = (typeof query === 'string' ? [query] : query)
+      .map((part) => part.normalize('NFC'))
+      .filter((part) => part.trim().length > 0);
+
+    if (queries.length === 0) {
+      multiQueryRef.current = null;
       utils.clearSearch();
       setMatchCount({ current: 0, total: 0 });
       return;
     }
 
-    // 한글 등 유니코드는 NFC로 정규화해 PDF 텍스트(대개 NFC)와 매칭이 어긋나지 않게 한다.
-    const normalizedQuery = query.normalize('NFC');
+    if (queries.length === 1) {
+      // 검색어 하나는 라이브러리 공개 API 그대로 쓴다(다음/이전도 라이브러리가 챙긴다).
+      multiQueryRef.current = null;
+      utils.search(queries[0], PDF_SEARCH_OPTIONS);
+      return;
+    }
 
-    utils.search(normalizedQuery, {
-      highlightAll: true,
-      caseSensitive: false,
-      matchDiacritics: false,
-    });
-  }, []);
+    multiQueryRef.current = queries;
+    if (!dispatchPdfFind(queries)) {
+      // event bus에 닿지 못하면(라이브러리 내부 구조가 바뀐 경우) 첫 검색어만이라도 건다.
+      multiQueryRef.current = null;
+      utils.search(queries[0], PDF_SEARCH_OPTIONS);
+    }
+  }, [dispatchPdfFind]);
 
   /**
    * 문서 전문을 공백 없는 한 덩어리로 만들어 둔다. 검색어 트레이의 칩마다 "이 문서에 몇 건"을
@@ -460,13 +537,21 @@ export const usePatentPdfViewer = ({
     return counts;
   }, [readCompactPdfText]);
 
+  /**
+   * 다음/이전 결과로. 다중 검색어는 라이브러리가 자기 ref에 담아 두지 않으므로
+   * (위 `dispatchPdfFind` 주석) 그때만 같은 배열로 'again'을 직접 올린다.
+   */
   const findNext = React.useCallback(() => {
+    const multiQuery = multiQueryRef.current;
+    if (multiQuery && dispatchPdfFind(multiQuery, { again: true })) return;
     highlighterUtilsRef.current?.findNext();
-  }, []);
+  }, [dispatchPdfFind]);
 
   const findPrevious = React.useCallback(() => {
+    const multiQuery = multiQueryRef.current;
+    if (multiQuery && dispatchPdfFind(multiQuery, { again: true, findPrevious: true })) return;
     highlighterUtilsRef.current?.findPrevious();
-  }, []);
+  }, [dispatchPdfFind]);
 
   // Event Bus setup for search state
   React.useEffect(() => {

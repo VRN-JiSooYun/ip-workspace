@@ -35,6 +35,9 @@ type Props = {
  * 첫 조건은 포함 조건으로 바로 추가하고, 후속 조건은 추가 시 AND/OR/EXCLUDE를 고른다.
  * OR로 이어진 조건은 같은 괄호 그룹, AND는 다음 그룹, EXCLUDE는 전역 제외로 표시한다.
  * 상세는 `docs/patent_search_api.md` 참고.
+ *
+ * 조건을 더하거나 지우면 **부모가 곧바로 검색한다**(`onConditionsChange`를 받은 쪽에서
+ * 목록 변화를 보고 실행한다). 입력 중인 글자는 조건이 아니므로 검색을 부르지 않는다.
  */
 const OfficeActionSearchBar: React.FC<Props> = ({
   conditions,
@@ -63,12 +66,24 @@ const OfficeActionSearchBar: React.FC<Props> = ({
     setDraft((previous) => ({ ...previous, query: '' }));
   };
 
+  /**
+   * 검색 버튼.
+   *
+   * 조건이 바뀌면 부모가 알아서 검색하므로(조건 목록 자동 검색), 이 버튼이 하는 일은 둘로
+   * 갈린다.
+   *
+   *  - 조건이 없고 입력창에만 낱말이 있으면 **그것을 첫 포함 조건으로 확정한다.** 검색은
+   *    조건이 바뀐 결과로 따라온다 — 여기서 `onSearch`까지 부르면 같은 검색이 두 번 나간다.
+   *  - 그 밖에는 지금 조건 그대로 다시 받는다(조건이 없으면 전체 목록).
+   *
+   * 기존 조건이 있는데 입력창에 낱말이 남아 있으면 버튼은 잠겨 있다(AND/OR/EXCLUDE를 먼저
+   * 골라야 한다). 그래서 이 함수에 미확정 draft가 들어오는 경우는 위 첫 갈래뿐이다.
+   */
   const searchWithDraft = () => {
-    // 첫 조건은 묵시적으로 포함(AND)이다. 기존 조건이 있으면 아래 버튼에서 연산자를 먼저
-    // 골라야 하므로 이 함수에는 미확정 draft가 들어오지 않는다.
-    if (conditions.length === 0) addCondition();
-    // 검색 버튼만 Search API를 실행한다. 부모는 다음 render에서 검색하므로 방금 추가한
-    // draft 조건까지 요청에 포함된다.
+    if (conditions.length === 0 && draft.query.trim()) {
+      addCondition();
+      return;
+    }
     onSearch();
   };
 
@@ -138,7 +153,7 @@ const OfficeActionSearchBar: React.FC<Props> = ({
           }
           onPressEnter={(event) => {
             if (event.nativeEvent.isComposing || hasOnlyExcludeSearch) return;
-            // Enter는 조합 조건만 확정한다. 새 기준 목록은 명시적인 '검색' 클릭으로만 받는다.
+            // Enter는 조건을 AND로 확정한다. 검색은 조건이 바뀐 결과로 부모가 실행한다.
             addCondition('AND');
           }}
           placeholder={`${PATENT_SEARCH_KEYWORD_TARGET_LABELS[draft.target]} 본문 키워드`}

@@ -334,36 +334,117 @@
   min-width: 0;
 }
 
-/* 칩 하나 = 검색어 버튼 + (사용자 칩이면) 지우기. 둘을 한 덩어리로 묶는다. */
+/**
+ * 칩 하나 = 검색어 버튼(켜기/끄기) + 지우기.
+ *
+ * **알약은 칩이 그린다.** 테두리·배경·radius·상태 색을 이 껍데기가 갖고, 안쪽 두 버튼은
+ * 면 없이 얹힌다. 예전에는 두 버튼이 각자 antd 버튼 면을 갖고 서로 이어 붙는 모양이었는데,
+ * 같은 알약인데 두 조각이 달라 보였다 — 왼쪽은 antd 기본 테두리(`#d9d9d9`)와 흰 면,
+ * 오른쪽은 `--border-color`와 투명 면이었고, 켠 칩은 브랜드 알약에 흰 꼬리가 붙었다.
+ *
+ * 두 조각을 가르는 것은 머리카락 한 줄(지우기 쪽 시작 테두리)과 각 조각의 hover 면뿐이다.
+ */
 .pm-doc-search-chip {
   display: inline-flex;
-  align-items: center;
+  /* 두 조각이 칩 높이를 그대로 채운다. 높이를 각자 정하면 이음매가 어긋난다. */
+  align-items: stretch;
   flex: 0 0 auto;
-}
-
-.pm-doc-search-chip-button {
+  box-sizing: border-box;
   height: 24px;
-  padding-inline: 9px;
+  border: 1px solid var(--border-color);
   border-radius: 999px;
+  background: var(--card-bg);
+  color: var(--text-secondary);
   font-size: 11px;
 }
 
-/* 지우기가 붙는 사용자 칩은 오른쪽을 열어 둔 모양으로 이어 붙인다. */
-.pm-doc-search-chip:has(.pm-doc-search-chip-remove) .pm-doc-search-chip-button {
+.pm-doc-search-chip:hover {
+  border-color: rgba(var(--brand-primary-rgb), 0.5);
+  color: var(--text-primary);
+}
+
+/**
+ * 켜 둔 칩. 브랜드 면을 칩이 통째로 칠하므로 안쪽 조각이 따로 튀지 않는다.
+ *
+ * 글자색은 테마 토큰이 아니라 **흰색으로 고정**한다. 브랜드 면은 라이트·다크가 같은 색이라
+ * 그 위의 글자도 같아야 한다 — `--card-bg`로 두면 다크에서 주황 위에 거의 검은 글자가 된다.
+ */
+.pm-doc-search-chip-active,
+.pm-doc-search-chip-active:hover {
+  border-color: var(--brand-primary);
+  background: var(--brand-primary);
+  color: rgb(255, 255, 255);
+}
+
+/**
+ * 안쪽 조각은 면을 갖지 않는다.
+ *
+ * antd 버튼의 면·테두리·그림자를 모두 지우고 글자색은 칩에서 물려받는다(`inherit`).
+ * 선택자를 트레이까지 적는 이유: antd v5의 버튼 규칙은 런타임에 이 파일보다 **뒤에**
+ * 끼워지므로, class 하나 차이로는 radius·색이 antd 값으로 되돌아간다.
+ *
+ * 바깥쪽 끝만 알약 모양으로 둥글리고 이음매 쪽은 각지게 둔다 — hover 면이 칩 밖으로
+ * 새지도, 이음매에 틈이 생기지도 않는다.
+ */
+.pm-doc-search-tray .pm-doc-search-chip > .ant-btn,
+.pm-doc-search-tray .pm-doc-search-chip > .ant-btn:hover,
+.pm-doc-search-tray .pm-doc-search-chip > .ant-btn:active,
+.pm-doc-search-tray .pm-doc-search-chip > .ant-btn:disabled {
+  height: auto;
+  min-height: 0;
+  border: none;
+  background: transparent;
+  box-shadow: none;
+  color: inherit;
+  font-size: inherit;
+}
+
+.pm-doc-search-tray .pm-doc-search-chip > .ant-btn:first-child {
+  border-start-start-radius: 999px;
+  border-end-start-radius: 999px;
   border-start-end-radius: 0;
   border-end-end-radius: 0;
 }
 
-.pm-doc-search-chip-remove {
-  height: 24px;
+.pm-doc-search-tray .pm-doc-search-chip > .ant-btn:last-child {
+  border-start-start-radius: 0;
+  border-end-start-radius: 0;
+  border-start-end-radius: 999px;
+  border-end-end-radius: 999px;
+}
+
+/* 어느 쪽을 누르게 되는지 알려 준다 — 누를 조각에만 옅은 면이 깔린다. */
+.pm-doc-search-tray .pm-doc-search-chip > .ant-btn:not(:disabled):hover {
+  background: rgba(var(--brand-primary-rgb), 0.12);
+}
+
+.pm-doc-search-tray .pm-doc-search-chip-active > .ant-btn:not(:disabled):hover {
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.pm-doc-search-chip-button {
+  padding-inline: 9px;
+}
+
+/**
+ * 지우기.
+ *
+ * 칩과 가르는 것은 시작 쪽 테두리 한 줄뿐이다. 위 초기화가 테두리를 다 지우므로 여기서
+ * 같은 무게(트레이까지 적은 선택자)로 그 한 줄만 되돌려 놓는다.
+ */
+.pm-doc-search-tray .pm-doc-search-chip > .pm-doc-search-chip-remove,
+.pm-doc-search-tray .pm-doc-search-chip > .pm-doc-search-chip-remove:hover,
+.pm-doc-search-tray .pm-doc-search-chip > .pm-doc-search-chip-remove:disabled {
   width: 18px;
   min-width: 18px;
   padding: 0;
-  border: 1px solid var(--border-color);
-  border-inline-start: none;
-  border-start-end-radius: 999px;
-  border-end-end-radius: 999px;
-  color: var(--text-secondary);
+  border-inline-start: 1px solid var(--border-color);
+}
+
+/* 브랜드 면 위에서는 같은 회색 선이 보이지 않는다. 면을 덜어 내는 쪽으로 가른다. */
+.pm-doc-search-tray .pm-doc-search-chip-active > .pm-doc-search-chip-remove,
+.pm-doc-search-tray .pm-doc-search-chip-active > .pm-doc-search-chip-remove:hover {
+  border-inline-start-color: rgba(255, 255, 255, 0.4);
 }
 
 /* 검색으로 들어온 근거 칩. 사용자가 쌓은 칩과 출처가 다르다는 것만 점으로 알린다. */
@@ -377,8 +458,9 @@
   background: var(--brand-primary);
 }
 
+/* 켜 둔 칩 위의 점도 같은 이유로 흰색 고정이다(위 주석 참고). */
 .pm-doc-search-chip-active.pm-doc-search-chip-evidence .pm-doc-search-chip-button::before {
-  background: var(--card-bg);
+  background: rgb(255, 255, 255);
 }
 
 /* 이 문서에서 몇 건인지. 눌러 보기 전에 알 수 있어야 훑는 순서를 정할 수 있다. */
@@ -397,7 +479,8 @@
   color: inherit;
 }
 
-/* 이 문서에 없는 검색어. 눌러도 갈 곳이 없어 비활성이고, 흐리게 두어 건너뛰게 한다. */
+/* 이 문서에 없는 검색어. 눌러도 갈 곳이 없어 비활성이고, 흐리게 두어 건너뛰게 한다.
+   지우기는 흐려지지 않는다 — 없는 검색어일수록 내리고 싶은 칩이다. */
 .pm-doc-search-chip-empty .pm-doc-search-chip-button {
   opacity: 0.55;
 }

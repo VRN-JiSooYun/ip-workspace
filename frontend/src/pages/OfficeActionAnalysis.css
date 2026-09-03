@@ -674,22 +674,27 @@
   cursor: default;
 }
 
+/**
+ * 머리줄 = 제목 + 오른쪽에 모은 칩 둘.
+ *
+ * 줄바꿈을 막는다(`nowrap`) — 제목이 길어 두 줄이 되어도 칩은 제목 옆에 남아야 한다.
+ * 허용하면 긴 제목이 칩을 다음 줄로 밀어내 "한 줄" 배치가 무너진다. 대신 줄어드는 쪽은
+ * 제목이다(`min-width: 0`).
+ *
+ * 칩은 제목의 **첫 줄**에 맞춘다(`flex-start`). 가운데 정렬로 두면 제목이 두 줄일 때 칩이
+ * 줄 사이로 내려가 어느 줄에 딸린 것인지 흐려진다.
+ */
 .oa-result-top {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 8px;
-  flex-wrap: wrap;
-  margin-bottom: 8px;
+  flex-wrap: nowrap;
+  margin-bottom: 2px;
 }
 
-.oa-result-action-number {
-  font-size: 17px;
-  font-weight: 700;
-  color: var(--brand-primary);
-  font-variant-numeric: tabular-nums;
-}
-
+/* 칩 묶음은 오른쪽 끝에 붙는다. 앞의 칩이 자리를 밀어 두 칩이 함께 오른쪽으로 간다. */
 .oa-result-date-badge {
+  margin-inline-start: auto;
   padding: 1px 8px;
   border-radius: 6px;
   background: rgba(var(--brand-primary-rgb), 0.1);
@@ -698,21 +703,59 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* 법적상태는 오른쪽 끝으로 밀어 둔다. */
 .oa-result-status {
-  margin-inline-start: auto;
   margin-inline-end: 0;
   border-radius: 990px;
   padding: 1px 10px;
   font-size: 12px;
 }
 
+/* 칩은 줄지 않는다. 제목이 길면 제목이 줄어든다. */
+.oa-result-date-badge,
+.oa-result-status {
+  flex: 0 0 auto;
+  /* 제목 첫 줄(17px × 1.5 = 25.5px)의 세로 가운데에 놓는다. 제목 크기를 바꾸면 이 값도
+     함께 봐야 한다. */
+  margin-block-start: 2px;
+}
+
+/**
+ * 아주 좁은 카드에서는 칩을 아랫줄로 내린다.
+ *
+ * 칩 둘이 140px 남짓을 늘 차지하므로, 카드가 이보다 조금만 넓어도 제목이 한 줄에 두세
+ * 글자씩 끊긴다. 그때는 제목에 한 줄을 다 주고 칩은 그 아래 오른쪽에 붙인다.
+ */
+@container oa-results (max-width: 380px) {
+  .oa-result-top {
+    flex-wrap: wrap;
+  }
+
+  .oa-result-title-ko {
+    flex: 1 1 100%;
+  }
+}
+
+/**
+ * 제목.
+ *
+ * 크기·굵기는 옛 통지 번호 스타일(17px/700)을 물려받았다. 통지 번호가 빠지면서 카드에서
+ * 가장 큰 글씨가 없어져 위계가 납작해졌는데, 이제 제목이 그 자리다.
+ *
+ * **색은 물려받지 않는다.** 옛 스타일의 `var(--brand-primary)`는 흰 배경에서 대비가
+ * 2.6:1로, 본문 글자 기준(4.5:1)은 물론 큰 글자 기준(3:1)도 넘지 못한다 — 짧은 식별자일
+ * 때는 넘어갈 수 있었지만 카드에서 가장 많이 읽는 줄에는 쓸 수 없다. 게다가 이 화면에서
+ * 브랜드 색은 hover·선택(카드 테두리)을 뜻하므로, 모든 제목이 브랜드 색이면 어느 카드가
+ * 골라져 있는지가 흐려진다.
+ */
 .oa-result-title-ko {
-  margin: 0 0 2px;
-  font-size: 15px;
-  font-weight: 600;
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  font-size: 17px;
+  font-weight: 700;
   line-height: 1.5;
   color: var(--text-primary);
+  overflow-wrap: anywhere;
 }
 
 .oa-result-title-en {
@@ -817,12 +860,53 @@
   flex-shrink: 0;
 }
 
+/**
+ * 서지 정보 접기/펼치기.
+ *
+ * 카드를 가로지르는 구분선은 이 줄이 갖는다(예전에는 서지 정보 표가 갖고 있었다) — 표가
+ * 접혀 있어도 카드의 아래 단이 여기서 끝난다는 것이 보여야 한다.
+ */
+.oa-result-footer-toggle {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  margin-top: 12px;
+  padding: 10px 0 0;
+  border: none;
+  border-top: 1px solid var(--border-color);
+  background: none;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+  text-align: start;
+  cursor: pointer;
+}
+
+.oa-result-footer-toggle:hover {
+  color: var(--brand-primary);
+}
+
+.oa-result-footer-toggle:focus-visible {
+  outline: 2px solid var(--brand-primary);
+  outline-offset: 2px;
+}
+
+/* 펼침 방향을 화살표로 알린다. */
+.oa-result-footer-toggle svg {
+  flex: 0 0 auto;
+  transition: transform 0.15s ease;
+}
+
+.oa-result-footer-toggle[aria-expanded='true'] svg {
+  transform: rotate(180deg);
+}
+
 .oa-result-footer {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(130px, 100%), 1fr));
   gap: 8px 16px;
-  padding-top: 12px;
-  border-top: 1px solid var(--border-color);
+  padding-top: 10px;
 }
 
 .oa-result-footer > span {

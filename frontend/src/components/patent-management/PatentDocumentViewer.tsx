@@ -15,6 +15,8 @@ import type {
 
 const { Text } = Typography;
 const NO_SEARCH_TERMS: string[] = [];
+/** 고정 참조. PDF가 없는 문서의 트레이에 넘긴다. */
+const NO_ACTIVE_TERMS: readonly string[] = [];
 
 type Props = {
   /**
@@ -93,23 +95,21 @@ const FullTextPane: React.FC<{
   sources: PdfSource[];
   /** 트레이에 놓을 검색어들. 개수 배지는 pane이 문서를 읽어 붙인다. */
   searchTerms: PdfSearchTerm[];
-  /** 지금 하이라이트할 검색어. */
-  activeTerm: string | null;
-  /** 같은 검색어를 다시 눌렀을 때도 하이라이트를 다시 걸기 위한 번호. */
+  /** 지금 하이라이트할 검색어들(둘 이상이면 OR). */
+  activeTerms: readonly string[];
+  /** 같은 검색어를 다시 걸어 달라는 요청 번호. */
   termRequest: number;
-  onActivateTerm: (term: string) => void;
+  onToggleTerm: (term: string) => void;
   onAddTerm: (term: string) => void;
   onRemoveTerm: (term: string) => void;
-  onManualSearch: () => void;
 }> = ({
   sources,
   searchTerms,
-  activeTerm,
+  activeTerms,
   termRequest,
-  onActivateTerm,
+  onToggleTerm,
   onAddTerm,
   onRemoveTerm,
-  onManualSearch,
 }) => {
   // sources가 빌 수 있다. PDF 없이 본문만 있는 통지서, PDF가 딸리지 않은 의견서·보정서가
   // 그렇다 — 부르는 쪽이 그 경우 []를 그대로 넘긴다. sources[0].path로 바로 읽으면
@@ -118,7 +118,7 @@ const FullTextPane: React.FC<{
 
   if (!resolvedPath) {
     /**
-     * PDF가 없는 문서. 트레이는 그대로 두고 칩만 누를 수 없게 한다 —
+     * PDF가 없는 문서. 트레이는 그대로 두고 칩만 켤 수 없게 한다(지우기는 된다) —
      * 어떤 검색어가 이 문서의 근거였는지는 원본이 없어도 알려 줘야 하고,
      * 줄을 빼면 문서를 옮길 때 그만큼 아래가 위로 밀린다.
      */
@@ -126,8 +126,8 @@ const FullTextPane: React.FC<{
       <div className="pm-doc-fulltext">
         <PdfSearchTermTray
           terms={searchTerms}
-          activeTerm={null}
-          onSelect={onActivateTerm}
+          activeTerms={NO_ACTIVE_TERMS}
+          onToggle={onToggleTerm}
           onRemove={onRemoveTerm}
           canHighlight={false}
         />
@@ -147,12 +147,11 @@ const FullTextPane: React.FC<{
         key={resolvedPath}
         documentPath={resolvedPath}
         searchTerms={searchTerms}
-        activeTerm={activeTerm}
+        activeTerms={activeTerms}
         termRequest={termRequest}
-        onActivateTerm={onActivateTerm}
+        onToggleTerm={onToggleTerm}
         onAddTerm={onAddTerm}
         onRemoveTerm={onRemoveTerm}
-        onManualSearch={onManualSearch}
       />
     </div>
   );
@@ -282,10 +281,13 @@ const PatentDocumentViewer: React.FC<Props> = ({
     return null;
   }, [entries, searchEvidence, searchKeywords]);
 
-  // 선택 문서 본문이 도착한 뒤 실제 첫 매칭 target을 한 번만 자동으로 연다.
-  const autoSelectionKey = `${activeItemId ?? 'none'}::${searchKeywords
+  /** 이번 검색 조건. 검색이 바뀌면 트레이에서 지운 근거도 함께 초기화한다(아래). */
+  const searchKeywordsKey = useMemo(() => searchKeywords
     .map((keyword) => `${keyword.operator ?? 'AND'}:${keyword.target}:${keyword.query}`)
-    .join('|')}`;
+    .join('|'), [searchKeywords]);
+
+  // 선택 문서 본문이 도착한 뒤 실제 첫 매칭 target을 한 번만 자동으로 연다.
+  const autoSelectionKey = `${activeItemId ?? 'none'}::${searchKeywordsKey}`;
   const autoSelectedKeyRef = React.useRef<string | null>(null);
   React.useEffect(() => {
     if (!firstMatchedEntry || autoSelectedKeyRef.current === autoSelectionKey) return;
@@ -322,10 +324,32 @@ const PatentDocumentViewer: React.FC<Props> = ({
    * 것이 이 기능의 목적이라 문서보다 오래 살아야 한다.
    */
   const [userTerms, setUserTerms] = React.useState<string[]>([]);
-  /** 지금 PDF에 걸려 있는 검색어. 근거 칩과 사용자 칩을 함께 가리킨다. */
-  const [activeTerm, setActiveTerm] = React.useState<string | null>(null);
-  /** 같은 검색어를 다시 걸어 달라는 요청 번호(같은 값을 다시 눌러도 하이라이트가 다시 걸린다). */
+  /**
+   * 지금 PDF에 걸려 있는 검색어들. 둘 이상이면 OR로 함께 걸린다.
+   *
+   * 하나만 담던 때는 칩이 라디오 버튼이었고, 활성 칩을 다시 누르면 다음 결과로 넘겼다.
+   * 이제 칩은 토글이고 켠 것 전부가 한 검색이 된다 — "이 낱말 아니면 저 낱말"이 실제 쓰임에
+   * 맞다(같은 개념을 다른 말로 적은 통지서를 한 번에 훑는다). 결과 사이 이동은 toolbar의
+   * ‹ › 가 맡는다.
+   */
+  const [activeTerms, setActiveTerms] = React.useState<string[]>([]);
+  /** 같은 검색어를 다시 걸어 달라는 요청 번호(칩을 다시 켜도 하이라이트가 다시 걸린다). */
   const [termRequest, setTermRequest] = React.useState(0);
+
+  /**
+   * 트레이에서 지운 검색어(정규화한 형태).
+   *
+   * 근거 칩은 검색 조건에서 파생되므로 목록에서 빼는 것만으로는 지울 수 없다 — 다음 렌더에
+   * 다시 만들어진다. 그래서 '지웠다'를 따로 기억한다. 문서를 옮겨도 남는다(같은 검색의 같은
+   * 낱말이라 문서마다 다시 물어볼 일이 아니다). 검색 조건이 바뀌면 트레이 내용 자체가 새로
+   * 만들어지므로 함께 잊는다.
+   */
+  const [dismissedTerms, setDismissedTerms] = React.useState<string[]>([]);
+  const dismissed = useMemo(() => new Set(dismissedTerms), [dismissedTerms]);
+
+  useEffect(() => {
+    setDismissedTerms([]);
+  }, [searchKeywordsKey]);
 
   /**
    * 트레이에 놓을 검색어. 근거 칩이 먼저, 사용자 칩이 뒤다.
@@ -336,72 +360,106 @@ const PatentDocumentViewer: React.FC<Props> = ({
   const searchTerms = useMemo<PdfSearchTerm[]>(() => {
     const seen = new Set<string>();
     const terms: PdfSearchTerm[] = [];
-    activeSearchTerms.forEach((term) => {
+    const push = (term: string, source: PdfSearchTerm['source']) => {
       const key = normalizedSearchText(term);
-      if (seen.has(key)) return;
+      if (seen.has(key) || dismissed.has(key)) return;
       seen.add(key);
-      terms.push({ term, source: 'evidence' });
-    });
-    userTerms.forEach((term) => {
-      const key = normalizedSearchText(term);
-      if (seen.has(key)) return;
-      seen.add(key);
-      terms.push({ term, source: 'user' });
-    });
+      terms.push({ term, source });
+    };
+    activeSearchTerms.forEach((term) => push(term, 'evidence'));
+    userTerms.forEach((term) => push(term, 'user'));
     return terms;
-  }, [activeSearchTerms, userTerms]);
+  }, [activeSearchTerms, dismissed, userTerms]);
 
-  const requestTerm = React.useCallback((term: string | null) => {
-    setActiveTerm(term);
+  /** 칩 하나를 켜거나 끈다. 켠 것 전부가 하나의 OR 검색으로 다시 걸린다. */
+  const toggleTerm = React.useCallback((term: string) => {
+    const key = normalizedSearchText(term);
+    setActiveTerms((prev) => (
+      prev.some((item) => normalizedSearchText(item) === key)
+        ? prev.filter((item) => normalizedSearchText(item) !== key)
+        : [...prev, term]
+    ));
     setTermRequest((request) => request + 1);
   }, []);
 
   const addTerm = React.useCallback((term: string) => {
+    const key = normalizedSearchText(term);
     setUserTerms((prev) => (
-      prev.some((item) => normalizedSearchText(item) === normalizedSearchText(term))
-        ? prev
-        : [...prev, term]
+      prev.some((item) => normalizedSearchText(item) === key) ? prev : [...prev, term]
     ));
-    // 방금 입력한 검색어를 활성 칩으로 둔다. 검색은 toolbar가 이미 실행했으므로
-    // 번호는 올리지 않는다 — 올리면 같은 검색을 한 번 더 걸어 첫 결과로 되돌아간다.
-    setActiveTerm(term);
+    // 같은 낱말을 지웠다가 다시 쳤다면 다시 보여 준다.
+    setDismissedTerms((prev) => prev.filter((item) => item !== key));
+    /**
+     * 새 검색어는 켜 둔 목록에 **더한다**.
+     *
+     * 예전에는 방금 입력한 낱말만 켰다(`[term]`). 그러면 칩 두어 개를 켜 놓고 낱말을 하나
+     * 더 쌓는 순간 앞의 칩이 모두 꺼져, "조건을 더한다"는 이 줄의 뜻과 어긋났다.
+     *
+     * 번호를 올려 목록 전체로 다시 걸어야 한다 — toolbar는 방금 입력한 낱말 **하나로만**
+     * 검색을 걸어 둔 상태다.
+     */
+    setActiveTerms((prev) => (
+      prev.some((item) => normalizedSearchText(item) === key) ? prev : [...prev, term]
+    ));
+    setTermRequest((request) => request + 1);
   }, []);
 
+  /** 트레이에서 칩을 내린다. 출처와 무관하게 지울 수 있다(근거 칩도). */
   const removeTerm = React.useCallback((term: string) => {
-    setUserTerms((prev) => prev.filter((item) => item !== term));
-    // 지운 칩이 활성이었다면 하이라이트도 함께 걷는다.
-    setActiveTerm((prev) => {
-      if (prev !== term) return prev;
+    const key = normalizedSearchText(term);
+    setUserTerms((prev) => prev.filter((item) => normalizedSearchText(item) !== key));
+    setDismissedTerms((prev) => (prev.includes(key) ? prev : [...prev, key]));
+    // 지운 칩이 켜져 있었다면 하이라이트에서도 빼고 남은 것으로 다시 건다.
+    setActiveTerms((prev) => {
+      if (!prev.some((item) => normalizedSearchText(item) === key)) return prev;
       setTermRequest((request) => request + 1);
-      return null;
+      return prev.filter((item) => normalizedSearchText(item) !== key);
     });
   }, []);
 
   /**
-   * 문서를 옮겼을 때 어떤 칩을 활성으로 둘지.
+   * 문서를 옮겼을 때 어떤 칩을 켜 둘지.
    *
-   * 새 문서의 근거 칩이 있으면 그것이 먼저다 — 검색으로 들어온 사용자가 가장 먼저 보려는
-   * 것이 그 문서가 걸린 이유다. 없으면 쌓아 둔 사용자 칩 중 지금 것을 유지하고, 그것도
-   * 없으면 첫 사용자 칩으로 내려간다.
+   * 규칙은 셋이다.
    *
-   * 사용자 칩을 effect의 의존성에 넣지 않는 이유: 칩을 하나 더 쌓을 때마다 이 effect가 돌면
-   * 방금 고른 칩을 근거 칩으로 되돌려 버린다. 그래서 '문서가 바뀐 순간'에만 돌게 두고
-   * 목록은 ref로 읽는다.
+   *  1. 켜 두었던 칩 중 **새 문서의 트레이에도 있는** 것은 그대로 켜 둔다. 여러 문서에 같은
+   *     검색어를 대 보는 것이 이 기능의 목적이라 사용자가 켠 것을 문서마다 끄지 않는다.
+   *     트레이에 없는 칩은 남길 수 없다 — 칩 없는 하이라이트가 걸려 있으면 무엇이 칠해진
+   *     것인지 알 수 없다.
+   *  2. 새 문서의 근거 칩이 있으면 그 첫 번째를 켠다. 검색으로 들어온 사용자가 가장 먼저
+   *     보려는 것이 그 문서가 걸린 이유다.
+   *  3. 그래도 켤 것이 없으면 첫 사용자 칩으로 내려간다.
+   *
+   * 사용자 칩·지운 칩을 effect의 의존성에 넣지 않는 이유: 칩을 하나 쌓거나 지울 때마다 이
+   * effect가 돌면 방금 켠 칩을 근거 칩으로 되돌려 버린다. 그래서 '문서가 바뀐 순간'에만
+   * 돌게 두고 목록은 ref로 읽는다.
    */
   const userTermsRef = React.useRef(userTerms);
   userTermsRef.current = userTerms;
+  const dismissedRef = React.useRef(dismissed);
+  dismissedRef.current = dismissed;
 
   useEffect(() => {
-    const evidenceTerm = activeSearchTerms[0];
-    if (evidenceTerm) {
-      requestTerm(evidenceTerm);
-      return;
-    }
-    setActiveTerm((prev) => (
-      prev && userTermsRef.current.includes(prev) ? prev : userTermsRef.current[0] ?? null
-    ));
+    const isDismissed = (term: string) => dismissedRef.current.has(normalizedSearchText(term));
+    const evidenceTerms = activeSearchTerms.filter((term) => !isDismissed(term));
+    const userTermsNow = userTermsRef.current.filter((term) => !isDismissed(term));
+    const available = new Set(
+      [...evidenceTerms, ...userTermsNow].map(normalizedSearchText),
+    );
+
+    setActiveTerms((prev) => {
+      const kept = prev.filter((term) => available.has(normalizedSearchText(term)));
+      const evidenceTerm = evidenceTerms[0];
+      if (evidenceTerm && !kept.some(
+        (term) => normalizedSearchText(term) === normalizedSearchText(evidenceTerm),
+      )) {
+        return [evidenceTerm, ...kept];
+      }
+      if (kept.length > 0) return kept;
+      return userTermsNow[0] ? [userTermsNow[0]] : [];
+    });
     setTermRequest((request) => request + 1);
-  }, [activeSearchTerms, requestTerm]);
+  }, [activeSearchTerms]);
 
   const headerFileName = activeItem
     ? (fileNameOf(activeItem.koreanTitle) ?? 'UNKNOWN')
@@ -455,14 +513,11 @@ const PatentDocumentViewer: React.FC<Props> = ({
               <FullTextPane
                 sources={activeNode.sources}
                 searchTerms={searchTerms}
-                activeTerm={activeTerm}
+                activeTerms={activeTerms}
                 termRequest={termRequest}
-                onActivateTerm={requestTerm}
+                onToggleTerm={toggleTerm}
                 onAddTerm={addTerm}
                 onRemoveTerm={removeTerm}
-                // 사용자가 PDF toolbar에서 직접 입력하면 칩의 선택 표시를 풀어 둔다.
-                // 번호는 올리지 않는다 — 올리면 방금 입력한 검색이 지워진다(pane 주석 참고).
-                onManualSearch={() => setActiveTerm(null)}
               />
             ) : (
               <div className="pm-viewer-preview">

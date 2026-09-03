@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { App as AntApp } from 'antd';
 import PageHeaderBreadcrumb from '../components/common/PageHeaderBreadcrumb';
 import OfficeActionAdvancedFilters, {
@@ -12,6 +12,7 @@ import OfficeActionResultList, {
 import OfficeActionSearchBar from '../components/office-action/OfficeActionSearchBar';
 import { filterOfficeActionIndex } from '../components/office-action/officeActionClientFilter';
 import {
+  officeActionKeywordLabel,
   toPatentSearchKeywords,
   type OfficeActionKeywordCondition,
 } from '../components/office-action/officeActionKeywords';
@@ -119,8 +120,10 @@ const OfficeActionAnalysis: React.FC = () => {
   /** content 없는 전체 OA 인덱스. 검색 결과를 프런트 필터용 구조와 결합할 때도 쓴다. */
   const indexItemsRef = useRef<PatentSearchIndexItem[] | null>(null);
   const indexRequestRef = useRef<Promise<PatentSearchIndexItem[]> | null>(null);
-  /** 마지막 명시적 키워드 검색으로 갱신한 목록. 상세 필터와 페이지 이동의 유일한 원본이다. */
+  /** 마지막 키워드 검색으로 갱신한 목록. 상세 필터와 페이지 이동의 유일한 원본이다. */
   const searchBaseItemsRef = useRef<PatentSearchIndexItem[] | null>(null);
+  /** 키워드 검색 요청 번호. 겹친 요청 중 마지막 것만 결과를 반영한다. */
+  const keywordSearchSeqRef = useRef(0);
   const documentContentRef = useRef(new Map<number, PatentSearchDocumentContent>());
   const pendingDocumentIdRef = useRef<number | null>(null);
 
@@ -276,6 +279,16 @@ const OfficeActionAnalysis: React.FC = () => {
    * 페이지 이동에서는 이 API를 다시 호출하지 않는다.
    */
   const runKeywordSearch = useCallback(async () => {
+    /**
+     * 늦게 도착한 옛 결과가 최신 결과를 덮지 않게 한다.
+     *
+     * 조건 chip을 잇달아 지우면(자동 검색) 요청이 겹칠 수 있다. 버튼 클릭만 있던 때는
+     * `loading` 중 버튼이 잠겨 겹칠 일이 없었다.
+     */
+    const requestId = keywordSearchSeqRef.current + 1;
+    keywordSearchSeqRef.current = requestId;
+    const isStale = () => keywordSearchSeqRef.current !== requestId;
+
     setLoading(true);
     setError('');
     try {
@@ -298,6 +311,8 @@ const OfficeActionAnalysis: React.FC = () => {
         });
       }
 
+      if (isStale()) return;
+
       searchBaseItemsRef.current = nextBaseItems;
       setSortBy(keywords.length > 0 ? 'relevance' : 'actionDateDesc');
       setMatchedTargets([
@@ -314,13 +329,17 @@ const OfficeActionAnalysis: React.FC = () => {
       setPage(1);
       setAppliedFilterKey(filterKeyOf(filters));
     } catch (caught) {
+      if (isStale()) return;
       setItems([]);
       setTotal(0);
       setError(getErrorMessage(caught));
       void message.error(`검색에 실패했습니다: ${getErrorMessage(caught)}`);
     } finally {
-      setPristine(false);
-      setLoading(false);
+      // 옛 요청은 loading을 내리지 않는다. 뒤에 시작한 요청이 아직 달리고 있다.
+      if (!isStale()) {
+        setPristine(false);
+        setLoading(false);
+      }
     }
   }, [filters, keywordConditions, loadIndex, message, pageSize]);
 
@@ -349,6 +368,40 @@ const OfficeActionAnalysis: React.FC = () => {
     if (searchToken === 0) return;
     keywordSearchRef.current();
   }, [searchToken]);
+
+  /**
+   * 조건 목록이 바뀌면 바로 검색한다.
+   *
+   * 조건 chip은 이미 확정된 값이다(입력 중인 글자가 아니다) — 추가·삭제는 그때마다
+   * "이 조건으로 다시 보여 달라"는 뜻이므로, 검색 버튼을 한 번 더 누르게 할 이유가 없었다.
+   * 특히 chip의 ×로 조건을 지웠을 때는 누를 버튼이 화면 반대쪽에 있어, 지워 놓고도 옛 결과를
+   * 보고 있는 상태가 되기 쉬웠다.
+   *
+   * 글자를 칠 때마다 검색하는 것은 **아니다.** 입력창의 draft는 '조건 추가'나 Enter로
+   * 확정되어 이 목록에 들어온 뒤에만 검색을 부른다.
+   */
+  const keywordConditionsKey = useMemo(
+    () => keywordConditions.map(officeActionKeywordLabel).join('|'),
+    [keywordConditions],
+  );
+  // 진입 시 값(빈 목록)으로 시작해 첫 render에서는 검색하지 않는다(초기 목록은 아래 1회 로드가 맡는다).
+  const autoSearchedKeyRef = useRef(keywordConditionsKey);
+  useEffect(() => {
+    if (autoSearchedKeyRef.current === keywordConditionsKey) return;
+    autoSearchedKeyRef.current = keywordConditionsKey;
+    /**
+     * 제외 조건만 남은 상태에서는 검색하지 않는다. 서버가 거부하는 조합이고, 안내는 검색
+     * 바가 이미 띄우고 있다 — 여기서 부르면 조건을 짜는 중에 경고 toast만 반복해 뜬다.
+     * 포함 조건이 더해지는 순간 key가 다시 바뀌어 검색이 나간다.
+     */
+    if (
+      keywordConditions.length > 0
+      && toPatentSearchKeywords(keywordConditions).length === 0
+    ) {
+      return;
+    }
+    requestKeywordSearch();
+  }, [keywordConditions, keywordConditionsKey, requestKeywordSearch]);
 
   /**
    * 진입 시 한 번: 전체 OA 인덱스로 기본 목록을 만들고 레일의 문서 뷰어를 펼친다.

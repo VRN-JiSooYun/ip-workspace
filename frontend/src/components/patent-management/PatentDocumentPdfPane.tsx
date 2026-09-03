@@ -16,6 +16,9 @@ const NO_HIGHLIGHTS: never[] = [];
 /** 위와 같은 이유(고정 참조)로 트레이 검색어의 기본값도 모듈 수준에 둔다. */
 const NO_SEARCH_TERMS: PdfSearchTerm[] = [];
 
+/** 위와 같은 이유로 활성 검색어의 기본값도 고정 참조를 쓴다. */
+const NO_ACTIVE_TERMS: readonly string[] = [];
+
 /** `http://.../oa/2023/1020237016326_의견제출통지서_20260526.pdf` → 마지막 경로 조각. */
 const fileNameOf = (documentPath: string): string => {
   const lastSegment = documentPath.split('/').pop() || 'document.pdf';
@@ -37,18 +40,16 @@ type Props = {
    * 여러 문서에 같은 검색어를 대 보는 것이 이 기능의 목적이라 상태는 위에서 들고 있다.
    */
   searchTerms?: PdfSearchTerm[];
-  /** 지금 하이라이트할 검색어. */
-  activeTerm?: string | null;
-  /** 같은 검색어를 다시 눌렀을 때도 하이라이트를 다시 걸기 위한 번호. */
+  /** 지금 하이라이트할 검색어들. 둘 이상이면 OR로 함께 걸린다. */
+  activeTerms?: readonly string[];
+  /** 같은 검색어를 다시 걸어 달라는 요청 번호. */
   termRequest?: number;
-  /** 트레이의 칩을 눌렀을 때(활성 칩을 다시 누르는 경우는 여기까지 오지 않는다). */
-  onActivateTerm?: (term: string) => void;
+  /** 트레이의 칩을 눌렀을 때(켜짐/꺼짐을 뒤집는다). */
+  onToggleTerm?: (term: string) => void;
   /** toolbar에서 Enter/Search로 검색어를 쌓았을 때. */
   onAddTerm?: (term: string) => void;
-  /** 트레이에서 사용자 검색어를 지웠을 때. */
+  /** 트레이에서 검색어를 지웠을 때. */
   onRemoveTerm?: (term: string) => void;
-  /** toolbar에서 사용자가 직접 입력해 검색했을 때. 칩의 선택 표시를 풀어야 한다. */
-  onManualSearch?: () => void;
 };
 
 /**
@@ -74,12 +75,11 @@ type Props = {
 const PatentDocumentPdfPane: React.FC<Props> = ({
   documentPath,
   searchTerms = NO_SEARCH_TERMS,
-  activeTerm = null,
+  activeTerms = NO_ACTIVE_TERMS,
   termRequest = 0,
-  onActivateTerm,
+  onToggleTerm,
   onAddTerm,
   onRemoveTerm,
-  onManualSearch,
 }) => {
   const { token } = theme.useToken();
   const { message } = AntApp.useApp();
@@ -90,22 +90,25 @@ const PatentDocumentPdfPane: React.FC<Props> = ({
   const pdfViewer = usePatentPdfViewer({ currentHighlights: NO_HIGHLIGHTS });
 
   /**
-   * 고른 검색어를 PDF에 하이라이트한다.
+   * 켜 둔 검색어들을 PDF에 하이라이트한다. 둘 이상이면 하나의 OR 검색으로 건다.
    *
-   * 의존성이 `activeTerm`이 아니라 **`termRequest`**인 것이 중요하다. 사용자가 toolbar에서
-   * 직접 검색하면 근거 줄의 선택이 풀려 `activeTerm`이 null이 되는데, 그것까지 이 effect가
-   * 받으면 방금 입력한 검색을 `searchPdf('')`로 지워 버린다. 그래서 '근거를 다시 걸어 달라'는
-   * 요청(번호 증가)에만 반응한다 — 같은 검색어를 다시 눌러도 번호가 올라 다시 걸린다.
+   * 의존성이 `activeTerms`가 아니라 **`termRequest`**인 것이 중요하다. 목록이 그대로여도
+   * 다시 걸어야 하는 때가 있다 — toolbar에서 이미 켜 둔 낱말을 다시 쳐서 쌓으면 목록은
+   * 그대로지만 PDF에는 그 낱말 하나만 걸려 있으므로, 목록 전체로 되돌려야 한다.
+   * 그래서 '다시 걸어 달라'는 요청(번호 증가)에만 반응한다.
+   *
+   * 빈 목록도 배열로 넘긴다. `searchPdf('')`로 지우면 사용자가 toolbar에 치던 값까지
+   * 지워진다(문자열은 입력창 표시값을 함께 바꾼다 — 훅 주석 참고).
    */
   useEffect(() => {
     if (!pdfViewer.isHighlighterReady) return;
-    if (!activeTerm) {
-      pdfViewer.searchPdf('');
+    if (activeTerms.length === 0) {
+      pdfViewer.searchPdf([]);
       return;
     }
     if (!pdfViewer.isPdfDocumentReady) return;
-    pdfViewer.searchPdf(activeTerm);
-    // activeTerm은 번호와 함께 갱신되므로 여기서 다시 듣지 않는다(위 주석).
+    pdfViewer.searchPdf([...activeTerms]);
+    // activeTerms는 번호와 함께 갱신되므로 여기서 다시 듣지 않는다(위 주석).
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     termRequest,
@@ -146,20 +149,6 @@ const PatentDocumentPdfPane: React.FC<Props> = ({
     () => searchTerms.map((entry) => ({ ...entry, count: matchCounts[entry.term] })),
     [searchTerms, matchCounts],
   );
-
-  /**
-   * 칩을 눌렀을 때.
-   *
-   * 활성 칩을 다시 누르면 **다음 결과로 넘긴다** — 같은 검색을 다시 걸면 첫 결과로 돌아가
-   * 칩만으로는 문서를 훑을 수 없다. 그래서 칩 자체가 이동 버튼 노릇을 한다.
-   */
-  const handleSelectTerm = useCallback((term: string) => {
-    if (term === activeTerm) {
-      pdfViewer.findNext();
-      return;
-    }
-    onActivateTerm?.(term);
-  }, [activeTerm, onActivateTerm, pdfViewer]);
 
   /** 서버가 준 값은 API 기준 상대 경로일 수 있다. 브라우저가 쓸 주소로 완성한다. */
   const fileUrl = useMemo(
@@ -215,18 +204,17 @@ const PatentDocumentPdfPane: React.FC<Props> = ({
         onFitPageWidth={pdfViewer.fitPdfToPageWidth}
         fitPageWidthActive={pdfViewer.pdfScaleValue === 'page-width'}
         onOpenPdfInBrowser={handleOpenInBrowser}
-        onSearchQueryChange={(value) => {
-          onManualSearch?.();
-          pdfViewer.setSearchQuery(value);
-        }}
-        onRunSearch={(value) => {
-          onManualSearch?.();
-          pdfViewer.searchPdf(value ?? pdfViewer.searchQuery);
-        }}
-        onClearSearch={() => {
-          onManualSearch?.();
-          pdfViewer.searchPdf('');
-        }}
+        /**
+         * 입력창은 켜 둔 칩을 건드리지 않는다.
+         *
+         * 예전에는 여기서 칩의 선택을 모두 풀었다(활성 검색어가 하나였을 때, 입력창과 칩이
+         * 같은 자리를 다투었기 때문이다). 이제 칩은 OR 목록이고 입력창은 그 목록에 넣을
+         * 낱말을 적는 칸이라, 치는 동안에도 목록은 남아 있어야 한다 — Enter로 쌓으면 그
+         * 낱말이 목록에 더해진다.
+         */
+        onSearchQueryChange={(value) => pdfViewer.setSearchQuery(value)}
+        onRunSearch={(value) => pdfViewer.searchPdf(value ?? pdfViewer.searchQuery)}
+        onClearSearch={() => pdfViewer.searchPdf('')}
         onCommitSearchTerm={onAddTerm
           ? (value) => {
             const term = value.trim();
@@ -234,11 +222,11 @@ const PatentDocumentPdfPane: React.FC<Props> = ({
             onAddTerm(term);
             /**
              * 검색어가 칩으로 옮겨 갔으니 입력창을 비운다. 다음 검색어를 바로 칠 수 있고,
-             * 같은 낱말이 칩과 입력창에 겹쳐 보이지도 않는다. 하이라이트는 방금 건 그대로다
-             * (`searchPdf`를 다시 부르지 않는다).
+             * 같은 낱말이 칩과 입력창에 겹쳐 보이지도 않는다.
              *
-             * `onSearchQueryChange`가 아니라 훅을 직접 부르는 것이 중요하다 — 그 경로는
-             * '사용자가 직접 입력했다'로 보고(`onManualSearch`) 방금 만든 칩의 선택을 푼다.
+             * 하이라이트는 `onAddTerm`이 켠 목록 전체로 다시 걸린다(pane 위쪽 effect).
+             * 여기서 검색을 다시 걸지 않는 이유도 그것이다 — toolbar가 방금 건 검색은
+             * 이 낱말 하나뿐이라 그대로 두면 앞서 켜 둔 칩이 빠진다.
              */
             pdfViewer.setSearchQuery('');
           }
@@ -263,10 +251,12 @@ const PatentDocumentPdfPane: React.FC<Props> = ({
         onToggleThumbnail={() => setThumbnailCollapsed((prev) => !prev)}
       />
 
+      {/* 칩은 토글이다. 결과 사이 이동은 toolbar의 ‹ › 가 맡는다(칩을 다시 눌러 다음
+          결과로 넘기던 동작은 켜기/끄기와 겹쳐 무엇을 하는 버튼인지 알 수 없었다). */}
       <PdfSearchTermTray
         terms={trayTerms}
-        activeTerm={activeTerm}
-        onSelect={handleSelectTerm}
+        activeTerms={activeTerms}
+        onToggle={(term) => onToggleTerm?.(term)}
         onRemove={(term) => onRemoveTerm?.(term)}
         canHighlight
       />

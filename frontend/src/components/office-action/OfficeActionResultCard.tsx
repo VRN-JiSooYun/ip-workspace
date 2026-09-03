@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Tag, Tooltip, Typography } from 'antd';
-import { MessageSquare, PencilLine, Stamp, User } from 'lucide-react';
+import { ChevronDown, MessageSquare, PencilLine, Stamp, User } from 'lucide-react';
 import { formatDisplayDateTime } from '../../utils/displayFormat';
 import { getLegalStatusTagColor } from '../../utils/legalStatusTag';
 import type {
@@ -56,6 +56,14 @@ type Props = {
 const OfficeActionResultCard: React.FC<Props> = ({ item, selected, onSelect }) => {
   const hasOpinion = item.submissions.some((s) => s.kind === 'OPINION');
   const hasAmendment = item.submissions.some((s) => s.kind === 'AMENDMENT');
+  /**
+   * 서지 정보(출원·공개·등록)는 접어 둔다.
+   *
+   * 여섯 항목이 카드 높이의 3분의 1을 먹는데, 목록에서 카드를 훑는 동안 보는 것은 제목과
+   * 거절이유다. 게다가 이 값들은 `includePatentDetail`로 따로 받아야 채워져 대개 `-`다.
+   * 필요할 때만 펼친다.
+   */
+  const [detailOpen, setDetailOpen] = useState(false);
 
   return (
     <article
@@ -64,14 +72,25 @@ const OfficeActionResultCard: React.FC<Props> = ({ item, selected, onSelect }) =
       tabIndex={0}
       onClick={() => onSelect(item)}
       onKeyDown={(event) => {
+        // 카드 안의 버튼(접기/펼치기)에서 올라온 Enter·Space는 그 버튼의 것이다.
+        if (event.target !== event.currentTarget) return;
         if (event.key === 'Enter' || event.key === ' ') {
           event.preventDefault();
           onSelect(item);
         }
       }}
     >
+      {/**
+        * 머리줄 = 제목 + 오른쪽에 모은 칩 둘.
+        *
+        * 통지 번호(`oa-result-action-number`)는 사용자 요청으로 뺐다 — 카드를 고르는 기준이
+        * 아니었고, 제목보다 큰 글씨로 맨 앞에 있어 시선을 먼저 먹었다. 그 자리가 비면서
+        * 제목을 이 줄로 올렸다. 카드에서 먼저 읽는 것이 제목이라 맨 윗줄의 왼쪽이 그 자리다.
+        *
+        * 칩은 오른쪽에 모으고 법적상태를 가장 끝에 둔다.
+        */}
       <div className="oa-result-top">
-        <span className="oa-result-action-number">{emptyDash(item.actionNumber)}</span>
+        <h3 className="oa-result-title-ko">{emptyDash(item.koreanTitle)}</h3>
         {item.actionDate && (
           <span className="oa-result-date-badge">
             {formatDisplayDateTime(item.actionDate)}
@@ -88,7 +107,6 @@ const OfficeActionResultCard: React.FC<Props> = ({ item, selected, onSelect }) =
         )}
       </div>
 
-      <h3 className="oa-result-title-ko">{emptyDash(item.koreanTitle)}</h3>
       {item.englishTitle && (
         <p className="oa-result-title-en">{item.englishTitle}</p>
       )}
@@ -136,6 +154,22 @@ const OfficeActionResultCard: React.FC<Props> = ({ item, selected, onSelect }) =
         </span>
       </div>
 
+      {/* 카드를 고르는 것과 서지 정보를 펼치는 것은 다른 일이다. 클릭이 카드까지 올라가면
+          펼치려던 사람이 문서를 열게 된다. */}
+      <button
+        type="button"
+        className="oa-result-footer-toggle"
+        aria-expanded={detailOpen}
+        onClick={(event) => {
+          event.stopPropagation();
+          setDetailOpen((open) => !open);
+        }}
+      >
+        <span>출원·공개·등록 정보</span>
+        <ChevronDown size={14} aria-hidden="true" />
+      </button>
+
+      {detailOpen && (
       <div className="oa-result-footer">
         <span>
           <Text type="secondary" className="oa-result-footer-label">출원번호</Text>
@@ -172,6 +206,7 @@ const OfficeActionResultCard: React.FC<Props> = ({ item, selected, onSelect }) =
           </span>
         </span>
       </div>
+      )}
     </article>
   );
 };

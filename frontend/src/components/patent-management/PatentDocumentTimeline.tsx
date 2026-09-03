@@ -81,7 +81,7 @@ const PatentDocumentTimeline: React.FC<Props> = ({
           const hint = [
             dateLabel,
             node.label,
-            node.dateSource === 'fileName' ? '날짜는 파일명에서 읽음' : null,
+            node.dateSource === 'fileName' ? '' : null,
             node.date === null ? '날짜를 알 수 없음' : null,
             node.sources.length === 0 ? 'PDF 없음' : null,
           ].filter(Boolean).join(' · ');
