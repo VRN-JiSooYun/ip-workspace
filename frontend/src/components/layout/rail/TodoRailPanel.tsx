@@ -2,6 +2,7 @@ import React from 'react';
 import { App as AntApp, Checkbox, Tooltip, Typography } from 'antd';
 import { useNavigate } from 'react-router-dom';
 import { useAccessContext } from '../../../contexts/AccessContext';
+import { useRailAccessLevel } from '../../../hooks/useMenuAccess';
 import {
   patentRecordApi,
   patentTodoApi,
@@ -40,7 +41,9 @@ const TodoRailPanel: React.FC = () => {
   const navigate = useNavigate();
   const { hasPermission } = useAccessContext();
   const canRead = hasPermission('patentAnalysis.read');
-  const canManage = hasPermission('patentAnalysis.manage');
+  // `view`(menuAccess.json)이면 permission이 있어도 완료 체크를 막는다.
+  const canManage = hasPermission('patentAnalysis.manage')
+    && useRailAccessLevel('todo') === 'edit';
 
   const [items, setItems] = React.useState<PatentDeadlineItem[]>([]);
   const [total, setTotal] = React.useState(0);

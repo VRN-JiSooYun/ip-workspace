@@ -5,6 +5,7 @@ import PatentCodeTablePanel, {
   PATENT_CODE_TABS,
 } from '../components/patent-management/PatentCodeTablePanel';
 import { useAccessContext } from '../contexts/AccessContext';
+import { useMenuAccessLevel } from '../hooks/useMenuAccess';
 import { useUIStore } from '../store/useUIStore';
 
 const { Text } = Typography;
@@ -25,7 +26,9 @@ const { Text } = Typography;
 const PatentCodeAdmin: React.FC = () => {
   const { setHeaderContent } = useUIStore();
   const { hasPermission } = useAccessContext();
-  const canManage = hasPermission('patentAnalysis.manage');
+  // `view`(menuAccess.json)이면 permission이 있어도 편집 기능을 가린다.
+  const canManage = hasPermission('patentAnalysis.manage')
+    && useMenuAccessLevel('patent-code-admin') === 'edit';
 
   useEffect(() => {
     setHeaderContent(

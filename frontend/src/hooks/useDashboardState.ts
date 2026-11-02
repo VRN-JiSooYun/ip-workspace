@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAccessContext } from '../contexts/AccessContext';
+import { useMenuAccessLevel } from './useMenuAccess';
 import { useAuthSession } from '../contexts/AuthSessionContext';
 import { calendarEventApi, type CalendarEventGateway } from '../services/calendarEventApi';
 import { useHolidayName } from './useHolidayName';
@@ -48,7 +49,9 @@ export const useDashboardState = () => {
   const session = useAuthSession();
   const { access, hasPermission } = useAccessContext();
   const canRead = hasPermission('patentAnalysis.read');
-  const canManage = hasPermission('patentAnalysis.manage');
+  // `view`(menuAccess.json)이면 permission이 있어도 편집 기능을 가린다.
+  const canManage = hasPermission('patentAnalysis.manage')
+    && useMenuAccessLevel('dashboard') === 'edit';
 
   // ---- 공통 필터 ----
   const [targets, setTargets] = useState<PatentTargetSummary[]>([]);

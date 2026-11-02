@@ -4,6 +4,7 @@ import { useSearchParams } from 'react-router-dom';
 import { buildStageTiles, type StageTileRow } from '../components/patent-management/PatentProgressPipeline';
 import type { PatentListFilterValues } from '../components/patent-management/PatentListFilters';
 import { useAccessContext } from '../contexts/AccessContext';
+import { useMenuAccessLevel } from './useMenuAccess';
 import type { PatentSearchItem } from '../services/patentSearchApi';
 import {
   patentRecordApi,
@@ -37,7 +38,9 @@ const getErrorMessage = (error: unknown) =>
 export const usePatentWorkspaceState = () => {
   const { message, modal } = AntApp.useApp();
   const { hasPermission } = useAccessContext();
-  const canManage = hasPermission('patentAnalysis.manage');
+  // `view`(menuAccess.json)이면 permission이 있어도 편집 기능을 가린다.
+  const canManage = hasPermission('patentAnalysis.manage')
+    && useMenuAccessLevel('patent-management') === 'edit';
   const [searchParams] = useSearchParams();
 
   /**

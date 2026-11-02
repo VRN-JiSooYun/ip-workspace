@@ -11,6 +11,7 @@ import PatentCodeAdmin from './pages/PatentCodeAdmin';
 import PatentInsight from './pages/PatentInsight';
 import PatentManagement from './pages/PatentManagement';
 import UniversalSearch from './pages/UniversalSearch';
+import type { MenuKey } from './config/menuAccess';
 import type { WorkspacePermission } from './services/accessContextApi';
 
 /**
@@ -24,15 +25,27 @@ import type { WorkspacePermission } from './services/accessContextApi';
  * menu entry pointing at it inherits that. So a menu item can never stay
  * visible for a route the user cannot open — the two cannot drift apart, and
  * gating a page is a one-line change here.
+ *
+ * The same goes for menu visibility: `menu` names this page's entry in
+ * `config/menuAccess.json`, and both the route and the sidebar entry obey the
+ * `edit` / `view` / `hide` level found there.
  */
 export type AppRoute = {
   path: string;
   /** Rendered element. Omit when `redirectTo` is set. */
   element?: React.ReactNode;
-  /** Renders a redirect to this path instead of an element. */
+  /**
+   * Renders a redirect to this path instead of an element. If the target is
+   * hidden for the user, `App` sends them to the first visible menu instead.
+   */
   redirectTo?: string;
   /** When set, the route is wrapped in `RequirePermission`. */
   permission?: WorkspacePermission;
+  /**
+   * Key in `config/menuAccess.json`. When the level resolves to `hide` the
+   * route redirects to the first visible menu instead of rendering.
+   */
+  menu?: MenuKey;
 };
 
 export const APP_ROUTES: AppRoute[] = [
@@ -73,24 +86,35 @@ export const APP_ROUTES: AppRoute[] = [
   },
 
   // ---- 특허 관리 -----------------------------------------------------------
-  { path: '/patent-management', permission: 'patentAnalysis.read', element: <PatentManagement /> },
+  {
+    path: '/patent-management',
+    permission: 'patentAnalysis.read',
+    menu: 'patent-management',
+    element: <PatentManagement />,
+  },
 
   // ---- 분석 ----------------------------------------------------------------
   {
     path: '/analysis/office-actions',
     permission: 'patentAnalysis.read',
+    menu: 'office-actions',
     element: <OfficeActionAnalysis />,
   },
 
   // ---- Dashboard ---------------------------------------------------------
   // 권한을 라우트에 걸지 않는다. '/' 가 여기로 리다이렉트되므로 권한 없는 사용자가
   // 로그인 직후 튕기게 된다. 대시보드는 위젯 단위로 막는다(Dashboard.tsx 참고).
-  { path: '/dashboard', element: <Dashboard /> },
+  { path: '/dashboard', menu: 'dashboard', element: <Dashboard /> },
 
   // { path: '/universal-search', element: <UniversalSearch /> },
 
   // ---- Workspace administration ------------------------------------------
-  { path: '/workspace/access-registry', permission: 'userAccess.manage', element: <AccessRegistry /> },
+  {
+    path: '/workspace/access-registry',
+    permission: 'userAccess.manage',
+    menu: 'access-registry',
+    element: <AccessRegistry />,
+  },
   {
     path: '/workspace/patent-analysis-admin',
     permission: 'patentAnalysis.manage',
@@ -101,10 +125,11 @@ export const APP_ROUTES: AppRoute[] = [
     // 고치는 것은 화면 안에서 `patentAnalysis.manage`로 다시 가린다(API도 같은 조건이다).
     path: '/workspace/patent-code-admin',
     permission: 'patentAnalysis.read',
+    menu: 'patent-code-admin',
     element: <PatentCodeAdmin />,
   },
 
-  { path: '/contact', element: <Contact /> },
+  { path: '/contact', menu: 'contact', element: <Contact /> },
   { path: '*', redirectTo: '/patent-management' },
 ];
 
@@ -112,6 +137,13 @@ const permissionByPath = new Map<string, WorkspacePermission>(
   APP_ROUTES.flatMap((route) => (route.permission ? [[route.path, route.permission]] : [])),
 );
 
+const menuByPath = new Map<string, MenuKey>(
+  APP_ROUTES.flatMap((route) => (route.menu ? [[route.path, route.menu]] : [])),
+);
+
 /** The permission required to open `path`, or undefined if it is unrestricted. */
 export const getRoutePermission = (path: string): WorkspacePermission | undefined =>
   permissionByPath.get(path);
+
+/** The `menuAccess.json` key governing `path`, or undefined if it has none. */
+export const getRouteMenu = (path: string): MenuKey | undefined => menuByPath.get(path);

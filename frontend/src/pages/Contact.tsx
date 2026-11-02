@@ -18,6 +18,7 @@ import ContactReplyModal, { type ContactReplyValues } from '../components/contac
 import ContactWriteModal, { type ContactWriteValues } from '../components/contact/ContactWriteModal';
 import PageHeaderBreadcrumb from '../components/common/PageHeaderBreadcrumb';
 import { useAuthSession } from '../contexts/AuthSessionContext';
+import { useMenuAccessLevel } from '../hooks/useMenuAccess';
 import {
   CONTACT_AUTHOR_CHECK_LABELS,
   CONTACT_CATEGORY_OPTIONS,
@@ -43,6 +44,8 @@ const Contact: React.FC = () => {
   const { message, modal } = AntApp.useApp();
   const session = useAuthSession();
   const { setHeaderContent } = useUIStore();
+  // `view`(menuAccess.json)이면 문의를 읽기만 한다. 작성·수정·삭제·답글을 가린다.
+  const canEdit = useMenuAccessLevel('contact') === 'edit';
   const {
     tableBodyHeight,
     tableRegionRef: tableWrapperRef,
@@ -345,32 +348,36 @@ const Contact: React.FC = () => {
         <div className="v-table-header contact-table-header">
           <Space size={10} wrap>
             <Typography.Text strong className="contact-table-title">문의 내역</Typography.Text>
-            <Button
-              type="primary"
-              size="small"
-              icon={<Plus size={14} />}
-              onClick={openCreateModal}
-            >
-              신규 작성
-            </Button>
-            <Button
-              type="primary"
-              size="small"
-              icon={<Edit3 size={14} />}
-              disabled={!selectedInquiry}
-              onClick={openEditModal}
-            >
-              수정
-            </Button>
-            <Button
-              type="primary"
-              size="small"
-              icon={<Trash2 size={14} />}
-              disabled={!selectedInquiry}
-              onClick={handleDelete}
-            >
-              삭제
-            </Button>
+            {canEdit && (
+              <>
+                <Button
+                  type="primary"
+                  size="small"
+                  icon={<Plus size={14} />}
+                  onClick={openCreateModal}
+                >
+                  신규 작성
+                </Button>
+                <Button
+                  type="primary"
+                  size="small"
+                  icon={<Edit3 size={14} />}
+                  disabled={!selectedInquiry}
+                  onClick={openEditModal}
+                >
+                  수정
+                </Button>
+                <Button
+                  type="primary"
+                  size="small"
+                  icon={<Trash2 size={14} />}
+                  disabled={!selectedInquiry}
+                  onClick={handleDelete}
+                >
+                  삭제
+                </Button>
+              </>
+            )}
           </Space>
           <Space size={8} wrap className="contact-filter-controls">
             <div className="contact-status-filter">
@@ -415,7 +422,7 @@ const Contact: React.FC = () => {
             rowKey="id"
             size="small"
             dataSource={filteredInquiries}
-            columns={columns}
+            columns={canEdit ? columns : columns.filter((column) => column.key !== 'reply')}
             tableLayout="fixed"
             scroll={{ x: tableScrollX, y: tableBodyHeight }}
             pagination={{

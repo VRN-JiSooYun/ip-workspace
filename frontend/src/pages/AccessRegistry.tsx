@@ -20,6 +20,7 @@ import { RefreshCw, Search } from 'lucide-react';
 import PageHeaderBreadcrumb from '../components/common/PageHeaderBreadcrumb';
 import { useAuthSession } from '../contexts/AuthSessionContext';
 import { useAccessContext } from '../contexts/AccessContext';
+import { useMenuAccessLevel } from '../hooks/useMenuAccess';
 import {
   adminAccessApi,
   type AdminUser,
@@ -91,6 +92,8 @@ const AccessRegistry: React.FC = () => {
     ].join(':'),
   });
   const canManageUsers = hasPermission('userAccess.manage');
+  // `view`(menuAccess.json)이면 목록만 보여 주고 권한 변경·팀 설정·동기화를 가린다.
+  const canEdit = useMenuAccessLevel('access-registry') === 'edit';
 
   useEffect(() => {
     setHeaderContent(
@@ -321,18 +324,18 @@ const AccessRegistry: React.FC = () => {
       align: 'center',
       render: formatDisplayDate,
     },
-    {
+    ...(canEdit ? [{
       title: '관리',
       key: 'action',
       width: 110,
-      fixed: 'right',
-      align: 'center',
-      render: (_, user) => (
+      fixed: 'right' as const,
+      align: 'center' as const,
+      render: (_: unknown, user: AdminUser) => (
         <Button size="small" onClick={() => openAccessModal(user)}>
           권한 변경
         </Button>
       ),
-    },
+    }] : []),
   ];
 
   if (!canManageUsers) return <Navigate to="/dashboard" replace />;
@@ -371,12 +374,16 @@ const AccessRegistry: React.FC = () => {
             className="v-search-input"
             style={{ width: 280 }}
           />
-          <Button onClick={() => void reconcileTeams()} loading={syncingTeams}>
-            팀 동기화
-          </Button>
-          <Button onClick={openTeamAccess} disabled={teams.length === 0}>
-            팀별 접근 설정
-          </Button>
+          {canEdit && (
+            <>
+              <Button onClick={() => void reconcileTeams()} loading={syncingTeams}>
+                팀 동기화
+              </Button>
+              <Button onClick={openTeamAccess} disabled={teams.length === 0}>
+                팀별 접근 설정
+              </Button>
+            </>
+          )}
           <Button icon={<RefreshCw size={15} />} onClick={() => void loadUsers()} loading={loading}>
             새로고침
           </Button>

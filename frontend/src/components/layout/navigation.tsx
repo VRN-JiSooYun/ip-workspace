@@ -10,7 +10,8 @@ import {
   Search,
   ShieldCheck,
 } from 'lucide-react';
-import { getRoutePermission } from '../../routes';
+import type { MenuAccessLevel, MenuKey } from '../../config/menuAccess';
+import { getRouteMenu, getRoutePermission } from '../../routes';
 import type { WorkspacePermission } from '../../services/accessContextApi';
 
 /**
@@ -31,7 +32,8 @@ import type { WorkspacePermission } from '../../services/accessContextApi';
  * Permissions are NOT declared here. A node that points at a `path` inherits
  * whatever that route requires (see `getRoutePermission` in src/routes), so a
  * menu entry can never linger for a page the user cannot open. `permission`
- * below is only for gating a group that has no route of its own.
+ * below is only for gating a group that has no route of its own. The same goes
+ * for the `menuAccess.json` level: it comes from the route's `menu`.
  */
 export type NavNode = {
   key: string;
@@ -105,15 +107,17 @@ export const BOTTOM_NAV: NavNode[] = [
 export const FALLBACK_NAV_KEY = 'patent-management';
 
 /**
- * Drops nodes the user lacks permission for, then drops any group left with no
- * visible children — so a section never renders as an empty parent.
+ * Drops nodes the user cannot open, then drops any group left with no visible
+ * children — so a section never renders as an empty parent.
  *
- * Every gate must pass: the node's own `permission` (groups) and the permission
- * its route requires (leaves).
+ * Every gate must pass: the node's own `permission` (groups), the permission
+ * its route requires (leaves), and the route's `menuAccess.json` level not
+ * being `hide`.
  */
-export const filterNavByPermission = (
+export const filterNavByAccess = (
   nodes: NavNode[],
   hasPermission: (permission: WorkspacePermission) => boolean,
+  menuLevel: (key: MenuKey) => MenuAccessLevel,
 ): NavNode[] =>
   nodes.reduce<NavNode[]>((visible, node) => {
     if (node.permission && !hasPermission(node.permission)) return visible;
@@ -121,12 +125,15 @@ export const filterNavByPermission = (
     const routePermission = node.path ? getRoutePermission(node.path) : undefined;
     if (routePermission && !hasPermission(routePermission)) return visible;
 
+    const routeMenu = node.path ? getRouteMenu(node.path) : undefined;
+    if (routeMenu && menuLevel(routeMenu) === 'hide') return visible;
+
     if (!node.children) {
       visible.push(node);
       return visible;
     }
 
-    const children = filterNavByPermission(node.children, hasPermission);
+    const children = filterNavByAccess(node.children, hasPermission, menuLevel);
     if (children.length > 0) visible.push({ ...node, children });
     return visible;
   }, []);
@@ -139,6 +146,15 @@ const walk = (nodes: NavNode[], visit: (node: NavNode, ancestors: NavNode[]) => 
     }
   };
   recurse(nodes, []);
+};
+
+/** The first navigable path in tree order, or null when the tree is empty. */
+export const getFirstNavPath = (nodes: NavNode[]): string | null => {
+  let found: string | null = null;
+  walk(nodes, (node) => {
+    if (!found && node.path) found = node.path;
+  });
+  return found;
 };
 
 /**

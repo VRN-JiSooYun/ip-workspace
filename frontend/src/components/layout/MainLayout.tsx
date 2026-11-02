@@ -16,11 +16,10 @@ import RdkitDrawOptionsModal from '../common/RdkitDrawOptionsModal';
 import RightSidebar from './RightSidebar';
 import { withBasePath } from '../../config/basePath';
 import { useAuthSession } from '../../contexts/AuthSessionContext';
-import { useAccessContext } from '../../contexts/AccessContext';
+import { useNavigationAccess } from '../../hooks/useMenuAccess';
 import {
   BOTTOM_NAV,
   MAIN_NAV,
-  filterNavByPermission,
   getAncestorKeys,
   getSubtreeKeys,
   resolveSelectedKey,
@@ -46,7 +45,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
   const { isDarkMode, toggleTheme } = useTheme();
   const { headerContent } = useUIStore();
   const session = useAuthSession();
-  const { hasPermission } = useAccessContext();
+  const { mainNav, bottomNav, homePath } = useNavigationAccess();
   const navigate = useNavigate();
   const location = useLocation();
   const isStackedHeader = viewportWidth <= 900;
@@ -70,14 +69,6 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
     <span className="mini-dropdown-label" title="">{label}</span>
   );
 
-  const mainNav = React.useMemo(
-    () => filterNavByPermission(MAIN_NAV, hasPermission),
-    [hasPermission],
-  );
-  const bottomNav = React.useMemo(
-    () => filterNavByPermission(BOTTOM_NAV, hasPermission),
-    [hasPermission],
-  );
 
   /** Expanded sidebar: top-level entries carry an icon and bold label. */
   const toFullMenuItems = (nodes: NavNode[], depth = 0): MenuProps['items'] =>
@@ -216,7 +207,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
       >
         <div
           className={`app-sidebar-brand app-sidebar-brand-${sidebarMode}`}
-          onClick={() => navigate('/dashboard')}
+          onClick={() => { if (homePath) navigate(homePath); }}
         >
           {sidebarMode === 'full' ? (
             <>

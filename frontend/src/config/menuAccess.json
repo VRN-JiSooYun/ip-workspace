@@ -1,0 +1,16 @@
+{
+  "$comment": "메뉴별 노출 수준. edit=보기·편집, view=보기만, hide=숨김. USER는 모든 로그인 사용자에게 적용되고, 관리자 역할이 있으면 그 역할 값과 비교해 더 넓은 쪽을 쓴다. 적지 않은 역할·메뉴는 hide로 본다. 이 값은 permission을 좁히기만 하고 넓히지는 않는다. 설명: frontend/src/config/menuAccess.ts",
+  "menus": {
+    "dashboard":         { "USER": "hide", "PATENT_ANALYSIS_ADMIN": "edit", "SUPER_ADMIN": "edit" },
+    "patent-management": { "USER": "hide", "PATENT_ANALYSIS_ADMIN": "edit", "SUPER_ADMIN": "edit" },
+    "office-actions":    { "USER": "edit", "PATENT_ANALYSIS_ADMIN": "edit", "SUPER_ADMIN": "edit" },
+    "access-registry":   { "USER": "hide", "PATENT_ANALYSIS_ADMIN": "edit", "SUPER_ADMIN": "edit" },
+    "patent-code-admin": { "USER": "hide", "PATENT_ANALYSIS_ADMIN": "edit", "SUPER_ADMIN": "edit" },
+    "contact":           { "USER": "hide", "PATENT_ANALYSIS_ADMIN": "edit", "SUPER_ADMIN": "edit" }
+  },
+  "rightRail": {
+    "documents": { "USER": "edit", "PATENT_ANALYSIS_ADMIN": "edit", "SUPER_ADMIN": "edit" },
+    "schedule":  { "USER": "hide", "PATENT_ANALYSIS_ADMIN": "edit", "SUPER_ADMIN": "edit" },
+    "todo":      { "USER": "hide", "PATENT_ANALYSIS_ADMIN": "edit", "SUPER_ADMIN": "edit" }
+  }
+}

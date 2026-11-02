@@ -8,6 +8,8 @@ import {
   Maximize2,
   Minimize2,
 } from 'lucide-react';
+import { getRailAccessLevel } from '../../config/menuAccess';
+import { useAccessContext } from '../../contexts/AccessContext';
 import ResizableSidePanel from '../common/ResizableSidePanel';
 import DocumentRailPanel from './rail/DocumentRailPanel';
 import ScheduleRailPanel from './rail/ScheduleRailPanel';
@@ -57,8 +59,6 @@ const RAIL_ITEMS: RailItem[] = [
   { id: 'todo', label: 'To-do', icon: <ListChecks size={19} />, Panel: TodoRailPanel },
 ];
 
-const ITEM_BY_ID = new Map(RAIL_ITEMS.map((item) => [item.id, item]));
-
 /**
  * 우측 상시 레일.
  *
@@ -74,10 +74,17 @@ const ITEM_BY_ID = new Map(RAIL_ITEMS.map((item) => [item.id, item]));
  * 해서 넓어야 하고, 일정·To-do는 좁아도 된다. 조절한 값은 저장된다.
  */
 const RightSidebar: React.FC = () => {
-  const activeItem = useRightSidebarStore((state) => state.activeItem);
+  const { access } = useAccessContext();
+  /** `config/menuAccess.json`의 `rightRail`에서 `hide`인 항목은 레일에 없다. */
+  const railItems = React.useMemo(
+    () => RAIL_ITEMS.filter((item) => getRailAccessLevel(item.id, access.globalRoles) !== 'hide'),
+    [access.globalRoles],
+  );
+  const storedActiveItem = useRightSidebarStore((state) => state.activeItem);
+  const lastItem = useRightSidebarStore((state) => state.lastItem);
   const widths = useRightSidebarStore((state) => state.widths);
   const toggleItem = useRightSidebarStore((state) => state.toggleItem);
-  const toggleCollapsed = useRightSidebarStore((state) => state.toggleCollapsed);
+  const openItem = useRightSidebarStore((state) => state.openItem);
   const collapse = useRightSidebarStore((state) => state.collapse);
   const setWidth = useRightSidebarStore((state) => state.setWidth);
   const hasDocuments = useRightSidebarStore((state) => state.documentContext !== null);
@@ -97,7 +104,25 @@ const RightSidebar: React.FC = () => {
     return activeDocument?.applicationNumber ?? context.label;
   });
 
-  const active = activeItem ? ITEM_BY_ID.get(activeItem) : undefined;
+  /**
+   * 저장된 항목이 이 사용자에게 숨은 것일 수 있다(설정이 바뀌기 전에 열어 둔 일정 등).
+   * 그 경우 접힌 것으로 다룬다. store 값은 건드리지 않는다 — 다시 보이게 되면 그대로 열린다.
+   */
+  const active = railItems.find((item) => item.id === storedActiveItem);
+  const activeItem = active?.id ?? null;
+
+  /**
+   * 레일 상단 화살표. store의 toggleCollapsed는 '보이지 않는 항목'을 모르므로 여기서 푼다 —
+   * 접힌 것으로 보이는데 눌렀더니 숨은 항목이 열리거나, 아무 일도 안 일어나면 안 된다.
+   */
+  const toggleCollapsed = React.useCallback(() => {
+    if (active) {
+      collapse();
+      return;
+    }
+    const target = railItems.find((item) => item.id === lastItem) ?? railItems[0];
+    if (target) openItem(target.id);
+  }, [active, collapse, lastItem, openItem, railItems]);
 
   const handleWidthChange = React.useCallback((next: number) => {
     if (activeItem) setWidth(activeItem, next);
@@ -278,7 +303,7 @@ const RightSidebar: React.FC = () => {
           빠져나오지 못하고 화면에 남는다(mouseleave를 놓친다). 문서가 비어 있을 때의 안내는
           패널 본문이 직접 말한다(DocumentRailPanel의 빈 상태).
         */}
-        {RAIL_ITEMS.map((item) => {
+        {railItems.map((item) => {
           const isActive = activeItem === item.id;
           return (
             <button

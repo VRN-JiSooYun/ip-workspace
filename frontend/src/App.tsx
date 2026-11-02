@@ -1,14 +1,64 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { App as AntApp, ConfigProvider, theme } from 'antd';
+import { App as AntApp, ConfigProvider, Result, theme } from 'antd';
 import { useTheme } from './contexts/ThemeContext';
 import { brandAlpha, useBrandPrimary } from './theme/brandColor';
 import BrandColorDevPanel from './theme/BrandColorDevPanel';
 import MainLayout from './components/layout/MainLayout';
 import AuthGate from './components/auth/AuthGate';
 import RequirePermission from './components/auth/RequirePermission';
-import { APP_ROUTES } from './routes';
+import { useAccessContext } from './contexts/AccessContext';
+import { useNavigationAccess } from './hooks/useMenuAccess';
+import { APP_ROUTES, getRouteMenu, getRoutePermission, type AppRoute } from './routes';
 import { ROUTER_BASENAME } from './config/basePath';
+
+/**
+ * Renders `APP_ROUTES`. Lives below `AuthGate` because it needs the access
+ * context: a route whose `menuAccess.json` level is `hide` sends the user to
+ * the first menu they can see instead of rendering.
+ */
+const AppRoutes: React.FC = () => {
+  const { hasPermission } = useAccessContext();
+  const { menuLevel, homePath } = useNavigationAccess();
+
+  const isHidden = (path: string): boolean => {
+    const menu = getRouteMenu(path);
+    return menu !== undefined && menuLevel(menu) === 'hide';
+  };
+
+  const goHome = (): React.ReactNode => (
+    homePath
+      ? <Navigate to={homePath} replace />
+      // Nowhere to send them: redirecting would loop between hidden routes.
+      : <Result status="403" title="볼 수 있는 화면이 없습니다" subTitle="담당자에게 접근 권한을 요청해 주세요." />
+  );
+
+  const renderElement = (route: AppRoute): React.ReactNode => {
+    if (route.redirectTo) {
+      const permission = getRoutePermission(route.redirectTo);
+      const canOpen = !isHidden(route.redirectTo)
+        && (!permission || hasPermission(permission));
+      return canOpen ? <Navigate to={route.redirectTo} replace /> : goHome();
+    }
+    if (isHidden(route.path)) return goHome();
+    if (route.permission) {
+      return (
+        <RequirePermission permission={route.permission}>
+          {route.element}
+        </RequirePermission>
+      );
+    }
+    return route.element;
+  };
+
+  return (
+    <Routes>
+      {APP_ROUTES.map((route) => (
+        <Route key={route.path} path={route.path} element={renderElement(route)} />
+      ))}
+    </Routes>
+  );
+};
 
 const App: React.FC = () => {
   const { isDarkMode } = useTheme();
@@ -77,25 +127,7 @@ const App: React.FC = () => {
         <AntApp>
           <AuthGate>
             <MainLayout>
-            <Routes>
-              {APP_ROUTES.map((route) => (
-                <Route
-                  key={route.path}
-                  path={route.path}
-                  element={
-                    route.redirectTo
-                      ? <Navigate to={route.redirectTo} replace />
-                      : route.permission
-                        ? (
-                          <RequirePermission permission={route.permission}>
-                            {route.element}
-                          </RequirePermission>
-                        )
-                        : route.element
-                  }
-                />
-              ))}
-            </Routes>
+              <AppRoutes />
             </MainLayout>
           </AuthGate>
           {/* Static false in production, so Rollup drops the panel entirely. */}
