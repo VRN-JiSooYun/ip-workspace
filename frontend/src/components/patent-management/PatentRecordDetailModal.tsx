@@ -399,8 +399,9 @@ const PatentRecordDetailModal: React.FC<Props> = ({
       draftNoteUploads.current.clear();
       onSaved(next);
       setAuditRevision((current) => current + 1);
-      setEditDraft(null);
-      onClose();
+      // 적용 뒤에도 모달을 유지한다. 서버 응답을 새 초안 기준으로 삼으면 변경 감지가
+      // 곧바로 해제되어 [적용] 버튼이 다시 비활성화되고, 이어서 추가 편집할 수 있다.
+      setEditDraft({ ...next, inventorLinks: [...next.inventorLinks] });
     } catch (error) {
       setApplyError(error instanceof Error ? error.message : '변경사항을 적용하지 못했습니다.');
     } finally {
