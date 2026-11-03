@@ -1,6 +1,6 @@
 import { createHmac, randomUUID } from "node:crypto";
 import { Logger } from "@nestjs/common";
-import type { BetterAuthPlugin } from "better-auth";
+import type { BetterAuthPlugin, GenericEndpointContext } from "better-auth";
 import {
   APIError,
   createAuthEndpoint,
@@ -15,6 +15,10 @@ import {
   validateGroupwareToken,
   type GroupwareIdentity,
 } from "./groupware-login-check";
+import {
+  normalizeLoginToken,
+  resolveSafeNext,
+} from "./groupware-login-redirect";
 import { syncNotificationRecipientForUser } from "../notification-recipient/notification-recipient-sync";
 
 const GROUPWARE_PROVIDER_ID = "groupware";
@@ -50,6 +54,233 @@ const audit = async (data: {
       metadata: data.email ? { emailHash: emailHash(data.email) } : undefined,
     },
   });
+};
+
+type GroupwareExchangeInput = { loginToken: string; expectedEmail?: string };
+
+// POST /groupware/exchange와 GET /login이 같은 검증·계정 연결·세션 발급 경로를 쓰도록
+// 핸들러 본문을 그대로 옮겨 둔 함수다. 실패는 APIError로 던지고 audit은 여기서 남긴다.
+const exchangeGroupwareToken = async (
+  ctx: GenericEndpointContext,
+  input: GroupwareExchangeInput,
+) => {
+  const requestId = ctx.headers?.get("x-request-id") ?? randomUUID();
+  const origin = ctx.headers?.get("origin");
+  const ipAddress = ctx.headers?.get("x-forwarded-for")?.split(",")[0]?.trim();
+  const userAgent = ctx.headers?.get("user-agent") ?? undefined;
+
+  if (origin && !authRuntimeConfig.trustedOrigins.includes(origin)) {
+    throw new APIError("FORBIDDEN", { code: "AUTH_ORIGIN_REJECTED" });
+  }
+
+  let identity: GroupwareIdentity;
+  try {
+    identity = await validateGroupwareToken(input.loginToken);
+  } catch (error) {
+    // GROUPWARE_LOGIN_INVALID는 catch-all이므로 실제 실패 원인을 남긴다.
+    logger.error(
+      `groupware exchange 실패 requestId=${requestId} cause=${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    );
+    await audit({
+      eventType: "GROUPWARE_EXCHANGE",
+      result: "failure",
+      errorCode: "GROUPWARE_LOGIN_INVALID",
+      requestId,
+      ipAddress,
+      userAgent,
+    });
+    throw new APIError("UNAUTHORIZED", {
+      code: "GROUPWARE_LOGIN_INVALID",
+    });
+  }
+  const { email } = identity;
+
+  if (input.expectedEmail && input.expectedEmail !== email) {
+    await audit({
+      eventType: "GROUPWARE_EXCHANGE",
+      result: "failure",
+      errorCode: "GROUPWARE_ID_MISMATCH",
+      requestId,
+      email,
+      ipAddress,
+      userAgent,
+    });
+    throw new APIError("UNAUTHORIZED", {
+      code: "GROUPWARE_ID_MISMATCH",
+    });
+  }
+
+  let account = await ctx.context.internalAdapter.findAccountByProviderId(
+    email,
+    GROUPWARE_PROVIDER_ID,
+  );
+  let user = account
+    ? await ctx.context.internalAdapter.findUserById(account.userId)
+    : null;
+
+  if (!account) {
+    const emailOwner = await ctx.context.internalAdapter.findUserByEmail(
+      email,
+      {
+        includeAccounts: true,
+      },
+    );
+    if (emailOwner) {
+      await audit({
+        eventType: "GROUPWARE_EXCHANGE",
+        result: "failure",
+        errorCode: "AUTH_EMAIL_CONFLICT",
+        requestId,
+        targetUserId: emailOwner.user.id,
+        email,
+        ipAddress,
+        userAgent,
+      });
+      throw new APIError("CONFLICT", {
+        code: "AUTH_EMAIL_CONFLICT",
+        message: requestId,
+      });
+    }
+
+    const role = authRuntimeConfig.bootstrapAdminEmails.has(email)
+      ? "SUPER_ADMIN"
+      : "USER";
+    const encryptedToken = await setTokenUtil(input.loginToken, ctx.context);
+    try {
+      user = await ctx.context.internalAdapter.createUser({
+        email,
+        name: identity.fullname,
+        team: identity.team,
+        fullname: identity.fullname,
+        emailVerified: true,
+        role,
+        status: "ACTIVE",
+      } as never);
+    } catch {
+      const conflictingUser = await ctx.context.internalAdapter.findUserByEmail(
+        email,
+        {
+          includeAccounts: true,
+        },
+      );
+      await audit({
+        eventType: "GROUPWARE_EXCHANGE",
+        result: "failure",
+        errorCode: "AUTH_EMAIL_CONFLICT",
+        requestId,
+        targetUserId: conflictingUser?.user.id,
+        email,
+        ipAddress,
+        userAgent,
+      });
+      throw new APIError("CONFLICT", {
+        code: "AUTH_EMAIL_CONFLICT",
+        message: requestId,
+      });
+    }
+    try {
+      account = await ctx.context.internalAdapter.createAccount({
+        userId: user.id,
+        providerId: GROUPWARE_PROVIDER_ID,
+        accountId: email,
+        accessToken: encryptedToken,
+        tokenValidatedAt: new Date(),
+      } as never);
+    } catch (error) {
+      await ctx.context.internalAdapter.deleteUser(user.id);
+      throw error;
+    }
+    if (role === "SUPER_ADMIN") {
+      await audit({
+        eventType: "BOOTSTRAP_ADMIN_CREATED",
+        result: "success",
+        requestId,
+        actorUserId: user.id,
+        targetUserId: user.id,
+        email,
+        ipAddress,
+        userAgent,
+      });
+    }
+  } else if (user) {
+    if ((user as { status?: string }).status !== "ACTIVE") {
+      await ctx.context.internalAdapter.deleteUserSessions(user.id);
+      throw new APIError("FORBIDDEN", { code: "AUTH_USER_INACTIVE" });
+    }
+    const encryptedToken = await setTokenUtil(input.loginToken, ctx.context);
+    account = await ctx.context.internalAdapter.updateAccount(account.id, {
+      accessToken: encryptedToken,
+      tokenValidatedAt: new Date(),
+    } as never);
+  }
+
+  if (!user || !account) throw new APIError("INTERNAL_SERVER_ERROR");
+  if ((user as { status?: string }).status !== "ACTIVE") {
+    await ctx.context.internalAdapter.deleteUserSessions(user.id);
+    throw new APIError("FORBIDDEN", { code: "AUTH_USER_INACTIVE" });
+  }
+  user = await ctx.context.internalAdapter.updateUser(user.id, {
+    name: identity.fullname,
+    team: identity.team,
+    fullname: identity.fullname,
+  } as never);
+
+  try {
+    const recipient = await syncNotificationRecipientForUser(prisma, {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      status: (user as { status?: string }).status,
+    });
+    if (!recipient.memberId || recipient.status !== "ACTIVE") {
+      await ctx.context.internalAdapter.deleteUserSessions(user.id);
+      throw new APIError("FORBIDDEN", {
+        code: "AUTH_MEMBER_ID_NOT_LINKED",
+      });
+    }
+  } catch {
+    await audit({
+      eventType: "NOTIFICATION_RECIPIENT_SYNC",
+      result: "failure",
+      errorCode: "NOTIFICATION_RECIPIENT_SYNC_FAILED",
+      requestId,
+      actorUserId: user.id,
+      targetUserId: user.id,
+      email,
+      ipAddress,
+      userAgent,
+    }).catch(() => undefined);
+    await ctx.context.internalAdapter.deleteUserSessions(user.id);
+    throw new APIError("FORBIDDEN", {
+      code: "AUTH_MEMBER_ID_NOT_LINKED",
+    });
+  }
+
+  const createdSession = await ctx.context.internalAdapter.createSession(
+    user.id,
+    false,
+  );
+  const session = await ctx.context.internalAdapter.findSession(
+    createdSession.token,
+  );
+  if (!session)
+    throw new APIError("INTERNAL_SERVER_ERROR", {
+      code: "SESSION_NOT_FOUND",
+    });
+  await setSessionCookie(ctx, session);
+  await audit({
+    eventType: "GROUPWARE_EXCHANGE",
+    result: "success",
+    requestId,
+    actorUserId: user.id,
+    targetUserId: user.id,
+    email,
+    ipAddress,
+    userAgent,
+  });
+  return { user: session.user, session: session.session, requestId };
 };
 
 export const groupwareSsoPlugin = () =>
@@ -163,234 +394,57 @@ export const groupwareSsoPlugin = () =>
           }),
         },
         async (ctx) => {
-          const requestId = ctx.headers?.get("x-request-id") ?? randomUUID();
-          const origin = ctx.headers?.get("origin");
-          const ipAddress = ctx.headers
-            ?.get("x-forwarded-for")
-            ?.split(",")[0]
-            ?.trim();
-          const userAgent = ctx.headers?.get("user-agent") ?? undefined;
+          const { user, session, requestId } = await exchangeGroupwareToken(
+            ctx,
+            ctx.body,
+          );
+          return ctx.json({ user, session, requestId });
+        },
+      ),
+      // Groupware가 사용자를 직접 보내는 진입점. 검증과 세션 쿠키 발급을 서버에서 끝내고
+      // 앱으로 redirect하므로 Token이 브라우저 JS나 주소창에 남지 않는다.
+      // 실패해도 이유를 URL로 알리지 않고 앱 첫 화면으로 보낸다(AuthGate가 로그인 안내를 띄운다).
+      groupwareLogin: createAuthEndpoint(
+        "/login",
+        {
+          method: "GET",
+          query: z.object({
+            user_id: z.string().max(320).optional(),
+            login_token: z.string().max(8192).optional(),
+            next: z.string().max(2048).optional(),
+          }),
+        },
+        async (ctx) => {
+          ctx.setHeader("Cache-Control", "no-store");
+          ctx.setHeader("Referrer-Policy", "no-referrer");
 
-          if (origin && !authRuntimeConfig.trustedOrigins.includes(origin)) {
-            throw new APIError("FORBIDDEN", { code: "AUTH_ORIGIN_REJECTED" });
-          }
+          const fallback = authRuntimeConfig.appBasePath;
+          const userId = ctx.query.user_id?.trim().toLowerCase();
+          const loginToken = ctx.query.login_token?.trim();
+          if (!userId || !loginToken) throw ctx.redirect(fallback);
 
-          let identity: GroupwareIdentity;
           try {
-            identity = await validateGroupwareToken(ctx.body.loginToken);
+            await exchangeGroupwareToken(ctx, {
+              loginToken: normalizeLoginToken(loginToken),
+              expectedEmail: userId,
+            });
           } catch (error) {
-            // GROUPWARE_LOGIN_INVALID는 catch-all이므로 실제 실패 원인을 남긴다.
-            logger.error(
-              `groupware exchange 실패 requestId=${requestId} cause=${
-                error instanceof Error ? error.message : String(error)
+            // Token과 email은 남기지 않는다. 검증 실패의 상세 원인과 audit은 exchange 쪽에서 기록한다.
+            logger.warn(
+              `groupware login 실패 cause=${
+                error instanceof APIError
+                  ? ((error.body as { code?: string } | undefined)?.code ??
+                    error.message)
+                  : error instanceof Error
+                    ? error.message
+                    : String(error)
               }`,
             );
-            await audit({
-              eventType: "GROUPWARE_EXCHANGE",
-              result: "failure",
-              errorCode: "GROUPWARE_LOGIN_INVALID",
-              requestId,
-              ipAddress,
-              userAgent,
-            });
-            throw new APIError("UNAUTHORIZED", {
-              code: "GROUPWARE_LOGIN_INVALID",
-            });
+            throw ctx.redirect(fallback);
           }
-          const { email } = identity;
-
-          if (ctx.body.expectedEmail && ctx.body.expectedEmail !== email) {
-            await audit({
-              eventType: "GROUPWARE_EXCHANGE",
-              result: "failure",
-              errorCode: "GROUPWARE_ID_MISMATCH",
-              requestId,
-              email,
-              ipAddress,
-              userAgent,
-            });
-            throw new APIError("UNAUTHORIZED", {
-              code: "GROUPWARE_ID_MISMATCH",
-            });
-          }
-
-          let account =
-            await ctx.context.internalAdapter.findAccountByProviderId(
-              email,
-              GROUPWARE_PROVIDER_ID,
-            );
-          let user = account
-            ? await ctx.context.internalAdapter.findUserById(account.userId)
-            : null;
-
-          if (!account) {
-            const emailOwner =
-              await ctx.context.internalAdapter.findUserByEmail(email, {
-                includeAccounts: true,
-              });
-            if (emailOwner) {
-              await audit({
-                eventType: "GROUPWARE_EXCHANGE",
-                result: "failure",
-                errorCode: "AUTH_EMAIL_CONFLICT",
-                requestId,
-                targetUserId: emailOwner.user.id,
-                email,
-                ipAddress,
-                userAgent,
-              });
-              throw new APIError("CONFLICT", {
-                code: "AUTH_EMAIL_CONFLICT",
-                message: requestId,
-              });
-            }
-
-            const role = authRuntimeConfig.bootstrapAdminEmails.has(email)
-              ? "SUPER_ADMIN"
-              : "USER";
-            const encryptedToken = await setTokenUtil(
-              ctx.body.loginToken,
-              ctx.context,
-            );
-            try {
-              user = await ctx.context.internalAdapter.createUser({
-                email,
-                name: identity.fullname,
-                team: identity.team,
-                fullname: identity.fullname,
-                emailVerified: true,
-                role,
-                status: "ACTIVE",
-              } as never);
-            } catch {
-              const conflictingUser =
-                await ctx.context.internalAdapter.findUserByEmail(email, {
-                  includeAccounts: true,
-                });
-              await audit({
-                eventType: "GROUPWARE_EXCHANGE",
-                result: "failure",
-                errorCode: "AUTH_EMAIL_CONFLICT",
-                requestId,
-                targetUserId: conflictingUser?.user.id,
-                email,
-                ipAddress,
-                userAgent,
-              });
-              throw new APIError("CONFLICT", {
-                code: "AUTH_EMAIL_CONFLICT",
-                message: requestId,
-              });
-            }
-            try {
-              account = await ctx.context.internalAdapter.createAccount({
-                userId: user.id,
-                providerId: GROUPWARE_PROVIDER_ID,
-                accountId: email,
-                accessToken: encryptedToken,
-                tokenValidatedAt: new Date(),
-              } as never);
-            } catch (error) {
-              await ctx.context.internalAdapter.deleteUser(user.id);
-              throw error;
-            }
-            if (role === "SUPER_ADMIN") {
-              await audit({
-                eventType: "BOOTSTRAP_ADMIN_CREATED",
-                result: "success",
-                requestId,
-                actorUserId: user.id,
-                targetUserId: user.id,
-                email,
-                ipAddress,
-                userAgent,
-              });
-            }
-          } else if (user) {
-            if ((user as { status?: string }).status !== "ACTIVE") {
-              await ctx.context.internalAdapter.deleteUserSessions(user.id);
-              throw new APIError("FORBIDDEN", { code: "AUTH_USER_INACTIVE" });
-            }
-            const encryptedToken = await setTokenUtil(
-              ctx.body.loginToken,
-              ctx.context,
-            );
-            account = await ctx.context.internalAdapter.updateAccount(
-              account.id,
-              {
-                accessToken: encryptedToken,
-                tokenValidatedAt: new Date(),
-              } as never,
-            );
-          }
-
-          if (!user || !account) throw new APIError("INTERNAL_SERVER_ERROR");
-          if ((user as { status?: string }).status !== "ACTIVE") {
-            await ctx.context.internalAdapter.deleteUserSessions(user.id);
-            throw new APIError("FORBIDDEN", { code: "AUTH_USER_INACTIVE" });
-          }
-          user = await ctx.context.internalAdapter.updateUser(user.id, {
-            name: identity.fullname,
-            team: identity.team,
-            fullname: identity.fullname,
-          } as never);
-
-          try {
-            const recipient = await syncNotificationRecipientForUser(prisma, {
-              id: user.id,
-              name: user.name,
-              email: user.email,
-              status: (user as { status?: string }).status,
-            });
-            if (!recipient.memberId || recipient.status !== "ACTIVE") {
-              await ctx.context.internalAdapter.deleteUserSessions(user.id);
-              throw new APIError("FORBIDDEN", {
-                code: "AUTH_MEMBER_ID_NOT_LINKED",
-              });
-            }
-          } catch {
-            await audit({
-              eventType: "NOTIFICATION_RECIPIENT_SYNC",
-              result: "failure",
-              errorCode: "NOTIFICATION_RECIPIENT_SYNC_FAILED",
-              requestId,
-              actorUserId: user.id,
-              targetUserId: user.id,
-              email,
-              ipAddress,
-              userAgent,
-            }).catch(() => undefined);
-            await ctx.context.internalAdapter.deleteUserSessions(user.id);
-            throw new APIError("FORBIDDEN", {
-              code: "AUTH_MEMBER_ID_NOT_LINKED",
-            });
-          }
-
-          const createdSession =
-            await ctx.context.internalAdapter.createSession(user.id, false);
-          const session = await ctx.context.internalAdapter.findSession(
-            createdSession.token,
+          throw ctx.redirect(
+            resolveSafeNext(ctx.query.next, authRuntimeConfig.appBasePath),
           );
-          if (!session)
-            throw new APIError("INTERNAL_SERVER_ERROR", {
-              code: "SESSION_NOT_FOUND",
-            });
-          await setSessionCookie(ctx, session);
-          await audit({
-            eventType: "GROUPWARE_EXCHANGE",
-            result: "success",
-            requestId,
-            actorUserId: user.id,
-            targetUserId: user.id,
-            email,
-            ipAddress,
-            userAgent,
-          });
-          return ctx.json({
-            user: session.user,
-            session: session.session,
-            requestId,
-          });
         },
       ),
     },

@@ -106,6 +106,8 @@ services:
       - BETTER_AUTH_URL=${PUBLIC_ORIGIN:-https://voronoi.app:28000}
       - BETTER_AUTH_TRUSTED_ORIGINS=${PUBLIC_ORIGIN:-https://voronoi.app:28000},http://localhost:25443,http://172.16.1.183:25443
       - BETTER_AUTH_SECRETS=${BETTER_AUTH_SECRETS:?BETTER_AUTH_SECRETS is required}
+      # GET /api/auth/login이 로그인 뒤 돌려보낼 앱 prefix. 위 web 서비스의 BASE_PATH와 같아야 한다.
+      - APP_BASE_PATH=${BASE_PATH:-/ip-workspace/}
       - GROUPWARE_ORIGIN=${GROUPWARE_ORIGIN:-https://voronoi.app}
       - GROUPWARE_LOGIN_CHECK_URL=${GROUPWARE_LOGIN_CHECK_URL:-http://172.16.1.32:10050/login_check}
       - GROUPWARE_LOGIN_CHECK_TIMEOUT_MS=10000

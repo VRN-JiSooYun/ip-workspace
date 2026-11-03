@@ -13,8 +13,18 @@ const readSecretSource = (): string => {
   return process.env.BETTER_AUTH_SECRETS?.trim() ?? "";
 };
 
+// 앞단 nginx가 붙이는 앱 prefix. 서버는 브라우저가 자기를 어떤 주소로 부르는지 모르므로
+// GET /api/auth/login이 로그인 뒤 돌려보낼 주소를 만들려면 따로 알아야 한다.
+// 프런트의 BASE_PATH(docker-compose)와 같은 값이며, 항상 `/`로 시작하고 끝난다.
+// 프런트와 마찬가지로 prefix 없이 서빙하면 `/`다.
+const normalizeBasePath = (value: string | undefined): string => {
+  const trimmed = (value ?? "").trim().replace(/^\/+|\/+$/g, "");
+  return trimmed ? `/${trimmed}/` : "/";
+};
+
 export const authRuntimeConfig = {
   baseUrl: process.env.BETTER_AUTH_URL ?? "http://localhost:3000",
+  appBasePath: normalizeBasePath(process.env.APP_BASE_PATH),
   trustedOrigins: (
     process.env.BETTER_AUTH_TRUSTED_ORIGINS ?? "http://localhost:5174"
   )
