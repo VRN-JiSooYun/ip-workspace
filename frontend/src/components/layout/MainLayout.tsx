@@ -50,7 +50,6 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
   const location = useLocation();
   const isStackedHeader = viewportWidth <= 900;
   const headerHeight = isStackedHeader ? 128 : 80;
-  const voraExternalUrl = 'https://voronoi.app/vora/';
   const userDisplayName = session.user.fullname?.trim()
     || session.user.name?.trim()
     || session.user.email;
@@ -382,11 +381,11 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
 
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: isStackedHeader ? 'flex-end' : 'flex-start', gap: isStackedHeader ? 12 : 24, flexShrink: 0, width: isStackedHeader ? '100%' : undefined, minWidth: 0, height: 40 }}>
             <Space align="center" size={isStackedHeader ? 8 : 16} style={{ height: 40, lineHeight: 1 }}>
-              <Button
+              {/* <Button
                 type="text"
                 icon={<Bell size={20} color={token.colorTextSecondary} />}
                 style={{ width: 40, height: 40, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
-              />
+              /> */}
               <Button type="text" onClick={toggleTheme} style={{ width: 40, height: 40, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }} icon={
                 isDarkMode ? <Sun size={20} color={token.colorTextSecondary} /> : <Moon size={20} color={token.colorTextSecondary} />
               } />
