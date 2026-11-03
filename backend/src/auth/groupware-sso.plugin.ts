@@ -420,12 +420,15 @@ export const groupwareSsoPlugin = () =>
 
           const fallback = authRuntimeConfig.appBasePath;
           const userId = ctx.query.user_id?.trim().toLowerCase();
-          const loginToken = ctx.query.login_token?.trim();
+          // 공백 복구가 trim보다 먼저여야 앞뒤의 `+`가 잘리지 않는다.
+          const loginToken = normalizeLoginToken(
+            ctx.query.login_token ?? "",
+          ).trim();
           if (!userId || !loginToken) throw ctx.redirect(fallback);
 
           try {
             await exchangeGroupwareToken(ctx, {
-              loginToken: normalizeLoginToken(loginToken),
+              loginToken,
               expectedEmail: userId,
             });
           } catch (error) {

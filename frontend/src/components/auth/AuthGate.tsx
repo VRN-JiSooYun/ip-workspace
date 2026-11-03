@@ -1,5 +1,6 @@
 import { Button, Card, Result, Spin, Typography } from 'antd';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { z } from 'zod';
 import { useLocation } from 'react-router-dom';
 import { AuthSessionProvider } from '../../contexts/AuthSessionContext';
 import {
@@ -27,51 +28,40 @@ type GroupwareQueryAuth =
   | { type: 'invalid' }
   | { type: 'valid'; email: string; loginToken: string };
 
-const decodeQueryValue = (value: string): string | null => {
-  try {
-    return decodeURIComponent(value);
-  } catch {
-    return null;
-  }
-};
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+// Groupware가 보내는 자동 로그인 쿼리. 서버 `GET /api/auth/login`과 같은 파라미터 이름이다.
+// 형식만 거르고, Token의 진위는 서버가 Groupware에 확인한다.
+const groupwareLoginQuery = z.object({
+  user_id: z.string().trim().toLowerCase().regex(EMAIL_PATTERN),
+  // base64 Token의 `+`가 인코딩되지 않은 채 오면 쿼리 파서가 공백으로 바꾼다. base64에는
+  // 공백이 없으므로 되돌린다. trim보다 먼저 해야 앞뒤의 `+`가 잘리지 않는다.
+  login_token: z
+    .string()
+    .transform((value) => value.replace(/ /g, '+'))
+    .pipe(z.string().trim().min(1)),
+});
 
 const readGroupwareQueryAuth = (search: string): GroupwareQueryAuth => {
-  const values = new Map<string, Array<string | null>>();
-  for (const part of search.replace(/^\?/, '').split('&')) {
-    if (!part) continue;
-    const separatorIndex = part.indexOf('=');
-    const rawKey = separatorIndex >= 0 ? part.slice(0, separatorIndex) : part;
-    const rawValue = separatorIndex >= 0 ? part.slice(separatorIndex + 1) : '';
-    const key = decodeQueryValue(rawKey.replace(/\+/g, ' '));
-    if (key !== 'id' && key !== 'token') continue;
-    const currentValues = values.get(key) ?? [];
-    // Token의 인코딩되지 않은 `+`도 기존 Groupware URL과 호환되도록 그대로 보존한다.
-    currentValues.push(decodeQueryValue(rawValue));
-    values.set(key, currentValues);
-  }
+  const params = new URLSearchParams(search);
+  const userIds = params.getAll('user_id');
+  const loginTokens = params.getAll('login_token');
+  if (userIds.length === 0 && loginTokens.length === 0) return { type: 'none' };
+  // 하나만 있거나 같은 이름이 여러 번 나오면 어느 값을 믿을지 알 수 없으므로 거부한다.
+  if (userIds.length !== 1 || loginTokens.length !== 1) return { type: 'invalid' };
 
-  const ids = values.get('id') ?? [];
-  const tokens = values.get('token') ?? [];
-  if (ids.length === 0 && tokens.length === 0) return { type: 'none' };
-  const rawEmail = ids[0];
-  const rawLoginToken = tokens[0];
-  if (ids.length !== 1 || tokens.length !== 1 ||
-    typeof rawEmail !== 'string' || typeof rawLoginToken !== 'string') {
-    return { type: 'invalid' };
-  }
-
-  const email = rawEmail.trim().toLowerCase();
-  const loginToken = rawLoginToken.trim();
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || !loginToken) {
-    return { type: 'invalid' };
-  }
-  return { type: 'valid', email, loginToken };
+  const parsed = groupwareLoginQuery.safeParse({
+    user_id: userIds[0],
+    login_token: loginTokens[0],
+  });
+  if (!parsed.success) return { type: 'invalid' };
+  return { type: 'valid', email: parsed.data.user_id, loginToken: parsed.data.login_token };
 };
 
 const removeGroupwareQueryAuth = (): void => {
   const url = new URL(window.location.href);
-  url.searchParams.delete('id');
-  url.searchParams.delete('token');
+  url.searchParams.delete('user_id');
+  url.searchParams.delete('login_token');
   window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
 };
 

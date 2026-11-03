@@ -35,6 +35,8 @@ GET /ip-workspace/api/auth/login?user_id=<email>&login_token=<token>[&next=<앱 
 | `backend/src/auth/groupware-login-redirect.spec.ts` | 위 두 함수의 단위 테스트 |
 | `backend/src/auth/auth-config.ts` | `appBasePath` 추가 (`APP_BASE_PATH`) |
 | `docker-compose.yml` | backend에 `APP_BASE_PATH=${BASE_PATH:-/ip-workspace/}` 추가 |
+| `frontend/src/components/auth/AuthGate.tsx` | 자동 로그인 쿼리를 `user_id`/`login_token` + zod로 파싱 |
+| `frontend/package.json` | `zod` 의존성 추가 |
 
 `/groupware/exchange`의 동작은 바꾸지 않았다. 핸들러 본문을 그대로 함수로 옮겼고
 요청·응답 형태가 같다. 검증, 계정 연결, 사용자 상태 확인, 알림 수신자 동기화, 세션 발급,
@@ -44,8 +46,8 @@ audit 기록이 두 경로에서 똑같이 일어난다.
 
 - **`+` 처리**: Groupware 링크의 base64 Token에는 `+`가 인코딩되지 않은 채 실려 오고
   쿼리 파서가 이를 공백으로 바꾼다. `normalizeLoginToken`이 공백을 `+`로 되돌린다.
-  base64에는 공백이 없으므로 안전하다. 프런트의 수동 쿼리 파싱(`readGroupwareQueryAuth`)과
-  같은 문제를 푸는 방식이다.
+  base64에는 공백이 없으므로 안전하다. 이 복구는 trim보다 먼저 해야 한다. 앞뒤의 `+`가 공백이
+  된 채 trim되면 Token이 잘리기 때문이다(최초 구현에서는 순서가 반대였고 같은 날 고쳤다).
 - **`user_id`는 신뢰하지 않는다**: 서버가 Token으로 확인한 email과 대조하는 `expectedEmail`로만
   쓴다. 다르면 `GROUPWARE_ID_MISMATCH`로 실패하고 세션을 만들지 않는다.
 - **`next` 검증 (`resolveSafeNext`)**: open redirect를 막는다. 다음은 모두 앱 첫 화면으로 돌린다.
@@ -68,15 +70,34 @@ audit 기록이 두 경로에서 똑같이 일어난다.
 3. nginx access log에 query string(Token)이 남는지 확인한다. Token이 일회용인지 만료 시간이
    얼마인지는 Groupware 정책이라 이 작업에서 확인하지 못했다.
 
-## 기존 경로와의 관계
+## 프런트 `AuthGate`의 자동 로그인 파라미터
 
-`AuthGate`의 `?id=&token=` 처리와 `POST /groupware/exchange`는 그대로 둔다. 팝업 로그인
-(`postMessage`)과 기존 링크가 계속 동작한다. 프런트는 이번 작업에서 수정하지 않았다.
+`AuthGate`가 URL에서 읽는 자동 로그인 파라미터도 `id`/`token`에서 `user_id`/`login_token`으로
+바꿨다. 서버 `GET /api/auth/login`과 같은 이름이다.
+
+- 수동 쿼리 파싱(`readGroupwareQueryAuth`의 `&`/`=` 분해와 `decodeQueryValue`)을 없애고
+  `URLSearchParams` + zod 스키마(`groupwareLoginQuery`)로 바꿨다.
+  - `user_id`: trim, 소문자화, email 형식(기존과 같은 정규식).
+  - `login_token`: 공백을 `+`로 복구한 뒤 trim, 빈 값 불가. 복구가 trim보다 먼저여야 앞뒤의 `+`가
+    잘리지 않는다.
+  - 둘 중 하나만 있거나 같은 이름이 여러 번 나오면 `invalid`.
+- `removeGroupwareQueryAuth`도 새 이름을 지우도록 바꿨다.
+- **기존 `?id=&token=` 링크는 더 이상 자동 로그인으로 처리하지 않는다.** 이 이름은 쿼리가 없는
+  것으로 보므로 일반 진입(세션 확인, 없으면 팝업 로그인)으로 간다.
+- 팝업 로그인(`postMessage`)과 `POST /groupware/exchange`는 그대로다.
+- `zod`를 `frontend/package.json`의 dependencies에 추가했다(`^4.6.7`). 이전에는 저장소 루트의
+  `node_modules`에만 있어서 프런트가 부모 디렉터리 resolve로 우연히 찾는 상태였다.
+  `bun.lock`은 `bun install`을 돌려야 갱신된다(이번 작업에서는 설치를 실행하지 않았다).
 
 ## 검증
 
 - `tsc --noEmit`: 통과.
 - `jest src/auth/`: 2 suites, 18 tests 통과 (`groupware-login-check.spec.ts`, `groupware-login-redirect.spec.ts`).
+- 프런트 `tsc -p tsconfig.app.json --noEmit`: 통과.
+- 프런트에는 테스트 러너가 없어서, `groupwareLoginQuery` 스키마를 같은 정의로 옮겨 node로 돌려
+  확인했다: 인코딩된 `+`(`%2B`)와 인코딩되지 않은 `+` 모두 같은 Token으로 복구, 앞뒤 `+` 보존,
+  파라미터 없음→`none`, 한쪽만 있음·중복·email 형식 오류·빈 Token→`invalid`, 예전 이름(`id`/`token`)→`none`.
+  실제 `AuthGate` 코드를 브라우저에서 실행해 본 것은 아니다.
 - 전체 `jest`에서는 `authorization/*`, `patent-analysis/*`, `patent-analysis-admin/*`,
   `app.controller` 스펙 5개가 로드 단계에서 실패한다(`generated/prisma/client.ts`의
   `import.meta`). 이번 변경 파일을 import하지 않는 스펙이고 테스트 케이스는 모두 통과(206/206)한다.
